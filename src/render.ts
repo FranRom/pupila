@@ -35,11 +35,23 @@ function escapeMd(s: string | null | undefined): string {
   return s.replace(/\|/g, '\\|').replace(/\r?\n/g, ' ').slice(0, 120);
 }
 
+function escapeHtmlAttr(s: string): string {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+function externalLink(url: string, label: string): string {
+  return `<a href="${escapeHtmlAttr(url)}" target="_blank" rel="noopener noreferrer">${label}</a>`;
+}
+
 function row(job: Job): string {
   const title = escapeMd(job.title);
   const company = escapeMd(job.company ?? '—');
   const posted = job.postedAt ? relativeTime(job.postedAt) : '—';
-  const link = `[apply](${job.url})`;
+  const link = externalLink(job.url, 'apply');
   return `| ${job.fitScore} | ${title} | ${company} | ${job.source} | ${posted} | ${link} |`;
 }
 
