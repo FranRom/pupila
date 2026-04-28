@@ -19,7 +19,7 @@ Manually checking 11 job boards every morning is tedious. This repo replaces tha
 | Language | TypeScript 5.9 (NodeNext, strict) |
 | Lint + format | Biome 2.4 |
 | Package manager | pnpm 10 |
-| Tests | Vitest 3 (41 unit tests on filters, dedup, utils) |
+| Tests | Vitest 3 (55 unit tests on filters, dedup, utils, applied) |
 | Pre-commit | simple-git-hooks (runs lint + typecheck on every commit) |
 | HTTP | Native `fetch` with `AbortController` (30s timeout, 1 retry on 5xx/network) |
 | RSS parsing | `fast-xml-parser` (only runtime dep) |
@@ -54,12 +54,17 @@ Manually checking 11 job boards every morning is tedious. This repo replaces tha
         │                       │                           │
         │                       ▼                           │
         │   filters.applyFilters: hard excludes + scoring   │
+        │     (boilerplate stripped, body truncated to      │
+        │      first 1500 chars before keyword scoring)     │
         │                       │                           │
         │                       ▼                           │
         │   dedup.dedupe: by URL, then by company+title     │
         │                       │                           │
         │                       ▼                           │
         │   sort by fitScore desc, postedAt desc, id asc    │
+        │                       │                           │
+        │                       ▼                           │
+        │   attach config/applied.json status (by URL hash) │
         │                       │                           │
         │                       ▼                           │
         │   diff against previous data/jobs.json (✨ new)    │
@@ -119,11 +124,13 @@ interface Job {
   remote: boolean;            // inferred from text + tags
   body: string;               // HTML stripped via regex (in-memory only)
   tags: string[];
+  salary: string | null;      // surfaced when source provides it (Ashby/Lever/Remotive/web3career/aijobs)
   postedAt: string | null;    // ISO 8601
   fetchedAt: string;          // ISO 8601, set at run-start
   fitScore: number;           // 0-100, populated by filters
   category: 'web3' | 'ai' | 'web3+ai' | 'general';
   _signals?: JobSignals;      // per-job scoring breakdown (see below)
+  applied?: AppliedEntry;     // attached when matched against config/applied.json
 }
 ```
 
@@ -143,7 +150,9 @@ URLs are canonicalized (`utm_*` stripped, trailing slash normalized) before hash
 - Title is a non-engineering executive role: `VP`, `Vice President`, `CMO`, `CRO`, `CFO`, `COO`.
 - URL scheme is not `http(s):` (security gate against `javascript:` / `data:` / `file:` URLs from upstream).
 
-**Soft signals** (additive, capped at 100):
+**Body preparation for scoring.** Before regex-matching for keywords, the body is run through `preparedScoringBody`: it strips known company-boilerplate sections (EEO, privacy notices, accommodations, "About us") and truncates to the first 1500 characters. This prevents false positives from recruiter footers (e.g. "we use Anthropic Claude internally for support tooling" landing a +20 AI signal on a backend role). Hard-drop checks still see the full body so onsite/US-only language at the bottom of a posting is honored.
+
+**Soft signals** (additive, capped at 100; weights live in [`config/profile.json`](./config/profile.json)):
 
 | Signal | Weight |
 |---|---:|
@@ -156,6 +165,8 @@ URLs are canonicalized (`utm_*` stripped, trailing slash normalized) before hash
 | Stack — body contains `graphql\|tailwind\|vite` | +5 |
 | Lead title — title contains `lead\|staff\|principal\|head` | +15 |
 | Senior title — title contains `senior\|sr` | +10 |
+| Frontend title — title contains `frontend\|front-end\|fullstack\|full-stack\|web\|mobile` | +10 |
+| Frontend body — body contains role-specific frontend phrases (design system, ship components, accessibility, etc.) | +10 |
 | Location — location or body contains `remote\|worldwide\|emea\|europe\|cet\|spain\|global\|anywhere` | +10 |
 | Freshness — `postedAt` within 7 days | +10 |
 | Freshness — `postedAt` within 14 days (and not within 7) | +5 |
@@ -176,10 +187,11 @@ URLs are canonicalized (`utm_*` stripped, trailing slash normalized) before hash
     "aiTitleBody": 20,     "aiStack": 20,
     "stackPrimary": 10,    "stackRn": 0,    "stackOther": 0,
     "leadTitle": 0,        "seniorTitle": 10,
+    "frontendTitle": 10,   "frontendBody": 10,
     "locationRemote": 10,
     "freshness7d": 10,     "freshness14d": 0,
     "usCentricPenalty": 0,
-    "rawTotal": 100,       "capped": false
+    "rawTotal": 110,       "capped": true
   }
 }
 ```
@@ -210,13 +222,50 @@ Before writing the new `data/jobs.json`, the orchestrator reads the **previous**
 `src/render.ts` produces `JOBS.md` with:
 
 1. Stats (totals, drop reasons, by-source breakdown, by-category breakdown).
-2. **✨ New since last run** — top 20 newest jobs by `fitScore` (omitted when empty or on first run).
-3. **Top Web3 + AI** — top 10.
-4. **Top Web3** — top 20.
-5. **Top AI** — top 20.
-6. **Other** — top 10.
+2. **📋 Application status** — summary line + table of every job in `config/applied.json`, sorted by date desc (omitted when no entries).
+3. **✨ New since last run** — top 20 newest jobs by `fitScore` (omitted when empty or on first run).
+4. **Top Web3 + AI** — top 10.
+5. **Top Web3** — top 20.
+6. **Top AI** — top 20.
+7. **Other** — top 10.
 
-Each table row: `Score | Title | Company | Source | Posted (relative) | Link`. The full sorted list also lands in `data/jobs.json`, including the `_signals` breakdown per job.
+Each table row: `Score | Title | Company | Source | Posted (relative) | Link`. The title cell carries an emoji prefix when the job is in `config/applied.json` (📝 applied, 💬 interview, 🎯 offer, ❌ rejected, ⏸ withdrawn) and a ` · <salary>` suffix when the source provides salary data. The full sorted list also lands in `data/jobs.json`, including the `_signals` breakdown per job.
+
+## Application tracking
+
+[`config/applied.json`](./config/applied.json) is a hand-edited list of jobs you've applied to. Schema:
+
+```jsonc
+[
+  {
+    "url": "https://jobs.ashbyhq.com/openai/abc123",
+    "status": "applied",         // applied | interview | offer | rejected | withdrawn
+    "date": "2026-04-25",
+    "notes": "optional free text"
+  }
+]
+```
+
+[`src/applied.ts`](./src/applied.ts) loads the file at run-time, hashes each `url` with the same `sha1(normalizeUrl(...))` used for `Job.id`, and attaches the matching entry as `Job.applied`. Matched jobs are surfaced in the "📋 Application status" section at the top of `JOBS.md` *and* keep appearing in their normal category section with the status emoji prefix — a deliberate choice so already-applied jobs aren't filtered out (you may want to re-check, follow up, or compare against a new posting).
+
+## Tuning filters via `config/profile.json`
+
+[`config/profile.json`](./config/profile.json) externalizes every scoring weight and keyword list. Adjust weights without touching code:
+
+```jsonc
+{
+  "scoring": { "minScoreToKeep": 30, "maxScore": 100, "scoringBodyMaxChars": 1500 },
+  "weights": { "web3TitleBody": 20, "aiStack": 20, "frontendBody": 10, ... },
+  "keywords": {
+    "junior":      ["junior", "jr", "intern", "entry-?level", "associate", ...],
+    "seniorReq":   ["senior", "sr", "staff", "principal", "lead", "head", ...],
+    "aiStack":     ["anthropic", "claude", "openai", ...],
+    "bodyFrontend":["design system", "ship components", "accessibility", ...]
+  }
+}
+```
+
+Keyword arrays are joined with `|` and compiled into word-bounded, case-insensitive regexes at startup. Adding a keyword is a single-line edit; nothing else needs to change.
 
 ## Repo layout
 
@@ -229,7 +278,9 @@ job-hunt/
 │   │   └── check.yml          # PR/push: lint + typecheck + tests + audit
 │   └── dependabot.yml         # weekly npm + github-actions updates
 ├── config/
-│   └── slugs.json             # tier-S Ashby/Greenhouse/Lever slug arrays
+│   ├── slugs.json             # tier-S Ashby/Greenhouse/Lever slug arrays
+│   ├── profile.json           # scoring weights + keyword lists (non-code tuning)
+│   └── applied.json           # hand-edited application tracking list
 ├── data/
 │   ├── jobs.json              # slim output (no body), committed daily
 │   ├── archive/               # YYYY-MM.json, written on day 1 of each month
@@ -247,20 +298,23 @@ job-hunt/
 │   │   ├── aijobsnet.ts
 │   │   ├── hn-hiring.ts
 │   │   └── hn-jobs.ts
-│   ├── types.ts               # Job, Source, Category, FetcherResult, Raw* shapes
+│   ├── types.ts               # Job, Source, Category, AppliedEntry, FetcherResult, Raw* shapes
 │   ├── utils.ts               # fetchWithTimeout, retry, isSafeUrl, sha1, stripHtml, ...
 │   ├── rss.ts                 # shared fast-xml-parser wrapper
-│   ├── normalize.ts           # one normalizer per source
-│   ├── filters.ts             # hard excludes + scoring + signal breakdown
+│   ├── normalize.ts           # one normalizer per source (extracts salary when available)
+│   ├── filters.ts             # hard excludes + scoring + signal breakdown (loads config/profile.json)
+│   ├── applied.ts             # loads config/applied.json, attaches AppliedEntry by URL hash
 │   ├── dedup.ts               # 2-pass dedup with priority-aware tiebreak
-│   ├── render.ts              # JOBS.md generator
+│   ├── render.ts              # JOBS.md generator (applied section + status emoji + salary)
 │   └── index.ts               # orchestrator
 ├── tests/
-│   ├── filters.test.ts        # 19 cases: hard drops, scoring, plurals
+│   ├── filters.test.ts        # 29 cases: hard drops, scoring, plurals, frontendBody, boilerplate
 │   ├── dedup.test.ts          # 5 cases: id/title collapse, priority
+│   ├── applied.test.ts        # 4 cases: status emoji map, summary grouping/ordering
 │   └── utils.test.ts          # 17 cases: URL safety, stripHtml, time math
 ├── biome.json
 ├── tsconfig.json
+├── tsconfig.test.json         # extends tsconfig with rootDir=. so tests/ typecheck
 ├── vitest.config.ts
 ├── package.json               # also holds simple-git-hooks pre-commit config
 ├── pnpm-lock.yaml
@@ -275,10 +329,10 @@ job-hunt/
 pnpm install                 # one-time; also installs the pre-commit hook
 pnpm run dev                 # tsx, no build step (this is what CI runs too)
 pnpm start                   # built output (run pnpm run build first)
-pnpm run typecheck           # tsc --noEmit
+pnpm run typecheck           # tsc --noEmit on src/, then on src/+tests/ (tsconfig.test.json)
 pnpm run lint                # biome check
 pnpm run lint:fix            # biome check --write
-pnpm test                    # vitest run (41 unit tests)
+pnpm test                    # vitest run (55 unit tests)
 pnpm run test:watch          # vitest in watch mode
 ```
 
@@ -307,9 +361,9 @@ To trigger the daily run manually: GitHub UI → Actions → jobs → Run workfl
 
 ## Customization
 
-### Adjust filter weights
+### Adjust filter weights or keywords
 
-Open [`src/filters.ts`](./src/filters.ts) and edit the `score += N` lines in `applyFilters`. Each weight is a single literal — no config file, no flags. Keep regexes word-bounded (`\b...\b`) and case-insensitive (`/.../i`).
+All weights and keyword lists live in [`config/profile.json`](./config/profile.json) — adjusting a weight or adding/removing a keyword is a non-code change. The JSON is loaded at startup, keyword arrays are joined with `|` and compiled into word-bounded, case-insensitive regexes by `compileKw()` in [`src/filters.ts`](./src/filters.ts). For deeper structural changes (new signal type, new hard-drop branch), edit `applyFilters` in `filters.ts` directly.
 
 ### Change the tier-S ATS slug lists
 
@@ -349,7 +403,7 @@ Defense-in-depth measures, ranked from runtime to build-time:
 - **HTML attribute escaping.** Apply links in `JOBS.md` use raw `<a target="_blank" rel="noopener noreferrer">` with HTML-escaped href (`escapeHtmlAttr` in [`src/render.ts`](./src/render.ts)). `noopener noreferrer` blocks tabnabbing.
 - **HTML stripping.** All scraped/RSS/JSON `body` content is run through [`stripHtml`](./src/utils.ts) before any other processing.
 - **Pre-commit hook** runs `pnpm run lint && pnpm run typecheck` before each commit. Bypass with `SKIP_SIMPLE_GIT_HOOKS=1`.
-- **Tests** (`pnpm test`) — Vitest, 41 cases on the security-sensitive code (URL safety, regex filters, dedup tiebreaks). Runs on every PR.
+- **Tests** (`pnpm test`) — Vitest, 55 cases on the security-sensitive code (URL safety, regex filters, dedup tiebreaks, applied-status grouping). Runs on every PR.
 - **`pnpm audit --prod --audit-level high`** in [`check.yml`](./.github/workflows/check.yml). Reports known CVEs in production deps.
 - **Pinned actions.** All four workflows reference third-party actions by commit SHA, not floating tags. Defends against tag-hijacking.
 - **Dependabot** ([`dependabot.yml`](./.github/dependabot.yml)) — weekly PRs for npm + GitHub Actions. Each PR is gated by `check.yml`.

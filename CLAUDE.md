@@ -13,7 +13,7 @@ The pipeline is tuned for: senior/lead/staff frontend, web3 (EVM + Solana), and 
 - Node 22 LTS, ESM, TypeScript 5.9 (NodeNext)
 - Biome 2.4 (lint + format, single config in `biome.json`)
 - pnpm 10
-- Vitest 3 (tests in `tests/`, run via `pnpm test`)
+- Vitest 3 (tests in `tests/`, run via `pnpm test` — 55 cases)
 - simple-git-hooks (pre-commit `lint && typecheck`)
 - Single runtime dep: `fast-xml-parser`. Native `fetch` only.
 
@@ -23,10 +23,10 @@ The pipeline is tuned for: senior/lead/staff frontend, web3 (EVM + Solana), and 
 pnpm install                # also installs the pre-commit hook
 pnpm run dev                # tsx, no build step (this is what CI runs too)
 pnpm start                  # built output: requires pnpm run build first
-pnpm run typecheck          # tsc --noEmit
+pnpm run typecheck          # tsc --noEmit on src/, then on src/+tests/ via tsconfig.test.json
 pnpm run lint               # biome check
-pnpm run lint:fix           # biome check --write
-pnpm test                   # vitest run (41 unit tests)
+pnpm run lint:fix            # biome check --write
+pnpm test                   # vitest run (55 unit tests)
 pnpm run test:watch         # vitest watch mode
 ```
 
@@ -39,13 +39,14 @@ Pre-commit runs `lint && typecheck` automatically. Bypass with `SKIP_SIMPLE_GIT_
 ```
 src/
   index.ts          # orchestrator
-  types.ts          # Job, Source, Category, FetcherResult, Raw* shapes
-  utils.ts          # fetchWithTimeout (1-retry), isSafeUrl, sha1, stripHtml, ...
+  types.ts          # Job, Source, Category, ApplicationStatus, AppliedEntry, FetcherResult, Raw* shapes
+  utils.ts          # fetchWithTimeout (1-retry), isSafeUrl, sha1, stripHtml, readJsonOrNull, ...
   rss.ts            # shared fast-xml-parser wrapper
-  normalize.ts      # one normalize<Source> per source -> Job
-  filters.ts        # hard excludes + scoring + category + _signals
+  normalize.ts      # one normalize<Source> per source -> Job (extracts salary when source provides it)
+  filters.ts        # hard excludes + scoring + category + _signals (loads config/profile.json)
+  applied.ts        # loads config/applied.json, attaches AppliedEntry to Job by URL hash
   dedup.ts          # 2-pass dedup, priority-aware tiebreak
-  render.ts         # JOBS.md markdown generator
+  render.ts         # JOBS.md markdown generator (applied section, status emoji prefix, salary suffix)
   fetchers/
     ashby.ts            greenhouse.ts       lever.ts        # ATS APIs (largest signal)
     aijobsnet.ts        cryptojobslist.ts   web3career.ts   # boards / scrapers
@@ -54,11 +55,17 @@ src/
 
 config/
   slugs.json        # tier-S Ashby/Greenhouse/Lever slug arrays
+  profile.json      # scoring weights + keyword lists (non-code tuning surface)
+  applied.json      # hand-edited list of jobs you've applied to
 
 tests/
-  filters.test.ts   # 19 cases — hard drops, scoring, plurals
+  filters.test.ts   # 29 cases — hard drops, scoring, plurals, frontendBody, boilerplate stripping
   dedup.test.ts     # 5 cases — id/title collapse, priority
+  applied.test.ts   # 4 cases — STATUS_EMOJI map + summarizeApplied grouping/ordering
   utils.test.ts     # 17 cases — URL safety, stripHtml, time math
+
+tsconfig.json       # rootDir=src/, strict NodeNext
+tsconfig.test.json  # extends above with rootDir=. so tests/ typecheck without leaking into the build
 
 .github/
   workflows/
@@ -117,28 +124,35 @@ If a target company isn't on any of the three big ATSes (Aave, Chainlink, Morpho
 
 ## Filter rules
 
-All in `src/filters.ts`. Applied in this order:
+All in `src/filters.ts`. **Weights and keyword lists are loaded from [`config/profile.json`](./config/profile.json) at startup** — `compileKw()` joins each keyword array with `|` and wraps in `\b...\b/i`. Adjusting a weight or adding a keyword is a non-code change.
+
+Applied in this order:
 
 1. **Hard excludes** (drop entirely)
    - URL is not http/https (security gate via `isSafeUrl`)
    - Title contains junior/jr/intern/entry-level/associate/graduate/trainee/apprentice
    - Title does NOT contain a senior_req keyword (senior/sr/staff/principal/lead/head/director/engineer(s)/developer(s)/architect(s))
-   - Body matches a hard US-only/onsite pattern
+   - Body matches a hard US-only/onsite pattern (uses **full body**, not the truncated scoring body — onsite language at the bottom of a posting must still count)
    - Title or body matches a non-engineering pattern AND title lacks an engineering keyword
-   - Title matches the **compound non-eng** regex (`TITLE_NON_ENG_COMPOUND`): customer support/success engineer, sales engineer, solutions engineer, developer relations/advocate/experience, devrel, field engineering/operations, business/sales/people operations, partner(ships) engineer, technical sourcer/recruiter, forward deployed/implementation/onboarding engineer, gtm, go-to-market. These titles contain the word "Engineer" but aren't real engineering — added because Vercel/Coinbase non-eng roles were scoring 100 and crowding the top of `JOBS.md`.
+   - Title matches `TITLE_NON_ENG_COMPOUND`: customer support/success engineer, sales engineer, solutions engineer, developer relations/advocate/experience, devrel, field engineering/operations, business/sales/people operations, partner(ships) engineer, technical sourcer/recruiter, forward deployed/implementation/onboarding engineer, gtm, go-to-market. These titles contain the word "Engineer" but aren't real engineering.
    - Title matches `TITLE_NON_ENG_LEADERSHIP`: VP/Vice President, CMO, CRO, CFO, COO.
-2. **Soft scoring** (additive, capped at 100):
+   - Title matches `TITLE_NON_FRONTEND_ENG`: product security / data / devops / sre / infrastructure / platform / qa / network / firmware / embedded engineer (the user is a frontend engineer; these specialties are out of scope).
+   - Title matches `TITLE_NON_ENG_ROLE`: lead/manager roles for client/account/customer/business/product/operations/regional/country (real "engineering lead" roles still pass via the seniorReq engineering keyword).
+   - Title matches `TITLE_NON_TECH_ROLE`: analyst, trader, scientist, researcher.
+2. **Body preparation for scoring.** `preparedScoringBody()` strips known company boilerplate (EEO, privacy notice, accommodations, "About us") and truncates the remainder to `scoringBodyMaxChars` (default 1500). All keyword scoring runs against this prepared body — prevents footer text like "we use Anthropic Claude internally" from landing a +20 AI signal on a backend role. Hard-drop checks above still see the **full** body.
+3. **Soft scoring** (additive, capped at `maxScore` = 100):
    - Web3 signals (+20 title/body, +20 stack)
    - AI signals (+20 title/body, +20 stack)
    - Stack signals (+10 React/Next/TS, +5 RN/Expo, +5 GraphQL/Tailwind/Vite)
    - Seniority (+15 lead/staff/principal/head, +10 senior/sr)
+   - Frontend (+10 if title contains frontend/fullstack/web/mobile, +10 if body contains role-specific frontend phrases like "design system" / "ship components" / "accessibility")
    - Location (+10 remote/EMEA/CET/Spain/anywhere)
    - Freshness (+10 within 7 days, +5 within 14 days)
-3. **Negative**: -10 if body hints US-centric without remote-worldwide language. (No already-applied list.)
-4. **Drop** anything with `fitScore < 30`.
-5. **Category**: `web3+ai` if both web3 and AI signals fired, else `web3`, `ai`, or `general`.
+4. **Negative**: -10 if body hints US-centric without remote-worldwide language. Applied after capping.
+5. **Drop** anything with `fitScore < minScoreToKeep` (default 30).
+6. **Category**: `web3+ai` if both web3 and AI signals fired, else `web3`, `ai`, or `general`.
 
-To adjust weights, find the relevant assignment to `signals.<field>` in `applyFilters` — values are written into the `_signals` object first, then summed. Keep regexes word-bounded and case-insensitive.
+To adjust a weight, edit `config/profile.json#weights.<field>`. To add a keyword to an existing list, edit `config/profile.json#keywords.<list>`. For new signal types or new hard-drop branches, edit `applyFilters` in `filters.ts` directly.
 
 ### Debugging fitScore via `_signals`
 
@@ -150,14 +164,35 @@ Every kept job in `data/jobs.json` has a `_signals` object showing exactly which
   "aiTitleBody": 20,     "aiStack": 20,
   "stackPrimary": 10,    "stackRn": 0,    "stackOther": 0,
   "leadTitle": 0,        "seniorTitle": 10,
+  "frontendTitle": 10,   "frontendBody": 10,
   "locationRemote": 10,
   "freshness7d": 10,     "freshness14d": 0,
   "usCentricPenalty": 0,
-  "rawTotal": 100,       "capped": false
+  "rawTotal": 110,       "capped": true
 }
 ```
 
 When tuning regexes, run `pnpm run dev`, then `jq '.[0]._signals' data/jobs.json` (or read it directly) to see the breakdown of the top job. `rawTotal` is the un-capped positive sum; `capped: true` means positives summed > 100 before clamping; `usCentricPenalty` is applied after capping.
+
+## Application tracking
+
+`config/applied.json` is a hand-edited list of jobs you've applied to. Schema in `src/types.ts`:
+
+```ts
+type ApplicationStatus = 'applied' | 'interview' | 'offer' | 'rejected' | 'withdrawn';
+interface AppliedEntry { url: string; status: ApplicationStatus; date: string; notes?: string }
+```
+
+`src/applied.ts` exports:
+- `STATUS_EMOJI` — the emoji prefix shown in `JOBS.md` titles (📝 / 💬 / 🎯 / ❌ / ⏸).
+- `loadAppliedMap(path?)` — reads the JSON, hashes each `url` with `sha1(normalizeUrl(...))` (the same identity used for `Job.id`), and returns a `Map<idHash, AppliedEntry>`.
+- `summarizeApplied(entries)` — produces the one-line summary header (e.g. `🎯 1 offer · 💬 2 interview · 📝 5 applied`).
+
+Wired in `src/index.ts` after dedup+sort: every kept job gets `job.applied = appliedMap.get(job.id)` when matched. `render.ts` then:
+1. Renders a "📋 Application status" section at the top of `JOBS.md` (above "✨ New since last run") if any applied entries exist, sorted by date desc.
+2. Prefixes the title cell with the status emoji in every category section so already-applied jobs are still visible (deliberate — you may want to follow up or compare against a duplicate posting).
+
+**Don't filter applied jobs out of the main list.** The user explicitly asked for them to remain visible.
 
 ## Dedup
 
@@ -195,13 +230,16 @@ To trigger the daily run manually: `gh workflow run jobs.yml`.
 
 ## Tests
 
-Vitest, ~41 cases in `tests/` with `*.test.ts` glob. Run via `pnpm test` (CI) or `pnpm run test:watch` (interactive).
+Vitest, 55 cases in `tests/` with `*.test.ts` glob. Run via `pnpm test` (CI) or `pnpm run test:watch` (interactive).
 
 - **`tests/utils.test.ts`** (17): `isSafeUrl` allowlist, `normalizeUrl` (utm strip, scheme reject), `stripHtml`, `normalizeText`, `sha1Hex`, `relativeTime`, `withinDays`.
-- **`tests/filters.test.ts`** (19): every hard-drop branch (junior, senior_req, US-only, compound non-eng, exec, URL scheme), every score signal, category derivation, score capping with `_signals.capped`, US-centric penalty, plural title acceptance.
+- **`tests/filters.test.ts`** (29): every hard-drop branch (junior, senior_req, US-only, compound non-eng, non-frontend eng, non-eng role, non-tech role, exec, URL scheme), every score signal, category derivation, score capping with `_signals.capped`, US-centric penalty, plural title acceptance, frontendTitle/frontendBody bonuses, boilerplate stripping (AI keywords in EEO footer must NOT score).
 - **`tests/dedup.test.ts`** (5): id collapse, normalized company+title collapse, fitScore tiebreak, source priority tiebreak (`ashby > greenhouse > remoteok`, `lever > web3career`), empty input.
+- **`tests/applied.test.ts`** (4): `STATUS_EMOJI` map presence, `summarizeApplied` empty input, grouping/counting, ordering (offer → interview → applied → withdrawn → rejected).
 
-When tuning a filter regex or scoring weight, update the test in the same commit. The `check.yml` workflow runs the full suite on every PR.
+When tuning a filter regex or scoring weight (in `config/profile.json` or `filters.ts`), update the test in the same commit. The `check.yml` workflow runs the full suite on every PR.
+
+`tsconfig.test.json` extends `tsconfig.json` with `rootDir: "."` and `include: ["src/**/*", "tests/**/*"]`. The `pnpm typecheck` script runs both: first `tsc --noEmit` against `tsconfig.json` (the production build config) to catch issues that would block compilation, then `tsc --noEmit -p tsconfig.test.json` to typecheck the tests without leaking them into the build's `rootDir`.
 
 ## Pre-commit
 
