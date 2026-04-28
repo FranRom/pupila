@@ -28,6 +28,7 @@ pnpm run lint               # biome check
 pnpm run lint:fix            # biome check --write
 pnpm test                   # vitest run (104 unit tests)
 pnpm run test:watch         # vitest watch mode
+pnpm run ui                 # local-only UI: Vite dev server on http://127.0.0.1:5173, reads data/jobs.json
 ```
 
 The pipeline writes to `data/jobs.json` (slim — `body` field stripped), `data/feed.xml` (RSS 2.0 of new jobs), `JOBS.md`, optionally `data/archive/<YYYY-MM>.json` on day 1 of the month, and per-source raw dumps in `data/raw/<source>-<YYYY-MM-DD>.json` (gitignored). `README.md` is hand-maintained — never overwrite it from code.
@@ -72,6 +73,17 @@ tests/
   aave.test.ts            # 7 cases — __NEXT_DATA__ extraction + normalizer
   ashby-private.test.ts   # 9 cases — GraphQL list/detail parsers + slug-to-company derivation
   utils.test.ts     # 20 cases — URL safety, stripHtml, time math, human date formatter
+
+ui/                 # local-only browser dashboard (Vite + React)
+  index.html        # Vite entry
+  vite.config.ts    # explicit `root` set via fileURLToPath so `pnpm run ui` works from repo root
+  tsconfig.json     # bundler module resolution + DOM lib + JSX
+  src/
+    main.tsx        # ReactDOM.createRoot
+    App.tsx         # single-component MVP: filter + sort + table over data/jobs.json
+    types.ts        # local copy of Job/Source/Category/AppliedEntry (slim — no body, no _signals)
+    styles.css      # CSS variables + dark mode via prefers-color-scheme
+    vite-env.d.ts   # /// <reference types="vite/client" /> for CSS-import typing
 
 tsconfig.json       # rootDir=src/, strict NodeNext
 tsconfig.test.json  # extends above with rootDir=. so tests/ typecheck without leaking into the build
@@ -286,6 +298,18 @@ Vitest, 104 cases in `tests/` with `*.test.ts` glob. Run via `pnpm test` (CI) or
 When tuning a filter regex or scoring weight (in `config/profile.json` or `filters.ts`), update the test in the same commit. The `check.yml` workflow runs the full suite on every PR.
 
 `tsconfig.test.json` extends `tsconfig.json` with `rootDir: "."` and `include: ["src/**/*", "tests/**/*"]`. The `pnpm typecheck` script runs both: first `tsc --noEmit` against `tsconfig.json` (the production build config) to catch issues that would block compilation, then `tsc --noEmit -p tsconfig.test.json` to typecheck the tests without leaking them into the build's `rootDir`.
+
+## Local UI (`pnpm run ui`)
+
+A Vite + React 19 dashboard at `ui/` that reads `data/jobs.json` directly via JSON import. **Local-only — no auth, no hosting, intentionally not exposed beyond `127.0.0.1:5173`** (the user explicitly chose this over public Pages because a public dashboard surfacing their applied-job statuses could be Google-indexed and visible to recruiters). Don't add a `pnpm run ui:deploy` or wire it into a workflow without explicit instruction.
+
+The UI is a single-component MVP (no router, no state-management lib): filter chips for category/source/applied, search box, sortable table by score/salaryMax/postedAt, dark-mode via `prefers-color-scheme`. Score cells are tier-colored (green ≥80, gold 50-79, muted <50). Long company/title cells are clamped to 2 lines via `display: -webkit-box` (the clamp is on a `<span>` wrapper inside the `<td>` — applying it directly on the `<td>` breaks table-cell layout).
+
+`ui/src/types.ts` is a deliberate copy of the relevant subset of `src/types.ts`. The pipeline strips `body` and `_signals` from the persisted `data/jobs.json`, so the UI types match that slim shape, not the full in-pipeline `Job`. Don't rewrite it to import from `src/types.ts` — that pulls in `with { type: 'json' }` config imports that don't resolve in the browser context.
+
+The HTML has `<meta name="robots" content="noindex,nofollow">` as belt-and-suspenders even though it's local-only.
+
+`pnpm run typecheck` runs all three TS configs: `tsconfig.json`, `tsconfig.test.json`, and `ui/tsconfig.json`.
 
 ## Pre-commit
 

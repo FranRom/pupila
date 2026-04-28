@@ -5,6 +5,7 @@ A personal job aggregator that runs daily on GitHub Actions. It pulls listings f
 > **Looking for today's matches?** → [`JOBS.md`](./JOBS.md) (auto-generated, refreshed daily at 07:00 UTC).
 > Raw data lives in [`data/jobs.json`](./data/jobs.json).
 > Subscribe to the new-matches RSS feed: [`data/feed.xml`](./data/feed.xml) (point any reader at the raw GitHub URL).
+> Prefer a UI? → `pnpm run ui` opens a local-only Vite dashboard at `http://127.0.0.1:5173` with filter, search, and sortable columns over `data/jobs.json`.
 
 ---
 
@@ -356,6 +357,7 @@ pnpm run lint                # biome check
 pnpm run lint:fix            # biome check --write
 pnpm test                    # vitest run (104 unit tests)
 pnpm run test:watch          # vitest in watch mode
+pnpm run ui                  # local browser UI (Vite dev server, 127.0.0.1:5173)
 ```
 
 The pre-commit hook runs `lint && typecheck` on every commit. To bypass it for an emergency commit: `SKIP_SIMPLE_GIT_HOOKS=1 git commit ...`.

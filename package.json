@@ -11,12 +11,14 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "dev": "tsx src/index.ts",
-    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.test.json",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.test.json && tsc --noEmit -p ui/tsconfig.json",
     "lint": "biome check",
     "lint:fix": "biome check --write",
     "format": "biome format --write",
     "test": "vitest run",
     "test:watch": "vitest",
+    "ui": "vite --config ui/vite.config.ts",
+    "ui:build": "vite build --config ui/vite.config.ts",
     "prepare": "simple-git-hooks"
   },
   "simple-git-hooks": {
@@ -28,9 +30,15 @@
   "devDependencies": {
     "@biomejs/biome": "^2.0.0",
     "@types/node": "^22.10.0",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.1",
+    "react": "^19.2.5",
+    "react-dom": "^19.2.5",
     "simple-git-hooks": "^2.13.1",
     "tsx": "^4.19.0",
     "typescript": "^6.0.3",
+    "vite": "^8.0.10",
     "vitest": "^4.1.5"
   },
   "packageManager": "pnpm@10.11.0"
