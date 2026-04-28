@@ -1,3 +1,4 @@
+import { loadAppliedMap } from './applied.js';
 import { dedupe } from './dedup.js';
 import { fetchAiJobsNet } from './fetchers/aijobsnet.js';
 import { fetchAshby } from './fetchers/ashby.js';
@@ -110,6 +111,12 @@ async function main(): Promise<void> {
   const previous = await readJsonOrNull<Job[]>('data/jobs.json');
   const previousIds = new Set((previous ?? []).map((j) => j.id));
   const newJobs = previous === null ? [] : dedupResult.kept.filter((j) => !previousIds.has(j.id));
+
+  const appliedMap = await loadAppliedMap();
+  for (const job of dedupResult.kept) {
+    const entry = appliedMap.get(job.id);
+    if (entry) job.applied = entry;
+  }
 
   const slimJobs = dedupResult.kept.map(({ body: _body, ...rest }) => rest);
   const month = today.slice(0, 7);

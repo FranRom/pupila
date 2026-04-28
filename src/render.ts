@@ -1,3 +1,4 @@
+import { STATUS_EMOJI, summarizeApplied } from './applied.js';
 import type { Category, Job, Source } from './types.js';
 import { relativeTime } from './utils.js';
 
@@ -40,7 +41,8 @@ function escapeMdUrl(url: string): string {
 }
 
 function row(job: Job): string {
-  const title = escapeMd(job.title);
+  const prefix = job.applied ? `${STATUS_EMOJI[job.applied.status]} ` : '';
+  const title = `${prefix}${escapeMd(job.title)}`;
   const company = escapeMd(job.company ?? '—');
   const posted = job.postedAt ? relativeTime(job.postedAt) : '—';
   const link = `[apply](${escapeMdUrl(job.url)})`;
@@ -79,6 +81,24 @@ ${renderTable(sorted, 20)}
 `;
 }
 
+function renderAppliedSection(jobs: Job[]): string {
+  const applied = jobs.filter((j) => j.applied !== undefined);
+  if (applied.length === 0) return '';
+  const entries = applied.map((j) => j.applied).filter((e): e is NonNullable<typeof e> => !!e);
+  const summary = summarizeApplied(entries);
+  const sorted = [...applied].sort((a, b) => {
+    const ad = a.applied?.date ?? '';
+    const bd = b.applied?.date ?? '';
+    return bd.localeCompare(ad);
+  });
+  return `## 📋 Application status
+
+${summary}
+
+${renderTable(sorted, 50)}
+`;
+}
+
 export function renderReadme(jobs: Job[], stats: RenderStats, newJobs: Job[]): string {
   const grouped: Record<Category, Job[]> = {
     'web3+ai': [],
@@ -114,6 +134,7 @@ ${bySource(stats)}
 
 ${byCategory(stats)}
 
+${renderAppliedSection(jobs)}
 ${renderNewSection(newJobs)}
 ## Top Web3 + AI
 

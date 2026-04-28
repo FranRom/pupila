@@ -33,6 +33,15 @@ export interface JobSignals {
   capped: boolean;
 }
 
+export type ApplicationStatus = 'applied' | 'interview' | 'offer' | 'rejected' | 'withdrawn';
+
+export interface AppliedEntry {
+  url: string;
+  status: ApplicationStatus;
+  date: string;
+  notes?: string;
+}
+
 export interface Job {
   id: string;
   source: Source;
@@ -48,6 +57,7 @@ export interface Job {
   fitScore: number;
   category: Category;
   _signals?: JobSignals;
+  applied?: AppliedEntry;
 }
 
 export interface RawRemoteOk {
