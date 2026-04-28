@@ -90,76 +90,36 @@ export function applyFilters(jobs: Job[]): FilterResult {
 
     const scoringBody = preparedScoringBody(body);
     const scoringTitleAndBody = `${title}\n${scoringBody}`;
+    const locText = `${job.location ?? ''} ${scoringBody}`;
+    const fresh7 = withinDays(job.postedAt, 7);
+
+    const positives = {
+      web3TitleBody: W3_TITLE_BODY.test(scoringTitleAndBody) ? W.web3TitleBody : 0,
+      web3Stack: W3_STACK.test(scoringBody) ? W.web3Stack : 0,
+      aiTitleBody: AI_TITLE_BODY.test(scoringTitleAndBody) ? W.aiTitleBody : 0,
+      aiStack: AI_STACK.test(scoringBody) ? W.aiStack : 0,
+      stackPrimary: STACK_PRIMARY.test(scoringBody) ? W.stackPrimary : 0,
+      stackRn: STACK_RN.test(scoringBody) ? W.stackRn : 0,
+      stackOther: STACK_OTHER.test(scoringBody) ? W.stackOther : 0,
+      leadTitle: TITLE_LEAD.test(title) ? W.leadTitle : 0,
+      seniorTitle: TITLE_SENIOR.test(title) ? W.seniorTitle : 0,
+      frontendTitle: TITLE_FRONTEND_KW.test(title) ? W.frontendTitle : 0,
+      frontendBody: BODY_FRONTEND_KW.test(scoringBody) ? W.frontendBody : 0,
+      locationRemote: LOC_REMOTE.test(locText) ? W.locationRemote : 0,
+      freshness7d: fresh7 ? W.freshness7d : 0,
+      freshness14d: !fresh7 && withinDays(job.postedAt, 14) ? W.freshness14d : 0,
+    };
+
+    const positiveSum = Object.values(positives).reduce((a, b) => a + b, 0);
+    const web3 = positives.web3TitleBody > 0 || positives.web3Stack > 0;
+    const ai = positives.aiTitleBody > 0 || positives.aiStack > 0;
 
     const signals: JobSignals = {
-      web3TitleBody: 0,
-      web3Stack: 0,
-      aiTitleBody: 0,
-      aiStack: 0,
-      stackPrimary: 0,
-      stackRn: 0,
-      stackOther: 0,
-      leadTitle: 0,
-      seniorTitle: 0,
-      frontendTitle: 0,
-      frontendBody: 0,
-      locationRemote: 0,
-      freshness7d: 0,
-      freshness14d: 0,
+      ...positives,
       usCentricPenalty: 0,
-      rawTotal: 0,
-      capped: false,
+      rawTotal: positiveSum,
+      capped: positiveSum > S.maxScore,
     };
-    let web3 = false;
-    let ai = false;
-
-    if (W3_TITLE_BODY.test(scoringTitleAndBody)) {
-      signals.web3TitleBody = W.web3TitleBody;
-      web3 = true;
-    }
-    if (W3_STACK.test(scoringBody)) {
-      signals.web3Stack = W.web3Stack;
-      web3 = true;
-    }
-    if (AI_TITLE_BODY.test(scoringTitleAndBody)) {
-      signals.aiTitleBody = W.aiTitleBody;
-      ai = true;
-    }
-    if (AI_STACK.test(scoringBody)) {
-      signals.aiStack = W.aiStack;
-      ai = true;
-    }
-    if (STACK_PRIMARY.test(scoringBody)) signals.stackPrimary = W.stackPrimary;
-    if (STACK_RN.test(scoringBody)) signals.stackRn = W.stackRn;
-    if (STACK_OTHER.test(scoringBody)) signals.stackOther = W.stackOther;
-    if (TITLE_LEAD.test(title)) signals.leadTitle = W.leadTitle;
-    if (TITLE_SENIOR.test(title)) signals.seniorTitle = W.seniorTitle;
-    if (TITLE_FRONTEND_KW.test(title)) signals.frontendTitle = W.frontendTitle;
-    if (BODY_FRONTEND_KW.test(scoringBody)) signals.frontendBody = W.frontendBody;
-
-    const locText = `${job.location ?? ''} ${scoringBody}`;
-    if (LOC_REMOTE.test(locText)) signals.locationRemote = W.locationRemote;
-
-    if (withinDays(job.postedAt, 7)) signals.freshness7d = W.freshness7d;
-    else if (withinDays(job.postedAt, 14)) signals.freshness14d = W.freshness14d;
-
-    const positiveSum =
-      signals.web3TitleBody +
-      signals.web3Stack +
-      signals.aiTitleBody +
-      signals.aiStack +
-      signals.stackPrimary +
-      signals.stackRn +
-      signals.stackOther +
-      signals.leadTitle +
-      signals.seniorTitle +
-      signals.frontendTitle +
-      signals.frontendBody +
-      signals.locationRemote +
-      signals.freshness7d +
-      signals.freshness14d;
-    signals.rawTotal = positiveSum;
-    signals.capped = positiveSum > S.maxScore;
 
     let score = Math.min(positiveSum, S.maxScore);
 
