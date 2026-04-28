@@ -110,6 +110,10 @@ async function main(): Promise<void> {
   const previousIds = new Set((previous ?? []).map((j) => j.id));
   const newJobs = previous === null ? [] : dedupResult.kept.filter((j) => !previousIds.has(j.id));
 
+  const slimJobs = dedupResult.kept.map(({ body: _body, ...rest }) => rest);
+  const month = today.slice(0, 7);
+  const isFirstOfMonth = today.endsWith('-01');
+
   const stats: RenderStats = {
     generatedAt: fetchedAt,
     fetchedTotal,
@@ -123,7 +127,10 @@ async function main(): Promise<void> {
     removedByTitle: dedupResult.removedByTitle,
   };
 
-  await writeJson('data/jobs.json', dedupResult.kept);
+  await writeJson('data/jobs.json', slimJobs);
+  if (isFirstOfMonth) {
+    await writeJson(`data/archive/${month}.json`, slimJobs);
+  }
   await writeFileEnsured('JOBS.md', renderReadme(dedupResult.kept, stats, newJobs));
 
   console.log('--- Run summary ---');
