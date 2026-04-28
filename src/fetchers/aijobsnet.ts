@@ -1,4 +1,4 @@
-import type { RawAiJobs } from '../types.js';
+import type { FetcherResult, RawAiJobs } from '../types.js';
 import { fetchText, RSS_HEADERS, stripHtml } from '../utils.js';
 
 const BASE = 'https://aijobs.net';
@@ -71,19 +71,21 @@ function parsePage(html: string): RawAiJobs[] {
   return rows;
 }
 
-async function fetchPage(path: string): Promise<RawAiJobs[]> {
+async function fetchPage(path: string): Promise<FetcherResult<RawAiJobs>> {
   try {
     const html = await fetchText(`${BASE}${path}`, { headers: RSS_HEADERS });
-    return parsePage(html);
+    return { items: parsePage(html), errors: [] };
   } catch (err) {
-    console.error(`[aijobsnet:${path}]`, (err as Error).message);
-    return [];
+    const message = (err as Error).message;
+    console.error(`[aijobsnet:${path}]`, message);
+    return { items: [], errors: [`${path}: ${message}`] };
   }
 }
 
-export async function fetchAiJobsNet(): Promise<RawAiJobs[]> {
+export async function fetchAiJobsNet(): Promise<FetcherResult<RawAiJobs>> {
   const results = await Promise.all(PAGES.map((p) => fetchPage(p)));
-  const flat = results.flat();
+  const flat = results.flatMap((r) => r.items);
+  const errors = results.flatMap((r) => r.errors);
   const seen = new Set<string>();
   const deduped: RawAiJobs[] = [];
   for (const j of flat) {
@@ -91,5 +93,5 @@ export async function fetchAiJobsNet(): Promise<RawAiJobs[]> {
     seen.add(j.id);
     deduped.push(j);
   }
-  return deduped;
+  return { items: deduped, errors };
 }

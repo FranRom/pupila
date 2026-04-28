@@ -1,4 +1,4 @@
-import type { RawHnComment, RawHnHiringPost, RawHnHit } from '../types.js';
+import type { FetcherResult, RawHnComment, RawHnHiringPost, RawHnHit } from '../types.js';
 import { fetchJson, JSON_HEADERS } from '../utils.js';
 
 const SEARCH_URL =
@@ -21,26 +21,29 @@ function pickLatestHiringStory(hits: RawHnHit[]): RawHnHit | null {
   return candidates[0] ?? null;
 }
 
-export async function fetchHnHiring(): Promise<RawHnHiringPost[]> {
+export async function fetchHnHiring(): Promise<FetcherResult<RawHnHiringPost>> {
   try {
     const search = await fetchJson<SearchResponse>(SEARCH_URL, { headers: JSON_HEADERS });
     const story = pickLatestHiringStory(search.hits ?? []);
     if (!story) {
-      console.error('[hn-hiring] no matching "Who is hiring" story found');
-      return [];
+      const message = 'no matching "Who is hiring" story found';
+      console.error('[hn-hiring]', message);
+      return { items: [], errors: [message] };
     }
     const tree = await fetchJson<ItemTree>(itemUrl(Number(story.objectID)), {
       headers: JSON_HEADERS,
     });
     const top = (tree.children ?? []).filter((c): c is ItemTree => Boolean(c?.id && c?.text));
-    return top.map((c) => ({
+    const items = top.map((c) => ({
       storyId: Number(story.objectID),
       commentId: c.id,
       text: c.text ?? '',
       createdAt: c.created_at ?? story.created_at,
     }));
+    return { items, errors: [] };
   } catch (err) {
-    console.error('[hn-hiring] fetch failed:', (err as Error).message);
-    return [];
+    const message = (err as Error).message;
+    console.error('[hn-hiring] fetch failed:', message);
+    return { items: [], errors: [message] };
   }
 }

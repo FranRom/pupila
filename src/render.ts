@@ -6,7 +6,7 @@ export interface RenderStats {
   fetchedTotal: number;
   keptTotal: number;
   newCount: number;
-  bySource: Record<Source, { fetched: number; kept: number }>;
+  bySource: Record<Source, { fetched: number; kept: number; errors: number }>;
   byCategory: Record<Category, number>;
   droppedHard: number;
   droppedScore: number;
@@ -68,7 +68,8 @@ function bySource(stats: RenderStats): string {
   for (const s of SOURCES) {
     const v = stats.bySource[s];
     if (!v) continue;
-    lines.push(`- **${s}**: ${v.fetched} fetched → ${v.kept} kept`);
+    const errSuffix = v.errors > 0 ? ` (${v.errors} errors)` : '';
+    lines.push(`- **${s}**: ${v.fetched} fetched → ${v.kept} kept${errSuffix}`);
   }
   return lines.join('\n');
 }

@@ -206,7 +206,6 @@ export interface RawAiJobs {
 }
 
 export interface FetcherResult<T> {
-  source: Source;
   items: T[];
   errors: string[];
 }

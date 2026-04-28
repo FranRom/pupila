@@ -33,19 +33,20 @@ interface FetcherTaskResult<T> {
   fetched: number;
   jobs: Job[];
   raw: T[];
+  errors: string[];
 }
 
 async function processFetcher<T>(
   source: Source,
-  fetcher: () => Promise<T[]>,
+  fetcher: () => Promise<{ items: T[]; errors: string[] }>,
   normalizer: (items: T[], fetchedAt: string) => Job[],
   fetchedAt: string,
   today: string,
 ): Promise<FetcherTaskResult<T>> {
-  const items = await fetcher();
+  const { items, errors } = await fetcher();
   const jobs = normalizer(items, fetchedAt);
   await writeJson(`data/raw/${source}-${today}.json`, items);
-  return { source, fetched: items.length, jobs, raw: items };
+  return { source, fetched: items.length, jobs, raw: items, errors };
 }
 
 async function main(): Promise<void> {
@@ -95,7 +96,7 @@ async function main(): Promise<void> {
   const bySource = {} as RenderStats['bySource'];
   for (const t of tasks) {
     const keptCount = dedupResult.kept.filter((j) => j.source === t.source).length;
-    bySource[t.source] = { fetched: t.fetched, kept: keptCount };
+    bySource[t.source] = { fetched: t.fetched, kept: keptCount, errors: t.errors.length };
   }
 
   const byCategory: Record<Category, number> = {

@@ -1,13 +1,15 @@
 import { fetchRssItems } from '../rss.js';
-import type { RawRssItem } from '../types.js';
+import type { FetcherResult, RawRssItem } from '../types.js';
 
 const ENDPOINT = 'https://api.cryptojobslist.com/jobs.rss';
 
-export async function fetchCryptoJobsList(): Promise<RawRssItem[]> {
+export async function fetchCryptoJobsList(): Promise<FetcherResult<RawRssItem>> {
   try {
-    return await fetchRssItems(ENDPOINT);
+    const items = await fetchRssItems(ENDPOINT);
+    return { items, errors: [] };
   } catch (err) {
-    console.error('[cryptojobslist] fetch failed:', (err as Error).message);
-    return [];
+    const message = (err as Error).message;
+    console.error('[cryptojobslist] fetch failed:', message);
+    return { items: [], errors: [message] };
   }
 }

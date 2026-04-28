@@ -1,4 +1,4 @@
-import type { RawRemotive } from '../types.js';
+import type { FetcherResult, RawRemotive } from '../types.js';
 import { fetchJson, JSON_HEADERS } from '../utils.js';
 
 const ENDPOINT = 'https://remotive.com/api/remote-jobs?category=software-dev';
@@ -8,12 +8,13 @@ interface RemotiveResponse {
   'job-count'?: number;
 }
 
-export async function fetchRemotive(): Promise<RawRemotive[]> {
+export async function fetchRemotive(): Promise<FetcherResult<RawRemotive>> {
   try {
     const data = await fetchJson<RemotiveResponse>(ENDPOINT, { headers: JSON_HEADERS });
-    return Array.isArray(data?.jobs) ? data.jobs : [];
+    return { items: Array.isArray(data?.jobs) ? data.jobs : [], errors: [] };
   } catch (err) {
-    console.error('[remotive] fetch failed:', (err as Error).message);
-    return [];
+    const message = (err as Error).message;
+    console.error('[remotive] fetch failed:', message);
+    return { items: [], errors: [message] };
   }
 }

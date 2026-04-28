@@ -1,13 +1,15 @@
 import { fetchRssItems } from '../rss.js';
-import type { RawRssItem } from '../types.js';
+import type { FetcherResult, RawRssItem } from '../types.js';
 
 const ENDPOINT = 'https://weworkremotely.com/categories/remote-programming-jobs.rss';
 
-export async function fetchWeWorkRemotely(): Promise<RawRssItem[]> {
+export async function fetchWeWorkRemotely(): Promise<FetcherResult<RawRssItem>> {
   try {
-    return await fetchRssItems(ENDPOINT);
+    const items = await fetchRssItems(ENDPOINT);
+    return { items, errors: [] };
   } catch (err) {
-    console.error('[weworkremotely] fetch failed:', (err as Error).message);
-    return [];
+    const message = (err as Error).message;
+    console.error('[weworkremotely] fetch failed:', message);
+    return { items: [], errors: [message] };
   }
 }

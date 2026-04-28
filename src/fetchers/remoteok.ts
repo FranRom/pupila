@@ -1,4 +1,4 @@
-import type { RawRemoteOk } from '../types.js';
+import type { FetcherResult, RawRemoteOk } from '../types.js';
 import { fetchJson, JSON_HEADERS } from '../utils.js';
 
 const ENDPOINT = 'https://remoteok.com/api';
@@ -16,17 +16,19 @@ const ALLOWED_TAGS = new Set([
   'fullstack',
 ]);
 
-export async function fetchRemoteOk(): Promise<RawRemoteOk[]> {
+export async function fetchRemoteOk(): Promise<FetcherResult<RawRemoteOk>> {
   try {
     const data = await fetchJson<unknown[]>(ENDPOINT, { headers: JSON_HEADERS });
-    if (!Array.isArray(data)) return [];
+    if (!Array.isArray(data)) return { items: [], errors: ['response not an array'] };
     const jobs = data.slice(1) as RawRemoteOk[];
-    return jobs.filter((j) => {
+    const items = jobs.filter((j) => {
       const tags = (j.tags ?? []).map((t) => t.toLowerCase());
       return tags.some((t) => ALLOWED_TAGS.has(t));
     });
+    return { items, errors: [] };
   } catch (err) {
-    console.error('[remoteok] fetch failed:', (err as Error).message);
-    return [];
+    const message = (err as Error).message;
+    console.error('[remoteok] fetch failed:', message);
+    return { items: [], errors: [message] };
   }
 }

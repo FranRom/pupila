@@ -1,4 +1,4 @@
-import type { RawWeb3Career } from '../types.js';
+import type { FetcherResult, RawWeb3Career } from '../types.js';
 import { fetchText, RSS_HEADERS, safeIso, stripHtml } from '../utils.js';
 
 const BASE = 'https://web3.career';
@@ -58,19 +58,21 @@ function parsePage(html: string, category: string): RawWeb3Career[] {
   return rows;
 }
 
-async function fetchCategory(slug: string): Promise<RawWeb3Career[]> {
+async function fetchCategory(slug: string): Promise<FetcherResult<RawWeb3Career>> {
   try {
     const html = await fetchText(`${BASE}/${slug}`, { headers: RSS_HEADERS });
-    return parsePage(html, slug);
+    return { items: parsePage(html, slug), errors: [] };
   } catch (err) {
-    console.error(`[web3career:${slug}]`, (err as Error).message);
-    return [];
+    const message = (err as Error).message;
+    console.error(`[web3career:${slug}]`, message);
+    return { items: [], errors: [`${slug}: ${message}`] };
   }
 }
 
-export async function fetchWeb3Career(): Promise<RawWeb3Career[]> {
+export async function fetchWeb3Career(): Promise<FetcherResult<RawWeb3Career>> {
   const results = await Promise.all(CATEGORIES.map((c) => fetchCategory(c)));
-  const flat = results.flat();
+  const flat = results.flatMap((r) => r.items);
+  const errors = results.flatMap((r) => r.errors);
   const seen = new Set<string>();
   const deduped: RawWeb3Career[] = [];
   for (const j of flat) {
@@ -78,5 +80,5 @@ export async function fetchWeb3Career(): Promise<RawWeb3Career[]> {
     seen.add(j.jobid);
     deduped.push(j);
   }
-  return deduped;
+  return { items: deduped, errors };
 }
