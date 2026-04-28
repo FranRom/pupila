@@ -20,7 +20,7 @@ Manually checking 11 job boards every morning is tedious. This repo replaces tha
 | Language | TypeScript 5.9 (NodeNext, strict) |
 | Lint + format | Biome 2.4 |
 | Package manager | pnpm 10 |
-| Tests | Vitest 3 (93 unit tests across filters, dedup, utils, applied, salary, feed, aave, ashby-private) |
+| Tests | Vitest 3 (101 unit tests across filters, dedup, utils, applied, salary, feed, aave, ashby-private; tiered keyword weighting + salary-aware sort tiebreak both have dedicated cases) |
 | Pre-commit | simple-git-hooks (runs lint + typecheck on every commit) |
 | HTTP | Native `fetch` with `AbortController` (30s timeout, 1 retry on 5xx/network) |
 | RSS parsing | `fast-xml-parser` (only runtime dep) |
@@ -167,17 +167,19 @@ URLs are canonicalized (`utm_*` stripped, trailing slash normalized) before hash
 | Web3 stack — body contains `wagmi\|viem\|ethers\|web3.js\|solana\|anchor\|evm\|rainbowkit\|walletconnect\|reown\|hardhat\|foundry` | +20 |
 | AI — title or body contains `ai engineer\|ml engineer\|llm\|gen-ai\|generative ai\|ai-native` | +20 |
 | AI stack — body contains `anthropic\|claude\|openai\|gpt\|vercel ai\|ai sdk\|langchain\|llamaindex\|rag\|agents\|mcp\|prompt engineering` | +20 |
-| Stack — body contains `react\|next.js\|typescript` | +10 |
-| Stack — body contains `react native\|expo` | +5 |
-| Stack — body contains `graphql\|tailwind\|vite` | +5 |
+| Stack — body contains `react\|next.js\|typescript` (tiered) | +10 base |
+| Stack — body contains `react native\|expo` (tiered) | +5 base |
+| Stack — body contains `graphql\|tailwind\|vite` (tiered) | +5 base |
 | Lead title — title contains `lead\|staff\|principal\|head` | +15 |
 | Senior title — title contains `senior\|sr` | +10 |
 | Frontend title — title contains `frontend\|front-end\|fullstack\|full-stack\|web\|mobile` | +10 |
-| Frontend body — body contains role-specific frontend phrases (design system, ship components, accessibility, etc.) | +10 |
+| Frontend body — body contains role-specific frontend phrases (design system, ship components, accessibility, etc.) (tiered) | +10 base |
 | Location — location or body contains `remote\|worldwide\|emea\|europe\|cet\|spain\|global\|anywhere` | +10 |
 | Freshness — `postedAt` within 7 days | +10 |
 | Freshness — `postedAt` within 14 days (and not within 7) | +5 |
 | **Penalty** — body US-centric without remote-worldwide language | **-10** |
+
+**Tiered keyword weighting.** The four "stack/frontend body" signals (rows marked _tiered_ above) count occurrences instead of doing a binary match: 1 mention earns half-weight, 2–3 the listed base weight, and 4+ a 1.5× boost. This lets a posting that mentions "react" eight times in concrete role context outscore one that drops it once in a "nice to have" footer. Web3, AI, title, location, and freshness signals stay binary because they're inherently low-cardinality and cheating them with repetition isn't a real concern.
 
 **Drop** anything with `fitScore < 30` after the cap.
 
@@ -218,7 +220,7 @@ When two jobs collide, the one with the higher `fitScore` wins. Ties are broken 
 ashby > lever > greenhouse > cryptojobslist > web3career > aijobsnet > hn-hiring > hn-jobs > remotive > weworkremotely > remoteok
 ```
 
-**Sort stability.** After dedup, the final sort is `fitScore desc, postedAt desc, id asc`. The `id asc` tertiary tiebreak makes day-over-day diffs deterministic when two jobs have identical scores and timestamps.
+**Sort stability.** After dedup, the final sort uses the exported `compareJobs` comparator: `fitScore desc → salaryMax desc → postedAt desc → id asc`. The `salaryMax` tiebreak floats transparent-comp companies above silent ones among score-tied roles (null is treated as 0), and `id asc` keeps day-over-day diffs deterministic when everything else ties.
 
 ### 5. Diff against previous run
 
@@ -324,8 +326,8 @@ job-hunt/
 │   ├── feed.ts                # RSS 2.0 feed of "✨ new" jobs → data/feed.xml
 │   └── index.ts               # orchestrator
 ├── tests/
-│   ├── filters.test.ts        # 30 cases: hard drops, droppedByRule, scoring, plurals, frontendBody, boilerplate
-│   ├── dedup.test.ts          # 5 cases: id/title collapse, priority
+│   ├── filters.test.ts        # 33 cases: hard drops, droppedByRule, scoring, plurals, frontendBody, boilerplate, tiered weighting
+│   ├── dedup.test.ts          # 10 cases: id/title collapse, priority, compareJobs salary/postedAt/id chain
 │   ├── applied.test.ts        # 4 cases: status emoji map, summary grouping/ordering
 │   ├── salary.test.ts         # 15 cases: K/M suffix, currency detection, hourly conversion, free-text
 │   ├── feed.test.ts           # 6 cases: RSS skeleton, escaping, sort, 50-item cap
@@ -352,7 +354,7 @@ pnpm start                   # built output (run pnpm run build first)
 pnpm run typecheck           # tsc --noEmit on src/, then on src/+tests/ (tsconfig.test.json)
 pnpm run lint                # biome check
 pnpm run lint:fix            # biome check --write
-pnpm test                    # vitest run (93 unit tests)
+pnpm test                    # vitest run (101 unit tests)
 pnpm run test:watch          # vitest in watch mode
 ```
 

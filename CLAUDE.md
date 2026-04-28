@@ -13,7 +13,7 @@ The pipeline is tuned for: senior/lead/staff frontend, web3 (EVM + Solana), and 
 - Node 22 LTS, ESM, TypeScript 5.9 (NodeNext)
 - Biome 2.4 (lint + format, single config in `biome.json`)
 - pnpm 10
-- Vitest 3 (tests in `tests/`, run via `pnpm test` — 93 cases)
+- Vitest 3 (tests in `tests/`, run via `pnpm test` — 101 cases)
 - simple-git-hooks (pre-commit `lint && typecheck`)
 - Single runtime dep: `fast-xml-parser`. Native `fetch` only.
 
@@ -26,7 +26,7 @@ pnpm start                  # built output: requires pnpm run build first
 pnpm run typecheck          # tsc --noEmit on src/, then on src/+tests/ via tsconfig.test.json
 pnpm run lint               # biome check
 pnpm run lint:fix            # biome check --write
-pnpm test                   # vitest run (93 unit tests)
+pnpm test                   # vitest run (101 unit tests)
 pnpm run test:watch         # vitest watch mode
 ```
 
@@ -64,8 +64,8 @@ config/
   applied.json      # hand-edited list of jobs you've applied to
 
 tests/
-  filters.test.ts   # 30 cases — hard drops, droppedByRule, scoring, plurals, frontendBody, boilerplate
-  dedup.test.ts     # 5 cases — id/title collapse, priority
+  filters.test.ts   # 33 cases — hard drops, droppedByRule, scoring, plurals, frontendBody, boilerplate, tiered weighting
+  dedup.test.ts     # 10 cases — id/title collapse, priority, compareJobs salary/postedAt/id chain
   applied.test.ts   # 4 cases — STATUS_EMOJI map + summarizeApplied grouping/ordering
   salary.test.ts    # 15 cases — K/M suffix, currency detection, hourly→annual, free-text fallback
   feed.test.ts      # 6 cases — RSS skeleton, escaping, sort, 50-item cap
@@ -152,13 +152,16 @@ Applied in this order:
    - Title matches `TITLE_NON_TECH_ROLE`: analyst, trader, scientist, researcher.
 2. **Body preparation for scoring.** `preparedScoringBody()` strips known company boilerplate (EEO, privacy notice, accommodations, "About us") and truncates the remainder to `scoringBodyMaxChars` (default 1500). All keyword scoring runs against this prepared body — prevents footer text like "we use Anthropic Claude internally" from landing a +20 AI signal on a backend role. Hard-drop checks above still see the **full** body.
 3. **Soft scoring** (additive, capped at `maxScore` = 100):
-   - Web3 signals (+20 title/body, +20 stack)
-   - AI signals (+20 title/body, +20 stack)
-   - Stack signals (+10 React/Next/TS, +5 RN/Expo, +5 GraphQL/Tailwind/Vite)
-   - Seniority (+15 lead/staff/principal/head, +10 senior/sr)
-   - Frontend (+10 if title contains frontend/fullstack/web/mobile, +10 if body contains role-specific frontend phrases like "design system" / "ship components" / "accessibility")
-   - Location (+10 remote/EMEA/CET/Spain/anywhere)
-   - Freshness (+10 within 7 days, +5 within 14 days)
+   - Web3 signals (+20 title/body, +20 stack) — binary
+   - AI signals (+20 title/body, +20 stack) — binary
+   - Stack signals (+10 React/Next/TS, +5 RN/Expo, +5 GraphQL/Tailwind/Vite) — **tiered** (see below)
+   - Seniority (+15 lead/staff/principal/head, +10 senior/sr) — binary
+   - Frontend title (+10 if title contains frontend/fullstack/web/mobile) — binary
+   - Frontend body (+10 if body contains role-specific frontend phrases like "design system" / "ship components" / "accessibility") — **tiered**
+   - Location (+10 remote/EMEA/CET/Spain/anywhere) — binary
+   - Freshness (+10 within 7 days, +5 within 14 days) — binary
+
+   **Tiered weighting** applies to the four signals marked _tiered_ via `tieredWeight(count, baseWeight)` in `filters.ts`: 0 mentions = 0, 1 = `floor(base * 0.5)` (half), 2–3 = base, 4+ = `floor(base * 1.5)` (1.5× boost). Implemented with global-flag regexes (`STACK_PRIMARY_G`, `STACK_RN_G`, `STACK_OTHER_G`, `BODY_FRONTEND_KW_G`) + `countMatches`. The other signals stay binary because they're inherently low-cardinality and gaming them with repetition isn't a real concern.
 4. **Negative**: -10 if body hints US-centric without remote-worldwide language. Applied after capping.
 5. **Drop** anything with `fitScore < minScoreToKeep` (default 30).
 6. **Category**: `web3+ai` if both web3 and AI signals fired, else `web3`, `ai`, or `general`.
@@ -213,7 +216,18 @@ In `src/dedup.ts`:
 1. By `id` (sha1 of normalized URL).
 2. By `sha1(normalize(company) + '|' + normalize(title))`.
 
-Tiebreak: highest `fitScore` wins; on ties, the source with higher `SOURCE_PRIORITY` wins. Order: ashby > lever > greenhouse > cryptojobslist > web3career > aijobsnet > hn-hiring > hn-jobs > remotive > weworkremotely > remoteok.
+Tiebreak: highest `fitScore` wins; on ties, the source with higher `SOURCE_PRIORITY` wins. Order: aave = ashby-private > ashby > lever > greenhouse > cryptojobslist > web3career > aijobsnet > hn-hiring > hn-jobs > remotive > weworkremotely > remoteok.
+
+## Final sort (`compareJobs`)
+
+`src/dedup.ts` exports a `compareJobs(a, b)` comparator that the orchestrator uses for the post-dedup sort. Order:
+
+1. `fitScore` desc (primary)
+2. `salaryMax` desc (transparent-comp companies float up among score-tied roles; `null` is treated as 0 so unstated comp sinks below stated comp)
+3. `postedAt` desc (newest first)
+4. `id` asc (deterministic tiebreak so day-over-day diffs are stable when everything else ties)
+
+The comparator is exported (not just inlined) so it can be unit-tested directly in `tests/dedup.test.ts`.
 
 ## New-since / removed-since diff
 
@@ -258,14 +272,16 @@ To trigger the daily run manually: `gh workflow run jobs.yml`.
 
 ## Tests
 
-Vitest, 77 cases in `tests/` with `*.test.ts` glob. Run via `pnpm test` (CI) or `pnpm run test:watch` (interactive).
+Vitest, 101 cases in `tests/` with `*.test.ts` glob. Run via `pnpm test` (CI) or `pnpm run test:watch` (interactive).
 
 - **`tests/utils.test.ts`** (17): `isSafeUrl` allowlist, `normalizeUrl` (utm strip, scheme reject), `stripHtml`, `normalizeText`, `sha1Hex`, `relativeTime`, `withinDays`.
-- **`tests/filters.test.ts`** (30): every hard-drop branch (junior, senior_req, US-only, compound non-eng, non-frontend eng, non-eng role, non-tech role, exec, URL scheme), `droppedByRule` rule attribution, every score signal, category derivation, score capping with `_signals.capped`, US-centric penalty, plural title acceptance, frontendTitle/frontendBody bonuses, boilerplate stripping (AI keywords in EEO footer must NOT score).
-- **`tests/dedup.test.ts`** (5): id collapse, normalized company+title collapse, fitScore tiebreak, source priority tiebreak (`ashby > greenhouse > remoteok`, `lever > web3career`), empty input.
+- **`tests/filters.test.ts`** (33): every hard-drop branch (junior, senior_req, US-only, compound non-eng, non-frontend eng, non-eng role, non-tech role, exec, URL scheme), `droppedByRule` rule attribution, every score signal, category derivation, score capping with `_signals.capped`, US-centric penalty, plural title acceptance, frontendTitle/frontendBody bonuses, boilerplate stripping (AI keywords in EEO footer must NOT score), tiered keyword weighting (1 mention = half-weight, 4+ = 1.5× boost across `stackPrimary` and `frontendBody`).
+- **`tests/dedup.test.ts`** (10): id collapse, normalized company+title collapse, fitScore tiebreak, source priority tiebreak (`ashby > greenhouse > remoteok`, `lever > web3career`), empty input, plus 5 cases for `compareJobs` covering the four-key chain (fitScore desc → salaryMax desc with null-as-zero → postedAt desc → id asc).
 - **`tests/applied.test.ts`** (4): `STATUS_EMOJI` map presence, `summarizeApplied` empty input, grouping/counting, ordering (offer → interview → applied → withdrawn → rejected).
 - **`tests/salary.test.ts`** (15): K/M suffix parsing, comma-grouped numbers, currency symbol vs code detection (USD/EUR/GBP/CAD), hourly→annual conversion via 2080 hours, single-value salaries, sub-$1000 rejection, free-text fallback, range inversion handling.
 - **`tests/feed.test.ts`** (6): RSS 2.0 skeleton + channel metadata, item title with fit score prefix, XML escaping (`&`, `<`, `>`), `fitScore desc` ordering, 50-item cap, salary surfaced in description.
+- **`tests/aave.test.ts`** (7): `__NEXT_DATA__` extraction from raw HTML and `normalizeAave` mapping (URL build, body strip, postedAt, location/remote inference).
+- **`tests/ashby-private.test.ts`** (9): GraphQL `parseListResponse` / `parseDetailResponse` shape handling and `normalizeAshbyPrivate` slug-to-company derivation (`chainlink-labs` → "Chainlink Labs", `matter-labs` → "Matter Labs"), brief-only fallback when detail is null, stable id derivation.
 
 When tuning a filter regex or scoring weight (in `config/profile.json` or `filters.ts`), update the test in the same commit. The `check.yml` workflow runs the full suite on every PR.
 
