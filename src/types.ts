@@ -23,6 +23,7 @@ export interface JobSignals {
   stackOther: number;
   leadTitle: number;
   seniorTitle: number;
+  frontendTitle: number;
   locationRemote: number;
   freshness7d: number;
   freshness14d: number;

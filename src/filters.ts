@@ -18,6 +18,18 @@ const TITLE_NON_ENG_COMPOUND =
 const TITLE_NON_ENG_LEADERSHIP =
   /\b(vice president|\bvp\b|chief (operating|marketing|revenue|financial) officer|cmo|cro|cfo|coo)\b/i;
 
+const TITLE_NON_FRONTEND_ENG =
+  /\b(security|data|devops|sre|site reliability|reliability|infrastructure|compliance|network|systems|qa|test|automation|hardware|firmware|embedded|integration|application security|appsec|cloud security|product security) engineers?\b/i;
+
+const TITLE_NON_ENG_ROLE =
+  /\b(growth|account|customer|product|project|program|brand|content|partnerships?|community|country|regional|market|business|operations|recruiting|talent|sales|marketing|category) (manager|lead|director|head)s?\b/i;
+
+const TITLE_NON_TECH_ROLE =
+  /\b(analyst|otc trader|trader|broker|underwriter|portfolio manager|wealth manager|investment manager|data scientist|data science|researcher|economist)\b/i;
+
+const TITLE_FRONTEND_KW =
+  /\b(frontend|front-end|fullstack|full-stack|full stack|mobile|web|ui|ux|react)\b/i;
+
 const TITLE_ENGINEERING_KW =
   /\b(engineers?|developers?|architects?|programmers?|tech lead|cto|engineering)\b/i;
 
@@ -89,6 +101,18 @@ export function applyFilters(jobs: Job[]): FilterResult {
       droppedHard++;
       continue;
     }
+    if (TITLE_NON_FRONTEND_ENG.test(title)) {
+      droppedHard++;
+      continue;
+    }
+    if (TITLE_NON_ENG_ROLE.test(title)) {
+      droppedHard++;
+      continue;
+    }
+    if (TITLE_NON_TECH_ROLE.test(title)) {
+      droppedHard++;
+      continue;
+    }
 
     const signals: JobSignals = {
       web3TitleBody: 0,
@@ -100,6 +124,7 @@ export function applyFilters(jobs: Job[]): FilterResult {
       stackOther: 0,
       leadTitle: 0,
       seniorTitle: 0,
+      frontendTitle: 0,
       locationRemote: 0,
       freshness7d: 0,
       freshness14d: 0,
@@ -131,6 +156,7 @@ export function applyFilters(jobs: Job[]): FilterResult {
     if (STACK_OTHER.test(body)) signals.stackOther = 5;
     if (TITLE_LEAD.test(title)) signals.leadTitle = 15;
     if (TITLE_SENIOR.test(title)) signals.seniorTitle = 10;
+    if (TITLE_FRONTEND_KW.test(title)) signals.frontendTitle = 10;
 
     const locText = `${job.location ?? ''} ${body}`;
     if (LOC_REMOTE.test(locText)) signals.locationRemote = 10;
@@ -148,6 +174,7 @@ export function applyFilters(jobs: Job[]): FilterResult {
       signals.stackOther +
       signals.leadTitle +
       signals.seniorTitle +
+      signals.frontendTitle +
       signals.locationRemote +
       signals.freshness7d +
       signals.freshness14d;

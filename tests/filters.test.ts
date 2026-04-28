@@ -80,6 +80,69 @@ describe('applyFilters — hard excludes', () => {
     expect(r.kept).toHaveLength(0);
     expect(r.droppedHard).toBe(1);
   });
+
+  it('drops non-frontend engineering specialties', () => {
+    const cases = [
+      'Senior Product Security Engineer',
+      'Senior Data Engineer',
+      'Staff DevOps Engineer',
+      'Principal Site Reliability Engineer',
+      'Lead Infrastructure Engineer',
+      'Senior QA Engineer',
+      'Senior Network Engineer',
+    ];
+    for (const title of cases) {
+      const r = applyFilters([makeJob({ title })]);
+      expect(r.kept, `should drop: ${title}`).toHaveLength(0);
+    }
+  });
+
+  it('keeps frontend / fullstack / mobile / web / generic engineering titles', () => {
+    const cases = [
+      'Senior Frontend Engineer',
+      'Staff Full-Stack Engineer',
+      'Senior Mobile Engineer',
+      'Senior Software Engineer',
+      'Tech Lead',
+      'Senior Engineering Manager',
+      'Head of Engineering',
+    ];
+    for (const title of cases) {
+      const r = applyFilters([
+        makeJob({ title, body: 'react typescript next.js anthropic remote' }),
+      ]);
+      expect(r.kept, `should keep: ${title}`).toHaveLength(1);
+    }
+  });
+
+  it('drops business/product/customer/country lead+manager roles', () => {
+    const cases = [
+      'Lead Client Growth Manager',
+      'Country Lead Spain Portugal',
+      'Senior Product Manager',
+      'Customer Success Manager',
+      'Senior Account Manager',
+      'Regional Lead',
+      'Operations Manager',
+    ];
+    for (const title of cases) {
+      const r = applyFilters([makeJob({ title })]);
+      expect(r.kept, `should drop: ${title}`).toHaveLength(0);
+    }
+  });
+
+  it('drops analyst / trader / data scientist / researcher titles', () => {
+    const cases = [
+      'Lead Product Analyst',
+      'Senior Data Analyst',
+      'Senior OTC Trader',
+      'Senior Data Scientist',
+    ];
+    for (const title of cases) {
+      const r = applyFilters([makeJob({ title })]);
+      expect(r.kept, `should drop: ${title}`).toHaveLength(0);
+    }
+  });
 });
 
 describe('applyFilters — scoring', () => {
@@ -163,6 +226,26 @@ describe('applyFilters — scoring', () => {
     expect(r.kept[0]?._signals?.aiStack).toBe(20);
     expect(r.kept[0]?._signals?.stackPrimary).toBe(10);
     expect(r.kept[0]?._signals?.seniorTitle).toBe(10);
+  });
+
+  it('awards +10 frontend title bonus', () => {
+    const r = applyFilters([
+      makeJob({
+        title: 'Senior Frontend Engineer',
+        body: 'react typescript anthropic remote',
+      }),
+    ]);
+    expect(r.kept[0]?._signals?.frontendTitle).toBe(10);
+  });
+
+  it('does not award frontend bonus to generic Software Engineer titles', () => {
+    const r = applyFilters([
+      makeJob({
+        title: 'Senior Software Engineer',
+        body: 'react typescript anthropic remote',
+      }),
+    ]);
+    expect(r.kept[0]?._signals?.frontendTitle).toBe(0);
   });
 });
 
