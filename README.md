@@ -4,6 +4,7 @@ A personal job aggregator that runs daily on GitHub Actions. It pulls listings f
 
 > **Looking for today's matches?** → [`JOBS.md`](./JOBS.md) (auto-generated, refreshed daily at 07:00 UTC).
 > Raw data lives in [`data/jobs.json`](./data/jobs.json).
+> Subscribe to the new-matches RSS feed: [`data/feed.xml`](./data/feed.xml) (point any reader at the raw GitHub URL).
 
 ---
 
@@ -19,13 +20,13 @@ Manually checking 11 job boards every morning is tedious. This repo replaces tha
 | Language | TypeScript 5.9 (NodeNext, strict) |
 | Lint + format | Biome 2.4 |
 | Package manager | pnpm 10 |
-| Tests | Vitest 3 (56 unit tests on filters, dedup, utils, applied) |
+| Tests | Vitest 3 (77 unit tests on filters, dedup, utils, applied, salary, feed) |
 | Pre-commit | simple-git-hooks (runs lint + typecheck on every commit) |
 | HTTP | Native `fetch` with `AbortController` (30s timeout, 1 retry on 5xx/network) |
 | RSS parsing | `fast-xml-parser` (only runtime dep) |
 | HTML scraping | Inline regex parsers (no cheerio/jsdom) |
 | Schedule | GitHub Actions cron, daily 07:00 UTC |
-| Output | Files committed to this repo (`data/jobs.json`, `JOBS.md`, `data/archive/<YYYY-MM>.json` on month-start) |
+| Output | Files committed to this repo (`data/jobs.json`, `data/feed.xml` RSS, `JOBS.md`, `data/archive/<YYYY-MM>.json` on month-start) |
 | Static analysis | Biome + tsc on every PR (`check.yml`); Dependabot for npm + GitHub Actions |
 
 ## Architecture
@@ -124,7 +125,10 @@ interface Job {
   remote: boolean;            // inferred from text + tags
   body: string;               // HTML stripped via regex (in-memory only)
   tags: string[];
-  salary: string | null;      // surfaced when source provides it (Ashby/Lever/Remotive/web3career/aijobs)
+  salary: string | null;          // surfaced when source provides it (Ashby/Lever/Remotive/web3career/aijobs)
+  salaryMin: number | null;       // parsed annual integer (USD/EUR/etc., minor units stripped)
+  salaryMax: number | null;       // parsed annual integer
+  salaryCurrency: string | null;  // ISO code: 'USD' | 'EUR' | 'GBP' | …
   postedAt: string | null;    // ISO 8601
   fetchedAt: string;          // ISO 8601, set at run-start
   fitScore: number;           // 0-100, populated by filters
@@ -221,15 +225,19 @@ Before writing the new `data/jobs.json`, the orchestrator reads the **previous**
 
 `src/render.ts` produces `JOBS.md` with:
 
-1. Stats (totals, drop reasons, by-source breakdown, by-category breakdown).
-2. **📋 Application status** — summary line + table of every job in `config/applied.json`, sorted by date desc (omitted when no entries).
-3. **✨ New since last run** — top 20 newest jobs by `fitScore` (omitted when empty or on first run).
-4. **Top Web3 + AI** — top 10.
-5. **Top Web3** — top 20.
-6. **Top AI** — top 20.
-7. **Other** — top 10.
+1. **🚨 Source-health banner** (only when one or more fetchers returned zero items or had errors).
+2. Stats (totals, drop reasons with per-rule breakdown, by-source breakdown with 🚨 prefixes for unhealthy sources, by-category breakdown).
+3. **📋 Application status** — summary line + table of every job in `config/applied.json`, sorted by date desc (omitted when no entries).
+4. **✨ New since last run** — top 20 newest jobs by `fitScore` (omitted when empty or on first run).
+5. **🗑 Removed since last run** — top 10 by previous fitScore of postings that disappeared since the last run (filled, withdrawn, or pulled upstream — omitted when empty or on first run).
+6. **Top Web3 + AI** — top 10.
+7. **Top Web3** — top 20.
+8. **Top AI** — top 20.
+9. **Other** — top 10.
 
 Each table row: `Score | Title | Company | Source | Posted (relative) | Link`. The title cell carries an emoji prefix when the job is in `config/applied.json` (📝 applied, 💬 interview, 🎯 offer, ❌ rejected, ⏸ withdrawn) and a ` · <salary>` suffix when the source provides salary data. The full sorted list also lands in `data/jobs.json`, including the `_signals` breakdown per job.
+
+[`src/feed.ts`](./src/feed.ts) also writes [`data/feed.xml`](./data/feed.xml) — an RSS 2.0 feed of the day's "✨ new" jobs (top 50 by fitScore). Subscribe to the raw GitHub URL in any RSS reader to get a daily mobile digest.
 
 ## Application tracking
 
@@ -303,15 +311,19 @@ job-hunt/
 │   ├── utils.ts               # fetchWithTimeout, retry, isSafeUrl, sha1, stripHtml, ...
 │   ├── rss.ts                 # shared fast-xml-parser wrapper
 │   ├── normalize.ts           # one normalizer per source (extracts salary when available)
+│   ├── salary.ts              # parses raw salary strings into normalized min/max/currency
 │   ├── filters.ts             # hard excludes + scoring + signal breakdown (loads config/profile.json)
 │   ├── applied.ts             # loads config/applied.json, attaches AppliedEntry by URL hash
 │   ├── dedup.ts               # 2-pass dedup with priority-aware tiebreak
-│   ├── render.ts              # JOBS.md generator (applied section + status emoji + salary)
+│   ├── render.ts              # JOBS.md generator (applied section + status emoji + salary + 🚨 banner + 🗑 removed)
+│   ├── feed.ts                # RSS 2.0 feed of "✨ new" jobs → data/feed.xml
 │   └── index.ts               # orchestrator
 ├── tests/
 │   ├── filters.test.ts        # 30 cases: hard drops, droppedByRule, scoring, plurals, frontendBody, boilerplate
 │   ├── dedup.test.ts          # 5 cases: id/title collapse, priority
 │   ├── applied.test.ts        # 4 cases: status emoji map, summary grouping/ordering
+│   ├── salary.test.ts         # 15 cases: K/M suffix, currency detection, hourly conversion, free-text
+│   ├── feed.test.ts           # 6 cases: RSS skeleton, escaping, sort, 50-item cap
 │   └── utils.test.ts          # 17 cases: URL safety, stripHtml, time math
 ├── biome.json
 ├── tsconfig.json
@@ -333,7 +345,7 @@ pnpm start                   # built output (run pnpm run build first)
 pnpm run typecheck           # tsc --noEmit on src/, then on src/+tests/ (tsconfig.test.json)
 pnpm run lint                # biome check
 pnpm run lint:fix            # biome check --write
-pnpm test                    # vitest run (56 unit tests)
+pnpm test                    # vitest run (77 unit tests)
 pnpm run test:watch          # vitest in watch mode
 ```
 
@@ -342,7 +354,8 @@ The pre-commit hook runs `lint && typecheck` on every commit. To bypass it for a
 A run takes ~5-10 seconds and produces:
 
 - `data/jobs.json` — slim sorted list (no `body` field), survives filters + dedup
-- `JOBS.md` — five-section table (✨ new + four categories)
+- `data/feed.xml` — RSS 2.0 feed of the day's ✨ new jobs (top 50)
+- `JOBS.md` — sections: source-health banner, stats, applied, ✨ new, 🗑 removed, four category tables
 - `data/archive/<YYYY-MM>.json` — monthly snapshot, written on day 1
 - `data/raw/<source>-<YYYY-MM-DD>.json` — per-source raw payload for debugging (gitignored)
 
@@ -404,7 +417,7 @@ Defense-in-depth measures, ranked from runtime to build-time:
 - **HTML attribute escaping.** Apply links in `JOBS.md` use raw `<a target="_blank" rel="noopener noreferrer">` with HTML-escaped href (`escapeHtmlAttr` in [`src/render.ts`](./src/render.ts)). `noopener noreferrer` blocks tabnabbing.
 - **HTML stripping.** All scraped/RSS/JSON `body` content is run through [`stripHtml`](./src/utils.ts) before any other processing.
 - **Pre-commit hook** runs `pnpm run lint && pnpm run typecheck` before each commit. Bypass with `SKIP_SIMPLE_GIT_HOOKS=1`.
-- **Tests** (`pnpm test`) — Vitest, 56 cases on the security-sensitive code (URL safety, regex filters, dedup tiebreaks, applied-status grouping). Runs on every PR.
+- **Tests** (`pnpm test`) — Vitest, 77 cases across security-sensitive code (URL safety, regex filters, dedup tiebreaks, applied-status grouping, salary parsing, RSS escaping). Runs on every PR.
 - **`pnpm audit --prod --audit-level high`** in [`check.yml`](./.github/workflows/check.yml). Reports known CVEs in production deps.
 - **Pinned actions.** All four workflows reference third-party actions by commit SHA, not floating tags. Defends against tag-hijacking.
 - **Dependabot** ([`dependabot.yml`](./.github/dependabot.yml)) — weekly PRs for npm + GitHub Actions. Each PR is gated by `check.yml`.

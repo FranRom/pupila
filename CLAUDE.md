@@ -4,7 +4,7 @@ Guidance for future Claude Code sessions working in this repo.
 
 ## Overview
 
-`job-hunt` is a personal job aggregator that runs daily on GitHub Actions. It fetches listings from 11 public sources (3 ATS APIs — Ashby, Greenhouse, Lever — plus RSS feeds, JSON job boards, Hacker News, and HTML scrapers), normalizes them, applies hard exclusion filters, computes a per-job `fitScore`, deduplicates, and writes `data/jobs.json` + an auto-regenerated `JOBS.md` table. The hand-written `README.md` is the project doc and is **not** rewritten by the pipeline. No external services. No DB. Output lives in this repo.
+`job-hunt` is a personal job aggregator that runs daily on GitHub Actions. It fetches listings from 11 public sources (3 ATS APIs — Ashby, Greenhouse, Lever — plus RSS feeds, JSON job boards, Hacker News, and HTML scrapers), normalizes them, applies hard exclusion filters, computes a per-job `fitScore`, deduplicates, and writes `data/jobs.json`, an RSS feed at `data/feed.xml`, and an auto-regenerated `JOBS.md` table. The hand-written `README.md` is the project doc and is **not** rewritten by the pipeline. No external services. No DB. Output lives in this repo.
 
 The pipeline is tuned for: senior/lead/staff frontend, web3 (EVM + Solana), and AI engineering roles, remote / EMEA / worldwide.
 
@@ -13,7 +13,7 @@ The pipeline is tuned for: senior/lead/staff frontend, web3 (EVM + Solana), and 
 - Node 22 LTS, ESM, TypeScript 5.9 (NodeNext)
 - Biome 2.4 (lint + format, single config in `biome.json`)
 - pnpm 10
-- Vitest 3 (tests in `tests/`, run via `pnpm test` — 56 cases)
+- Vitest 3 (tests in `tests/`, run via `pnpm test` — 77 cases)
 - simple-git-hooks (pre-commit `lint && typecheck`)
 - Single runtime dep: `fast-xml-parser`. Native `fetch` only.
 
@@ -26,11 +26,11 @@ pnpm start                  # built output: requires pnpm run build first
 pnpm run typecheck          # tsc --noEmit on src/, then on src/+tests/ via tsconfig.test.json
 pnpm run lint               # biome check
 pnpm run lint:fix            # biome check --write
-pnpm test                   # vitest run (56 unit tests)
+pnpm test                   # vitest run (77 unit tests)
 pnpm run test:watch         # vitest watch mode
 ```
 
-The pipeline writes to `data/jobs.json` (slim — `body` field stripped), `JOBS.md`, optionally `data/archive/<YYYY-MM>.json` on day 1 of the month, and per-source raw dumps in `data/raw/<source>-<YYYY-MM-DD>.json` (gitignored). `README.md` is hand-maintained — never overwrite it from code.
+The pipeline writes to `data/jobs.json` (slim — `body` field stripped), `data/feed.xml` (RSS 2.0 of new jobs), `JOBS.md`, optionally `data/archive/<YYYY-MM>.json` on day 1 of the month, and per-source raw dumps in `data/raw/<source>-<YYYY-MM-DD>.json` (gitignored). `README.md` is hand-maintained — never overwrite it from code.
 
 Pre-commit runs `lint && typecheck` automatically. Bypass with `SKIP_SIMPLE_GIT_HOOKS=1 git commit ...` for emergency commits.
 
@@ -42,11 +42,13 @@ src/
   types.ts          # Job, Source, Category, ApplicationStatus, AppliedEntry, FetcherResult, Raw* shapes
   utils.ts          # fetchWithTimeout (1-retry), isSafeUrl, sha1, stripHtml, readJsonOrNull, ...
   rss.ts            # shared fast-xml-parser wrapper
-  normalize.ts      # one normalize<Source> per source -> Job (extracts salary when source provides it)
+  normalize.ts      # one normalize<Source> per source -> Job (uses withSalary() for parsed salary fields)
+  salary.ts         # parseSalary(): raw string -> { min, max, currency } (annual integer, ISO code)
   filters.ts        # hard excludes + scoring + category + _signals (loads config/profile.json)
   applied.ts        # loads config/applied.json, attaches AppliedEntry to Job by URL hash
   dedup.ts          # 2-pass dedup, priority-aware tiebreak
-  render.ts         # JOBS.md markdown generator (applied section, status emoji prefix, salary suffix)
+  render.ts         # JOBS.md markdown (applied, ✨ new, 🗑 removed, 🚨 source-health, status/salary in title)
+  feed.ts           # RSS 2.0 generator -> data/feed.xml (top 50 ✨ new jobs)
   fetchers/
     _shared.ts                                              # fetchMultiSlug orchestration helper
     ashby.ts            greenhouse.ts       lever.ts        # ATS APIs (largest signal)
@@ -60,9 +62,11 @@ config/
   applied.json      # hand-edited list of jobs you've applied to
 
 tests/
-  filters.test.ts   # 29 cases — hard drops, scoring, plurals, frontendBody, boilerplate stripping
+  filters.test.ts   # 30 cases — hard drops, droppedByRule, scoring, plurals, frontendBody, boilerplate
   dedup.test.ts     # 5 cases — id/title collapse, priority
   applied.test.ts   # 4 cases — STATUS_EMOJI map + summarizeApplied grouping/ordering
+  salary.test.ts    # 15 cases — K/M suffix, currency detection, hourly→annual, free-text fallback
+  feed.test.ts      # 6 cases — RSS skeleton, escaping, sort, 50-item cap
   utils.test.ts     # 17 cases — URL safety, stripHtml, time math
 
 tsconfig.json       # rootDir=src/, strict NodeNext
@@ -207,23 +211,38 @@ In `src/dedup.ts`:
 
 Tiebreak: highest `fitScore` wins; on ties, the source with higher `SOURCE_PRIORITY` wins. Order: ashby > lever > greenhouse > cryptojobslist > web3career > aijobsnet > hn-hiring > hn-jobs > remotive > weworkremotely > remoteok.
 
-## New-since-last-run diff
+## New-since / removed-since diff
 
-Right before writing the new `data/jobs.json`, the orchestrator reads the **previous** committed copy via `readJsonOrNull`, builds a `Set<string>` of its IDs, and computes `newJobs = kept.filter(j => !previousIds.has(j.id))`. That list:
+Right before writing the new `data/jobs.json`, the orchestrator reads the **previous** committed copy via `readJsonOrNull`, builds two sets (previous IDs, current IDs), and computes:
 
-- becomes the count in `RenderStats.newCount`,
-- gets passed to `renderReadme(jobs, stats, newJobs)` as a separate parameter,
-- is rendered as the **"✨ New since last run"** section at the top of `JOBS.md` (sorted by `fitScore` desc, top 20).
+- `newJobs = current − previous` → "✨ New since last run" section (top 20 by `fitScore` desc, also drives `data/feed.xml`).
+- `removedJobs = previous − current` → "🗑 Removed since last run" section (top 10 by previous `fitScore`).
 
-On the very first run (no previous file or unparseable file) `previous === null` and the diff is treated as empty (the section is omitted entirely). Don't change this — it prevents the first run from declaring "all 900 jobs are new" when there's no baseline.
+Both lists become counts in `RenderStats.newCount` / `removedCount` and are passed to `renderReadme(jobs, stats, newJobs, removedJobs)`.
+
+On the very first run (no previous file or unparseable file) `previous === null` and both diffs are treated as empty (sections are omitted entirely). Don't change this — it prevents the first run from declaring "all 900 jobs are new" when there's no baseline.
 
 The read happens **after** filter+dedup+sort but **before** `writeJson('data/jobs.json', ...)`, so the new file overwrites the old one cleanly.
+
+## RSS feed
+
+[`src/feed.ts`](./src/feed.ts) emits a hand-rolled RSS 2.0 XML to `data/feed.xml` containing the top 50 `newJobs` by `fitScore`. The XML is hand-built (not via fast-xml-parser) because we control the content shape — `escapeXml` covers the five entity classes. The workflow's auto-commit `file_pattern` includes `data/feed.xml`. To subscribe: point any RSS reader at `https://raw.githubusercontent.com/FranRom/job-hunt/main/data/feed.xml`.
+
+## Salary parsing
+
+[`src/salary.ts`](./src/salary.ts) `parseSalary(raw)` returns `{ min, max, currency }`, normalizing to **annual integers** (USD/EUR/etc., minor units stripped). It handles `$120K-$180K`, `€80,000 - €110,000`, `100K-150K USD`, hourly via `2080` annualization, M-suffixed ($1M-$2M), single-value salaries, currency code or symbol detection, and rejects sub-$1000 amounts as noise. Returns `{ null, null, null }` for free-text like "competitive". Hooked into [`src/normalize.ts`](./src/normalize.ts) via a `withSalary()` spread so adding a future salary-emitting source is one line.
+
+`Job.salary` (raw string for display) and `Job.salaryMin / salaryMax / salaryCurrency` (parsed) are both populated. The display column in `JOBS.md` keeps using `salary`; future filtering/sorting can use the numeric fields.
+
+## Source-health alarms
+
+`src/render.ts` flags fetchers whose `fetched === 0` OR `errors > 0` in the **current run**: a 🚨 banner appears above the Stats section, and the offending sources get a 🚨 prefix in the by-source list. Single-run signal only — no historical tracking. Catches silent breakage (web3career and aijobsnet markup changes have hit us before). If a normally-quiet source legitimately returns 0 (e.g. cryptojobslist while upstream is down), it'll alarm — that's still useful surfacing.
 
 ## GitHub Actions
 
 Three workflows total:
 
-- **`.github/workflows/jobs.yml`** — `0 7 * * *` daily + `workflow_dispatch`. Runs `pnpm run dev` (no build step). Auto-commits `data/jobs.json`, the `data/archive` directory, and `JOBS.md` if anything changed. `permissions: contents: write`. The auto-commit pattern uses the `data/archive` directory (not a glob) because `data/archive/*.json` errors when no files match — keep `data/archive/.gitkeep` so the directory always exists.
+- **`.github/workflows/jobs.yml`** — `0 7 * * *` daily + `workflow_dispatch`. Runs `pnpm run dev` (no build step). Auto-commits `data/jobs.json`, `data/feed.xml`, the `data/archive` directory, and `JOBS.md` if anything changed. `permissions: contents: write`. The auto-commit pattern uses the `data/archive` directory (not a glob) because `data/archive/*.json` errors when no files match — keep `data/archive/.gitkeep` so the directory always exists.
 - **`.github/workflows/check.yml`** — every push to `main` and every PR. Lint, typecheck, test, audit. `permissions: contents: read`.
 - **`.github/workflows/keepalive.yml`** — `0 12 * * 0` weekly. Touches `.keepalive` so GitHub doesn't disable the daily schedule after 60 days of repo inactivity.
 
@@ -235,12 +254,14 @@ To trigger the daily run manually: `gh workflow run jobs.yml`.
 
 ## Tests
 
-Vitest, 56 cases in `tests/` with `*.test.ts` glob. Run via `pnpm test` (CI) or `pnpm run test:watch` (interactive).
+Vitest, 77 cases in `tests/` with `*.test.ts` glob. Run via `pnpm test` (CI) or `pnpm run test:watch` (interactive).
 
 - **`tests/utils.test.ts`** (17): `isSafeUrl` allowlist, `normalizeUrl` (utm strip, scheme reject), `stripHtml`, `normalizeText`, `sha1Hex`, `relativeTime`, `withinDays`.
 - **`tests/filters.test.ts`** (30): every hard-drop branch (junior, senior_req, US-only, compound non-eng, non-frontend eng, non-eng role, non-tech role, exec, URL scheme), `droppedByRule` rule attribution, every score signal, category derivation, score capping with `_signals.capped`, US-centric penalty, plural title acceptance, frontendTitle/frontendBody bonuses, boilerplate stripping (AI keywords in EEO footer must NOT score).
 - **`tests/dedup.test.ts`** (5): id collapse, normalized company+title collapse, fitScore tiebreak, source priority tiebreak (`ashby > greenhouse > remoteok`, `lever > web3career`), empty input.
 - **`tests/applied.test.ts`** (4): `STATUS_EMOJI` map presence, `summarizeApplied` empty input, grouping/counting, ordering (offer → interview → applied → withdrawn → rejected).
+- **`tests/salary.test.ts`** (15): K/M suffix parsing, comma-grouped numbers, currency symbol vs code detection (USD/EUR/GBP/CAD), hourly→annual conversion via 2080 hours, single-value salaries, sub-$1000 rejection, free-text fallback, range inversion handling.
+- **`tests/feed.test.ts`** (6): RSS 2.0 skeleton + channel metadata, item title with fit score prefix, XML escaping (`&`, `<`, `>`), `fitScore desc` ordering, 50-item cap, salary surfaced in description.
 
 When tuning a filter regex or scoring weight (in `config/profile.json` or `filters.ts`), update the test in the same commit. The `check.yml` workflow runs the full suite on every PR.
 
