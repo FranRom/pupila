@@ -8,6 +8,11 @@ updates:
       time: '06:00'
       timezone: Etc/UTC
     open-pull-requests-limit: 5
+    # Pin @types/node to the runtime's major (Node 22 LTS). Bumping the types
+    # past Node 22 would surface APIs the runtime can't actually call.
+    ignore:
+      - dependency-name: '@types/node'
+        update-types: ['version-update:semver-major']
     groups:
       dev-deps:
         dependency-type: development
