@@ -13,7 +13,7 @@ The pipeline is tuned for: senior/lead/staff frontend, web3 (EVM + Solana), and 
 - Node 22 LTS, ESM, TypeScript 5.9 (NodeNext)
 - Biome 2.4 (lint + format, single config in `biome.json`)
 - pnpm 10
-- Vitest 3 (tests in `tests/`, run via `pnpm test` — 55 cases)
+- Vitest 3 (tests in `tests/`, run via `pnpm test` — 56 cases)
 - simple-git-hooks (pre-commit `lint && typecheck`)
 - Single runtime dep: `fast-xml-parser`. Native `fetch` only.
 
@@ -26,7 +26,7 @@ pnpm start                  # built output: requires pnpm run build first
 pnpm run typecheck          # tsc --noEmit on src/, then on src/+tests/ via tsconfig.test.json
 pnpm run lint               # biome check
 pnpm run lint:fix            # biome check --write
-pnpm test                   # vitest run (55 unit tests)
+pnpm test                   # vitest run (56 unit tests)
 pnpm run test:watch         # vitest watch mode
 ```
 
@@ -48,6 +48,7 @@ src/
   dedup.ts          # 2-pass dedup, priority-aware tiebreak
   render.ts         # JOBS.md markdown generator (applied section, status emoji prefix, salary suffix)
   fetchers/
+    _shared.ts                                              # fetchMultiSlug orchestration helper
     ashby.ts            greenhouse.ts       lever.ts        # ATS APIs (largest signal)
     aijobsnet.ts        cryptojobslist.ts   web3career.ts   # boards / scrapers
     hn-hiring.ts        hn-jobs.ts                          # Hacker News
@@ -83,7 +84,7 @@ tsconfig.test.json  # extends above with rootDir=. so tests/ typecheck without l
 2. Create `src/fetchers/<name>.ts` exporting `fetch<Name>(): Promise<FetcherResult<Raw>>` — i.e. returning `{ items: Raw[]; errors: string[] }`. **Never throw.** Catch all errors internally, push them onto the `errors` array, and return.
    - Use `fetchWithTimeout` / `fetchJson` / `fetchText` from `utils.ts` (30s timeout, 1 retry on 5xx/network).
    - Pass `JSON_HEADERS` or `RSS_HEADERS` so the request looks like a real browser.
-   - For multi-slug/multi-page fetchers, aggregate `errors` from each sub-call so partial failures are visible in stats.
+   - For multi-slug/multi-page fetchers, **use `fetchMultiSlug` from `src/fetchers/_shared.ts`** — it handles the Promise.all + per-slug try/catch + console.error logging + flatMap-aggregate scaffolding. The fetcher only owns the per-slug extraction (URL construction + response shape mapping). See `ashby.ts`, `greenhouse.ts`, `lever.ts` for the canonical pattern.
 3. Add the literal source name to the `Source` union in `src/types.ts`.
 4. Add a normalizer to `src/normalize.ts`: `normalize<Name>(items, fetchedAt): Job[]`.
 5. Wire it into `src/index.ts`:
@@ -126,6 +127,8 @@ If a target company isn't on any of the three big ATSes (Aave, Chainlink, Morpho
 
 All in `src/filters.ts`. **Weights and keyword lists are loaded from [`config/profile.json`](./config/profile.json) at startup** — `compileKw()` joins each keyword array with `|` and wraps in `\b...\b/i`. Adjusting a weight or adding a keyword is a non-code change.
 
+The hard-drop chain is a named-rule list (`HARD_RULES` in `filters.ts`) — `applyFilters` runs `Array.find` over the rules, increments `droppedHard`, and tallies the rule name in `droppedByRule`. The breakdown surfaces in JOBS.md next to the hard-drop count (e.g. `(missing_senior_req=812, title_non_eng_role=64, ...)`) so you can see at a glance which rule does the heavy lifting. To add a new hard-drop check, append a `{ name, test }` entry to `HARD_RULES` — no other plumbing needed.
+
 Applied in this order:
 
 1. **Hard excludes** (drop entirely)
@@ -153,6 +156,8 @@ Applied in this order:
 6. **Category**: `web3+ai` if both web3 and AI signals fired, else `web3`, `ai`, or `general`.
 
 To adjust a weight, edit `config/profile.json#weights.<field>`. To add a keyword to an existing list, edit `config/profile.json#keywords.<list>`. For new signal types or new hard-drop branches, edit `applyFilters` in `filters.ts` directly.
+
+**Adding a new positive signal.** Append the field to the `JobSignals` interface in `types.ts`, add its weight to `config/profile.json#weights`, and append one line to the `positives` object literal in `applyFilters`. The sum is computed via `Object.values(positives).reduce(...)` so you don't need to remember to update an addition chain — it auto-includes any new field.
 
 ### Debugging fitScore via `_signals`
 
@@ -230,10 +235,10 @@ To trigger the daily run manually: `gh workflow run jobs.yml`.
 
 ## Tests
 
-Vitest, 55 cases in `tests/` with `*.test.ts` glob. Run via `pnpm test` (CI) or `pnpm run test:watch` (interactive).
+Vitest, 56 cases in `tests/` with `*.test.ts` glob. Run via `pnpm test` (CI) or `pnpm run test:watch` (interactive).
 
 - **`tests/utils.test.ts`** (17): `isSafeUrl` allowlist, `normalizeUrl` (utm strip, scheme reject), `stripHtml`, `normalizeText`, `sha1Hex`, `relativeTime`, `withinDays`.
-- **`tests/filters.test.ts`** (29): every hard-drop branch (junior, senior_req, US-only, compound non-eng, non-frontend eng, non-eng role, non-tech role, exec, URL scheme), every score signal, category derivation, score capping with `_signals.capped`, US-centric penalty, plural title acceptance, frontendTitle/frontendBody bonuses, boilerplate stripping (AI keywords in EEO footer must NOT score).
+- **`tests/filters.test.ts`** (30): every hard-drop branch (junior, senior_req, US-only, compound non-eng, non-frontend eng, non-eng role, non-tech role, exec, URL scheme), `droppedByRule` rule attribution, every score signal, category derivation, score capping with `_signals.capped`, US-centric penalty, plural title acceptance, frontendTitle/frontendBody bonuses, boilerplate stripping (AI keywords in EEO footer must NOT score).
 - **`tests/dedup.test.ts`** (5): id collapse, normalized company+title collapse, fitScore tiebreak, source priority tiebreak (`ashby > greenhouse > remoteok`, `lever > web3career`), empty input.
 - **`tests/applied.test.ts`** (4): `STATUS_EMOJI` map presence, `summarizeApplied` empty input, grouping/counting, ordering (offer → interview → applied → withdrawn → rejected).
 

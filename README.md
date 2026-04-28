@@ -19,7 +19,7 @@ Manually checking 11 job boards every morning is tedious. This repo replaces tha
 | Language | TypeScript 5.9 (NodeNext, strict) |
 | Lint + format | Biome 2.4 |
 | Package manager | pnpm 10 |
-| Tests | Vitest 3 (55 unit tests on filters, dedup, utils, applied) |
+| Tests | Vitest 3 (56 unit tests on filters, dedup, utils, applied) |
 | Pre-commit | simple-git-hooks (runs lint + typecheck on every commit) |
 | HTTP | Native `fetch` with `AbortController` (30s timeout, 1 retry on 5xx/network) |
 | RSS parsing | `fast-xml-parser` (only runtime dep) |
@@ -140,7 +140,7 @@ URLs are canonicalized (`utm_*` stripped, trailing slash normalized) before hash
 
 ### 3. Filter + score (`src/filters.ts`)
 
-**Hard excludes** (drop entirely):
+**Hard excludes** (drop entirely). The hard-drop chain is a named-rule list (`HARD_RULES` in [`src/filters.ts`](./src/filters.ts)) — every drop is attributed to a rule name, and the per-rule count is surfaced in the JOBS.md "Dropped — hard filters" stat (e.g. `(missing_senior_req=812, title_non_eng_role=64, ...)`) so you can see which rule is doing the heavy lifting at a glance.
 
 - Title contains `junior|jr|intern|entry-level|associate|graduate|trainee|apprentice`.
 - Title does **not** contain `senior|sr|staff|principal|lead|head|director|engineer(s)|developer(s)|architect(s)`.
@@ -287,6 +287,7 @@ job-hunt/
 │   └── raw/                   # per-source raw JSON, gitignored
 ├── src/
 │   ├── fetchers/              # one file per source
+│   │   ├── _shared.ts         # fetchMultiSlug helper for ATS fetchers
 │   │   ├── ashby.ts           # 26 tier-S slugs (largest contributor)
 │   │   ├── greenhouse.ts      # 14 tier-S slugs
 │   │   ├── lever.ts           # 6 tier-S slugs
@@ -308,7 +309,7 @@ job-hunt/
 │   ├── render.ts              # JOBS.md generator (applied section + status emoji + salary)
 │   └── index.ts               # orchestrator
 ├── tests/
-│   ├── filters.test.ts        # 29 cases: hard drops, scoring, plurals, frontendBody, boilerplate
+│   ├── filters.test.ts        # 30 cases: hard drops, droppedByRule, scoring, plurals, frontendBody, boilerplate
 │   ├── dedup.test.ts          # 5 cases: id/title collapse, priority
 │   ├── applied.test.ts        # 4 cases: status emoji map, summary grouping/ordering
 │   └── utils.test.ts          # 17 cases: URL safety, stripHtml, time math
@@ -332,7 +333,7 @@ pnpm start                   # built output (run pnpm run build first)
 pnpm run typecheck           # tsc --noEmit on src/, then on src/+tests/ (tsconfig.test.json)
 pnpm run lint                # biome check
 pnpm run lint:fix            # biome check --write
-pnpm test                    # vitest run (55 unit tests)
+pnpm test                    # vitest run (56 unit tests)
 pnpm run test:watch          # vitest in watch mode
 ```
 
@@ -403,7 +404,7 @@ Defense-in-depth measures, ranked from runtime to build-time:
 - **HTML attribute escaping.** Apply links in `JOBS.md` use raw `<a target="_blank" rel="noopener noreferrer">` with HTML-escaped href (`escapeHtmlAttr` in [`src/render.ts`](./src/render.ts)). `noopener noreferrer` blocks tabnabbing.
 - **HTML stripping.** All scraped/RSS/JSON `body` content is run through [`stripHtml`](./src/utils.ts) before any other processing.
 - **Pre-commit hook** runs `pnpm run lint && pnpm run typecheck` before each commit. Bypass with `SKIP_SIMPLE_GIT_HOOKS=1`.
-- **Tests** (`pnpm test`) — Vitest, 55 cases on the security-sensitive code (URL safety, regex filters, dedup tiebreaks, applied-status grouping). Runs on every PR.
+- **Tests** (`pnpm test`) — Vitest, 56 cases on the security-sensitive code (URL safety, regex filters, dedup tiebreaks, applied-status grouping). Runs on every PR.
 - **`pnpm audit --prod --audit-level high`** in [`check.yml`](./.github/workflows/check.yml). Reports known CVEs in production deps.
 - **Pinned actions.** All four workflows reference third-party actions by commit SHA, not floating tags. Defends against tag-hijacking.
 - **Dependabot** ([`dependabot.yml`](./.github/dependabot.yml)) — weekly PRs for npm + GitHub Actions. Each PR is gated by `check.yml`.
