@@ -248,6 +248,26 @@ describe('applyFilters — scoring', () => {
     expect(r.kept[0]?._signals?.frontendTitle).toBe(0);
   });
 
+  it('awards +10 frontendBody bonus when body has role-specific frontend phrases', () => {
+    const r = applyFilters([
+      makeJob({
+        title: 'Senior Software Engineer',
+        body: 'You will ship react components and own our design system. Remote.',
+      }),
+    ]);
+    expect(r.kept[0]?._signals?.frontendBody).toBe(10);
+  });
+
+  it('does not award frontendBody for generic backend body', () => {
+    const r = applyFilters([
+      makeJob({
+        title: 'Senior Engineer',
+        body: 'Build microservices in Go using gRPC and protobuf. anthropic claude remote.',
+      }),
+    ]);
+    expect(r.kept[0]?._signals?.frontendBody).toBe(0);
+  });
+
   it('ignores AI/web3 keywords in company boilerplate at end of body', () => {
     // Pad role description so "anthropic" appears past the 1500-char window.
     const padding = 'java spring boot postgres kafka backend microservices. '.repeat(50);

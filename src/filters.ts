@@ -40,6 +40,9 @@ const TITLE_NON_TECH_ROLE =
 const TITLE_FRONTEND_KW =
   /\b(frontend|front-end|fullstack|full-stack|full stack|mobile|web|ui|ux|react)\b/i;
 
+const BODY_FRONTEND_KW =
+  /\b(react components?|design system|ship (the )?ui|frontend codebase|single[- ]page application|spa\b|pixel[- ]perfect|responsive design|user interface|accessibility|a11y|css-in-js|web vitals|core web vitals|browser performance|hydration|server[- ]side rendering|ssr|csr|client[- ]side rendering|component library|storybook|figma)\b/i;
+
 const TITLE_ENGINEERING_KW =
   /\b(engineers?|developers?|architects?|programmers?|tech lead|cto|engineering)\b/i;
 
@@ -137,6 +140,7 @@ export function applyFilters(jobs: Job[]): FilterResult {
       leadTitle: 0,
       seniorTitle: 0,
       frontendTitle: 0,
+      frontendBody: 0,
       locationRemote: 0,
       freshness7d: 0,
       freshness14d: 0,
@@ -169,6 +173,7 @@ export function applyFilters(jobs: Job[]): FilterResult {
     if (TITLE_LEAD.test(title)) signals.leadTitle = 15;
     if (TITLE_SENIOR.test(title)) signals.seniorTitle = 10;
     if (TITLE_FRONTEND_KW.test(title)) signals.frontendTitle = 10;
+    if (BODY_FRONTEND_KW.test(scoringBody)) signals.frontendBody = 10;
 
     const locText = `${job.location ?? ''} ${scoringBody}`;
     if (LOC_REMOTE.test(locText)) signals.locationRemote = 10;
@@ -187,6 +192,7 @@ export function applyFilters(jobs: Job[]): FilterResult {
       signals.leadTitle +
       signals.seniorTitle +
       signals.frontendTitle +
+      signals.frontendBody +
       signals.locationRemote +
       signals.freshness7d +
       signals.freshness14d;

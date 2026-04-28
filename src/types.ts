@@ -24,6 +24,7 @@ export interface JobSignals {
   leadTitle: number;
   seniorTitle: number;
   frontendTitle: number;
+  frontendBody: number;
   locationRemote: number;
   freshness7d: number;
   freshness14d: number;
