@@ -1,4 +1,4 @@
-import type { Category, Job } from './types.js';
+import type { Category, Job, JobSignals } from './types.js';
 import { withinDays } from './utils.js';
 
 const TITLE_JUNIOR = /\b(junior|jr|intern|entry-?level|associate|graduate|trainee|apprentice)\b/i;
@@ -86,43 +86,76 @@ export function applyFilters(jobs: Job[]): FilterResult {
       continue;
     }
 
-    let score = 0;
+    const signals: JobSignals = {
+      web3TitleBody: 0,
+      web3Stack: 0,
+      aiTitleBody: 0,
+      aiStack: 0,
+      stackPrimary: 0,
+      stackRn: 0,
+      stackOther: 0,
+      leadTitle: 0,
+      seniorTitle: 0,
+      locationRemote: 0,
+      freshness7d: 0,
+      freshness14d: 0,
+      usCentricPenalty: 0,
+      rawTotal: 0,
+      capped: false,
+    };
     let web3 = false;
     let ai = false;
 
     if (W3_TITLE_BODY.test(titleAndBody)) {
-      score += 20;
+      signals.web3TitleBody = 20;
       web3 = true;
     }
     if (W3_STACK.test(body)) {
-      score += 20;
+      signals.web3Stack = 20;
       web3 = true;
     }
     if (AI_TITLE_BODY.test(titleAndBody)) {
-      score += 20;
+      signals.aiTitleBody = 20;
       ai = true;
     }
     if (AI_STACK.test(body)) {
-      score += 20;
+      signals.aiStack = 20;
       ai = true;
     }
-
-    if (STACK_PRIMARY.test(body)) score += 10;
-    if (STACK_RN.test(body)) score += 5;
-    if (STACK_OTHER.test(body)) score += 5;
-
-    if (TITLE_LEAD.test(title)) score += 15;
-    if (TITLE_SENIOR.test(title)) score += 10;
+    if (STACK_PRIMARY.test(body)) signals.stackPrimary = 10;
+    if (STACK_RN.test(body)) signals.stackRn = 5;
+    if (STACK_OTHER.test(body)) signals.stackOther = 5;
+    if (TITLE_LEAD.test(title)) signals.leadTitle = 15;
+    if (TITLE_SENIOR.test(title)) signals.seniorTitle = 10;
 
     const locText = `${job.location ?? ''} ${body}`;
-    if (LOC_REMOTE.test(locText)) score += 10;
+    if (LOC_REMOTE.test(locText)) signals.locationRemote = 10;
 
-    if (withinDays(job.postedAt, 7)) score += 10;
-    else if (withinDays(job.postedAt, 14)) score += 5;
+    if (withinDays(job.postedAt, 7)) signals.freshness7d = 10;
+    else if (withinDays(job.postedAt, 14)) signals.freshness14d = 5;
 
-    score = Math.min(score, 100);
+    const positiveSum =
+      signals.web3TitleBody +
+      signals.web3Stack +
+      signals.aiTitleBody +
+      signals.aiStack +
+      signals.stackPrimary +
+      signals.stackRn +
+      signals.stackOther +
+      signals.leadTitle +
+      signals.seniorTitle +
+      signals.locationRemote +
+      signals.freshness7d +
+      signals.freshness14d;
+    signals.rawTotal = positiveSum;
+    signals.capped = positiveSum > 100;
 
-    if (US_CENTRIC_SOFT.test(body) && !REMOTE_WORLD.test(body)) score -= 10;
+    let score = Math.min(positiveSum, 100);
+
+    if (US_CENTRIC_SOFT.test(body) && !REMOTE_WORLD.test(body)) {
+      signals.usCentricPenalty = -10;
+      score -= 10;
+    }
 
     if (score < 30) {
       droppedScore++;
@@ -134,7 +167,7 @@ export function applyFilters(jobs: Job[]): FilterResult {
     else if (web3) category = 'web3';
     else if (ai) category = 'ai';
 
-    kept.push({ ...job, fitScore: score, category });
+    kept.push({ ...job, fitScore: score, category, _signals: signals });
   }
 
   return { kept, droppedHard, droppedScore };

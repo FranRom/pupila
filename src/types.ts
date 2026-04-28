@@ -13,6 +13,24 @@ export type Source =
 
 export type Category = 'web3' | 'ai' | 'web3+ai' | 'general';
 
+export interface JobSignals {
+  web3TitleBody: number;
+  web3Stack: number;
+  aiTitleBody: number;
+  aiStack: number;
+  stackPrimary: number;
+  stackRn: number;
+  stackOther: number;
+  leadTitle: number;
+  seniorTitle: number;
+  locationRemote: number;
+  freshness7d: number;
+  freshness14d: number;
+  usCentricPenalty: number;
+  rawTotal: number;
+  capped: boolean;
+}
+
 export interface Job {
   id: string;
   source: Source;
@@ -27,6 +45,7 @@ export interface Job {
   fetchedAt: string;
   fitScore: number;
   category: Category;
+  _signals?: JobSignals;
 }
 
 export interface RawRemoteOk {
