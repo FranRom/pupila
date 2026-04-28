@@ -191,6 +191,35 @@ export function isoToday(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
+const MONTHS = [
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
+] as const;
+
+// Human-readable UTC timestamp: "28 April 2026, 19:59 UTC".
+// Day-month-year ordering avoids the US/EU "04/28 vs 28/04" ambiguity, and
+// the spelled-out month makes the date unmistakable at a glance.
+export function formatDateTimeUTC(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  const day = d.getUTCDate();
+  const month = MONTHS[d.getUTCMonth()];
+  const year = d.getUTCFullYear();
+  const hh = String(d.getUTCHours()).padStart(2, '0');
+  const mm = String(d.getUTCMinutes()).padStart(2, '0');
+  return `${day} ${month} ${year}, ${hh}:${mm} UTC`;
+}
+
 export function safeIso(value: string | number | undefined | null): string | null {
   if (value === undefined || value === null) return null;
   const d = typeof value === 'number' ? new Date(value * 1000) : new Date(value);

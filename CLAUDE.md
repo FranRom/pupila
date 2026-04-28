@@ -13,7 +13,7 @@ The pipeline is tuned for: senior/lead/staff frontend, web3 (EVM + Solana), and 
 - Node 22 LTS, ESM, TypeScript 5.9 (NodeNext)
 - Biome 2.4 (lint + format, single config in `biome.json`)
 - pnpm 10
-- Vitest 3 (tests in `tests/`, run via `pnpm test` — 101 cases)
+- Vitest 3 (tests in `tests/`, run via `pnpm test` — 104 cases)
 - simple-git-hooks (pre-commit `lint && typecheck`)
 - Single runtime dep: `fast-xml-parser`. Native `fetch` only.
 
@@ -26,7 +26,7 @@ pnpm start                  # built output: requires pnpm run build first
 pnpm run typecheck          # tsc --noEmit on src/, then on src/+tests/ via tsconfig.test.json
 pnpm run lint               # biome check
 pnpm run lint:fix            # biome check --write
-pnpm test                   # vitest run (101 unit tests)
+pnpm test                   # vitest run (104 unit tests)
 pnpm run test:watch         # vitest watch mode
 ```
 
@@ -71,7 +71,7 @@ tests/
   feed.test.ts      # 6 cases — RSS skeleton, escaping, sort, 50-item cap
   aave.test.ts            # 7 cases — __NEXT_DATA__ extraction + normalizer
   ashby-private.test.ts   # 9 cases — GraphQL list/detail parsers + slug-to-company derivation
-  utils.test.ts     # 17 cases — URL safety, stripHtml, time math
+  utils.test.ts     # 20 cases — URL safety, stripHtml, time math, human date formatter
 
 tsconfig.json       # rootDir=src/, strict NodeNext
 tsconfig.test.json  # extends above with rootDir=. so tests/ typecheck without leaking into the build
@@ -272,9 +272,9 @@ To trigger the daily run manually: `gh workflow run jobs.yml`.
 
 ## Tests
 
-Vitest, 101 cases in `tests/` with `*.test.ts` glob. Run via `pnpm test` (CI) or `pnpm run test:watch` (interactive).
+Vitest, 104 cases in `tests/` with `*.test.ts` glob. Run via `pnpm test` (CI) or `pnpm run test:watch` (interactive).
 
-- **`tests/utils.test.ts`** (17): `isSafeUrl` allowlist, `normalizeUrl` (utm strip, scheme reject), `stripHtml`, `normalizeText`, `sha1Hex`, `relativeTime`, `withinDays`.
+- **`tests/utils.test.ts`** (20): `isSafeUrl` allowlist, `normalizeUrl` (utm strip, scheme reject), `stripHtml`, `normalizeText`, `sha1Hex`, `relativeTime`, `withinDays`, `formatDateTimeUTC` (human-readable "DD Month YYYY, HH:MM UTC").
 - **`tests/filters.test.ts`** (33): every hard-drop branch (junior, senior_req, US-only, compound non-eng, non-frontend eng, non-eng role, non-tech role, exec, URL scheme), `droppedByRule` rule attribution, every score signal, category derivation, score capping with `_signals.capped`, US-centric penalty, plural title acceptance, frontendTitle/frontendBody bonuses, boilerplate stripping (AI keywords in EEO footer must NOT score), tiered keyword weighting (1 mention = half-weight, 4+ = 1.5× boost across `stackPrimary` and `frontendBody`).
 - **`tests/dedup.test.ts`** (10): id collapse, normalized company+title collapse, fitScore tiebreak, source priority tiebreak (`ashby > greenhouse > remoteok`, `lever > web3career`), empty input, plus 5 cases for `compareJobs` covering the four-key chain (fitScore desc → salaryMax desc with null-as-zero → postedAt desc → id asc).
 - **`tests/applied.test.ts`** (4): `STATUS_EMOJI` map presence, `summarizeApplied` empty input, grouping/counting, ordering (offer → interview → applied → withdrawn → rejected).

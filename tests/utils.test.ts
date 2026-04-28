@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  formatDateTimeUTC,
   isSafeUrl,
   normalizeText,
   normalizeUrl,
@@ -109,5 +110,19 @@ describe('withinDays', () => {
 
   it('false for null', () => {
     expect(withinDays(null, 7)).toBe(false);
+  });
+});
+
+describe('formatDateTimeUTC', () => {
+  it('formats an ISO string as "DD Month YYYY, HH:MM UTC"', () => {
+    expect(formatDateTimeUTC('2026-04-28T19:59:40.444Z')).toBe('28 April 2026, 19:59 UTC');
+  });
+
+  it('zero-pads single-digit hours and minutes', () => {
+    expect(formatDateTimeUTC('2026-01-05T07:03:00Z')).toBe('5 January 2026, 07:03 UTC');
+  });
+
+  it('returns the input verbatim for unparseable values', () => {
+    expect(formatDateTimeUTC('not-a-date')).toBe('not-a-date');
   });
 });

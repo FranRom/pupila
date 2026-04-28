@@ -20,7 +20,7 @@ Manually checking 11 job boards every morning is tedious. This repo replaces tha
 | Language | TypeScript 5.9 (NodeNext, strict) |
 | Lint + format | Biome 2.4 |
 | Package manager | pnpm 10 |
-| Tests | Vitest 3 (101 unit tests across filters, dedup, utils, applied, salary, feed, aave, ashby-private; tiered keyword weighting + salary-aware sort tiebreak both have dedicated cases) |
+| Tests | Vitest 3 (104 unit tests across filters, dedup, utils, applied, salary, feed, aave, ashby-private; tiered keyword weighting + salary-aware sort tiebreak both have dedicated cases) |
 | Pre-commit | simple-git-hooks (runs lint + typecheck on every commit) |
 | HTTP | Native `fetch` with `AbortController` (30s timeout, 1 retry on 5xx/network) |
 | RSS parsing | `fast-xml-parser` (only runtime dep) |
@@ -333,7 +333,7 @@ job-hunt/
 │   ├── feed.test.ts           # 6 cases: RSS skeleton, escaping, sort, 50-item cap
 │   ├── aave.test.ts           # 7 cases: __NEXT_DATA__ extraction + normalizer
 │   ├── ashby-private.test.ts  # 9 cases: GraphQL parsers + normalizer + slug-to-company
-│   └── utils.test.ts          # 17 cases: URL safety, stripHtml, time math
+│   └── utils.test.ts          # 20 cases: URL safety, stripHtml, time math, human date formatter
 ├── biome.json
 ├── tsconfig.json
 ├── tsconfig.test.json         # extends tsconfig with rootDir=. so tests/ typecheck
@@ -354,7 +354,7 @@ pnpm start                   # built output (run pnpm run build first)
 pnpm run typecheck           # tsc --noEmit on src/, then on src/+tests/ (tsconfig.test.json)
 pnpm run lint                # biome check
 pnpm run lint:fix            # biome check --write
-pnpm test                    # vitest run (101 unit tests)
+pnpm test                    # vitest run (104 unit tests)
 pnpm run test:watch          # vitest in watch mode
 ```
 
