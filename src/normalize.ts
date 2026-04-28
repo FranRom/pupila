@@ -1,4 +1,5 @@
 import { rssLink } from './rss.js';
+import { parseSalary } from './salary.js';
 import type {
   Job,
   RawAiJobs,
@@ -30,6 +31,17 @@ function inferRemote(...candidates: (string | null | undefined)[]): boolean {
 
 function asPlain(s: string | null | undefined): string {
   return stripHtml(s ?? '');
+}
+
+function withSalary(salary: string | null): {
+  salary: string | null;
+  salaryMin: number | null;
+  salaryMax: number | null;
+  salaryCurrency: string | null;
+} {
+  if (!salary) return { salary: null, salaryMin: null, salaryMax: null, salaryCurrency: null };
+  const parsed = parseSalary(salary);
+  return { salary, salaryMin: parsed.min, salaryMax: parsed.max, salaryCurrency: parsed.currency };
 }
 
 function joinTags(...sources: (Array<string | null | undefined> | undefined | null)[]): string[] {
@@ -78,7 +90,7 @@ export function normalizeRemoteOk(items: RawRemoteOk[], fetchedAt: string): Job[
       remote: true,
       body: asPlain(j.description),
       tags: joinTags(j.tags),
-      salary: null,
+      ...withSalary(null),
       postedAt,
       fetchedAt,
       fitScore: 0,
@@ -102,7 +114,7 @@ export function normalizeRemotive(items: RawRemotive[], fetchedAt: string): Job[
       remote: true,
       body: asPlain(j.description),
       tags: joinTags(j.tags, [j.job_type, j.category]),
-      salary,
+      ...withSalary(salary),
       postedAt: safeIso(j.publication_date),
       fetchedAt,
       fitScore: 0,
@@ -154,7 +166,7 @@ function normalizeRssGeneric(
         remote: remote || source === 'weworkremotely',
         body,
         tags: joinTags(cats),
-        salary: null,
+        ...withSalary(null),
         postedAt: safeIso(item.pubDate),
         fetchedAt,
         fitScore: 0,
@@ -188,7 +200,7 @@ export function normalizeWeb3Career(items: RawWeb3Career[], fetchedAt: string): 
       remote,
       body: asPlain(body),
       tags: joinTags(j.tags, [j.category]),
-      salary: j.salary,
+      ...withSalary(j.salary),
       postedAt: j.postedAt,
       fetchedAt,
       fitScore: 0,
@@ -232,7 +244,7 @@ export function normalizeAiJobsNet(items: RawAiJobs[], fetchedAt: string): Job[]
       remote,
       body: asPlain(body),
       tags: joinTags(j.tags, [j.seniority]),
-      salary: j.salary,
+      ...withSalary(j.salary),
       postedAt: parseRelativeAgo(j.postedRelative),
       fetchedAt,
       fitScore: 0,
@@ -270,7 +282,7 @@ export function normalizeHnHiring(items: RawHnHiringPost[], fetchedAt: string): 
         remote,
         body: text,
         tags: joinTags(applyUrls.length ? ['has-apply-link'] : []),
-        salary: null,
+        ...withSalary(null),
         postedAt: safeIso(p.createdAt),
         fetchedAt,
         fitScore: 0,
@@ -303,7 +315,7 @@ export function normalizeHnJobs(items: RawHnHit[], fetchedAt: string): Job[] {
         remote,
         body: `${title}\n\n${text}`,
         tags: joinTags([]),
-        salary: null,
+        ...withSalary(null),
         postedAt: safeIso(h.created_at),
         fetchedAt,
         fitScore: 0,
@@ -336,7 +348,7 @@ export function normalizeAshby(items: RawAshbyJobWithSlug[], fetchedAt: string):
       remote,
       body: asPlain(j.descriptionPlain),
       tags,
-      salary,
+      ...withSalary(salary),
       postedAt: safeIso(j.publishedAt),
       fetchedAt,
       fitScore: 0,
@@ -373,7 +385,7 @@ export function normalizeLever(items: RawLeverJobWithSlug[], fetchedAt: string):
       remote,
       body,
       tags,
-      salary,
+      ...withSalary(salary),
       postedAt: safeIso(j.createdAt),
       fetchedAt,
       fitScore: 0,
@@ -414,7 +426,7 @@ export function normalizeGreenhouse(items: RawGreenhouseJobWithSlug[], fetchedAt
       remote,
       body: asPlain(j.content),
       tags,
-      salary: null,
+      ...withSalary(null),
       postedAt: safeIso(j.updated_at),
       fetchedAt,
       fitScore: 0,

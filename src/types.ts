@@ -53,6 +53,9 @@ export interface Job {
   body: string;
   tags: string[];
   salary: string | null;
+  salaryMin: number | null;
+  salaryMax: number | null;
+  salaryCurrency: string | null;
   postedAt: string | null;
   fetchedAt: string;
   fitScore: number;
