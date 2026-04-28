@@ -17,6 +17,23 @@ const SOURCE_PRIORITY: Record<Source, number> = {
   remoteok: 1,
 };
 
+// Comparator for the post-dedup orchestrator sort. Order:
+//   1. fitScore desc (primary)
+//   2. salaryMax desc (transparent-comp companies float up among ties)
+//   3. postedAt desc (newest first)
+//   4. id asc (deterministic tie-breaker for day-over-day diffs)
+// salaryMax null is treated as 0 so unstated comp sinks below stated comp.
+export function compareJobs(a: Job, b: Job): number {
+  if (b.fitScore !== a.fitScore) return b.fitScore - a.fitScore;
+  const sa = a.salaryMax ?? 0;
+  const sb = b.salaryMax ?? 0;
+  if (sb !== sa) return sb - sa;
+  const ta = a.postedAt ? new Date(a.postedAt).getTime() : 0;
+  const tb = b.postedAt ? new Date(b.postedAt).getTime() : 0;
+  if (tb !== ta) return tb - ta;
+  return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+}
+
 function pickWinner(a: Job, b: Job): Job {
   if (b.fitScore > a.fitScore) return b;
   if (b.fitScore < a.fitScore) return a;

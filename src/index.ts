@@ -1,5 +1,5 @@
 import { loadAppliedMap } from './applied.js';
-import { dedupe } from './dedup.js';
+import { compareJobs, dedupe } from './dedup.js';
 import { renderFeed } from './feed.js';
 import { fetchAave } from './fetchers/aave.js';
 import { fetchAiJobsNet } from './fetchers/aijobsnet.js';
@@ -93,13 +93,7 @@ async function main(): Promise<void> {
   const filterResult = applyFilters(allJobs);
   const dedupResult = dedupe(filterResult.kept);
 
-  dedupResult.kept.sort((a, b) => {
-    if (b.fitScore !== a.fitScore) return b.fitScore - a.fitScore;
-    const ta = a.postedAt ? new Date(a.postedAt).getTime() : 0;
-    const tb = b.postedAt ? new Date(b.postedAt).getTime() : 0;
-    if (tb !== ta) return tb - ta;
-    return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
-  });
+  dedupResult.kept.sort(compareJobs);
 
   const bySource = {} as RenderStats['bySource'];
   for (const t of tasks) {

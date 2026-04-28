@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { dedupe } from '../src/dedup.js';
+import { compareJobs, dedupe } from '../src/dedup.js';
 import type { Job, Source } from '../src/types.js';
 
 function makeJob(overrides: Partial<Job> = {}): Job {
@@ -70,5 +70,47 @@ describe('dedupe', () => {
     expect(r.kept).toHaveLength(0);
     expect(r.removedById).toBe(0);
     expect(r.removedByTitle).toBe(0);
+  });
+});
+
+describe('compareJobs', () => {
+  it('orders by fitScore desc as the primary key', () => {
+    const a = makeJob({ id: 'a', fitScore: 80 });
+    const b = makeJob({ id: 'b', fitScore: 60 });
+    expect([b, a].sort(compareJobs).map((j) => j.id)).toEqual(['a', 'b']);
+  });
+
+  it('breaks fitScore ties by salaryMax desc', () => {
+    const a = makeJob({ id: 'a', fitScore: 70, salaryMax: 200_000 });
+    const b = makeJob({ id: 'b', fitScore: 70, salaryMax: 150_000 });
+    expect([b, a].sort(compareJobs).map((j) => j.id)).toEqual(['a', 'b']);
+  });
+
+  it('treats null salaryMax as 0 so unstated comp sinks below stated comp', () => {
+    const stated = makeJob({ id: 'stated', fitScore: 70, salaryMax: 100_000 });
+    const unstated = makeJob({ id: 'unstated', fitScore: 70, salaryMax: null });
+    expect([unstated, stated].sort(compareJobs).map((j) => j.id)).toEqual(['stated', 'unstated']);
+  });
+
+  it('falls back to postedAt desc when fitScore and salaryMax tie', () => {
+    const newer = makeJob({
+      id: 'newer',
+      fitScore: 70,
+      salaryMax: 100_000,
+      postedAt: '2026-04-28T00:00:00Z',
+    });
+    const older = makeJob({
+      id: 'older',
+      fitScore: 70,
+      salaryMax: 100_000,
+      postedAt: '2026-04-01T00:00:00Z',
+    });
+    expect([older, newer].sort(compareJobs).map((j) => j.id)).toEqual(['newer', 'older']);
+  });
+
+  it('uses id asc as the final deterministic tiebreak', () => {
+    const a = makeJob({ id: 'aaa', fitScore: 70, salaryMax: 100_000, postedAt: null });
+    const b = makeJob({ id: 'bbb', fitScore: 70, salaryMax: 100_000, postedAt: null });
+    expect([b, a].sort(compareJobs).map((j) => j.id)).toEqual(['aaa', 'bbb']);
   });
 });
