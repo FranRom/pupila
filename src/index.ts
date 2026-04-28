@@ -110,7 +110,10 @@ async function main(): Promise<void> {
 
   const previous = await readJsonOrNull<Job[]>('data/jobs.json');
   const previousIds = new Set((previous ?? []).map((j) => j.id));
+  const currentIds = new Set(dedupResult.kept.map((j) => j.id));
   const newJobs = previous === null ? [] : dedupResult.kept.filter((j) => !previousIds.has(j.id));
+  const removedJobs =
+    previous === null ? [] : (previous ?? []).filter((j) => !currentIds.has(j.id));
 
   const appliedMap = await loadAppliedMap();
   for (const job of dedupResult.kept) {
@@ -127,6 +130,7 @@ async function main(): Promise<void> {
     fetchedTotal,
     keptTotal: dedupResult.kept.length,
     newCount: newJobs.length,
+    removedCount: removedJobs.length,
     bySource,
     byCategory,
     droppedHard: filterResult.droppedHard,
@@ -140,7 +144,7 @@ async function main(): Promise<void> {
   if (isFirstOfMonth) {
     await writeJson(`data/archive/${month}.json`, slimJobs);
   }
-  await writeFileEnsured('JOBS.md', renderReadme(dedupResult.kept, stats, newJobs));
+  await writeFileEnsured('JOBS.md', renderReadme(dedupResult.kept, stats, newJobs, removedJobs));
 
   console.log('--- Run summary ---');
   for (const t of tasks) {
@@ -156,6 +160,7 @@ async function main(): Promise<void> {
   );
   console.log(`  by category:  ${JSON.stringify(byCategory)}`);
   console.log(`  new vs prev:  ${newJobs.length}`);
+  console.log(`  removed:      ${removedJobs.length}`);
 }
 
 main().catch((err) => {
