@@ -52,6 +52,7 @@ export interface Job {
   remote: boolean;
   body: string;
   tags: string[];
+  salary: string | null;
   postedAt: string | null;
   fetchedAt: string;
   fitScore: number;
@@ -173,6 +174,10 @@ export interface RawAshbyJob {
   jobUrl: string;
   applyUrl?: string;
   descriptionPlain?: string;
+  compensation?: {
+    compensationTierSummary?: string | null;
+    scrapeableCompensationSalarySummary?: string | null;
+  };
 }
 
 export interface RawAshbyJobWithSlug extends RawAshbyJob {
@@ -200,6 +205,8 @@ export interface RawLeverJob {
   additional?: string;
   lists?: { text: string; content: string }[];
   country?: string;
+  salaryRange?: { min?: number; max?: number; currency?: string; interval?: string };
+  salaryDescriptionPlain?: string;
 }
 
 export interface RawLeverJobWithSlug extends RawLeverJob {

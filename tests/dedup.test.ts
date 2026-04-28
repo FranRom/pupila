@@ -13,6 +13,7 @@ function makeJob(overrides: Partial<Job> = {}): Job {
     remote: true,
     body: '',
     tags: [],
+    salary: null,
     postedAt: null,
     fetchedAt: '2026-04-28T00:00:00Z',
     fitScore: 50,

@@ -14,6 +14,7 @@ function makeJob(overrides: Partial<Job> = {}): Job {
     remote: true,
     body: 'react typescript next.js',
     tags: [],
+    salary: null,
     postedAt: now,
     fetchedAt: now,
     fitScore: 0,

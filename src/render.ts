@@ -42,7 +42,9 @@ function escapeMdUrl(url: string): string {
 
 function row(job: Job): string {
   const prefix = job.applied ? `${STATUS_EMOJI[job.applied.status]} ` : '';
-  const title = `${prefix}${escapeMd(job.title)}`;
+  const titleText = escapeMd(job.title);
+  const salarySuffix = job.salary ? ` · ${escapeMd(job.salary)}` : '';
+  const title = `${prefix}${titleText}${salarySuffix}`;
   const company = escapeMd(job.company ?? '—');
   const posted = job.postedAt ? relativeTime(job.postedAt) : '—';
   const link = `[apply](${escapeMdUrl(job.url)})`;

@@ -78,6 +78,7 @@ export function normalizeRemoteOk(items: RawRemoteOk[], fetchedAt: string): Job[
       remote: true,
       body: asPlain(j.description),
       tags: joinTags(j.tags),
+      salary: null,
       postedAt,
       fetchedAt,
       fitScore: 0,
@@ -90,6 +91,7 @@ export function normalizeRemotive(items: RawRemotive[], fetchedAt: string): Job[
   return items.map((j) => {
     const url = j.url;
     const location = j.candidate_required_location?.trim() || null;
+    const salary = j.salary?.trim() || null;
     return {
       id: makeId('remotive', url, `${j.company_name}-${j.title}-${j.id}`),
       source: 'remotive',
@@ -100,6 +102,7 @@ export function normalizeRemotive(items: RawRemotive[], fetchedAt: string): Job[
       remote: true,
       body: asPlain(j.description),
       tags: joinTags(j.tags, [j.job_type, j.category]),
+      salary,
       postedAt: safeIso(j.publication_date),
       fetchedAt,
       fitScore: 0,
@@ -151,6 +154,7 @@ function normalizeRssGeneric(
         remote: remote || source === 'weworkremotely',
         body,
         tags: joinTags(cats),
+        salary: null,
         postedAt: safeIso(item.pubDate),
         fetchedAt,
         fitScore: 0,
@@ -184,6 +188,7 @@ export function normalizeWeb3Career(items: RawWeb3Career[], fetchedAt: string): 
       remote,
       body: asPlain(body),
       tags: joinTags(j.tags, [j.category]),
+      salary: j.salary,
       postedAt: j.postedAt,
       fetchedAt,
       fitScore: 0,
@@ -227,6 +232,7 @@ export function normalizeAiJobsNet(items: RawAiJobs[], fetchedAt: string): Job[]
       remote,
       body: asPlain(body),
       tags: joinTags(j.tags, [j.seniority]),
+      salary: j.salary,
       postedAt: parseRelativeAgo(j.postedRelative),
       fetchedAt,
       fitScore: 0,
@@ -264,6 +270,7 @@ export function normalizeHnHiring(items: RawHnHiringPost[], fetchedAt: string): 
         remote,
         body: text,
         tags: joinTags(applyUrls.length ? ['has-apply-link'] : []),
+        salary: null,
         postedAt: safeIso(p.createdAt),
         fetchedAt,
         fitScore: 0,
@@ -296,6 +303,7 @@ export function normalizeHnJobs(items: RawHnHit[], fetchedAt: string): Job[] {
         remote,
         body: `${title}\n\n${text}`,
         tags: joinTags([]),
+        salary: null,
         postedAt: safeIso(h.created_at),
         fetchedAt,
         fitScore: 0,
@@ -314,6 +322,10 @@ export function normalizeAshby(items: RawAshbyJobWithSlug[], fetchedAt: string):
     const location = allLocations[0] ?? null;
     const remote = Boolean(j.isRemote) || j.workplaceType === 'Remote';
     const tags = joinTags([j.department, j.team, j.employmentType, j.workplaceType, j.__slug]);
+    const salary =
+      j.compensation?.compensationTierSummary?.trim() ||
+      j.compensation?.scrapeableCompensationSalarySummary?.trim() ||
+      null;
     return {
       id: makeId('ashby', j.jobUrl, `${company}-${j.title}-${j.id}`),
       source: 'ashby',
@@ -324,6 +336,7 @@ export function normalizeAshby(items: RawAshbyJobWithSlug[], fetchedAt: string):
       remote,
       body: asPlain(j.descriptionPlain),
       tags,
+      salary,
       postedAt: safeIso(j.publishedAt),
       fetchedAt,
       fitScore: 0,
@@ -349,6 +362,7 @@ export function normalizeLever(items: RawLeverJobWithSlug[], fetchedAt: string):
           .join('\n\n'),
     );
     const tags = joinTags(j.tags, [cat.team, cat.department, cat.commitment, j.__slug]);
+    const salary = formatLeverSalary(j.salaryRange) || j.salaryDescriptionPlain?.trim() || null;
     return {
       id: makeId('lever', j.hostedUrl, `${company}-${j.text}-${j.id}`),
       source: 'lever',
@@ -359,12 +373,25 @@ export function normalizeLever(items: RawLeverJobWithSlug[], fetchedAt: string):
       remote,
       body,
       tags,
+      salary,
       postedAt: safeIso(j.createdAt),
       fetchedAt,
       fitScore: 0,
       category: 'general',
     };
   });
+}
+
+function formatLeverSalary(
+  range: { min?: number; max?: number; currency?: string; interval?: string } | undefined,
+): string | null {
+  if (!range) return null;
+  const min = range.min ?? 0;
+  const max = range.max ?? 0;
+  if (min <= 0 && max <= 0) return null;
+  const fmt = (n: number) => (n >= 1000 ? `${Math.round(n / 1000)}K` : `${n}`);
+  const ccy = range.currency ?? '';
+  return `${fmt(min)}-${fmt(max)} ${ccy}`.trim();
 }
 
 export function normalizeGreenhouse(items: RawGreenhouseJobWithSlug[], fetchedAt: string): Job[] {
@@ -387,6 +414,7 @@ export function normalizeGreenhouse(items: RawGreenhouseJobWithSlug[], fetchedAt
       remote,
       body: asPlain(j.content),
       tags,
+      salary: null,
       postedAt: safeIso(j.updated_at),
       fetchedAt,
       fitScore: 0,
