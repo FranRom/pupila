@@ -1,6 +1,6 @@
 # job-hunt
 
-A personal job aggregator that runs daily on GitHub Actions. It pulls listings from 11 public sources (job boards, RSS feeds, Hacker News, and three ATSes — Greenhouse, Ashby, Lever), normalizes them into a single shape, scores each one against a profile (senior/lead/staff frontend, web3, and AI engineering, remote-friendly), deduplicates, and commits the result back to this repo.
+A personal job aggregator that runs daily on GitHub Actions. It pulls listings from 13 public sources (job boards, RSS feeds, Hacker News, three ATSes — Greenhouse, Ashby, Lever — plus two first-party custom-ATS scrapers for Aave and Chainlink Labs), normalizes them into a single shape, scores each one against a profile (senior/lead/staff frontend, web3, and AI engineering, remote-friendly), deduplicates, and commits the result back to this repo.
 
 > **Looking for today's matches?** → [`JOBS.md`](./JOBS.md) (auto-generated, refreshed daily at 07:00 UTC).
 > Raw data lives in [`data/jobs.json`](./data/jobs.json).
@@ -20,7 +20,7 @@ Manually checking 11 job boards every morning is tedious. This repo replaces tha
 | Language | TypeScript 5.9 (NodeNext, strict) |
 | Lint + format | Biome 2.4 |
 | Package manager | pnpm 10 |
-| Tests | Vitest 3 (77 unit tests on filters, dedup, utils, applied, salary, feed) |
+| Tests | Vitest 3 (92 unit tests across filters, dedup, utils, applied, salary, feed, aave, chainlink) |
 | Pre-commit | simple-git-hooks (runs lint + typecheck on every commit) |
 | HTTP | Native `fetch` with `AbortController` (30s timeout, 1 retry on 5xx/network) |
 | RSS parsing | `fast-xml-parser` (only runtime dep) |
@@ -40,8 +40,9 @@ Manually checking 11 job boards every morning is tedious. This repo replaces tha
         ┌─────────────────── src/index.ts ──────────────────┐
         │                                                   │
         │   ┌──────── Fetchers (Promise.all) ─────────┐     │
-        │   │ ashby (39 slugs)   greenhouse (14 slugs)│     │
-        │   │ lever (6 slugs)    cryptojobslist       │ ──► raw[] per source
+        │   │ ashby (42 slugs)   greenhouse (8 slugs) │     │
+        │   │ lever (6 slugs)    aave (custom)        │     │
+        │   │ chainlink (custom) cryptojobslist       │ ──► raw[] per source
         │   │ remoteok  remotive  weworkremotely      │     │
         │   │ web3career  aijobsnet                   │     │
         │   │ hn-hiring  hn-jobs                      │     │
@@ -88,8 +89,10 @@ The three ATS fetchers (Ashby, Greenhouse, Lever) carry the bulk of the high-qua
 
 | Source | Type | Endpoint |
 |---|---|---|
-| [ashby](./src/fetchers/ashby.ts) | JSON API | `api.ashbyhq.com/posting-api/job-board/<slug>` × 39 tier-S slugs |
-| [greenhouse](./src/fetchers/greenhouse.ts) | JSON API | `boards-api.greenhouse.io/v1/boards/<slug>/jobs` × 14 tier-S slugs |
+| [ashby](./src/fetchers/ashby.ts) | JSON API | `api.ashbyhq.com/posting-api/job-board/<slug>` × 42 tier-S slugs |
+| [greenhouse](./src/fetchers/greenhouse.ts) | JSON API | `boards-api.greenhouse.io/v1/boards/<slug>/jobs` × 8 tier-S slugs |
+| [aave](./src/fetchers/aave.ts) | HTML scraper (Next.js __NEXT_DATA__) | `aave.com/careers` |
+| [chainlink](./src/fetchers/chainlink.ts) | Ashby private GraphQL | `jobs.ashbyhq.com/api/non-user-graphql` (slug `chainlink-labs`) |
 | [lever](./src/fetchers/lever.ts) | JSON API | `api.lever.co/v0/postings/<slug>` × 6 tier-S slugs |
 | [remoteok](./src/fetchers/remoteok.ts) | JSON API | `remoteok.com/api` |
 | [remotive](./src/fetchers/remotive.ts) | JSON API | `remotive.com/api/remote-jobs?category=software-dev` |
@@ -100,7 +103,7 @@ The three ATS fetchers (Ashby, Greenhouse, Lever) carry the bulk of the high-qua
 | [hn-hiring](./src/fetchers/hn-hiring.ts) | Algolia API | latest "Ask HN: Who is hiring" thread |
 | [hn-jobs](./src/fetchers/hn-jobs.ts) | Algolia API | `hn.algolia.com/api/v1/search_by_date?tags=job` |
 
-The Ashby tier-S list covers the AI frontier (OpenAI, Mistral, Cohere, Perplexity, Cursor, ElevenLabs, Modal, LangChain, LangFuse, LlamaIndex, OpenRouter, Pinecone, Supabase, Neon, Clerk, PostHog, Browserbase, Replit, Runway, Notion, Anyscale, BaseTen, Character, Weaviate) plus web3 (Linear, Ramp, Uniswap, Mysten Labs, Paradigm, Polygon Labs, Base, Blockworks, Succinct, Espresso, Phantom, Polymarket, Alchemy, Stacks). Greenhouse adds Anthropic, Vercel, Mercury, Coinbase. Lever adds Binance, Ledger, CoinGecko, CoinMarketCap, Safe, Arbitrum Foundation.
+The Ashby tier-S list covers the AI frontier (OpenAI, Mistral, Cohere, Perplexity, Cursor, ElevenLabs, Modal, LangChain, LangFuse, LlamaIndex, OpenRouter, Pinecone, Supabase, Neon, Clerk, PostHog, Browserbase, Replit, Runway, Notion, Anyscale, BaseTen, Character, Weaviate) plus web3 (Linear, Ramp, Uniswap, Mysten Labs, Paradigm, Polygon Labs, Base, Blockworks, Succinct, Espresso, Phantom, Polymarket, Alchemy, Stacks, Morpho, Magic Eden, LiFi). Greenhouse adds Anthropic, Vercel, Mercury, Coinbase. Lever adds Binance, Ledger, CoinGecko, CoinMarketCap, Safe, Arbitrum Foundation. Custom first-party scrapers cover Aave (Next.js `__NEXT_DATA__` blob) and Chainlink Labs (Ashby private GraphQL endpoint).
 
 Adding a 12th source is one new file in `src/fetchers/`, one entry in `Source`, one normalizer in `normalize.ts`, and one line in `src/index.ts`. See [`CLAUDE.md`](./CLAUDE.md#how-to-add-a-new-fetcher) for the exact recipe.
 
@@ -296,9 +299,11 @@ job-hunt/
 ├── src/
 │   ├── fetchers/              # one file per source
 │   │   ├── _shared.ts         # fetchMultiSlug helper for ATS fetchers
-│   │   ├── ashby.ts           # 39 tier-S slugs (largest contributor)
-│   │   ├── greenhouse.ts      # 14 tier-S slugs
+│   │   ├── ashby.ts           # 42 tier-S slugs (largest contributor)
+│   │   ├── greenhouse.ts      # 8 tier-S slugs
 │   │   ├── lever.ts           # 6 tier-S slugs
+│   │   ├── aave.ts            # custom: scrapes aave.com/careers (Next.js __NEXT_DATA__)
+│   │   ├── chainlink.ts       # custom: Chainlink Labs via Ashby private GraphQL
 │   │   ├── remoteok.ts
 │   │   ├── remotive.ts
 │   │   ├── weworkremotely.ts
@@ -324,6 +329,8 @@ job-hunt/
 │   ├── applied.test.ts        # 4 cases: status emoji map, summary grouping/ordering
 │   ├── salary.test.ts         # 15 cases: K/M suffix, currency detection, hourly conversion, free-text
 │   ├── feed.test.ts           # 6 cases: RSS skeleton, escaping, sort, 50-item cap
+│   ├── aave.test.ts           # 7 cases: __NEXT_DATA__ extraction + normalizer
+│   ├── chainlink.test.ts      # 8 cases: GraphQL parsers + normalizer
 │   └── utils.test.ts          # 17 cases: URL safety, stripHtml, time math
 ├── biome.json
 ├── tsconfig.json
@@ -345,7 +352,7 @@ pnpm start                   # built output (run pnpm run build first)
 pnpm run typecheck           # tsc --noEmit on src/, then on src/+tests/ (tsconfig.test.json)
 pnpm run lint                # biome check
 pnpm run lint:fix            # biome check --write
-pnpm test                    # vitest run (77 unit tests)
+pnpm test                    # vitest run (92 unit tests)
 pnpm run test:watch          # vitest in watch mode
 ```
 
@@ -417,7 +424,7 @@ Defense-in-depth measures, ranked from runtime to build-time:
 - **HTML attribute escaping.** Apply links in `JOBS.md` use raw `<a target="_blank" rel="noopener noreferrer">` with HTML-escaped href (`escapeHtmlAttr` in [`src/render.ts`](./src/render.ts)). `noopener noreferrer` blocks tabnabbing.
 - **HTML stripping.** All scraped/RSS/JSON `body` content is run through [`stripHtml`](./src/utils.ts) before any other processing.
 - **Pre-commit hook** runs `pnpm run lint && pnpm run typecheck` before each commit. Bypass with `SKIP_SIMPLE_GIT_HOOKS=1`.
-- **Tests** (`pnpm test`) — Vitest, 77 cases across security-sensitive code (URL safety, regex filters, dedup tiebreaks, applied-status grouping, salary parsing, RSS escaping). Runs on every PR.
+- **Tests** (`pnpm test`) — Vitest, 92 cases across security-sensitive code (URL safety, regex filters, dedup tiebreaks, applied-status grouping, salary parsing, RSS escaping, custom-ATS HTML/GraphQL parsers). Runs on every PR.
 - **`pnpm audit --prod --audit-level high`** in [`check.yml`](./.github/workflows/check.yml). Reports known CVEs in production deps.
 - **Pinned actions.** All four workflows reference third-party actions by commit SHA, not floating tags. Defends against tag-hijacking.
 - **Dependabot** ([`dependabot.yml`](./.github/dependabot.yml)) — weekly PRs for npm + GitHub Actions. Each PR is gated by `check.yml`.
@@ -428,7 +435,7 @@ Defense-in-depth measures, ranked from runtime to build-time:
 These are currently affecting the data quality — they're documented here so they're discoverable when you wonder why a source is empty:
 
 - **`cryptojobslist.com`** is fully Cloudflare-challenged for HTML and the `api.cryptojobslist.com/jobs.rss` endpoint currently returns an empty channel. The fetcher gracefully returns `[]` and will pick up jobs again if upstream restores the feed.
-- **10 of the 14 starter Greenhouse slugs** (`linear`, `ramp`, `uniswaplabs`, `aave`, `chainlink`, `morpho`, `lifi`, `mysten-labs`, `magiceden`, `ledger`) are not on Greenhouse — they use Ashby, Lever, or custom ATSes. **Most are now recovered** through the Ashby and Lever fetchers (Linear, Ramp, Uniswap, Mysten Labs via Ashby; Ledger via Lever). The remaining holdouts (`aave`, `chainlink`, `morpho`, `lifi`, `magiceden`) appear to use custom ATSes — would need a per-company HTML scraper.
+- **All 5 web3 holdouts are now covered.** `morpho`, `magiceden`, `li.fi` turned out to be on the public Ashby posting-API after all (slugs added to `config/slugs.json`). `aave` is on a custom Next.js careers site at `aave.com/careers` (scraped via `__NEXT_DATA__` extraction). `chainlink-labs` is on Ashby but with the public posting-API disabled — scraped via Ashby's private `non-user-graphql` endpoint, the same one the embedded job board uses at runtime. The original Greenhouse stale-slug list (`aave`, `chainlink`, `morpho`, `lifi`, `magiceden`, `ledger`) has been removed from `config/slugs.json` since they were 404ing every run.
 - **`web3.career`** and **`aijobs.net`** removed RSS — both are now scraped from HTML via small inline regex parsers, which means a markup change upstream will silently degrade them. If a fetcher returns `0` for several days, eyeball the raw HTML for new selectors.
 - **`hn-jobs`** routinely keeps 0–2 entries because YC company posts rarely match the senior+stack signal threshold; this is filtering working as intended, not a bug.
 - **`aijobs.net` is dominated by spam-aggregator listings** (one posting cloned to 50 cities). The fetcher dedups by base ID (`-idNNNNN-` slug pattern), which often collapses an entire page down to 2–5 distinct postings.

@@ -4,7 +4,7 @@ Guidance for future Claude Code sessions working in this repo.
 
 ## Overview
 
-`job-hunt` is a personal job aggregator that runs daily on GitHub Actions. It fetches listings from 11 public sources (3 ATS APIs — Ashby, Greenhouse, Lever — plus RSS feeds, JSON job boards, Hacker News, and HTML scrapers), normalizes them, applies hard exclusion filters, computes a per-job `fitScore`, deduplicates, and writes `data/jobs.json`, an RSS feed at `data/feed.xml`, and an auto-regenerated `JOBS.md` table. The hand-written `README.md` is the project doc and is **not** rewritten by the pipeline. No external services. No DB. Output lives in this repo.
+`job-hunt` is a personal job aggregator that runs daily on GitHub Actions. It fetches listings from 13 public sources (3 ATS APIs — Ashby, Greenhouse, Lever — plus RSS feeds, JSON job boards, Hacker News, HTML scrapers, and 2 first-party custom-ATS scrapers for Aave and Chainlink Labs), normalizes them, applies hard exclusion filters, computes a per-job `fitScore`, deduplicates, and writes `data/jobs.json`, an RSS feed at `data/feed.xml`, and an auto-regenerated `JOBS.md` table. The hand-written `README.md` is the project doc and is **not** rewritten by the pipeline. No external services. No DB. Output lives in this repo.
 
 The pipeline is tuned for: senior/lead/staff frontend, web3 (EVM + Solana), and AI engineering roles, remote / EMEA / worldwide.
 
@@ -13,7 +13,7 @@ The pipeline is tuned for: senior/lead/staff frontend, web3 (EVM + Solana), and 
 - Node 22 LTS, ESM, TypeScript 5.9 (NodeNext)
 - Biome 2.4 (lint + format, single config in `biome.json`)
 - pnpm 10
-- Vitest 3 (tests in `tests/`, run via `pnpm test` — 77 cases)
+- Vitest 3 (tests in `tests/`, run via `pnpm test` — 92 cases)
 - simple-git-hooks (pre-commit `lint && typecheck`)
 - Single runtime dep: `fast-xml-parser`. Native `fetch` only.
 
@@ -26,7 +26,7 @@ pnpm start                  # built output: requires pnpm run build first
 pnpm run typecheck          # tsc --noEmit on src/, then on src/+tests/ via tsconfig.test.json
 pnpm run lint               # biome check
 pnpm run lint:fix            # biome check --write
-pnpm test                   # vitest run (77 unit tests)
+pnpm test                   # vitest run (92 unit tests)
 pnpm run test:watch         # vitest watch mode
 ```
 
@@ -52,6 +52,7 @@ src/
   fetchers/
     _shared.ts                                              # fetchMultiSlug orchestration helper
     ashby.ts            greenhouse.ts       lever.ts        # ATS APIs (largest signal)
+    aave.ts             chainlink.ts                        # custom first-party scrapers
     aijobsnet.ts        cryptojobslist.ts   web3career.ts   # boards / scrapers
     hn-hiring.ts        hn-jobs.ts                          # Hacker News
     remoteok.ts         remotive.ts         weworkremotely.ts
@@ -67,6 +68,8 @@ tests/
   applied.test.ts   # 4 cases — STATUS_EMOJI map + summarizeApplied grouping/ordering
   salary.test.ts    # 15 cases — K/M suffix, currency detection, hourly→annual, free-text fallback
   feed.test.ts      # 6 cases — RSS skeleton, escaping, sort, 50-item cap
+  aave.test.ts      # 7 cases — __NEXT_DATA__ extraction + normalizer
+  chainlink.test.ts # 8 cases — GraphQL list/detail parsers + normalizer
   utils.test.ts     # 17 cases — URL safety, stripHtml, time math
 
 tsconfig.json       # rootDir=src/, strict NodeNext
@@ -125,7 +128,7 @@ curl -sI "https://api.lever.co/v0/postings/<slug>?mode=json"
 
 Slugs that 404 are logged and skipped silently, so it's safe to leave a known-bad slug in the list while waiting for upstream to restore it.
 
-If a target company isn't on any of the three big ATSes (Aave, Chainlink, Morpho, LiFi, Magic Eden are examples), it probably has a custom ATS — that's a new fetcher.
+If a target company isn't on any of the three big ATSes, it might still be on Ashby's hosted-board GraphQL even when the public posting-API returns 404 — try `https://jobs.ashbyhq.com/<slug>` in a browser; if that loads, you can scrape it via the same GraphQL approach `src/fetchers/chainlink.ts` uses. Genuine custom ATSes (Webflow CMS, Next.js careers pages, etc.) need their own per-company HTML scraper — `src/fetchers/aave.ts` is the canonical example for Next.js `__NEXT_DATA__` extraction.
 
 ## Filter rules
 
@@ -298,7 +301,7 @@ Use the conventional commits style:
 ## Known upstream issues (as of 2026-04)
 
 - `cryptojobslist.com` is fully Cloudflare-challenged for HTML and the `api.cryptojobslist.com/jobs.rss` endpoint currently returns an empty channel. The fetcher gracefully returns `[]`; will pick up jobs again if upstream restores the feed.
-- The original spec listed 10 Greenhouse slugs that aren't actually on Greenhouse (linear, ramp, uniswaplabs, aave, chainlink, morpho, lifi, mysten-labs, magiceden, ledger). **Most are now recovered:** Linear, Ramp, Uniswap, Mysten Labs are in `TIER_S_ASHBY_SLUGS`; Ledger is in `TIER_S_LEVER_SLUGS`. The remaining holdouts (`aave`, `chainlink`, `morpho`, `lifi`, `magiceden`) use custom ATSes — would need per-company HTML scrapers.
+- **All 5 web3 holdouts from the original spec are now covered.** `morpho`, `magiceden`, `li.fi` were on the public Ashby posting-API after all (added to `config/slugs.json#ashby`). `aave` is scraped via the Next.js `__NEXT_DATA__` blob on `aave.com/careers` (`src/fetchers/aave.ts`). `chainlink-labs` is scraped via Ashby's private `non-user-graphql` endpoint at `jobs.ashbyhq.com/api/non-user-graphql` (`src/fetchers/chainlink.ts`). The Greenhouse stale-slug list was reduced from 14 → 8 by removing the always-404 entries (aave, chainlink, morpho, lifi, magiceden, ledger).
 - `web3.career` and `aijobs.net` (formerly `ai-jobs.net`) removed RSS — both are scraped from HTML via small inline regex parsers, which means a markup change upstream will silently break them. If a fetcher returns `0` for several days, eyeball the HTML for new selectors.
 - `aijobs.net` is dominated by spam-aggregator listings (one posting cloned to 50 cities). The fetcher dedups by base ID via the `-idNNNNN-` slug pattern, which collapses an entire page down to 2–5 distinct postings. Don't be alarmed at the low kept count.
 - `hn-jobs` routinely keeps 0–2 entries because YC company posts rarely match the senior+stack signal threshold. Filtering working as intended, not a bug.
