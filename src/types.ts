@@ -7,7 +7,8 @@ export type Source =
   | 'aijobsnet'
   | 'hn-hiring'
   | 'hn-jobs'
-  | 'greenhouse';
+  | 'greenhouse'
+  | 'ashby';
 
 export type Category = 'web3' | 'ai' | 'web3+ai' | 'general';
 
@@ -124,6 +125,26 @@ export interface RawWeb3Career {
   salary: string | null;
   tags: string[];
   category: string;
+}
+
+export interface RawAshbyJob {
+  id: string;
+  title: string;
+  department?: string | null;
+  team?: string | null;
+  employmentType?: string | null;
+  location?: string | null;
+  secondaryLocations?: { location?: string }[];
+  publishedAt?: string;
+  isRemote?: boolean;
+  workplaceType?: string | null;
+  jobUrl: string;
+  applyUrl?: string;
+  descriptionPlain?: string;
+}
+
+export interface RawAshbyJobWithSlug extends RawAshbyJob {
+  __slug: string;
 }
 
 export interface RawAiJobs {

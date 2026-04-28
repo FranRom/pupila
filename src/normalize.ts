@@ -2,6 +2,7 @@ import { rssLink } from './rss.js';
 import type {
   Job,
   RawAiJobs,
+  RawAshbyJobWithSlug,
   RawGreenhouseJobWithSlug,
   RawHnHiringPost,
   RawHnHit,
@@ -300,6 +301,33 @@ export function normalizeHnJobs(items: RawHnHit[], fetchedAt: string): Job[] {
         category: 'general',
       } satisfies Job,
     ];
+  });
+}
+
+export function normalizeAshby(items: RawAshbyJobWithSlug[], fetchedAt: string): Job[] {
+  return items.map((j) => {
+    const company = j.__slug.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+    const secondaryLocations =
+      j.secondaryLocations?.map((s) => s.location).filter((x): x is string => Boolean(x)) ?? [];
+    const allLocations = [j.location, ...secondaryLocations].filter((x): x is string => Boolean(x));
+    const location = allLocations[0] ?? null;
+    const remote = Boolean(j.isRemote) || j.workplaceType === 'Remote';
+    const tags = joinTags([j.department, j.team, j.employmentType, j.workplaceType, j.__slug]);
+    return {
+      id: makeId('ashby', j.jobUrl, `${company}-${j.title}-${j.id}`),
+      source: 'ashby',
+      title: j.title.trim(),
+      company,
+      url: j.jobUrl,
+      location,
+      remote,
+      body: asPlain(j.descriptionPlain),
+      tags,
+      postedAt: safeIso(j.publishedAt),
+      fetchedAt,
+      fitScore: 0,
+      category: 'general',
+    };
   });
 }
 
