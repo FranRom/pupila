@@ -13,31 +13,37 @@ The pipeline is tuned for: senior/lead/staff frontend, web3 (EVM + Solana), and 
 - Node 22 LTS, ESM, TypeScript 5.9 (NodeNext)
 - Biome 2.4 (lint + format, single config in `biome.json`)
 - pnpm 10
+- Vitest 3 (tests in `tests/`, run via `pnpm test`)
+- simple-git-hooks (pre-commit `lint && typecheck`)
 - Single runtime dep: `fast-xml-parser`. Native `fetch` only.
 
 ## Run locally
 
 ```bash
-pnpm install
-pnpm run dev          # tsx, no build step
-pnpm start            # built output: requires pnpm run build first
-pnpm run typecheck    # tsc --noEmit
-pnpm run lint         # biome check
-pnpm run lint:fix     # biome check --write
+pnpm install                # also installs the pre-commit hook
+pnpm run dev                # tsx, no build step (this is what CI runs too)
+pnpm start                  # built output: requires pnpm run build first
+pnpm run typecheck          # tsc --noEmit
+pnpm run lint               # biome check
+pnpm run lint:fix           # biome check --write
+pnpm test                   # vitest run (41 unit tests)
+pnpm run test:watch         # vitest watch mode
 ```
 
-The pipeline writes to `data/jobs.json`, `JOBS.md`, and per-source raw dumps in `data/raw/<source>-<YYYY-MM-DD>.json` (gitignored). `README.md` is hand-maintained — never overwrite it from code.
+The pipeline writes to `data/jobs.json` (slim — `body` field stripped), `JOBS.md`, optionally `data/archive/<YYYY-MM>.json` on day 1 of the month, and per-source raw dumps in `data/raw/<source>-<YYYY-MM-DD>.json` (gitignored). `README.md` is hand-maintained — never overwrite it from code.
+
+Pre-commit runs `lint && typecheck` automatically. Bypass with `SKIP_SIMPLE_GIT_HOOKS=1 git commit ...` for emergency commits.
 
 ## Repo layout
 
 ```
 src/
   index.ts          # orchestrator
-  types.ts          # Job, Source, Category, per-source Raw* shapes
-  utils.ts          # fetchWithTimeout, sha1, stripHtml, normalizeUrl, ...
+  types.ts          # Job, Source, Category, FetcherResult, Raw* shapes
+  utils.ts          # fetchWithTimeout (1-retry), isSafeUrl, sha1, stripHtml, ...
   rss.ts            # shared fast-xml-parser wrapper
   normalize.ts      # one normalize<Source> per source -> Job
-  filters.ts        # hard excludes + scoring + category
+  filters.ts        # hard excludes + scoring + category + _signals
   dedup.ts          # 2-pass dedup, priority-aware tiebreak
   render.ts         # JOBS.md markdown generator
   fetchers/
@@ -46,40 +52,55 @@ src/
     hn-hiring.ts        hn-jobs.ts                          # Hacker News
     remoteok.ts         remotive.ts         weworkremotely.ts
 
-.github/workflows/
-  jobs.yml          # daily cron + auto-commit
-  keepalive.yml     # weekly cron to keep schedules alive
+config/
+  slugs.json        # tier-S Ashby/Greenhouse/Lever slug arrays
+
+tests/
+  filters.test.ts   # 19 cases — hard drops, scoring, plurals
+  dedup.test.ts     # 5 cases — id/title collapse, priority
+  utils.test.ts     # 17 cases — URL safety, stripHtml, time math
+
+.github/
+  workflows/
+    jobs.yml        # daily cron + auto-commit (commits jobs.json + archive + JOBS.md)
+    keepalive.yml   # weekly cron to keep schedules alive
+    check.yml       # PR/push: lint + typecheck + test + audit
+    codeql.yml      # weekly + PR: static security analysis
+  dependabot.yml    # weekly npm + github-actions PRs
 ```
 
 ## How to add a new fetcher
 
 1. Add a Raw shape to `src/types.ts` (e.g. `RawFooBoard`).
-2. Create `src/fetchers/<name>.ts` exporting `fetch<Name>(): Promise<Raw[]>`.
-   - Catch all errors internally; return `[]` on failure.
-   - Use `fetchWithTimeout` / `fetchJson` / `fetchText` from `utils.ts` with a 30s default.
+2. Create `src/fetchers/<name>.ts` exporting `fetch<Name>(): Promise<FetcherResult<Raw>>` — i.e. returning `{ items: Raw[]; errors: string[] }`. **Never throw.** Catch all errors internally, push them onto the `errors` array, and return.
+   - Use `fetchWithTimeout` / `fetchJson` / `fetchText` from `utils.ts` (30s timeout, 1 retry on 5xx/network).
    - Pass `JSON_HEADERS` or `RSS_HEADERS` so the request looks like a real browser.
+   - For multi-slug/multi-page fetchers, aggregate `errors` from each sub-call so partial failures are visible in stats.
 3. Add the literal source name to the `Source` union in `src/types.ts`.
 4. Add a normalizer to `src/normalize.ts`: `normalize<Name>(items, fetchedAt): Job[]`.
 5. Wire it into `src/index.ts`:
    - Import `fetch<Name>` and `normalize<Name>`.
    - Add a line to the `Promise.all` block: `processFetcher('<source>', fetch<Name>, normalize<Name>, fetchedAt, today)`.
 6. Add the new source to `SOURCE_PRIORITY` in `src/dedup.ts` and to the `SOURCES` list in `src/render.ts`.
+7. Add at least one test in `tests/` covering the parser if it's an HTML scraper.
 
 Smoke-test locally before wiring it into `index.ts`:
 
 ```bash
-npx tsx -e "import('./src/fetchers/<name>.ts').then(async m => { const r = await m.fetch<Name>(); console.log('count:', r.length, 'first:', r[0]); })"
+npx tsx -e "import('./src/fetchers/<name>.ts').then(async m => { const r = await m.fetch<Name>(); console.log('count:', r.items.length, 'errors:', r.errors, 'first:', r.items[0]); })"
 ```
 
 ## How to add a tier-S company
 
-Three ATS fetchers, each with its own slug list. Pick the right one based on where the company hosts:
+All three slug arrays live in `config/slugs.json` — adding a company is a non-code edit. Pick the right ATS based on where the company hosts:
 
-| ATS | Slug constant | File | URL pattern |
-|---|---|---|---|
-| Ashby | `TIER_S_ASHBY_SLUGS` | `src/fetchers/ashby.ts` | `jobs.ashbyhq.com/<slug>` |
-| Greenhouse | `TIER_S_SLUGS` | `src/fetchers/greenhouse.ts` | `boards.greenhouse.io/<slug>` |
-| Lever | `TIER_S_LEVER_SLUGS` | `src/fetchers/lever.ts` | `jobs.lever.co/<slug>` |
+| ATS | JSON key | URL pattern (find slug here) |
+|---|---|---|
+| Ashby | `ashby` | `jobs.ashbyhq.com/<slug>` |
+| Greenhouse | `greenhouse` | `boards.greenhouse.io/<slug>` |
+| Lever | `lever` | `jobs.lever.co/<slug>` |
+
+The `TIER_S_ASHBY_SLUGS` / `TIER_S_SLUGS` / `TIER_S_LEVER_SLUGS` exports in each fetcher file are now thin re-exports of the JSON config.
 
 Probe before adding (each ATS exposes a public board endpoint that returns 200 + JSON if the slug is live):
 
@@ -98,6 +119,7 @@ If a target company isn't on any of the three big ATSes (Aave, Chainlink, Morpho
 All in `src/filters.ts`. Applied in this order:
 
 1. **Hard excludes** (drop entirely)
+   - URL is not http/https (security gate via `isSafeUrl`)
    - Title contains junior/jr/intern/entry-level/associate/graduate/trainee/apprentice
    - Title does NOT contain a senior_req keyword (senior/sr/staff/principal/lead/head/director/engineer(s)/developer(s)/architect(s))
    - Body matches a hard US-only/onsite pattern
@@ -158,12 +180,46 @@ The read happens **after** filter+dedup+sort but **before** `writeJson('data/job
 
 ## GitHub Actions
 
-- `.github/workflows/jobs.yml` — `0 7 * * *` daily, plus `workflow_dispatch`. Runs the pipeline and auto-commits `data/jobs.json` + `JOBS.md` if anything changed.
-- `.github/workflows/keepalive.yml` — `0 12 * * 0` weekly. Touches `.keepalive` so GitHub doesn't disable the schedule after 60 days of repo inactivity.
+Four workflows total:
 
-Both use `stefanzweifel/git-auto-commit-action@v5` and require `permissions: contents: write`.
+- **`.github/workflows/jobs.yml`** — `0 7 * * *` daily + `workflow_dispatch`. Runs `pnpm run dev` (no build step). Auto-commits `data/jobs.json`, `data/archive/*.json`, and `JOBS.md` if anything changed. `permissions: contents: write`.
+- **`.github/workflows/check.yml`** — every push to `main` and every PR. Lint, typecheck, test, audit. `permissions: contents: read`.
+- **`.github/workflows/codeql.yml`** — push, PR, and weekly Mondays 06:00 UTC. JS/TS static analysis with `security-and-quality` query suite.
+- **`.github/workflows/keepalive.yml`** — `0 12 * * 0` weekly. Touches `.keepalive` so GitHub doesn't disable the daily schedule after 60 days of repo inactivity.
 
-To trigger a run manually: GitHub UI → Actions → jobs → Run workflow.
+`.github/dependabot.yml` opens weekly grouped PRs for npm + github-actions.
+
+**Pinning.** All third-party actions in every workflow are referenced by full 40-char commit SHA, not a floating `@v4` / `@v5` tag, with the version in a trailing comment. When updating an action, replace both the SHA and the comment. Dependabot will keep these current via PRs.
+
+To trigger the daily run manually: `gh workflow run jobs.yml`.
+
+## Tests
+
+Vitest, ~41 cases in `tests/` with `*.test.ts` glob. Run via `pnpm test` (CI) or `pnpm run test:watch` (interactive).
+
+- **`tests/utils.test.ts`** (17): `isSafeUrl` allowlist, `normalizeUrl` (utm strip, scheme reject), `stripHtml`, `normalizeText`, `sha1Hex`, `relativeTime`, `withinDays`.
+- **`tests/filters.test.ts`** (19): every hard-drop branch (junior, senior_req, US-only, compound non-eng, exec, URL scheme), every score signal, category derivation, score capping with `_signals.capped`, US-centric penalty, plural title acceptance.
+- **`tests/dedup.test.ts`** (5): id collapse, normalized company+title collapse, fitScore tiebreak, source priority tiebreak (`ashby > greenhouse > remoteok`, `lever > web3career`), empty input.
+
+When tuning a filter regex or scoring weight, update the test in the same commit. The `check.yml` workflow runs the full suite on every PR.
+
+## Pre-commit
+
+`simple-git-hooks` is registered via the `prepare` lifecycle script. The hook runs:
+
+```bash
+pnpm run lint && pnpm run typecheck
+```
+
+Bypass with `SKIP_SIMPLE_GIT_HOOKS=1 git commit ...` when you really need to land a WIP. Don't make a habit of it.
+
+## Security checklist for new fetchers / parsers
+
+- Use `fetchWithTimeout` from `utils.ts` (timeout + retry + abort built-in).
+- Do not embed user-controllable strings in HTML attributes; use `escapeHtmlAttr` in `render.ts`.
+- All scraped URLs flow through the filter's `isSafeUrl` gate — don't bypass it.
+- All scraped bodies flow through `stripHtml` before any regex/scoring.
+- New external HTTP endpoints get added to a tier-S slug list when applicable; ad-hoc URLs in code should be reviewed.
 
 ## Conventional commits
 

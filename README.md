@@ -19,11 +19,14 @@ Manually checking 11 job boards every morning is tedious. This repo replaces tha
 | Language | TypeScript 5.9 (NodeNext, strict) |
 | Lint + format | Biome 2.4 |
 | Package manager | pnpm 10 |
-| HTTP | Native `fetch` with `AbortController` (30s timeout) |
+| Tests | Vitest 3 (41 unit tests on filters, dedup, utils) |
+| Pre-commit | simple-git-hooks (runs lint + typecheck on every commit) |
+| HTTP | Native `fetch` with `AbortController` (30s timeout, 1 retry on 5xx/network) |
 | RSS parsing | `fast-xml-parser` (only runtime dep) |
 | HTML scraping | Inline regex parsers (no cheerio/jsdom) |
 | Schedule | GitHub Actions cron, daily 07:00 UTC |
-| Output | Files committed to this repo (`data/jobs.json`, `JOBS.md`) |
+| Output | Files committed to this repo (`data/jobs.json`, `JOBS.md`, `data/archive/<YYYY-MM>.json` on month-start) |
+| Static analysis | CodeQL weekly + on PR; Dependabot for npm + GitHub Actions |
 
 ## Architecture
 
@@ -56,13 +59,14 @@ Manually checking 11 job boards every morning is tedious. This repo replaces tha
         │   dedup.dedupe: by URL, then by company+title     │
         │                       │                           │
         │                       ▼                           │
-        │   sort by fitScore desc, postedAt desc            │
+        │   sort by fitScore desc, postedAt desc, id asc    │
         │                       │                           │
         │                       ▼                           │
         │   diff against previous data/jobs.json (✨ new)    │
         │                       │                           │
         │                       ▼                           │
-        │   write data/jobs.json (with _signals) + JOBS.md  │
+        │   strip body field, write data/jobs.json,         │
+        │     monthly archive on day-1, render JOBS.md      │
         │                                                   │
         └───────────────────────────────────────────────────┘
                                       │
@@ -98,7 +102,7 @@ Adding a 12th source is one new file in `src/fetchers/`, one entry in `Source`, 
 
 ### 1. Fetch (`src/fetchers/*.ts`)
 
-Each module exports `fetch<Source>(): Promise<Raw[]>` where `Raw` is source-specific. Errors caught internally; per-slug isolation in Greenhouse so 404s on individual companies don't cascade.
+Each module exports `fetch<Source>(): Promise<{ items: Raw[]; errors: string[] }>` where `Raw` is source-specific. Errors are caught internally and aggregated, never thrown. Per-slug isolation in the three ATS fetchers so 404s on individual companies don't cascade. The 30s `AbortController` timeout in `fetchWithTimeout` retries once with a 2s backoff on `>=500` and network errors; 4xx errors are not retried (they're permanent). Tier-S slug arrays for Ashby / Greenhouse / Lever are loaded from [`config/slugs.json`](./config/slugs.json) — adding a company is a non-code change.
 
 ### 2. Normalize (`src/normalize.ts`)
 
@@ -110,10 +114,10 @@ interface Job {
   source: Source;             // one of 11 literal source names
   title: string;
   company: string | null;
-  url: string;
+  url: string;                // http or https only — non-http schemes are filtered out
   location: string | null;
   remote: boolean;            // inferred from text + tags
-  body: string;               // HTML stripped via regex
+  body: string;               // HTML stripped via regex (in-memory only)
   tags: string[];
   postedAt: string | null;    // ISO 8601
   fetchedAt: string;          // ISO 8601, set at run-start
@@ -123,7 +127,9 @@ interface Job {
 }
 ```
 
-URLs are canonicalized (`utm_*` stripped, trailing slash normalized) before hashing into `id`.
+URLs are canonicalized (`utm_*` stripped, trailing slash normalized) before hashing into `id`. Any URL that isn't `http(s):` is rejected at the filter stage as a defense against `javascript:` / `data:` / `file:` payloads from upstream sources.
+
+**Note on `data/jobs.json`:** the `body` field is stripped from the persisted file (it's regenerable from the URL and bloats the artifact ~10×). `body` is only present in-memory during a run.
 
 ### 3. Filter + score (`src/filters.ts`)
 
@@ -135,6 +141,7 @@ URLs are canonicalized (`utm_*` stripped, trailing slash normalized) before hash
 - Title or body matches a non-engineering pattern (`marketing|sales|recruiter|...`) **and** the title doesn't contain an engineering keyword.
 - Title matches a compound non-engineering pattern that contains the word "Engineer" but isn't real engineering: `customer support engineer`, `sales engineer`, `solutions engineer`, `developer relations|advocate|experience`, `field engineering|operations`, `business operations`, `partner(ships) engineer`, `forward deployed engineer`, `implementation engineer`, `gtm`, `go-to-market`.
 - Title is a non-engineering executive role: `VP`, `Vice President`, `CMO`, `CRO`, `CFO`, `COO`.
+- URL scheme is not `http(s):` (security gate against `javascript:` / `data:` / `file:` URLs from upstream).
 
 **Soft signals** (additive, capped at 100):
 
@@ -192,6 +199,8 @@ When two jobs collide, the one with the higher `fitScore` wins. Ties are broken 
 ashby > lever > greenhouse > cryptojobslist > web3career > aijobsnet > hn-hiring > hn-jobs > remotive > weworkremotely > remoteok
 ```
 
+**Sort stability.** After dedup, the final sort is `fitScore desc, postedAt desc, id asc`. The `id asc` tertiary tiebreak makes day-over-day diffs deterministic when two jobs have identical scores and timestamps.
+
 ### 5. Diff against previous run
 
 Before writing the new `data/jobs.json`, the orchestrator reads the **previous** committed copy, builds a `Set` of its job IDs, and computes which jobs in today's run are not in yesterday's. This list becomes the **"✨ New since last run"** section at the top of `JOBS.md`. On the very first run (no previous file) the section is omitted entirely; otherwise it's the most actionable thing to skim each morning.
@@ -213,17 +222,24 @@ Each table row: `Score | Title | Company | Source | Posted (relative) | Link`. T
 
 ```
 job-hunt/
-├── .github/workflows/
-│   ├── jobs.yml              # daily cron + auto-commit
-│   └── keepalive.yml         # weekly touch to keep cron alive
+├── .github/
+│   ├── workflows/
+│   │   ├── jobs.yml           # daily cron + auto-commit
+│   │   ├── keepalive.yml      # weekly touch to keep cron alive
+│   │   ├── check.yml          # PR/push: lint + typecheck + tests + audit
+│   │   └── codeql.yml         # weekly + on PR: static security analysis
+│   └── dependabot.yml         # weekly npm + github-actions updates
+├── config/
+│   └── slugs.json             # tier-S Ashby/Greenhouse/Lever slug arrays
 ├── data/
-│   ├── jobs.json             # output, committed daily
-│   └── raw/                  # per-source raw JSON, gitignored
+│   ├── jobs.json              # slim output (no body), committed daily
+│   ├── archive/               # YYYY-MM.json, written on day 1 of each month
+│   └── raw/                   # per-source raw JSON, gitignored
 ├── src/
-│   ├── fetchers/             # one file per source
-│   │   ├── ashby.ts          # 26 tier-S slugs (largest contributor)
-│   │   ├── greenhouse.ts     # 14 tier-S slugs
-│   │   ├── lever.ts          # 6 tier-S slugs
+│   ├── fetchers/              # one file per source
+│   │   ├── ashby.ts           # 26 tier-S slugs (largest contributor)
+│   │   ├── greenhouse.ts      # 14 tier-S slugs
+│   │   ├── lever.ts           # 6 tier-S slugs
 │   │   ├── remoteok.ts
 │   │   ├── remotive.ts
 │   │   ├── weworkremotely.ts
@@ -232,48 +248,62 @@ job-hunt/
 │   │   ├── aijobsnet.ts
 │   │   ├── hn-hiring.ts
 │   │   └── hn-jobs.ts
-│   ├── types.ts              # Job, Source, Category, Raw* shapes
-│   ├── utils.ts              # fetchWithTimeout, sha1, stripHtml, ...
-│   ├── rss.ts                # shared fast-xml-parser wrapper
-│   ├── normalize.ts          # one normalizer per source
-│   ├── filters.ts            # hard excludes + scoring
-│   ├── dedup.ts              # 2-pass dedup
-│   ├── render.ts             # JOBS.md generator
-│   └── index.ts              # orchestrator
+│   ├── types.ts               # Job, Source, Category, FetcherResult, Raw* shapes
+│   ├── utils.ts               # fetchWithTimeout, retry, isSafeUrl, sha1, stripHtml, ...
+│   ├── rss.ts                 # shared fast-xml-parser wrapper
+│   ├── normalize.ts           # one normalizer per source
+│   ├── filters.ts             # hard excludes + scoring + signal breakdown
+│   ├── dedup.ts               # 2-pass dedup with priority-aware tiebreak
+│   ├── render.ts              # JOBS.md generator
+│   └── index.ts               # orchestrator
+├── tests/
+│   ├── filters.test.ts        # 19 cases: hard drops, scoring, plurals
+│   ├── dedup.test.ts          # 5 cases: id/title collapse, priority
+│   └── utils.test.ts          # 17 cases: URL safety, stripHtml, time math
 ├── biome.json
 ├── tsconfig.json
-├── package.json
+├── vitest.config.ts
+├── package.json               # also holds simple-git-hooks pre-commit config
 ├── pnpm-lock.yaml
-├── CLAUDE.md                 # guidance for future Claude Code sessions
-├── JOBS.md                   # auto-generated daily output
-└── README.md                 # this file
+├── CLAUDE.md                  # guidance for future Claude Code sessions
+├── JOBS.md                    # auto-generated daily output
+└── README.md                  # this file
 ```
 
 ## Run locally
 
 ```bash
-pnpm install                 # one-time
-pnpm run dev                 # tsx, no build step
+pnpm install                 # one-time; also installs the pre-commit hook
+pnpm run dev                 # tsx, no build step (this is what CI runs too)
 pnpm start                   # built output (run pnpm run build first)
 pnpm run typecheck           # tsc --noEmit
 pnpm run lint                # biome check
 pnpm run lint:fix            # biome check --write
+pnpm test                    # vitest run (41 unit tests)
+pnpm run test:watch          # vitest in watch mode
 ```
+
+The pre-commit hook runs `lint && typecheck` on every commit. To bypass it for an emergency commit: `SKIP_SIMPLE_GIT_HOOKS=1 git commit ...`.
 
 A run takes ~5-10 seconds and produces:
 
-- `data/jobs.json` — full sorted list of jobs that survived filters + dedup
-- `JOBS.md` — the four-section table
+- `data/jobs.json` — slim sorted list (no `body` field), survives filters + dedup
+- `JOBS.md` — five-section table (✨ new + four categories)
+- `data/archive/<YYYY-MM>.json` — monthly snapshot, written on day 1
 - `data/raw/<source>-<YYYY-MM-DD>.json` — per-source raw payload for debugging (gitignored)
 
 ## GitHub Actions
 
-Two workflows in [`.github/workflows/`](./.github/workflows):
+Four workflows in [`.github/workflows/`](./.github/workflows):
 
-- **[`jobs.yml`](./.github/workflows/jobs.yml)** — runs daily at 07:00 UTC and on `workflow_dispatch`. Sets up Node 22 + pnpm 10, installs with frozen lockfile, builds, runs the aggregator, and auto-commits `data/jobs.json` + `JOBS.md` if anything changed (via `stefanzweifel/git-auto-commit-action@v5`).
-- **[`keepalive.yml`](./.github/workflows/keepalive.yml)** — runs Sundays at 12:00 UTC, touches `.keepalive` with the current timestamp, commits. Prevents GitHub from auto-disabling the schedule after 60 days of repo inactivity.
+- **[`jobs.yml`](./.github/workflows/jobs.yml)** — daily 07:00 UTC + `workflow_dispatch`. Sets up Node 22 + pnpm 10, runs the aggregator (`pnpm run dev` via tsx — no build step), auto-commits `data/jobs.json`, `data/archive/*.json`, and `JOBS.md` if anything changed.
+- **[`check.yml`](./.github/workflows/check.yml)** — runs on every push to `main` and every PR. `pnpm run lint`, `pnpm run typecheck`, `pnpm test`, `pnpm audit --prod`. Source-code validation gate; permissions are `contents: read` only.
+- **[`codeql.yml`](./.github/workflows/codeql.yml)** — runs on push, PR, and weekly Mondays. CodeQL static security analysis with the `security-and-quality` query suite. Findings land in the repo's Security tab.
+- **[`keepalive.yml`](./.github/workflows/keepalive.yml)** — Sundays 12:00 UTC, touches `.keepalive`. Prevents GitHub from auto-disabling the cron after 60 days of repo inactivity.
 
-To trigger a run manually: GitHub UI → Actions → jobs → Run workflow.
+All workflows pin third-party actions to **commit SHAs** (not floating `@v4` / `@v5` tags) for supply-chain safety. [`Dependabot`](./.github/dependabot.yml) opens weekly PRs to bump those SHAs and the npm deps; the `check.yml` workflow validates each PR before merge.
+
+To trigger the daily run manually: GitHub UI → Actions → jobs → Run workflow, or `gh workflow run jobs.yml`.
 
 ## Customization
 
@@ -283,15 +313,23 @@ Open [`src/filters.ts`](./src/filters.ts) and edit the `score += N` lines in `ap
 
 ### Change the tier-S ATS slug lists
 
-Three exports, one per ATS — edit any of them to add or remove companies. Slugs that 404 are logged and skipped silently, so testing a candidate is just appending it to the array and re-running.
+All three slug arrays live in [`config/slugs.json`](./config/slugs.json) — adding or removing a company is a non-code change. Slugs that 404 are logged and skipped silently, so testing a candidate is just appending it and re-running.
 
-| ATS | File | Slug location | How to find a slug |
-|---|---|---|---|
-| Ashby | [`src/fetchers/ashby.ts`](./src/fetchers/ashby.ts) | `TIER_S_ASHBY_SLUGS` | URL path on `jobs.ashbyhq.com/<slug>` (e.g. `linear`, `openai`, `mystenlabs`) |
-| Greenhouse | [`src/fetchers/greenhouse.ts`](./src/fetchers/greenhouse.ts) | `TIER_S_SLUGS` | URL path on `boards.greenhouse.io/<slug>` (e.g. `anthropic`, `vercel`) |
-| Lever | [`src/fetchers/lever.ts`](./src/fetchers/lever.ts) | `TIER_S_LEVER_SLUGS` | URL path on `jobs.lever.co/<slug>` (e.g. `binance`, `ledger`) |
+```jsonc
+{
+  "ashby": ["linear", "openai", "mystenlabs", ...],
+  "greenhouse": ["anthropic", "vercel", "coinbase", ...],
+  "lever": ["binance", "ledger", "safe", ...]
+}
+```
 
-Quick probe: `curl -sI https://api.ashbyhq.com/posting-api/job-board/<slug>` → 200 means it's live. Same pattern with the other two endpoints.
+| ATS | URL pattern (find the slug here) | Endpoint to probe |
+|---|---|---|
+| Ashby | `jobs.ashbyhq.com/<slug>` | `api.ashbyhq.com/posting-api/job-board/<slug>?includeCompensation=true` |
+| Greenhouse | `boards.greenhouse.io/<slug>` | `boards-api.greenhouse.io/v1/boards/<slug>/jobs?content=true` |
+| Lever | `jobs.lever.co/<slug>` | `api.lever.co/v0/postings/<slug>?mode=json` |
+
+Quick probe: `curl -sI <endpoint>` → 200 means it's live.
 
 ### Add a new source
 
@@ -302,6 +340,21 @@ Detailed recipe in [`CLAUDE.md`](./CLAUDE.md#how-to-add-a-new-fetcher). Quick ve
 3. Add `normalize<Name>` to `src/normalize.ts`.
 4. Wire into `src/index.ts`'s `Promise.all` block.
 5. Register in `SOURCE_PRIORITY` (`src/dedup.ts`) and `SOURCES` (`src/render.ts`).
+
+## Security & quality gates
+
+Defense-in-depth measures, ranked from runtime to build-time:
+
+- **URL scheme allowlist.** [`isSafeUrl`](./src/utils.ts) rejects anything not `http(s):`. Filters drop unsafe URLs at the hard-gate. Defends against `javascript:` / `data:` / `file:` payloads from upstream.
+- **HTML attribute escaping.** Apply links in `JOBS.md` use raw `<a target="_blank" rel="noopener noreferrer">` with HTML-escaped href (`escapeHtmlAttr` in [`src/render.ts`](./src/render.ts)). `noopener noreferrer` blocks tabnabbing.
+- **HTML stripping.** All scraped/RSS/JSON `body` content is run through [`stripHtml`](./src/utils.ts) before any other processing.
+- **Pre-commit hook** runs `pnpm run lint && pnpm run typecheck` before each commit. Bypass with `SKIP_SIMPLE_GIT_HOOKS=1`.
+- **Tests** (`pnpm test`) — Vitest, 41 cases on the security-sensitive code (URL safety, regex filters, dedup tiebreaks). Runs on every PR.
+- **`pnpm audit --prod --audit-level high`** in [`check.yml`](./.github/workflows/check.yml). Reports known CVEs in production deps.
+- **CodeQL** weekly + on PR ([`codeql.yml`](./.github/workflows/codeql.yml)). Static analysis with the `security-and-quality` suite.
+- **Pinned actions.** All four workflows reference third-party actions by commit SHA, not floating tags. Defends against tag-hijacking.
+- **Dependabot** ([`dependabot.yml`](./.github/dependabot.yml)) — weekly PRs for npm + GitHub Actions. Each PR is gated by `check.yml`.
+- **Minimum permissions.** `jobs.yml` uses `contents: write` (needed for auto-commit). `check.yml` and `codeql.yml` use the smallest permission set their step actually requires.
 
 ## Known upstream issues (as of 2026-04)
 
