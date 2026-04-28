@@ -46,60 +46,50 @@ export interface FilterResult {
   kept: Job[];
   droppedHard: number;
   droppedScore: number;
+  droppedByRule: Record<string, number>;
 }
+
+interface HardRule {
+  name: string;
+  test: (job: Job) => boolean;
+}
+
+const HARD_RULES: readonly HardRule[] = [
+  { name: 'unsafe_url', test: (job) => !isSafeUrl(job.url) },
+  { name: 'junior_title', test: (job) => TITLE_JUNIOR.test(job.title) },
+  { name: 'missing_senior_req', test: (job) => !TITLE_SENIOR_REQ.test(job.title) },
+  { name: 'hard_us_or_onsite', test: (job) => BODY_HARD_US_OR_ONSITE.test(job.body) },
+  {
+    name: 'non_engineering',
+    test: (job) =>
+      NON_ENGINEERING.test(`${job.title}\n${job.body}`) && !TITLE_ENGINEERING_KW.test(job.title),
+  },
+  { name: 'title_non_eng_compound', test: (job) => TITLE_NON_ENG_COMPOUND.test(job.title) },
+  { name: 'title_non_eng_leadership', test: (job) => TITLE_NON_ENG_LEADERSHIP.test(job.title) },
+  { name: 'title_non_frontend_eng', test: (job) => TITLE_NON_FRONTEND_ENG.test(job.title) },
+  { name: 'title_non_eng_role', test: (job) => TITLE_NON_ENG_ROLE.test(job.title) },
+  { name: 'title_non_tech_role', test: (job) => TITLE_NON_TECH_ROLE.test(job.title) },
+];
 
 export function applyFilters(jobs: Job[]): FilterResult {
   let droppedHard = 0;
   let droppedScore = 0;
   const kept: Job[] = [];
+  const droppedByRule: Record<string, number> = {};
 
   for (const job of jobs) {
     const title = job.title;
     const body = job.body;
+
+    const violated = HARD_RULES.find((rule) => rule.test(job));
+    if (violated) {
+      droppedHard++;
+      droppedByRule[violated.name] = (droppedByRule[violated.name] ?? 0) + 1;
+      continue;
+    }
+
     const scoringBody = preparedScoringBody(body);
     const scoringTitleAndBody = `${title}\n${scoringBody}`;
-
-    if (!isSafeUrl(job.url)) {
-      droppedHard++;
-      continue;
-    }
-    if (TITLE_JUNIOR.test(title)) {
-      droppedHard++;
-      continue;
-    }
-    if (!TITLE_SENIOR_REQ.test(title)) {
-      droppedHard++;
-      continue;
-    }
-    if (BODY_HARD_US_OR_ONSITE.test(body)) {
-      droppedHard++;
-      continue;
-    }
-    const fullTitleAndBody = `${title}\n${body}`;
-    if (NON_ENGINEERING.test(fullTitleAndBody) && !TITLE_ENGINEERING_KW.test(title)) {
-      droppedHard++;
-      continue;
-    }
-    if (TITLE_NON_ENG_COMPOUND.test(title)) {
-      droppedHard++;
-      continue;
-    }
-    if (TITLE_NON_ENG_LEADERSHIP.test(title)) {
-      droppedHard++;
-      continue;
-    }
-    if (TITLE_NON_FRONTEND_ENG.test(title)) {
-      droppedHard++;
-      continue;
-    }
-    if (TITLE_NON_ENG_ROLE.test(title)) {
-      droppedHard++;
-      continue;
-    }
-    if (TITLE_NON_TECH_ROLE.test(title)) {
-      droppedHard++;
-      continue;
-    }
 
     const signals: JobSignals = {
       web3TitleBody: 0,
@@ -191,5 +181,5 @@ export function applyFilters(jobs: Job[]): FilterResult {
     kept.push({ ...job, fitScore: score, category, _signals: signals });
   }
 
-  return { kept, droppedHard, droppedScore };
+  return { kept, droppedHard, droppedScore, droppedByRule };
 }

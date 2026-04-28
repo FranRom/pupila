@@ -130,6 +130,7 @@ async function main(): Promise<void> {
     bySource,
     byCategory,
     droppedHard: filterResult.droppedHard,
+    droppedByRule: filterResult.droppedByRule,
     droppedScore: filterResult.droppedScore,
     removedById: dedupResult.removedById,
     removedByTitle: dedupResult.removedByTitle,

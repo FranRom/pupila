@@ -82,6 +82,17 @@ describe('applyFilters — hard excludes', () => {
     expect(r.droppedHard).toBe(1);
   });
 
+  it('reports the rule that fired in droppedByRule', () => {
+    const r = applyFilters([
+      makeJob({ title: 'Junior Software Engineer' }),
+      makeJob({ title: 'Marketing Manager' }),
+      makeJob({ url: 'javascript:alert(1)' }),
+    ]);
+    expect(r.droppedByRule.junior_title).toBe(1);
+    expect(r.droppedByRule.missing_senior_req).toBe(1);
+    expect(r.droppedByRule.unsafe_url).toBe(1);
+  });
+
   it('drops non-frontend engineering specialties', () => {
     const cases = [
       'Senior Product Security Engineer',
