@@ -3,22 +3,49 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
 
 export const DEFAULT_TIMEOUT_MS = 30_000;
+export const DEFAULT_RETRIES = 1;
+export const DEFAULT_RETRY_BACKOFF_MS = 2_000;
 
 export interface FetchOptions extends RequestInit {
   timeoutMs?: number;
+  retries?: number;
+  retryBackoffMs?: number;
+}
+
+async function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function fetchOnce(url: string, init: RequestInit, timeoutMs: number): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...init, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 export async function fetchWithTimeout(
   url: string,
-  { timeoutMs = DEFAULT_TIMEOUT_MS, ...init }: FetchOptions = {},
+  {
+    timeoutMs = DEFAULT_TIMEOUT_MS,
+    retries = DEFAULT_RETRIES,
+    retryBackoffMs = DEFAULT_RETRY_BACKOFF_MS,
+    ...init
+  }: FetchOptions = {},
 ): Promise<Response> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    const res = await fetch(url, { ...init, signal: controller.signal });
-    return res;
-  } finally {
-    clearTimeout(timer);
+  let attempt = 0;
+  while (true) {
+    try {
+      const res = await fetchOnce(url, init, timeoutMs);
+      const transient = res.status >= 500 && res.status < 600;
+      if (!transient || attempt >= retries) return res;
+    } catch (err) {
+      if (attempt >= retries) throw err;
+    }
+    attempt++;
+    await sleep(retryBackoffMs * attempt);
   }
 }
 
