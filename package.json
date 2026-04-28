@@ -23,7 +23,7 @@
     "pre-commit": "pnpm run lint && pnpm run typecheck"
   },
   "dependencies": {
-    "fast-xml-parser": "^4.5.0"
+    "fast-xml-parser": "^5.7.2"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.0.0",
