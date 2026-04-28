@@ -13,7 +13,7 @@ The pipeline is tuned for: senior/lead/staff frontend, web3 (EVM + Solana), and 
 - Node 22 LTS, ESM, TypeScript 5.9 (NodeNext)
 - Biome 2.4 (lint + format, single config in `biome.json`)
 - pnpm 10
-- Vitest 3 (tests in `tests/`, run via `pnpm test` — 104 cases)
+- Vitest 3 (tests in `tests/`, run via `pnpm test` — 113 cases)
 - simple-git-hooks (pre-commit `lint && typecheck`)
 - Single runtime dep: `fast-xml-parser`. Native `fetch` only.
 
@@ -26,9 +26,13 @@ pnpm start                  # built output: requires pnpm run build first
 pnpm run typecheck          # tsc --noEmit on src/, then on src/+tests/ via tsconfig.test.json
 pnpm run lint               # biome check
 pnpm run lint:fix            # biome check --write
-pnpm test                   # vitest run (104 unit tests)
+pnpm test                   # vitest run (113 unit tests)
 pnpm run test:watch         # vitest watch mode
 pnpm run ui                 # local-only UI: Vite dev server on http://127.0.0.1:5173, reads data/jobs.json
+pnpm run ai-review          # local-only: shells out to `claude -p` to write data/ai-reviews.json
+pnpm run ai-review --top=50 # raise the per-run cap (default 20 highest-fitScore unreviewed)
+pnpm run ai-review --force  # re-review entries that already exist
+pnpm run ai-review --ids=a,b # review specific job ids only
 ```
 
 The pipeline writes to `data/jobs.json` (slim — `body` field stripped), `data/feed.xml` (RSS 2.0 of new jobs), `JOBS.md`, optionally `data/archive/<YYYY-MM>.json` on day 1 of the month, and per-source raw dumps in `data/raw/<source>-<YYYY-MM-DD>.json` (gitignored). `README.md` is hand-maintained — never overwrite it from code.
@@ -65,14 +69,15 @@ config/
   applied.json      # hand-edited list of jobs you've applied to
 
 tests/
-  filters.test.ts   # 33 cases — hard drops, droppedByRule, scoring, plurals, frontendBody, boilerplate, tiered weighting
-  dedup.test.ts     # 10 cases — id/title collapse, priority, compareJobs salary/postedAt/id chain
-  applied.test.ts   # 4 cases — STATUS_EMOJI map + summarizeApplied grouping/ordering
-  salary.test.ts    # 15 cases — K/M suffix, currency detection, hourly→annual, free-text fallback
-  feed.test.ts      # 6 cases — RSS skeleton, escaping, sort, 50-item cap
-  aave.test.ts            # 7 cases — __NEXT_DATA__ extraction + normalizer
-  ashby-private.test.ts   # 9 cases — GraphQL list/detail parsers + slug-to-company derivation
-  utils.test.ts     # 20 cases — URL safety, stripHtml, time math, human date formatter
+  filters.test.ts          # 33 cases — hard drops, droppedByRule, scoring, plurals, frontendBody, boilerplate, tiered weighting
+  dedup.test.ts            # 10 cases — id/title collapse, priority, compareJobs salary/postedAt/id chain
+  applied.test.ts          # 4 cases  — STATUS_EMOJI map + summarizeApplied grouping/ordering
+  salary.test.ts           # 15 cases — K/M suffix, currency detection, hourly→annual, free-text fallback
+  feed.test.ts             # 6 cases  — RSS skeleton, escaping, sort, 50-item cap
+  aave.test.ts             # 7 cases  — __NEXT_DATA__ extraction + normalizer
+  ashby-private.test.ts    # 9 cases  — GraphQL list/detail parsers + slug-to-company derivation
+  ai-review-parse.test.ts  # 9 cases  — markdown-fence stripping, invalid verdicts, missing fields, dirty arrays
+  utils.test.ts            # 20 cases — URL safety, stripHtml, time math, human date formatter
 
 ui/                 # local-only browser dashboard (Vite + React)
   index.html        # Vite entry
@@ -284,7 +289,7 @@ To trigger the daily run manually: `gh workflow run jobs.yml`.
 
 ## Tests
 
-Vitest, 104 cases in `tests/` with `*.test.ts` glob. Run via `pnpm test` (CI) or `pnpm run test:watch` (interactive).
+Vitest, 113 cases across 9 files in `tests/` with `*.test.ts` glob. Run via `pnpm test` (CI) or `pnpm run test:watch` (interactive).
 
 - **`tests/utils.test.ts`** (20): `isSafeUrl` allowlist, `normalizeUrl` (utm strip, scheme reject), `stripHtml`, `normalizeText`, `sha1Hex`, `relativeTime`, `withinDays`, `formatDateTimeUTC` (human-readable "DD Month YYYY, HH:MM UTC").
 - **`tests/filters.test.ts`** (33): every hard-drop branch (junior, senior_req, US-only, compound non-eng, non-frontend eng, non-eng role, non-tech role, exec, URL scheme), `droppedByRule` rule attribution, every score signal, category derivation, score capping with `_signals.capped`, US-centric penalty, plural title acceptance, frontendTitle/frontendBody bonuses, boilerplate stripping (AI keywords in EEO footer must NOT score), tiered keyword weighting (1 mention = half-weight, 4+ = 1.5× boost across `stackPrimary` and `frontendBody`).
@@ -301,15 +306,44 @@ When tuning a filter regex or scoring weight (in `config/profile.json` or `filte
 
 ## Local UI (`pnpm run ui`)
 
-A Vite + React 19 dashboard at `ui/` that reads `data/jobs.json` directly via JSON import. **Local-only — no auth, no hosting, intentionally not exposed beyond `127.0.0.1:5173`** (the user explicitly chose this over public Pages because a public dashboard surfacing their applied-job statuses could be Google-indexed and visible to recruiters). Don't add a `pnpm run ui:deploy` or wire it into a workflow without explicit instruction.
+A Vite + React 19 dashboard at `ui/` that reads `data/jobs.json` and `data/ai-reviews.json` directly via JSON import. **Local-only — no auth, no hosting, intentionally not exposed beyond `127.0.0.1:5173`** (the user explicitly chose this over public Pages because a public dashboard surfacing their applied-job statuses could be Google-indexed and visible to recruiters). Don't add a `pnpm run ui:deploy` or wire it into a workflow without explicit instruction.
 
-The UI is a single-component MVP (no router, no state-management lib): filter chips for category/source/applied, search box, sortable table by score/salaryMax/postedAt, dark-mode via `prefers-color-scheme`. Score cells are tier-colored (green ≥80, gold 50-79, muted <50). Long company/title cells are clamped to 2 lines via `display: -webkit-box` (the clamp is on a `<span>` wrapper inside the `<td>` — applying it directly on the `<td>` breaks table-cell layout).
+Single-component MVP (no router, no state-management lib): filter chips for category/source/applied, search box, sortable columns (score / salaryMax / postedAt), dark-mode via `prefers-color-scheme`. Score cells are tier-colored (green ≥80, gold 50-79, muted <50). Long company/title cells are clamped to 2 lines via `display: -webkit-box` (the clamp is on a `<span>` wrapper inside the `<td>` — applying it directly on the `<td>` breaks table-cell layout).
 
-`ui/src/types.ts` is a deliberate copy of the relevant subset of `src/types.ts`. The pipeline strips `body` and `_signals` from the persisted `data/jobs.json`, so the UI types match that slim shape, not the full in-pipeline `Job`. Don't rewrite it to import from `src/types.ts` — that pulls in `with { type: 'json' }` config imports that don't resolve in the browser context.
+**Expandable rows.** Clicking a row opens a 3-column detail panel with: the LLM "AI take" (summary, verdict reason, wants/offers/red-flags) when `data/ai-reviews.json` has an entry for that job; the `_signals` score breakdown showing which scoring rules fired and what they contributed; meta (location, tags, posted date, id). The Apply link in the row uses `e.stopPropagation()` so it doesn't trigger expand. Verdict badge (`strong-match` / `match` / `weak-match` / `skip`) appears next to the title when an AI review exists.
+
+`ui/src/types.ts` is a deliberate copy of the relevant subset of `src/types.ts` (`Job`, `JobSignals`, `AppliedEntry`, `AiReview`, `AiReviews`). The pipeline strips `body` from the persisted `data/jobs.json`, but **`_signals` is kept** so the UI can render it without re-running scoring. Don't rewrite ui/src/types.ts to import from `src/types.ts` — that pulls in `with { type: 'json' }` config imports that don't resolve in the browser context.
 
 The HTML has `<meta name="robots" content="noindex,nofollow">` as belt-and-suspenders even though it's local-only.
 
 `pnpm run typecheck` runs all three TS configs: `tsconfig.json`, `tsconfig.test.json`, and `ui/tsconfig.json`.
+
+## AI per-job review (`pnpm run ai-review`)
+
+[`src/ai-review.ts`](./src/ai-review.ts) is a **local-only** companion to the daily pipeline that augments selected jobs with an LLM review. It shells out to `claude -p "<prompt>"` per job, which uses the user's Claude Code subscription (e.g. Max plan) — **not** the Anthropic API, so there are no per-token charges. **Don't try to run this from GitHub Actions.** A workflow runner can't auth as the Max-subscribed user; if you ever want a hosted run you'd need to switch to the Anthropic API SDK with an API key (separate billing).
+
+**Inputs:**
+- `data/jobs.json` — the slim list (committed)
+- `data/jobs-bodies.json` — sidecar with full bodies (gitignored, regenerated by `pnpm run dev` so the AI step has the body to review)
+- `data/ai-reviews.json` — existing reviews (committed; starts as `{}`)
+- `config/candidate-brief.md` — natural-language description of who the candidate is and what they're avoiding. Hand-edited. The prompt embeds it verbatim, so this is the main lever for tuning what "match" / "skip" actually mean.
+
+**Output:** `data/ai-reviews.json`, a `Record<jobId, AiReview>` map. Each `AiReview` carries a one-sentence summary, 3 bullets each for `wants` / `offers` / `redFlags`, a verdict (`strong-match | match | weak-match | skip`), and a one-sentence `reason` explaining the verdict (especially when the LLM disagrees with the rule-based fitScore). The script writes after every successful review so a Ctrl-C or rate-limit kill leaves a partial-but-valid file.
+
+**Selection logic.** Default: top 20 by `fitScore` that aren't already in `ai-reviews.json`. Reviews for jobs no longer in `jobs.json` are pruned automatically each run. CLI flags: `--top=N`, `--force` (re-review existing), `--ids=a,b,c` (specific ids).
+
+**Prompt → JSON parsing.** The LLM occasionally wraps its JSON in markdown fences despite explicit instructions; [`src/ai-review-parse.ts`](./src/ai-review-parse.ts) strips them and falls back to safe defaults for missing/invalid fields rather than throwing — partial reviews are still useful. Tests in [`tests/ai-review-parse.test.ts`](./tests/ai-review-parse.test.ts) (9 cases) cover fenced JSON, invalid verdicts, missing fields, dirty arrays, and malformed input.
+
+**Daily workflow:**
+```bash
+pnpm run dev         # writes data/jobs.json + data/jobs-bodies.json
+pnpm run ai-review   # writes data/ai-reviews.json (top 20 unreviewed)
+pnpm run ui          # browse with verdicts + score breakdowns inline
+git add data/jobs.json data/feed.xml data/ai-reviews.json JOBS.md
+git commit -m "chore: daily run + ai reviews"
+```
+
+`config/candidate-brief.md` ships with a starter that should be edited once and then left alone. It's the only natural-language config in the repo (everything else is JSON / TS).
 
 ## Pre-commit
 

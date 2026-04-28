@@ -37,6 +37,22 @@ export interface JobSignals {
 
 export type ApplicationStatus = 'applied' | 'interview' | 'offer' | 'rejected' | 'withdrawn';
 
+export type AiVerdict = 'strong-match' | 'match' | 'weak-match' | 'skip';
+
+export interface AiReview {
+  jobId: string;
+  reviewedAt: string;
+  model: string;
+  summary: string;
+  wants: string[];
+  offers: string[];
+  redFlags: string[];
+  verdict: AiVerdict;
+  reason: string;
+}
+
+export type AiReviews = Record<string, AiReview>;
+
 export interface AppliedEntry {
   url: string;
   status: ApplicationStatus;

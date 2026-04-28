@@ -1,8 +1,18 @@
 import { useMemo, useState } from 'react';
+import aiReviewsData from '../../data/ai-reviews.json' with { type: 'json' };
 import jobsData from '../../data/jobs.json' with { type: 'json' };
-import type { ApplicationStatus, Category, Job, Source } from './types.ts';
+import type {
+  AiReview,
+  AiReviews,
+  ApplicationStatus,
+  Category,
+  Job,
+  JobSignals,
+  Source,
+} from './types.ts';
 
 const ALL_JOBS = jobsData as unknown as Job[];
+const AI_REVIEWS = aiReviewsData as unknown as AiReviews;
 
 const STATUS_EMOJI: Record<ApplicationStatus, string> = {
   applied: '📝',
@@ -30,6 +40,7 @@ export function App() {
   const [appliedOnly, setAppliedOnly] = useState(false);
   const [sortKey, setSortKey] = useState<SortKey>('fitScore');
   const [sortDir, setSortDir] = useState<SortDir>('desc');
+  const [expanded, setExpanded] = useState<string | null>(null);
 
   const sources = useMemo(() => {
     const s = new Set<Source>();
@@ -171,38 +182,218 @@ export function App() {
             </tr>
           </thead>
           <tbody>
-            {visible.map((j) => (
-              <tr key={j.id} className={j.applied ? 'applied' : ''}>
-                <td className={`score ${scoreTier(j.fitScore)}`}>{j.fitScore}</td>
-                <td className="title" title={j.title}>
-                  <span className="clamp-2">
-                    {j.applied && (
-                      <span className={`badge badge-${j.applied.status}`} title={j.applied.notes}>
-                        {STATUS_EMOJI[j.applied.status]} {j.applied.status}
-                      </span>
-                    )}
-                    {j.title}
-                  </span>
-                </td>
-                <td className="company" title={j.company ?? ''}>
-                  <span className="clamp-2">{j.company ?? '—'}</span>
-                </td>
-                <td>
-                  <span className="source">{j.source}</span>
-                </td>
-                <td>{j.salary ?? '—'}</td>
-                <td className="muted">{relativeTime(j.postedAt)}</td>
-                <td>
-                  <a href={j.url} target="_blank" rel="noopener noreferrer">
-                    Apply ↗
-                  </a>
-                </td>
-              </tr>
-            ))}
+            {visible.map((j) => {
+              const isOpen = expanded === j.id;
+              const review = AI_REVIEWS[j.id];
+              return (
+                <FragmentRow
+                  key={j.id}
+                  job={j}
+                  isOpen={isOpen}
+                  review={review}
+                  onToggle={() => setExpanded(isOpen ? null : j.id)}
+                />
+              );
+            })}
           </tbody>
         </table>
       )}
     </div>
+  );
+}
+
+interface FragmentRowProps {
+  job: Job;
+  isOpen: boolean;
+  review: AiReview | undefined;
+  onToggle: () => void;
+}
+
+function FragmentRow({ job, isOpen, review, onToggle }: FragmentRowProps) {
+  return (
+    <>
+      <tr className={`${job.applied ? 'applied' : ''} ${isOpen ? 'open' : ''}`} onClick={onToggle}>
+        <td className={`score ${scoreTier(job.fitScore)}`}>
+          <span className="caret" aria-hidden>
+            {isOpen ? '▾' : '▸'}
+          </span>
+          {job.fitScore}
+        </td>
+        <td className="title" title={job.title}>
+          <span className="clamp-2">
+            {job.applied && (
+              <span className={`badge badge-${job.applied.status}`} title={job.applied.notes}>
+                {STATUS_EMOJI[job.applied.status]} {job.applied.status}
+              </span>
+            )}
+            {review && <span className={`badge verdict-${review.verdict}`}>{review.verdict}</span>}
+            {job.title}
+          </span>
+        </td>
+        <td className="company" title={job.company ?? ''}>
+          <span className="clamp-2">{job.company ?? '—'}</span>
+        </td>
+        <td>
+          <span className="source">{job.source}</span>
+        </td>
+        <td>{job.salary ?? '—'}</td>
+        <td className="muted">{relativeTime(job.postedAt)}</td>
+        <td>
+          <a
+            href={job.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={(e) => e.stopPropagation()}
+          >
+            Apply ↗
+          </a>
+        </td>
+      </tr>
+      {isOpen && (
+        <tr className="detail-row">
+          <td colSpan={7}>
+            <DetailPanel job={job} review={review} />
+          </td>
+        </tr>
+      )}
+    </>
+  );
+}
+
+interface DetailPanelProps {
+  job: Job;
+  review: AiReview | undefined;
+}
+
+function DetailPanel({ job, review }: DetailPanelProps) {
+  return (
+    <div className="detail">
+      <section>
+        <h3>AI take</h3>
+        {review ? (
+          <ReviewBody review={review} />
+        ) : (
+          <p className="placeholder">
+            No AI review yet — run <code>pnpm run ai-review</code> after the next pipeline run.
+          </p>
+        )}
+      </section>
+      <section>
+        <h3>Score breakdown</h3>
+        {job._signals ? (
+          <SignalsList signals={job._signals} />
+        ) : (
+          <p className="placeholder">
+            No <code>_signals</code> on this job (older entry).
+          </p>
+        )}
+      </section>
+      <section>
+        <h3>Meta</h3>
+        <dl className="meta">
+          <dt>Location</dt>
+          <dd>
+            {job.location ?? '—'} {job.remote ? '· remote' : ''}
+          </dd>
+          <dt>Tags</dt>
+          <dd>{job.tags.length ? job.tags.join(', ') : '—'}</dd>
+          <dt>Posted</dt>
+          <dd>{job.postedAt ? new Date(job.postedAt).toLocaleDateString() : 'unknown'}</dd>
+          <dt>ID</dt>
+          <dd className="mono">{job.id}</dd>
+        </dl>
+      </section>
+    </div>
+  );
+}
+
+function ReviewBody({ review }: { review: AiReview }) {
+  return (
+    <div className="review">
+      <p className="review-summary">{review.summary}</p>
+      {review.reason && (
+        <p className="review-reason">
+          <strong>Verdict:</strong> {review.reason}
+        </p>
+      )}
+      <div className="review-cols">
+        {review.wants.length > 0 && (
+          <div>
+            <h4>Wants</h4>
+            <ul>
+              {review.wants.map((w) => (
+                <li key={w}>{w}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+        {review.offers.length > 0 && (
+          <div>
+            <h4>Offers</h4>
+            <ul>
+              {review.offers.map((o) => (
+                <li key={o}>{o}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+        {review.redFlags.length > 0 && (
+          <div>
+            <h4>Red flags</h4>
+            <ul className="red-flags">
+              {review.redFlags.map((r) => (
+                <li key={r}>{r}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+const SIGNAL_LABELS: Record<keyof JobSignals, string> = {
+  web3TitleBody: 'web3 (title/body)',
+  web3Stack: 'web3 stack',
+  aiTitleBody: 'AI (title/body)',
+  aiStack: 'AI stack',
+  stackPrimary: 'React/Next/TS',
+  stackRn: 'React Native',
+  stackOther: 'GraphQL/Tailwind/Vite',
+  leadTitle: 'lead title',
+  seniorTitle: 'senior title',
+  frontendTitle: 'frontend title',
+  frontendBody: 'frontend body',
+  locationRemote: 'remote-friendly',
+  freshness7d: 'fresh ≤7d',
+  freshness14d: 'fresh ≤14d',
+  usCentricPenalty: 'US-centric penalty',
+  rawTotal: '',
+  capped: '',
+};
+
+function SignalsList({ signals }: { signals: JobSignals }) {
+  const fired = (Object.keys(signals) as (keyof JobSignals)[])
+    .filter((k) => k !== 'rawTotal' && k !== 'capped')
+    .map((k) => ({ key: k, label: SIGNAL_LABELS[k], value: signals[k] as number }))
+    .filter((s) => s.value !== 0);
+  return (
+    <ul className="signals">
+      {fired.map((s) => (
+        <li key={s.key}>
+          <span className="signal-label">{s.label}</span>
+          <span className={s.value > 0 ? 'signal-pos' : 'signal-neg'}>
+            {s.value > 0 ? '+' : ''}
+            {s.value}
+          </span>
+        </li>
+      ))}
+      <li className="signal-total">
+        <span className="signal-label">raw total</span>
+        <span>{signals.rawTotal}</span>
+      </li>
+      {signals.capped && <li className="signal-total muted">(capped at 100)</li>}
+    </ul>
   );
 }
 

@@ -142,6 +142,12 @@ async function main(): Promise<void> {
   };
 
   await writeJson('data/jobs.json', slimJobs);
+  // Sidecar with bodies for the optional `pnpm run ai-review` step. Gitignored
+  // — local-only, regenerated on every pipeline run, never committed.
+  await writeJson(
+    'data/jobs-bodies.json',
+    Object.fromEntries(dedupResult.kept.map((j) => [j.id, j.body])),
+  );
   if (isFirstOfMonth) {
     await writeJson(`data/archive/${month}.json`, slimJobs);
   }

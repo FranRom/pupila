@@ -24,6 +24,42 @@ export type Source =
 
 export type Category = 'web3+ai' | 'web3' | 'ai' | 'general';
 
+export interface JobSignals {
+  web3TitleBody: number;
+  web3Stack: number;
+  aiTitleBody: number;
+  aiStack: number;
+  stackPrimary: number;
+  stackRn: number;
+  stackOther: number;
+  leadTitle: number;
+  seniorTitle: number;
+  frontendTitle: number;
+  frontendBody: number;
+  locationRemote: number;
+  freshness7d: number;
+  freshness14d: number;
+  usCentricPenalty: number;
+  rawTotal: number;
+  capped: boolean;
+}
+
+export type AiVerdict = 'strong-match' | 'match' | 'weak-match' | 'skip';
+
+export interface AiReview {
+  jobId: string;
+  reviewedAt: string;
+  model: string;
+  summary: string;
+  wants: string[];
+  offers: string[];
+  redFlags: string[];
+  verdict: AiVerdict;
+  reason: string;
+}
+
+export type AiReviews = Record<string, AiReview>;
+
 export interface Job {
   id: string;
   source: Source;
@@ -42,4 +78,5 @@ export interface Job {
   fitScore: number;
   category: Category;
   applied?: AppliedEntry;
+  _signals?: JobSignals;
 }

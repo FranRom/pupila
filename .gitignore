@@ -2,6 +2,7 @@ node_modules/
 dist/
 ui/dist/
 .playwright-mcp/
+data/jobs-bodies.json
 data/raw/*
 !data/raw/.gitkeep
 .DS_Store

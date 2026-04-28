@@ -5,7 +5,7 @@ A personal job aggregator that runs daily on GitHub Actions. It pulls listings f
 > **Looking for today's matches?** → [`JOBS.md`](./JOBS.md) (auto-generated, refreshed daily at 07:00 UTC).
 > Raw data lives in [`data/jobs.json`](./data/jobs.json).
 > Subscribe to the new-matches RSS feed: [`data/feed.xml`](./data/feed.xml) (point any reader at the raw GitHub URL).
-> Prefer a UI? → `pnpm run ui` opens a local-only Vite dashboard at `http://127.0.0.1:5173` with filter, search, and sortable columns over `data/jobs.json`.
+> Prefer a UI? → `pnpm run ui` opens a local-only Vite dashboard at `http://127.0.0.1:5173` with filter, search, sortable columns, and click-to-expand rows over `data/jobs.json`. The expand panel shows the per-job score breakdown and (optionally) an LLM "AI take" — see [AI per-job review](#ai-per-job-review) below.
 
 ---
 
@@ -21,7 +21,7 @@ Manually checking 11 job boards every morning is tedious. This repo replaces tha
 | Language | TypeScript 5.9 (NodeNext, strict) |
 | Lint + format | Biome 2.4 |
 | Package manager | pnpm 10 |
-| Tests | Vitest 3 (104 unit tests across filters, dedup, utils, applied, salary, feed, aave, ashby-private; tiered keyword weighting + salary-aware sort tiebreak both have dedicated cases) |
+| Tests | Vitest 3 (113 unit tests across filters, dedup, utils, applied, salary, feed, aave, ashby-private; tiered keyword weighting + salary-aware sort tiebreak both have dedicated cases) |
 | Pre-commit | simple-git-hooks (runs lint + typecheck on every commit) |
 | HTTP | Native `fetch` with `AbortController` (30s timeout, 1 retry on 5xx/network) |
 | RSS parsing | `fast-xml-parser` (only runtime dep) |
@@ -262,6 +262,53 @@ Each table row: `Score | Title | Company | Source | Posted (relative) | Link`. T
 
 [`src/applied.ts`](./src/applied.ts) loads the file at run-time, hashes each `url` with the same `sha1(normalizeUrl(...))` used for `Job.id`, and attaches the matching entry as `Job.applied`. Matched jobs are surfaced in the "📋 Application status" section at the top of `JOBS.md` *and* keep appearing in their normal category section with the status emoji prefix — a deliberate choice so already-applied jobs aren't filtered out (you may want to re-check, follow up, or compare against a new posting).
 
+## AI per-job review
+
+[`src/ai-review.ts`](./src/ai-review.ts) is an **optional, local-only** companion that adds an LLM "second opinion" to selected jobs. Each job gets a structured review — summary, what they want, what they offer, red flags, and a verdict (`strong-match | match | weak-match | skip`) — so you can scan the day's matches in seconds instead of reading every posting.
+
+It runs against **your Claude Code subscription** (e.g. Max plan) via `claude -p "<prompt>"`. There are no per-token charges, but there's also no way to run this from CI — a workflow runner can't auth as your subscribed user. Run it locally after the daily pipeline.
+
+### One-time setup
+
+1. Make sure the [Claude Code CLI](https://docs.claude.com/en/docs/claude-code/quickstart) is installed and authed (`claude --version` should work).
+2. Edit [`config/candidate-brief.md`](./config/candidate-brief.md) to describe yourself in 6–10 lines: who you are, what stack, what role level, where you want to work, and what you want to **avoid**. The "avoid" list is just as useful as the "want" list — it's what lets the LLM call out matches that look right on paper but aren't.
+
+### Daily flow
+
+```bash
+pnpm run dev         # writes data/jobs.json + data/jobs-bodies.json (sidecar, gitignored)
+pnpm run ai-review   # picks the top 20 unreviewed by fitScore, writes data/ai-reviews.json
+pnpm run ui          # browse — verdicts appear inline, click any row for the full review
+git commit data/jobs.json data/feed.xml data/ai-reviews.json JOBS.md
+```
+
+CLI flags:
+
+```bash
+pnpm run ai-review                 # default: top 20 unreviewed by fitScore
+pnpm run ai-review --top=50        # raise the per-run cap
+pnpm run ai-review --force         # re-review entries that already exist
+pnpm run ai-review --ids=abc,def   # specific job ids only
+```
+
+The script writes `data/ai-reviews.json` after **every** successful review, so a Ctrl-C or rate-limit kill leaves a partial-but-valid file. Reviews for jobs no longer in `jobs.json` are pruned automatically each run.
+
+### How the UI surfaces it
+
+In `pnpm run ui`, every job row is clickable. The expanded panel has three columns:
+
+1. **AI take** — the review's summary, verdict reason, and three short lists (wants / offers / red flags). When no review exists yet, you see a "run `pnpm run ai-review`" hint instead.
+2. **Score breakdown** — the rule-based `_signals` showing exactly which scoring rules fired (`+20 web3Stack`, `+10 stackPrimary`, etc.) so you can spot when the score is inflated by buzzwords.
+3. **Meta** — location, tags, posted date, internal id (handy for `--ids=` re-review).
+
+A small verdict badge (`strong-match` / `match` / `weak-match` / `skip`) also appears next to the title in the main row when a review exists, so you can scan from the table without expanding.
+
+### Architecture choices worth knowing
+
+- The pipeline writes a sidecar `data/jobs-bodies.json` (gitignored) so the AI step has the full body to review — `data/jobs.json` itself stays slim. The sidecar is regenerated on every `pnpm run dev`, so don't expect bodies for jobs that aren't in today's run.
+- The parser ([`src/ai-review-parse.ts`](./src/ai-review-parse.ts)) strips markdown fences and falls back to safe defaults for missing/invalid fields rather than throwing. Tested in [`tests/ai-review-parse.test.ts`](./tests/ai-review-parse.test.ts).
+- `data/ai-reviews.json` **is** committed (so reviews persist across machines / pipeline runs and the UI works on a fresh clone). `data/jobs-bodies.json` is **not** (transient, regenerated daily).
+
 ## Tuning filters via `config/profile.json`
 
 [`config/profile.json`](./config/profile.json) externalizes every scoring weight and keyword list. Adjust weights without touching code:
@@ -325,16 +372,19 @@ job-hunt/
 │   ├── dedup.ts               # 2-pass dedup with priority-aware tiebreak
 │   ├── render.ts              # JOBS.md generator (applied section + status emoji + salary + 🚨 banner + 🗑 removed)
 │   ├── feed.ts                # RSS 2.0 feed of "✨ new" jobs → data/feed.xml
+│   ├── ai-review.ts           # local-only: shells out to `claude -p` per job → data/ai-reviews.json
+│   ├── ai-review-parse.ts     # pure parser for the LLM's JSON response (separate file → unit-testable)
 │   └── index.ts               # orchestrator
 ├── tests/
-│   ├── filters.test.ts        # 33 cases: hard drops, droppedByRule, scoring, plurals, frontendBody, boilerplate, tiered weighting
-│   ├── dedup.test.ts          # 10 cases: id/title collapse, priority, compareJobs salary/postedAt/id chain
-│   ├── applied.test.ts        # 4 cases: status emoji map, summary grouping/ordering
-│   ├── salary.test.ts         # 15 cases: K/M suffix, currency detection, hourly conversion, free-text
-│   ├── feed.test.ts           # 6 cases: RSS skeleton, escaping, sort, 50-item cap
-│   ├── aave.test.ts           # 7 cases: __NEXT_DATA__ extraction + normalizer
-│   ├── ashby-private.test.ts  # 9 cases: GraphQL parsers + normalizer + slug-to-company
-│   └── utils.test.ts          # 20 cases: URL safety, stripHtml, time math, human date formatter
+│   ├── filters.test.ts             # 33 cases: hard drops, droppedByRule, scoring, plurals, frontendBody, boilerplate, tiered weighting
+│   ├── dedup.test.ts               # 10 cases: id/title collapse, priority, compareJobs salary/postedAt/id chain
+│   ├── applied.test.ts             # 4 cases: status emoji map, summary grouping/ordering
+│   ├── salary.test.ts              # 15 cases: K/M suffix, currency detection, hourly conversion, free-text
+│   ├── feed.test.ts                # 6 cases: RSS skeleton, escaping, sort, 50-item cap
+│   ├── aave.test.ts                # 7 cases: __NEXT_DATA__ extraction + normalizer
+│   ├── ashby-private.test.ts       # 9 cases: GraphQL parsers + normalizer + slug-to-company
+│   ├── ai-review-parse.test.ts     # 9 cases: markdown-fence stripping, invalid verdicts, missing fields, dirty arrays
+│   └── utils.test.ts               # 20 cases: URL safety, stripHtml, time math, human date formatter
 ├── biome.json
 ├── tsconfig.json
 ├── tsconfig.test.json         # extends tsconfig with rootDir=. so tests/ typecheck
@@ -355,9 +405,10 @@ pnpm start                   # built output (run pnpm run build first)
 pnpm run typecheck           # tsc --noEmit on src/, then on src/+tests/ (tsconfig.test.json)
 pnpm run lint                # biome check
 pnpm run lint:fix            # biome check --write
-pnpm test                    # vitest run (104 unit tests)
+pnpm test                    # vitest run (113 unit tests)
 pnpm run test:watch          # vitest in watch mode
 pnpm run ui                  # local browser UI (Vite dev server, 127.0.0.1:5173)
+pnpm run ai-review           # local-only: per-job LLM review via your Claude Code subscription
 ```
 
 The pre-commit hook runs `lint && typecheck` on every commit. To bypass it for an emergency commit: `SKIP_SIMPLE_GIT_HOOKS=1 git commit ...`.
