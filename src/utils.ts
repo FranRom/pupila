@@ -63,9 +63,22 @@ export function stripHtml(input: string | null | undefined): string {
     .trim();
 }
 
+const ALLOWED_URL_SCHEMES = new Set(['http:', 'https:']);
+
+export function isSafeUrl(url: string | null | undefined): boolean {
+  if (!url) return false;
+  try {
+    const u = new URL(url.trim());
+    return ALLOWED_URL_SCHEMES.has(u.protocol);
+  } catch {
+    return false;
+  }
+}
+
 export function normalizeUrl(url: string): string {
   try {
     const u = new URL(url.trim());
+    if (!ALLOWED_URL_SCHEMES.has(u.protocol)) return '';
     u.hash = '';
     const stripParams = [
       'utm_source',
@@ -85,7 +98,7 @@ export function normalizeUrl(url: string): string {
     }
     return u.toString();
   } catch {
-    return url.trim();
+    return '';
   }
 }
 

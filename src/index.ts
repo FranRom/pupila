@@ -88,7 +88,8 @@ async function main(): Promise<void> {
     if (b.fitScore !== a.fitScore) return b.fitScore - a.fitScore;
     const ta = a.postedAt ? new Date(a.postedAt).getTime() : 0;
     const tb = b.postedAt ? new Date(b.postedAt).getTime() : 0;
-    return tb - ta;
+    if (tb !== ta) return tb - ta;
+    return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
   });
 
   const bySource = {} as RenderStats['bySource'];

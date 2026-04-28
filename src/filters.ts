@@ -1,5 +1,5 @@
 import type { Category, Job, JobSignals } from './types.js';
-import { withinDays } from './utils.js';
+import { isSafeUrl, withinDays } from './utils.js';
 
 const TITLE_JUNIOR = /\b(junior|jr|intern|entry-?level|associate|graduate|trainee|apprentice)\b/i;
 
@@ -61,6 +61,10 @@ export function applyFilters(jobs: Job[]): FilterResult {
     const body = job.body;
     const titleAndBody = `${title}\n${body}`;
 
+    if (!isSafeUrl(job.url)) {
+      droppedHard++;
+      continue;
+    }
     if (TITLE_JUNIOR.test(title)) {
       droppedHard++;
       continue;
