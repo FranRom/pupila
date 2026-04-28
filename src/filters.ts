@@ -12,6 +12,12 @@ const BODY_HARD_US_OR_ONSITE =
 const NON_ENGINEERING =
   /\b(marketing|sales|recruiter|community manager|customer support|business development|legal|compliance|hr |finance |accountant)\b/i;
 
+const TITLE_NON_ENG_COMPOUND =
+  /\b(customer (support|success) engineer|sales engineers?|solutions? engineers?|developer (relations|advocate|experience|marketing)|devrel|dev[- ]rel|field engineering|field operations|business operations|sales operations|people operations|partnerships? engineers?|partner engineers?|technical (sourcer|recruiter)|community engineers?|customer engineers?|forward deployed engineers?|implementation engineers?|onboarding engineers?|go[- ]to[- ]market|gtm)\b/i;
+
+const TITLE_NON_ENG_LEADERSHIP =
+  /\b(vice president|\bvp\b|chief (operating|marketing|revenue|financial) officer|cmo|cro|cfo|coo)\b/i;
+
 const TITLE_ENGINEERING_KW =
   /\b(engineers?|developers?|architects?|programmers?|tech lead|cto|engineering)\b/i;
 
@@ -68,6 +74,14 @@ export function applyFilters(jobs: Job[]): FilterResult {
       continue;
     }
     if (NON_ENGINEERING.test(titleAndBody) && !TITLE_ENGINEERING_KW.test(title)) {
+      droppedHard++;
+      continue;
+    }
+    if (TITLE_NON_ENG_COMPOUND.test(title)) {
+      droppedHard++;
+      continue;
+    }
+    if (TITLE_NON_ENG_LEADERSHIP.test(title)) {
       droppedHard++;
       continue;
     }
