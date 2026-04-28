@@ -4,7 +4,7 @@ Guidance for future Claude Code sessions working in this repo.
 
 ## Overview
 
-`job-hunt` is a personal job aggregator that runs daily on GitHub Actions. It fetches listings from 9 public sources (RSS, JSON APIs, and lightweight HTML scrapers), normalizes them, applies hard exclusion filters, computes a per-job `fitScore`, deduplicates, and writes `data/jobs.json` + an auto-regenerated `README.md` table. No external services. No DB. Output lives in this repo.
+`job-hunt` is a personal job aggregator that runs daily on GitHub Actions. It fetches listings from 9 public sources (RSS, JSON APIs, and lightweight HTML scrapers), normalizes them, applies hard exclusion filters, computes a per-job `fitScore`, deduplicates, and writes `data/jobs.json` + an auto-regenerated `JOBS.md` table. The hand-written `README.md` is the project doc and is **not** rewritten by the pipeline. No external services. No DB. Output lives in this repo.
 
 The pipeline is tuned for: senior/lead/staff frontend, web3 (EVM + Solana), and AI engineering roles, remote / EMEA / worldwide.
 
@@ -26,7 +26,7 @@ pnpm run lint         # biome check
 pnpm run lint:fix     # biome check --write
 ```
 
-The pipeline writes to `data/jobs.json`, `README.md`, and per-source raw dumps in `data/raw/<source>-<YYYY-MM-DD>.json` (gitignored).
+The pipeline writes to `data/jobs.json`, `JOBS.md`, and per-source raw dumps in `data/raw/<source>-<YYYY-MM-DD>.json` (gitignored). `README.md` is hand-maintained — never overwrite it from code.
 
 ## Repo layout
 
@@ -39,7 +39,7 @@ src/
   normalize.ts      # one normalize<Source> per source -> Job
   filters.ts        # hard excludes + scoring + category
   dedup.ts          # 2-pass dedup, priority-aware tiebreak
-  render.ts         # README markdown generator
+  render.ts         # JOBS.md markdown generator
   fetchers/
     aijobsnet.ts        cryptojobslist.ts   greenhouse.ts
     hn-hiring.ts        hn-jobs.ts          remoteok.ts
@@ -106,7 +106,7 @@ Tiebreak: highest `fitScore` wins; on ties, the source with higher `SOURCE_PRIOR
 
 ## GitHub Actions
 
-- `.github/workflows/jobs.yml` — `0 7 * * *` daily, plus `workflow_dispatch`. Runs the pipeline and auto-commits `data/jobs.json` + `README.md` if anything changed.
+- `.github/workflows/jobs.yml` — `0 7 * * *` daily, plus `workflow_dispatch`. Runs the pipeline and auto-commits `data/jobs.json` + `JOBS.md` if anything changed.
 - `.github/workflows/keepalive.yml` — `0 12 * * 0` weekly. Touches `.keepalive` so GitHub doesn't disable the schedule after 60 days of repo inactivity.
 
 Both use `stefanzweifel/git-auto-commit-action@v5` and require `permissions: contents: write`.

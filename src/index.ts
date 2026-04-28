@@ -112,7 +112,7 @@ async function main(): Promise<void> {
   };
 
   await writeJson('data/jobs.json', dedupResult.kept);
-  await writeFileEnsured('README.md', renderReadme(dedupResult.kept, stats));
+  await writeFileEnsured('JOBS.md', renderReadme(dedupResult.kept, stats));
 
   console.log('--- Run summary ---');
   for (const t of tasks) {
