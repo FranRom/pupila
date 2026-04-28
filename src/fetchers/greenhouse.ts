@@ -1,6 +1,7 @@
 import slugs from '../../config/slugs.json' with { type: 'json' };
 import type { FetcherResult, RawGreenhouseJob, RawGreenhouseJobWithSlug } from '../types.js';
 import { fetchJson, JSON_HEADERS } from '../utils.js';
+import { fetchMultiSlug } from './_shared.js';
 
 export const TIER_S_SLUGS: readonly string[] = slugs.greenhouse;
 
@@ -12,22 +13,9 @@ interface BoardResponse {
   meta?: { total?: number };
 }
 
-async function fetchSlug(slug: string): Promise<FetcherResult<RawGreenhouseJobWithSlug>> {
-  try {
-    const data = await fetchJson<BoardResponse>(board(slug), { headers: JSON_HEADERS });
-    const jobs = data.jobs ?? [];
-    return { items: jobs.map((j) => ({ ...j, __slug: slug })), errors: [] };
-  } catch (err) {
-    const message = (err as Error).message;
-    console.error(`[greenhouse:${slug}]`, message);
-    return { items: [], errors: [`${slug}: ${message}`] };
-  }
-}
-
 export async function fetchGreenhouse(): Promise<FetcherResult<RawGreenhouseJobWithSlug>> {
-  const results = await Promise.all(TIER_S_SLUGS.map((slug) => fetchSlug(slug)));
-  return {
-    items: results.flatMap((r) => r.items),
-    errors: results.flatMap((r) => r.errors),
-  };
+  return fetchMultiSlug('greenhouse', TIER_S_SLUGS, async (slug) => {
+    const data = await fetchJson<BoardResponse>(board(slug), { headers: JSON_HEADERS });
+    return (data.jobs ?? []).map((j) => ({ ...j, __slug: slug }));
+  });
 }

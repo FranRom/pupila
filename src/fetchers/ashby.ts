@@ -1,6 +1,7 @@
 import slugs from '../../config/slugs.json' with { type: 'json' };
 import type { FetcherResult, RawAshbyJob, RawAshbyJobWithSlug } from '../types.js';
 import { fetchJson, JSON_HEADERS } from '../utils.js';
+import { fetchMultiSlug } from './_shared.js';
 
 export const TIER_S_ASHBY_SLUGS: readonly string[] = slugs.ashby;
 
@@ -12,22 +13,9 @@ interface BoardResponse {
   apiVersion?: string;
 }
 
-async function fetchSlug(slug: string): Promise<FetcherResult<RawAshbyJobWithSlug>> {
-  try {
-    const data = await fetchJson<BoardResponse>(board(slug), { headers: JSON_HEADERS });
-    const jobs = data.jobs ?? [];
-    return { items: jobs.map((j) => ({ ...j, __slug: slug })), errors: [] };
-  } catch (err) {
-    const message = (err as Error).message;
-    console.error(`[ashby:${slug}]`, message);
-    return { items: [], errors: [`${slug}: ${message}`] };
-  }
-}
-
 export async function fetchAshby(): Promise<FetcherResult<RawAshbyJobWithSlug>> {
-  const results = await Promise.all(TIER_S_ASHBY_SLUGS.map((slug) => fetchSlug(slug)));
-  return {
-    items: results.flatMap((r) => r.items),
-    errors: results.flatMap((r) => r.errors),
-  };
+  return fetchMultiSlug('ashby', TIER_S_ASHBY_SLUGS, async (slug) => {
+    const data = await fetchJson<BoardResponse>(board(slug), { headers: JSON_HEADERS });
+    return (data.jobs ?? []).map((j) => ({ ...j, __slug: slug }));
+  });
 }
