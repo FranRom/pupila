@@ -5,6 +5,7 @@ import type {
   RawAavePost,
   RawAiJobs,
   RawAshbyJobWithSlug,
+  RawChainlinkJob,
   RawGreenhouseJobWithSlug,
   RawHnHiringPost,
   RawHnHit,
@@ -405,6 +406,41 @@ function formatLeverSalary(
   const fmt = (n: number) => (n >= 1000 ? `${Math.round(n / 1000)}K` : `${n}`);
   const ccy = range.currency ?? '';
   return `${fmt(min)}-${fmt(max)} ${ccy}`.trim();
+}
+
+export function normalizeChainlink(items: RawChainlinkJob[], fetchedAt: string): Job[] {
+  return items.map((j) => {
+    const url = `https://jobs.ashbyhq.com/chainlink-labs/${j.id}`;
+    const detail = j.detail;
+    const workplaceType = detail?.workplaceType ?? j.workplaceType ?? null;
+    const remote = workplaceType?.toLowerCase() === 'remote';
+    const location = detail?.locationName?.trim() || j.locationName?.trim() || null;
+    const secondary = detail?.secondaryLocationNames ?? [];
+    const allLocs = [location, ...secondary].filter((x): x is string => Boolean(x));
+    const body = asPlain(detail?.descriptionHtml ?? '');
+    const tags = joinTags(
+      detail?.teamNames,
+      [detail?.departmentName, detail?.employmentType ?? j.employmentType, workplaceType],
+      allLocs,
+    );
+    const salary = detail?.compensationTierSummary?.trim() || null;
+    return {
+      id: makeId('chainlink', url, j.id),
+      source: 'chainlink',
+      title: (detail?.title ?? j.title).trim(),
+      company: 'Chainlink Labs',
+      url,
+      location,
+      remote,
+      body,
+      tags,
+      ...withSalary(salary),
+      postedAt: safeIso(detail?.publishedDate),
+      fetchedAt,
+      fitScore: 0,
+      category: 'general',
+    };
+  });
 }
 
 export function normalizeAave(items: RawAavePost[], fetchedAt: string): Job[] {

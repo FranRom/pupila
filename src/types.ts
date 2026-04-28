@@ -10,7 +10,8 @@ export type Source =
   | 'greenhouse'
   | 'ashby'
   | 'lever'
-  | 'aave';
+  | 'aave'
+  | 'chainlink';
 
 export type Category = 'web3' | 'ai' | 'web3+ai' | 'general';
 
@@ -226,6 +227,34 @@ export interface RawAiJobs {
   seniority: string | null;
   companyAndLocation: string | null;
   postedRelative: string | null;
+}
+
+export interface RawChainlinkBrief {
+  id: string;
+  title: string;
+  teamId?: string | null;
+  locationName?: string | null;
+  employmentType?: string | null;
+  workplaceType?: string | null;
+  secondaryLocations?: { locationId?: string; locationName?: string }[];
+}
+
+export interface RawChainlinkDetail {
+  id: string;
+  title: string;
+  locationName?: string | null;
+  employmentType?: string | null;
+  workplaceType?: string | null;
+  descriptionHtml?: string | null;
+  compensationTierSummary?: string | null;
+  publishedDate?: string | null;
+  secondaryLocationNames?: string[];
+  teamNames?: string[];
+  departmentName?: string | null;
+}
+
+export interface RawChainlinkJob extends RawChainlinkBrief {
+  detail: RawChainlinkDetail | null;
 }
 
 export interface RawAavePost {
