@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
 
 export const DEFAULT_TIMEOUT_MS = 30_000;
@@ -131,6 +131,15 @@ export function withinDays(
 export async function writeJson(path: string, value: unknown): Promise<void> {
   await mkdir(dirname(path), { recursive: true });
   await writeFile(path, `${JSON.stringify(value, null, 2)}\n`, 'utf8');
+}
+
+export async function readJsonOrNull<T>(path: string): Promise<T | null> {
+  try {
+    const text = await readFile(path, 'utf8');
+    return JSON.parse(text) as T;
+  } catch {
+    return null;
+  }
 }
 
 export async function writeFileEnsured(path: string, content: string): Promise<void> {

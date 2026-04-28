@@ -26,7 +26,7 @@ import {
 } from './normalize.js';
 import { type RenderStats, renderReadme } from './render.js';
 import type { Category, Job, Source } from './types.js';
-import { isoToday, writeFileEnsured, writeJson } from './utils.js';
+import { isoToday, readJsonOrNull, writeFileEnsured, writeJson } from './utils.js';
 
 interface FetcherTaskResult<T> {
   source: Source;
@@ -105,10 +105,15 @@ async function main(): Promise<void> {
   };
   for (const j of dedupResult.kept) byCategory[j.category]++;
 
+  const previous = await readJsonOrNull<Job[]>('data/jobs.json');
+  const previousIds = new Set((previous ?? []).map((j) => j.id));
+  const newJobs = previous === null ? [] : dedupResult.kept.filter((j) => !previousIds.has(j.id));
+
   const stats: RenderStats = {
     generatedAt: fetchedAt,
     fetchedTotal,
     keptTotal: dedupResult.kept.length,
+    newCount: newJobs.length,
     bySource,
     byCategory,
     droppedHard: filterResult.droppedHard,
@@ -118,7 +123,7 @@ async function main(): Promise<void> {
   };
 
   await writeJson('data/jobs.json', dedupResult.kept);
-  await writeFileEnsured('JOBS.md', renderReadme(dedupResult.kept, stats));
+  await writeFileEnsured('JOBS.md', renderReadme(dedupResult.kept, stats, newJobs));
 
   console.log('--- Run summary ---');
   for (const t of tasks) {
@@ -133,6 +138,7 @@ async function main(): Promise<void> {
     `  dedupe:       by-id=${dedupResult.removedById} by-title=${dedupResult.removedByTitle}`,
   );
   console.log(`  by category:  ${JSON.stringify(byCategory)}`);
+  console.log(`  new vs prev:  ${newJobs.length}`);
 }
 
 main().catch((err) => {
