@@ -1,6 +1,6 @@
 # job-hunt
 
-A personal job aggregator that runs daily on GitHub Actions. It pulls listings from public job boards, RSS feeds, Hacker News, and Greenhouse, normalizes them into a single shape, scores each one against a profile (senior/lead/staff frontend, web3, and AI engineering, remote-friendly), deduplicates, and commits the result back to this repo.
+A personal job aggregator that runs daily on GitHub Actions. It pulls listings from 11 public sources (job boards, RSS feeds, Hacker News, and three ATSes — Greenhouse, Ashby, Lever), normalizes them into a single shape, scores each one against a profile (senior/lead/staff frontend, web3, and AI engineering, remote-friendly), deduplicates, and commits the result back to this repo.
 
 > **Looking for today's matches?** → [`JOBS.md`](./JOBS.md) (auto-generated, refreshed daily at 07:00 UTC).
 > Raw data lives in [`data/jobs.json`](./data/jobs.json).
@@ -9,7 +9,7 @@ A personal job aggregator that runs daily on GitHub Actions. It pulls listings f
 
 ## Why
 
-Manually checking 9 job boards every morning is tedious. This repo replaces that with a single auto-generated table, scored by relevance, sorted by fit. No external services — just GitHub Actions, files committed to this repo, and one runtime dependency.
+Manually checking 11 job boards every morning is tedious. This repo replaces that with a single auto-generated table, scored by relevance, sorted by fit, with a "✨ New since last run" section at the top so the daily diff is the actionable bit. No external services — just GitHub Actions, files committed to this repo, and one runtime dependency.
 
 ## Stack
 
@@ -36,9 +36,11 @@ Manually checking 9 job boards every morning is tedious. This repo replaces that
         ┌─────────────────── src/index.ts ──────────────────┐
         │                                                   │
         │   ┌──────── Fetchers (Promise.all) ─────────┐     │
+        │   │ ashby (26 slugs)   greenhouse (14 slugs)│     │
+        │   │ lever (6 slugs)    cryptojobslist       │ ──► raw[] per source
         │   │ remoteok  remotive  weworkremotely      │     │
-        │   │ cryptojobslist  web3career  aijobsnet   │ ──► raw[] per source
-        │   │ hn-hiring  hn-jobs  greenhouse          │     │
+        │   │ web3career  aijobsnet                   │     │
+        │   │ hn-hiring  hn-jobs                      │     │
         │   └─────────────────────────────────────────┘     │
         │                       │                           │
         │                       ▼                           │
@@ -57,7 +59,10 @@ Manually checking 9 job boards every morning is tedious. This repo replaces that
         │   sort by fitScore desc, postedAt desc            │
         │                       │                           │
         │                       ▼                           │
-        │   write data/jobs.json + render JOBS.md           │
+        │   diff against previous data/jobs.json (✨ new)    │
+        │                       │                           │
+        │                       ▼                           │
+        │   write data/jobs.json (with _signals) + JOBS.md  │
         │                                                   │
         └───────────────────────────────────────────────────┘
                                       │
@@ -69,8 +74,13 @@ Each fetcher is isolated: it catches its own errors and returns `[]` on failure.
 
 ## Sources
 
+The three ATS fetchers (Ashby, Greenhouse, Lever) carry the bulk of the high-quality signal — each iterates a curated tier-S slug list. The other 8 sources backfill long-tail listings.
+
 | Source | Type | Endpoint |
 |---|---|---|
+| [ashby](./src/fetchers/ashby.ts) | JSON API | `api.ashbyhq.com/posting-api/job-board/<slug>` × 26 tier-S slugs |
+| [greenhouse](./src/fetchers/greenhouse.ts) | JSON API | `boards-api.greenhouse.io/v1/boards/<slug>/jobs` × 14 tier-S slugs |
+| [lever](./src/fetchers/lever.ts) | JSON API | `api.lever.co/v0/postings/<slug>` × 6 tier-S slugs |
 | [remoteok](./src/fetchers/remoteok.ts) | JSON API | `remoteok.com/api` |
 | [remotive](./src/fetchers/remotive.ts) | JSON API | `remotive.com/api/remote-jobs?category=software-dev` |
 | [weworkremotely](./src/fetchers/weworkremotely.ts) | RSS 2.0 | `weworkremotely.com/categories/remote-programming-jobs.rss` |
@@ -79,9 +89,10 @@ Each fetcher is isolated: it catches its own errors and returns `[]` on failure.
 | [aijobsnet](./src/fetchers/aijobsnet.ts) | HTML scraper | `aijobs.net` (global + EU pages) |
 | [hn-hiring](./src/fetchers/hn-hiring.ts) | Algolia API | latest "Ask HN: Who is hiring" thread |
 | [hn-jobs](./src/fetchers/hn-jobs.ts) | Algolia API | `hn.algolia.com/api/v1/search_by_date?tags=job` |
-| [greenhouse](./src/fetchers/greenhouse.ts) | JSON API | `boards-api.greenhouse.io/v1/boards/<slug>/jobs` × tier-S list |
 
-Adding a 10th source is one new file in `src/fetchers/`, one entry in `Source`, one normalizer in `normalize.ts`, and one line in `src/index.ts`. See [`CLAUDE.md`](./CLAUDE.md#how-to-add-a-new-fetcher) for the exact recipe.
+The Ashby tier-S list covers the AI frontier (OpenAI, Mistral, Cohere, Perplexity, Cursor, ElevenLabs, Modal, LangChain, Pinecone, Supabase, Neon, Clerk, PostHog, Browserbase) plus web3 (Linear, Ramp, Uniswap, Mysten Labs, Paradigm, Polygon Labs, Base, Blockworks, Succinct, Espresso). Greenhouse adds Anthropic, Vercel, Mercury, Coinbase. Lever adds Binance, Ledger, CoinGecko, CoinMarketCap, Safe, Arbitrum Foundation.
+
+Adding a 12th source is one new file in `src/fetchers/`, one entry in `Source`, one normalizer in `normalize.ts`, and one line in `src/index.ts`. See [`CLAUDE.md`](./CLAUDE.md#how-to-add-a-new-fetcher) for the exact recipe.
 
 ## Pipeline stages
 
@@ -96,7 +107,7 @@ One function per source maps `Raw → Job`:
 ```ts
 interface Job {
   id: string;                 // sha1 of normalized URL
-  source: Source;             // one of 9 literal source names
+  source: Source;             // one of 11 literal source names
   title: string;
   company: string | null;
   url: string;
@@ -108,6 +119,7 @@ interface Job {
   fetchedAt: string;          // ISO 8601, set at run-start
   fitScore: number;           // 0-100, populated by filters
   category: 'web3' | 'ai' | 'web3+ai' | 'general';
+  _signals?: JobSignals;      // per-job scoring breakdown (see below)
 }
 ```
 
@@ -121,6 +133,8 @@ URLs are canonicalized (`utm_*` stripped, trailing slash normalized) before hash
 - Title does **not** contain `senior|sr|staff|principal|lead|head|director|engineer(s)|developer(s)|architect(s)`.
 - Body matches a hard US-only / onsite pattern (e.g. `must be located in the United States`, `onsite only`, `relocate to San Francisco`).
 - Title or body matches a non-engineering pattern (`marketing|sales|recruiter|...`) **and** the title doesn't contain an engineering keyword.
+- Title matches a compound non-engineering pattern that contains the word "Engineer" but isn't real engineering: `customer support engineer`, `sales engineer`, `solutions engineer`, `developer relations|advocate|experience`, `field engineering|operations`, `business operations`, `partner(ships) engineer`, `forward deployed engineer`, `implementation engineer`, `gtm`, `go-to-market`.
+- Title is a non-engineering executive role: `VP`, `Vice President`, `CMO`, `CRO`, `CFO`, `COO`.
 
 **Soft signals** (additive, capped at 100):
 
@@ -144,6 +158,27 @@ URLs are canonicalized (`utm_*` stripped, trailing slash normalized) before hash
 
 **Category** is derived from which signals fired: both web3 and AI → `web3+ai`; only web3 → `web3`; only AI → `ai`; neither → `general`.
 
+**Auditability — `_signals`.** Every kept job in `data/jobs.json` carries a `_signals` object recording which scoring rules fired and what they contributed. Useful when a job's score looks wrong:
+
+```jsonc
+{
+  "title": "Senior Software Engineer, Fullstack (AI Advisor)",
+  "fitScore": 100,
+  "_signals": {
+    "web3TitleBody": 0,    "web3Stack": 20,
+    "aiTitleBody": 20,     "aiStack": 20,
+    "stackPrimary": 10,    "stackRn": 0,    "stackOther": 0,
+    "leadTitle": 0,        "seniorTitle": 10,
+    "locationRemote": 10,
+    "freshness7d": 10,     "freshness14d": 0,
+    "usCentricPenalty": 0,
+    "rawTotal": 100,       "capped": false
+  }
+}
+```
+
+`rawTotal` is the un-capped positive sum; `capped: true` means positives exceeded 100 and got clamped before any penalty.
+
 ### 4. Dedup (`src/dedup.ts`)
 
 Two passes:
@@ -154,12 +189,25 @@ Two passes:
 When two jobs collide, the one with the higher `fitScore` wins. Ties are broken by source priority:
 
 ```
-greenhouse > cryptojobslist > web3career > aijobsnet > hn-hiring > hn-jobs > remotive > weworkremotely > remoteok
+ashby > lever > greenhouse > cryptojobslist > web3career > aijobsnet > hn-hiring > hn-jobs > remotive > weworkremotely > remoteok
 ```
 
-### 5. Render
+### 5. Diff against previous run
 
-`src/render.ts` produces `JOBS.md` with stats + four sorted tables: Top Web3+AI (10), Top Web3 (20), Top AI (20), Other (10). Each row is `Score | Title | Company | Source | Posted (relative) | Link`. The full sorted list also lands in `data/jobs.json`.
+Before writing the new `data/jobs.json`, the orchestrator reads the **previous** committed copy, builds a `Set` of its job IDs, and computes which jobs in today's run are not in yesterday's. This list becomes the **"✨ New since last run"** section at the top of `JOBS.md`. On the very first run (no previous file) the section is omitted entirely; otherwise it's the most actionable thing to skim each morning.
+
+### 6. Render
+
+`src/render.ts` produces `JOBS.md` with:
+
+1. Stats (totals, drop reasons, by-source breakdown, by-category breakdown).
+2. **✨ New since last run** — top 20 newest jobs by `fitScore` (omitted when empty or on first run).
+3. **Top Web3 + AI** — top 10.
+4. **Top Web3** — top 20.
+5. **Top AI** — top 20.
+6. **Other** — top 10.
+
+Each table row: `Score | Title | Company | Source | Posted (relative) | Link`. The full sorted list also lands in `data/jobs.json`, including the `_signals` breakdown per job.
 
 ## Repo layout
 
@@ -173,6 +221,9 @@ job-hunt/
 │   └── raw/                  # per-source raw JSON, gitignored
 ├── src/
 │   ├── fetchers/             # one file per source
+│   │   ├── ashby.ts          # 26 tier-S slugs (largest contributor)
+│   │   ├── greenhouse.ts     # 14 tier-S slugs
+│   │   ├── lever.ts          # 6 tier-S slugs
 │   │   ├── remoteok.ts
 │   │   ├── remotive.ts
 │   │   ├── weworkremotely.ts
@@ -180,8 +231,7 @@ job-hunt/
 │   │   ├── web3career.ts
 │   │   ├── aijobsnet.ts
 │   │   ├── hn-hiring.ts
-│   │   ├── hn-jobs.ts
-│   │   └── greenhouse.ts
+│   │   └── hn-jobs.ts
 │   ├── types.ts              # Job, Source, Category, Raw* shapes
 │   ├── utils.ts              # fetchWithTimeout, sha1, stripHtml, ...
 │   ├── rss.ts                # shared fast-xml-parser wrapper
@@ -231,9 +281,17 @@ To trigger a run manually: GitHub UI → Actions → jobs → Run workflow.
 
 Open [`src/filters.ts`](./src/filters.ts) and edit the `score += N` lines in `applyFilters`. Each weight is a single literal — no config file, no flags. Keep regexes word-bounded (`\b...\b`) and case-insensitive (`/.../i`).
 
-### Change the tier-S Greenhouse list
+### Change the tier-S ATS slug lists
 
-Edit [`TIER_S_SLUGS`](./src/fetchers/greenhouse.ts) in `src/fetchers/greenhouse.ts`. The slug is the path segment in `boards-api.greenhouse.io/v1/boards/<slug>/jobs`. Slugs that 404 are logged and skipped silently.
+Three exports, one per ATS — edit any of them to add or remove companies. Slugs that 404 are logged and skipped silently, so testing a candidate is just appending it to the array and re-running.
+
+| ATS | File | Slug location | How to find a slug |
+|---|---|---|---|
+| Ashby | [`src/fetchers/ashby.ts`](./src/fetchers/ashby.ts) | `TIER_S_ASHBY_SLUGS` | URL path on `jobs.ashbyhq.com/<slug>` (e.g. `linear`, `openai`, `mystenlabs`) |
+| Greenhouse | [`src/fetchers/greenhouse.ts`](./src/fetchers/greenhouse.ts) | `TIER_S_SLUGS` | URL path on `boards.greenhouse.io/<slug>` (e.g. `anthropic`, `vercel`) |
+| Lever | [`src/fetchers/lever.ts`](./src/fetchers/lever.ts) | `TIER_S_LEVER_SLUGS` | URL path on `jobs.lever.co/<slug>` (e.g. `binance`, `ledger`) |
+
+Quick probe: `curl -sI https://api.ashbyhq.com/posting-api/job-board/<slug>` → 200 means it's live. Same pattern with the other two endpoints.
 
 ### Add a new source
 
@@ -250,8 +308,10 @@ Detailed recipe in [`CLAUDE.md`](./CLAUDE.md#how-to-add-a-new-fetcher). Quick ve
 These are currently affecting the data quality — they're documented here so they're discoverable when you wonder why a source is empty:
 
 - **`cryptojobslist.com`** is fully Cloudflare-challenged for HTML and the `api.cryptojobslist.com/jobs.rss` endpoint currently returns an empty channel. The fetcher gracefully returns `[]` and will pick up jobs again if upstream restores the feed.
-- **10 of the 14 starter Greenhouse slugs** (`linear`, `ramp`, `uniswaplabs`, `aave`, `chainlink`, `morpho`, `lifi`, `mysten-labs`, `magiceden`, `ledger`) are not on Greenhouse. They use Lever, Ashby, or custom ATSes. Add a Lever or Ashby fetcher if you want their listings.
+- **10 of the 14 starter Greenhouse slugs** (`linear`, `ramp`, `uniswaplabs`, `aave`, `chainlink`, `morpho`, `lifi`, `mysten-labs`, `magiceden`, `ledger`) are not on Greenhouse — they use Ashby, Lever, or custom ATSes. **Most are now recovered** through the Ashby and Lever fetchers (Linear, Ramp, Uniswap, Mysten Labs via Ashby; Ledger via Lever). The remaining holdouts (`aave`, `chainlink`, `morpho`, `lifi`, `magiceden`) appear to use custom ATSes — would need a per-company HTML scraper.
 - **`web3.career`** and **`aijobs.net`** removed RSS — both are now scraped from HTML via small inline regex parsers, which means a markup change upstream will silently degrade them. If a fetcher returns `0` for several days, eyeball the raw HTML for new selectors.
+- **`hn-jobs`** routinely keeps 0–2 entries because YC company posts rarely match the senior+stack signal threshold; this is filtering working as intended, not a bug.
+- **`aijobs.net` is dominated by spam-aggregator listings** (one posting cloned to 50 cities). The fetcher dedups by base ID (`-idNNNNN-` slug pattern), which often collapses an entire page down to 2–5 distinct postings.
 
 ## Conventional commits
 
