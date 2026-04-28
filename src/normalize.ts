@@ -5,7 +5,7 @@ import type {
   RawAavePost,
   RawAiJobs,
   RawAshbyJobWithSlug,
-  RawChainlinkJob,
+  RawAshbyPrivateJobWithSlug,
   RawGreenhouseJobWithSlug,
   RawHnHiringPost,
   RawHnHit,
@@ -408,9 +408,16 @@ function formatLeverSalary(
   return `${fmt(min)}-${fmt(max)} ${ccy}`.trim();
 }
 
-export function normalizeChainlink(items: RawChainlinkJob[], fetchedAt: string): Job[] {
+function slugToCompany(slug: string): string {
+  return slug.replace(/[-.]/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+export function normalizeAshbyPrivate(
+  items: RawAshbyPrivateJobWithSlug[],
+  fetchedAt: string,
+): Job[] {
   return items.map((j) => {
-    const url = `https://jobs.ashbyhq.com/chainlink-labs/${j.id}`;
+    const url = `https://jobs.ashbyhq.com/${j.__slug}/${j.id}`;
     const detail = j.detail;
     const workplaceType = detail?.workplaceType ?? j.workplaceType ?? null;
     const remote = workplaceType?.toLowerCase() === 'remote';
@@ -420,15 +427,15 @@ export function normalizeChainlink(items: RawChainlinkJob[], fetchedAt: string):
     const body = asPlain(detail?.descriptionHtml ?? '');
     const tags = joinTags(
       detail?.teamNames,
-      [detail?.departmentName, detail?.employmentType ?? j.employmentType, workplaceType],
+      [detail?.departmentName, detail?.employmentType ?? j.employmentType, workplaceType, j.__slug],
       allLocs,
     );
     const salary = detail?.compensationTierSummary?.trim() || null;
     return {
-      id: makeId('chainlink', url, j.id),
-      source: 'chainlink',
+      id: makeId('ashby-private', url, j.id),
+      source: 'ashby-private',
       title: (detail?.title ?? j.title).trim(),
-      company: 'Chainlink Labs',
+      company: slugToCompany(j.__slug),
       url,
       location,
       remote,

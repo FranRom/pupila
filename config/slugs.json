@@ -53,5 +53,6 @@
     "uniswaplabs",
     "mysten-labs"
   ],
-  "lever": ["ledger", "binance", "coingecko", "coinmarketcap", "safe", "arbitrumfoundation"]
+  "lever": ["ledger", "binance", "coingecko", "coinmarketcap", "safe", "arbitrumfoundation"],
+  "ashbyPrivate": ["chainlink-labs"]
 }

@@ -1,12 +1,15 @@
+import slugs from '../../config/slugs.json' with { type: 'json' };
 import type {
   FetcherResult,
-  RawChainlinkBrief,
-  RawChainlinkDetail,
-  RawChainlinkJob,
+  RawAshbyPrivateBrief,
+  RawAshbyPrivateDetail,
+  RawAshbyPrivateJob,
+  RawAshbyPrivateJobWithSlug,
 } from '../types.js';
 import { fetchJson, JSON_HEADERS } from '../utils.js';
 
-const ORG_SLUG = 'chainlink-labs';
+export const TIER_S_ASHBY_PRIVATE_SLUGS: readonly string[] = slugs.ashbyPrivate;
+
 const GRAPHQL_URL = 'https://jobs.ashbyhq.com/api/non-user-graphql';
 
 const LIST_QUERY = `query ApiJobBoardWithTeams($organizationHostedJobsPageName: String!) {
@@ -23,21 +26,21 @@ const DETAIL_QUERY = `query ApiJobPosting($organizationHostedJobsPageName: Strin
 }`;
 
 interface ListResponse {
-  data?: { jobBoard?: { jobPostings?: RawChainlinkBrief[] } };
+  data?: { jobBoard?: { jobPostings?: RawAshbyPrivateBrief[] } | null };
   errors?: { message: string }[];
 }
 
 interface DetailResponse {
-  data?: { jobPosting?: RawChainlinkDetail | null };
+  data?: { jobPosting?: RawAshbyPrivateDetail | null };
   errors?: { message: string }[];
 }
 
-export function parseListResponse(json: ListResponse): RawChainlinkBrief[] {
+export function parseListResponse(json: ListResponse): RawAshbyPrivateBrief[] {
   if (json.errors?.length) return [];
   return json.data?.jobBoard?.jobPostings ?? [];
 }
 
-export function parseDetailResponse(json: DetailResponse): RawChainlinkDetail | null {
+export function parseDetailResponse(json: DetailResponse): RawAshbyPrivateDetail | null {
   if (json.errors?.length) return null;
   return json.data?.jobPosting ?? null;
 }
@@ -50,31 +53,31 @@ async function gql<T>(operationName: string, query: string, variables: object): 
   });
 }
 
-export async function fetchChainlink(): Promise<FetcherResult<RawChainlinkJob>> {
+async function fetchSlug(slug: string): Promise<{ items: RawAshbyPrivateJob[]; errors: string[] }> {
   const errors: string[] = [];
-  let briefs: RawChainlinkBrief[] = [];
+  let briefs: RawAshbyPrivateBrief[] = [];
   try {
     const listResp = await gql<ListResponse>('ApiJobBoardWithTeams', LIST_QUERY, {
-      organizationHostedJobsPageName: ORG_SLUG,
+      organizationHostedJobsPageName: slug,
     });
     briefs = parseListResponse(listResp);
   } catch (err) {
     const message = (err as Error).message;
-    console.error('[chainlink:list]', message);
+    console.error(`[ashby-private:${slug}:list]`, message);
     return { items: [], errors: [`list: ${message}`] };
   }
 
   const detailed = await Promise.all(
-    briefs.map(async (b): Promise<RawChainlinkJob> => {
+    briefs.map(async (b): Promise<RawAshbyPrivateJob> => {
       try {
         const resp = await gql<DetailResponse>('ApiJobPosting', DETAIL_QUERY, {
-          organizationHostedJobsPageName: ORG_SLUG,
+          organizationHostedJobsPageName: slug,
           jobPostingId: b.id,
         });
         return { ...b, detail: parseDetailResponse(resp) };
       } catch (err) {
         const message = (err as Error).message;
-        console.error('[chainlink:detail]', b.id, message);
+        console.error(`[ashby-private:${slug}:detail]`, b.id, message);
         errors.push(`detail ${b.id}: ${message}`);
         return { ...b, detail: null };
       }
@@ -82,4 +85,20 @@ export async function fetchChainlink(): Promise<FetcherResult<RawChainlinkJob>> 
   );
 
   return { items: detailed, errors };
+}
+
+export async function fetchAshbyPrivate(): Promise<FetcherResult<RawAshbyPrivateJobWithSlug>> {
+  const results = await Promise.all(
+    TIER_S_ASHBY_PRIVATE_SLUGS.map(async (slug) => {
+      const r = await fetchSlug(slug);
+      return {
+        items: r.items.map((j): RawAshbyPrivateJobWithSlug => ({ ...j, __slug: slug })),
+        errors: r.errors.map((e) => `${slug}: ${e}`),
+      };
+    }),
+  );
+  return {
+    items: results.flatMap((r) => r.items),
+    errors: results.flatMap((r) => r.errors),
+  };
 }

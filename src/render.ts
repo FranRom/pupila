@@ -19,7 +19,7 @@ export interface RenderStats {
 
 const SOURCES: Source[] = [
   'aave',
-  'chainlink',
+  'ashby-private',
   'ashby',
   'lever',
   'greenhouse',

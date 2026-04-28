@@ -4,7 +4,7 @@ import { renderFeed } from './feed.js';
 import { fetchAave } from './fetchers/aave.js';
 import { fetchAiJobsNet } from './fetchers/aijobsnet.js';
 import { fetchAshby } from './fetchers/ashby.js';
-import { fetchChainlink } from './fetchers/chainlink.js';
+import { fetchAshbyPrivate } from './fetchers/ashby-private.js';
 import { fetchCryptoJobsList } from './fetchers/cryptojobslist.js';
 import { fetchGreenhouse } from './fetchers/greenhouse.js';
 import { fetchHnHiring } from './fetchers/hn-hiring.js';
@@ -19,7 +19,7 @@ import {
   normalizeAave,
   normalizeAiJobsNet,
   normalizeAshby,
-  normalizeChainlink,
+  normalizeAshbyPrivate,
   normalizeCryptoJobsList,
   normalizeGreenhouse,
   normalizeHnHiring,
@@ -84,7 +84,7 @@ async function main(): Promise<void> {
     processFetcher('ashby', fetchAshby, normalizeAshby, fetchedAt, today),
     processFetcher('lever', fetchLever, normalizeLever, fetchedAt, today),
     processFetcher('aave', fetchAave, normalizeAave, fetchedAt, today),
-    processFetcher('chainlink', fetchChainlink, normalizeChainlink, fetchedAt, today),
+    processFetcher('ashby-private', fetchAshbyPrivate, normalizeAshbyPrivate, fetchedAt, today),
   ]);
 
   const allJobs = tasks.flatMap((t) => t.jobs);

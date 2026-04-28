@@ -11,7 +11,7 @@ export type Source =
   | 'ashby'
   | 'lever'
   | 'aave'
-  | 'chainlink';
+  | 'ashby-private';
 
 export type Category = 'web3' | 'ai' | 'web3+ai' | 'general';
 
@@ -229,7 +229,7 @@ export interface RawAiJobs {
   postedRelative: string | null;
 }
 
-export interface RawChainlinkBrief {
+export interface RawAshbyPrivateBrief {
   id: string;
   title: string;
   teamId?: string | null;
@@ -239,7 +239,7 @@ export interface RawChainlinkBrief {
   secondaryLocations?: { locationId?: string; locationName?: string }[];
 }
 
-export interface RawChainlinkDetail {
+export interface RawAshbyPrivateDetail {
   id: string;
   title: string;
   locationName?: string | null;
@@ -253,8 +253,12 @@ export interface RawChainlinkDetail {
   departmentName?: string | null;
 }
 
-export interface RawChainlinkJob extends RawChainlinkBrief {
-  detail: RawChainlinkDetail | null;
+export interface RawAshbyPrivateJob extends RawAshbyPrivateBrief {
+  detail: RawAshbyPrivateDetail | null;
+}
+
+export interface RawAshbyPrivateJobWithSlug extends RawAshbyPrivateJob {
+  __slug: string;
 }
 
 export interface RawAavePost {

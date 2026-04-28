@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { parseDetailResponse, parseListResponse } from '../src/fetchers/chainlink.js';
-import { normalizeChainlink } from '../src/normalize.js';
-import type { RawChainlinkBrief, RawChainlinkDetail, RawChainlinkJob } from '../src/types.js';
+import { parseDetailResponse, parseListResponse } from '../src/fetchers/ashby-private.js';
+import { normalizeAshbyPrivate } from '../src/normalize.js';
+import type {
+  RawAshbyPrivateBrief,
+  RawAshbyPrivateDetail,
+  RawAshbyPrivateJobWithSlug,
+} from '../src/types.js';
 
 describe('parseListResponse', () => {
   it('returns empty when errors are present', () => {
@@ -11,11 +15,12 @@ describe('parseListResponse', () => {
   it('returns empty when data shape is unexpected', () => {
     expect(parseListResponse({})).toEqual([]);
     expect(parseListResponse({ data: {} })).toEqual([]);
+    expect(parseListResponse({ data: { jobBoard: null } })).toEqual([]);
     expect(parseListResponse({ data: { jobBoard: {} } })).toEqual([]);
   });
 
   it('extracts jobPostings array', () => {
-    const briefs: RawChainlinkBrief[] = [
+    const briefs: RawAshbyPrivateBrief[] = [
       {
         id: 'a',
         title: 'Senior Frontend Engineer',
@@ -42,7 +47,7 @@ describe('parseDetailResponse', () => {
   });
 
   it('extracts the jobPosting object', () => {
-    const detail: RawChainlinkDetail = {
+    const detail: RawAshbyPrivateDetail = {
       id: 'a',
       title: 'Senior Frontend Engineer',
       descriptionHtml: '<p>React + TypeScript on Chainlink data products.</p>',
@@ -56,11 +61,12 @@ describe('parseDetailResponse', () => {
   });
 });
 
-describe('normalizeChainlink', () => {
+describe('normalizeAshbyPrivate', () => {
   const fetchedAt = '2026-04-28T07:00:00Z';
 
-  it('produces a Job with company=Chainlink Labs and stripped HTML body', () => {
-    const item: RawChainlinkJob = {
+  it('derives company name from slug (chainlink-labs → Chainlink Labs)', () => {
+    const item: RawAshbyPrivateJobWithSlug = {
+      __slug: 'chainlink-labs',
       id: 'fc4b9935-1b07-4e44-b2cf-1d10551542ca',
       title: 'Senior Frontend Engineer',
       workplaceType: 'Remote',
@@ -78,10 +84,10 @@ describe('normalizeChainlink', () => {
         compensationTierSummary: '$180K - $220K',
       },
     };
-    const [job] = normalizeChainlink([item], fetchedAt);
+    const [job] = normalizeAshbyPrivate([item], fetchedAt);
     expect(job).toBeDefined();
     if (!job) return;
-    expect(job.source).toBe('chainlink');
+    expect(job.source).toBe('ashby-private');
     expect(job.company).toBe('Chainlink Labs');
     expect(job.title).toBe('Senior Frontend Engineer');
     expect(job.url).toBe(
@@ -96,17 +102,30 @@ describe('normalizeChainlink', () => {
     expect(job.salaryMax).toBe(220_000);
     expect(job.postedAt).toBe('2026-04-01T00:00:00.000Z');
     expect(job.tags).toContain('Frontend');
+    expect(job.tags).toContain('chainlink-labs');
+  });
+
+  it('derives company name from dotted slug (li.fi-ish → Li Fi)', () => {
+    const item: RawAshbyPrivateJobWithSlug = {
+      __slug: 'matter-labs',
+      id: 'abc',
+      title: 'Senior Frontend Engineer',
+      detail: null,
+    };
+    const [job] = normalizeAshbyPrivate([item], fetchedAt);
+    expect(job?.company).toBe('Matter Labs');
   });
 
   it('falls back to brief data when detail is null', () => {
-    const item: RawChainlinkJob = {
+    const item: RawAshbyPrivateJobWithSlug = {
+      __slug: 'chainlink-labs',
       id: 'b',
       title: 'Backend Engineer',
       workplaceType: 'Hybrid',
       locationName: 'New York',
       detail: null,
     };
-    const [job] = normalizeChainlink([item], fetchedAt);
+    const [job] = normalizeAshbyPrivate([item], fetchedAt);
     expect(job?.title).toBe('Backend Engineer');
     expect(job?.remote).toBe(false);
     expect(job?.location).toBe('New York');
@@ -114,10 +133,15 @@ describe('normalizeChainlink', () => {
     expect(job?.postedAt).toBeNull();
   });
 
-  it('produces stable id from posting id', () => {
-    const item: RawChainlinkJob = { id: 'abc', title: 'T', detail: null };
-    const [a] = normalizeChainlink([item], fetchedAt);
-    const [b] = normalizeChainlink([item], fetchedAt);
+  it('produces stable id from posting id + slug', () => {
+    const item: RawAshbyPrivateJobWithSlug = {
+      __slug: 'chainlink-labs',
+      id: 'abc',
+      title: 'T',
+      detail: null,
+    };
+    const [a] = normalizeAshbyPrivate([item], fetchedAt);
+    const [b] = normalizeAshbyPrivate([item], fetchedAt);
     expect(a?.id).toBe(b?.id);
     expect(a?.id).toMatch(/^[0-9a-f]{40}$/);
   });

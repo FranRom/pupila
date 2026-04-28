@@ -3,7 +3,7 @@ import { normalizeText, sha1Hex } from './utils.js';
 
 const SOURCE_PRIORITY: Record<Source, number> = {
   aave: 12,
-  chainlink: 12,
+  'ashby-private': 12,
   ashby: 11,
   lever: 10,
   greenhouse: 9,
