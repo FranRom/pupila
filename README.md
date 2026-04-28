@@ -26,7 +26,7 @@ Manually checking 11 job boards every morning is tedious. This repo replaces tha
 | HTML scraping | Inline regex parsers (no cheerio/jsdom) |
 | Schedule | GitHub Actions cron, daily 07:00 UTC |
 | Output | Files committed to this repo (`data/jobs.json`, `JOBS.md`, `data/archive/<YYYY-MM>.json` on month-start) |
-| Static analysis | CodeQL weekly + on PR; Dependabot for npm + GitHub Actions |
+| Static analysis | Biome + tsc on every PR (`check.yml`); Dependabot for npm + GitHub Actions |
 
 ## Architecture
 
@@ -226,8 +226,7 @@ job-hunt/
 │   ├── workflows/
 │   │   ├── jobs.yml           # daily cron + auto-commit
 │   │   ├── keepalive.yml      # weekly touch to keep cron alive
-│   │   ├── check.yml          # PR/push: lint + typecheck + tests + audit
-│   │   └── codeql.yml         # weekly + on PR: static security analysis
+│   │   └── check.yml          # PR/push: lint + typecheck + tests + audit
 │   └── dependabot.yml         # weekly npm + github-actions updates
 ├── config/
 │   └── slugs.json             # tier-S Ashby/Greenhouse/Lever slug arrays
@@ -294,12 +293,13 @@ A run takes ~5-10 seconds and produces:
 
 ## GitHub Actions
 
-Four workflows in [`.github/workflows/`](./.github/workflows):
+Three workflows in [`.github/workflows/`](./.github/workflows):
 
-- **[`jobs.yml`](./.github/workflows/jobs.yml)** — daily 07:00 UTC + `workflow_dispatch`. Sets up Node 22 + pnpm 10, runs the aggregator (`pnpm run dev` via tsx — no build step), auto-commits `data/jobs.json`, `data/archive/*.json`, and `JOBS.md` if anything changed.
+- **[`jobs.yml`](./.github/workflows/jobs.yml)** — daily 07:00 UTC + `workflow_dispatch`. Sets up Node 22 + pnpm 10, runs the aggregator (`pnpm run dev` via tsx — no build step), auto-commits `data/jobs.json`, the `data/archive` directory (when month-start writes a snapshot), and `JOBS.md` if anything changed.
 - **[`check.yml`](./.github/workflows/check.yml)** — runs on every push to `main` and every PR. `pnpm run lint`, `pnpm run typecheck`, `pnpm test`, `pnpm audit --prod`. Source-code validation gate; permissions are `contents: read` only.
-- **[`codeql.yml`](./.github/workflows/codeql.yml)** — runs on push, PR, and weekly Mondays. CodeQL static security analysis with the `security-and-quality` query suite. Findings land in the repo's Security tab.
 - **[`keepalive.yml`](./.github/workflows/keepalive.yml)** — Sundays 12:00 UTC, touches `.keepalive`. Prevents GitHub from auto-disabling the cron after 60 days of repo inactivity.
+
+> **Note on CodeQL.** A CodeQL workflow was previously included but removed because **Code Scanning isn't available on private repos for personal accounts** without GitHub Advanced Security. If you make this repo public or upgrade to an org with GAS, you can re-add it from git history (commit `7397117`).
 
 All workflows pin third-party actions to **commit SHAs** (not floating `@v4` / `@v5` tags) for supply-chain safety. [`Dependabot`](./.github/dependabot.yml) opens weekly PRs to bump those SHAs and the npm deps; the `check.yml` workflow validates each PR before merge.
 
@@ -351,10 +351,9 @@ Defense-in-depth measures, ranked from runtime to build-time:
 - **Pre-commit hook** runs `pnpm run lint && pnpm run typecheck` before each commit. Bypass with `SKIP_SIMPLE_GIT_HOOKS=1`.
 - **Tests** (`pnpm test`) — Vitest, 41 cases on the security-sensitive code (URL safety, regex filters, dedup tiebreaks). Runs on every PR.
 - **`pnpm audit --prod --audit-level high`** in [`check.yml`](./.github/workflows/check.yml). Reports known CVEs in production deps.
-- **CodeQL** weekly + on PR ([`codeql.yml`](./.github/workflows/codeql.yml)). Static analysis with the `security-and-quality` suite.
 - **Pinned actions.** All four workflows reference third-party actions by commit SHA, not floating tags. Defends against tag-hijacking.
 - **Dependabot** ([`dependabot.yml`](./.github/dependabot.yml)) — weekly PRs for npm + GitHub Actions. Each PR is gated by `check.yml`.
-- **Minimum permissions.** `jobs.yml` uses `contents: write` (needed for auto-commit). `check.yml` and `codeql.yml` use the smallest permission set their step actually requires.
+- **Minimum permissions.** `jobs.yml` uses `contents: write` (needed for auto-commit). `check.yml` uses `contents: read` only.
 
 ## Known upstream issues (as of 2026-04)
 

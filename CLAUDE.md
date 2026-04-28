@@ -65,9 +65,10 @@ tests/
     jobs.yml        # daily cron + auto-commit (commits jobs.json + archive + JOBS.md)
     keepalive.yml   # weekly cron to keep schedules alive
     check.yml       # PR/push: lint + typecheck + test + audit
-    codeql.yml      # weekly + PR: static security analysis
   dependabot.yml    # weekly npm + github-actions PRs
 ```
+
+> **CodeQL workflow removed.** Code Scanning isn't available on private repos without GitHub Advanced Security. If the repo ever goes public, restore `.github/workflows/codeql.yml` from commit `7397117`.
 
 ## How to add a new fetcher
 
@@ -180,11 +181,10 @@ The read happens **after** filter+dedup+sort but **before** `writeJson('data/job
 
 ## GitHub Actions
 
-Four workflows total:
+Three workflows total:
 
-- **`.github/workflows/jobs.yml`** — `0 7 * * *` daily + `workflow_dispatch`. Runs `pnpm run dev` (no build step). Auto-commits `data/jobs.json`, `data/archive/*.json`, and `JOBS.md` if anything changed. `permissions: contents: write`.
+- **`.github/workflows/jobs.yml`** — `0 7 * * *` daily + `workflow_dispatch`. Runs `pnpm run dev` (no build step). Auto-commits `data/jobs.json`, the `data/archive` directory, and `JOBS.md` if anything changed. `permissions: contents: write`. The auto-commit pattern uses the `data/archive` directory (not a glob) because `data/archive/*.json` errors when no files match — keep `data/archive/.gitkeep` so the directory always exists.
 - **`.github/workflows/check.yml`** — every push to `main` and every PR. Lint, typecheck, test, audit. `permissions: contents: read`.
-- **`.github/workflows/codeql.yml`** — push, PR, and weekly Mondays 06:00 UTC. JS/TS static analysis with `security-and-quality` query suite.
 - **`.github/workflows/keepalive.yml`** — `0 12 * * 0` weekly. Touches `.keepalive` so GitHub doesn't disable the daily schedule after 60 days of repo inactivity.
 
 `.github/dependabot.yml` opens weekly grouped PRs for npm + github-actions.

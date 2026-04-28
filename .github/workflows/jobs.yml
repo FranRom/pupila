@@ -35,4 +35,4 @@ jobs:
         uses: stefanzweifel/git-auto-commit-action@b863ae1933cb653a53c021fe36dbb774e1fb9403 # v5
         with:
           commit_message: 'chore: update jobs'
-          file_pattern: 'data/jobs.json data/archive/*.json JOBS.md'
+          file_pattern: 'data/jobs.json data/archive JOBS.md'
