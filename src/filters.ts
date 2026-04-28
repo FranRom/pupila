@@ -1,6 +1,16 @@
 import type { Category, Job, JobSignals } from './types.js';
 import { isSafeUrl, withinDays } from './utils.js';
 
+const SCORING_BODY_MAX_CHARS = 1500;
+
+const BOILERPLATE_HEADERS_RE =
+  /\b(equal opportunity employer|eeo (statement|notice)|privacy notice|notice (to|for) (applicants|candidates)|reasonable accommodations?|diversity and inclusion|our commitment to diversity|background check|e-verify|why join (us|<company>)|about (us|<company>|the company|our company))\b[\s\S]*$/i;
+
+function preparedScoringBody(rawBody: string): string {
+  const stripped = rawBody.replace(BOILERPLATE_HEADERS_RE, '').trim();
+  return stripped.slice(0, SCORING_BODY_MAX_CHARS);
+}
+
 const TITLE_JUNIOR = /\b(junior|jr|intern|entry-?level|associate|graduate|trainee|apprentice)\b/i;
 
 const TITLE_SENIOR_REQ =
@@ -71,7 +81,8 @@ export function applyFilters(jobs: Job[]): FilterResult {
   for (const job of jobs) {
     const title = job.title;
     const body = job.body;
-    const titleAndBody = `${title}\n${body}`;
+    const scoringBody = preparedScoringBody(body);
+    const scoringTitleAndBody = `${title}\n${scoringBody}`;
 
     if (!isSafeUrl(job.url)) {
       droppedHard++;
@@ -89,7 +100,8 @@ export function applyFilters(jobs: Job[]): FilterResult {
       droppedHard++;
       continue;
     }
-    if (NON_ENGINEERING.test(titleAndBody) && !TITLE_ENGINEERING_KW.test(title)) {
+    const fullTitleAndBody = `${title}\n${body}`;
+    if (NON_ENGINEERING.test(fullTitleAndBody) && !TITLE_ENGINEERING_KW.test(title)) {
       droppedHard++;
       continue;
     }
@@ -135,30 +147,30 @@ export function applyFilters(jobs: Job[]): FilterResult {
     let web3 = false;
     let ai = false;
 
-    if (W3_TITLE_BODY.test(titleAndBody)) {
+    if (W3_TITLE_BODY.test(scoringTitleAndBody)) {
       signals.web3TitleBody = 20;
       web3 = true;
     }
-    if (W3_STACK.test(body)) {
+    if (W3_STACK.test(scoringBody)) {
       signals.web3Stack = 20;
       web3 = true;
     }
-    if (AI_TITLE_BODY.test(titleAndBody)) {
+    if (AI_TITLE_BODY.test(scoringTitleAndBody)) {
       signals.aiTitleBody = 20;
       ai = true;
     }
-    if (AI_STACK.test(body)) {
+    if (AI_STACK.test(scoringBody)) {
       signals.aiStack = 20;
       ai = true;
     }
-    if (STACK_PRIMARY.test(body)) signals.stackPrimary = 10;
-    if (STACK_RN.test(body)) signals.stackRn = 5;
-    if (STACK_OTHER.test(body)) signals.stackOther = 5;
+    if (STACK_PRIMARY.test(scoringBody)) signals.stackPrimary = 10;
+    if (STACK_RN.test(scoringBody)) signals.stackRn = 5;
+    if (STACK_OTHER.test(scoringBody)) signals.stackOther = 5;
     if (TITLE_LEAD.test(title)) signals.leadTitle = 15;
     if (TITLE_SENIOR.test(title)) signals.seniorTitle = 10;
     if (TITLE_FRONTEND_KW.test(title)) signals.frontendTitle = 10;
 
-    const locText = `${job.location ?? ''} ${body}`;
+    const locText = `${job.location ?? ''} ${scoringBody}`;
     if (LOC_REMOTE.test(locText)) signals.locationRemote = 10;
 
     if (withinDays(job.postedAt, 7)) signals.freshness7d = 10;

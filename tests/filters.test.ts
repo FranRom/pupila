@@ -247,6 +247,32 @@ describe('applyFilters — scoring', () => {
     ]);
     expect(r.kept[0]?._signals?.frontendTitle).toBe(0);
   });
+
+  it('ignores AI/web3 keywords in company boilerplate at end of body', () => {
+    // Pad role description so "anthropic" appears past the 1500-char window.
+    const padding = 'java spring boot postgres kafka backend microservices. '.repeat(50);
+    const body = `Senior Backend Engineer working on payment infrastructure. ${padding}\n\nAbout Acme: We are an Equal Opportunity Employer and use Anthropic Claude internally for support tooling.`;
+    const r = applyFilters([
+      makeJob({
+        title: 'Senior Backend Engineer',
+        body,
+        location: 'Berlin',
+      }),
+    ]);
+    if (r.kept.length > 0) {
+      expect(r.kept[0]?._signals?.aiStack).toBe(0);
+    }
+  });
+
+  it('detects AI/web3 keywords when they appear in the role description (not boilerplate)', () => {
+    const r = applyFilters([
+      makeJob({
+        title: 'Senior Engineer',
+        body: 'Build AI agents using Anthropic Claude and the Vercel AI SDK in React. Remote.',
+      }),
+    ]);
+    expect(r.kept[0]?._signals?.aiStack).toBe(20);
+  });
 });
 
 describe('applyFilters — title plurals', () => {
