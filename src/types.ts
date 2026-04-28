@@ -113,6 +113,30 @@ export interface RawGreenhouseJobWithSlug extends RawGreenhouseJob {
   __slug: string;
 }
 
+export interface RawWeb3Career {
+  jobid: string;
+  url: string;
+  title: string;
+  company: string | null;
+  postedAt: string | null;
+  postedRelative: string | null;
+  location: string | null;
+  salary: string | null;
+  tags: string[];
+  category: string;
+}
+
+export interface RawAiJobs {
+  id: string;
+  url: string;
+  title: string;
+  salary: string | null;
+  tags: string[];
+  seniority: string | null;
+  companyAndLocation: string | null;
+  postedRelative: string | null;
+}
+
 export interface FetcherResult<T> {
   source: Source;
   items: T[];

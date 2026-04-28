@@ -1,17 +1,82 @@
-import { fetchRssItems } from '../rss.js';
-import type { RawRssItem } from '../types.js';
+import type { RawWeb3Career } from '../types.js';
+import { fetchText, RSS_HEADERS, safeIso, stripHtml } from '../utils.js';
 
-const PRIMARY = 'https://web3.career/feed';
-const FALLBACK = 'https://web3.career/jobs.rss';
+const BASE = 'https://web3.career';
 
-export async function fetchWeb3Career(): Promise<RawRssItem[]> {
-  for (const url of [PRIMARY, FALLBACK]) {
-    try {
-      const items = await fetchRssItems(url);
-      if (items.length > 0) return items;
-    } catch (err) {
-      console.error(`[web3career] ${url} failed:`, (err as Error).message);
+const CATEGORIES = [
+  'senior-jobs',
+  'lead-jobs',
+  'front-end-jobs',
+  'full-stack-jobs',
+  'ai-jobs',
+] as const;
+
+const ROW_RE =
+  /<tr data-jobid=(\d+)[^>]*onclick="tableTurboRowClick\(event, '([^']+)'\)"[^>]*>([\s\S]*?)<\/tr>/g;
+const TITLE_RE = /<h2[^>]*>\s*([\s\S]*?)\s*<\/h2>/;
+const COMPANY_RE = /<h3[^>]*>\s*([\s\S]*?)\s*<\/h3>/;
+const TIME_RE = /<time datetime="([^"]+)"/;
+const LOC_RE = /<span style="font-size: 12px; color: #d5d3d3;">\s*([\s\S]*?)\s*<\/span>/;
+const SALARY_RE = /<p[^>]*class="[^"]*text-salary[^"]*"[^>]*>([\s\S]*?)<\/p>/;
+const TAG_RE = /<a class=text-shadow-1px href="\/[^"]+"[^>]*>\s*([\s\S]*?)\s*<\/a>/g;
+
+function parsePage(html: string, category: string): RawWeb3Career[] {
+  const rows: RawWeb3Career[] = [];
+  for (const match of html.matchAll(ROW_RE)) {
+    const jobid = match[1];
+    const path = match[2];
+    const inner = match[3];
+    if (!jobid || !path || !inner) continue;
+
+    const title = stripHtml(inner.match(TITLE_RE)?.[1] ?? '');
+    if (!title) continue;
+    const company = stripHtml(inner.match(COMPANY_RE)?.[1] ?? '') || null;
+    const postedAt = safeIso(inner.match(TIME_RE)?.[1]);
+    const location = stripHtml(inner.match(LOC_RE)?.[1] ?? '') || null;
+    const salaryRaw = inner.match(SALARY_RE)?.[1];
+    const salary = salaryRaw ? stripHtml(salaryRaw).replace(/\s+/g, ' ').trim() : null;
+
+    const tags: string[] = [];
+    for (const t of inner.matchAll(TAG_RE)) {
+      const txt = stripHtml(t[1] ?? '').trim();
+      if (txt) tags.push(txt);
     }
+
+    rows.push({
+      jobid,
+      url: `${BASE}${path}`,
+      title,
+      company,
+      postedAt,
+      postedRelative: null,
+      location,
+      salary,
+      tags,
+      category,
+    });
   }
-  return [];
+  return rows;
+}
+
+async function fetchCategory(slug: string): Promise<RawWeb3Career[]> {
+  try {
+    const html = await fetchText(`${BASE}/${slug}`, { headers: RSS_HEADERS });
+    return parsePage(html, slug);
+  } catch (err) {
+    console.error(`[web3career:${slug}]`, (err as Error).message);
+    return [];
+  }
+}
+
+export async function fetchWeb3Career(): Promise<RawWeb3Career[]> {
+  const results = await Promise.all(CATEGORIES.map((c) => fetchCategory(c)));
+  const flat = results.flat();
+  const seen = new Set<string>();
+  const deduped: RawWeb3Career[] = [];
+  for (const j of flat) {
+    if (seen.has(j.jobid)) continue;
+    seen.add(j.jobid);
+    deduped.push(j);
+  }
+  return deduped;
 }
