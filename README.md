@@ -40,7 +40,7 @@ Manually checking 11 job boards every morning is tedious. This repo replaces tha
         ┌─────────────────── src/index.ts ──────────────────┐
         │                                                   │
         │   ┌──────── Fetchers (Promise.all) ─────────┐     │
-        │   │ ashby (26 slugs)   greenhouse (14 slugs)│     │
+        │   │ ashby (39 slugs)   greenhouse (14 slugs)│     │
         │   │ lever (6 slugs)    cryptojobslist       │ ──► raw[] per source
         │   │ remoteok  remotive  weworkremotely      │     │
         │   │ web3career  aijobsnet                   │     │
@@ -88,7 +88,7 @@ The three ATS fetchers (Ashby, Greenhouse, Lever) carry the bulk of the high-qua
 
 | Source | Type | Endpoint |
 |---|---|---|
-| [ashby](./src/fetchers/ashby.ts) | JSON API | `api.ashbyhq.com/posting-api/job-board/<slug>` × 26 tier-S slugs |
+| [ashby](./src/fetchers/ashby.ts) | JSON API | `api.ashbyhq.com/posting-api/job-board/<slug>` × 39 tier-S slugs |
 | [greenhouse](./src/fetchers/greenhouse.ts) | JSON API | `boards-api.greenhouse.io/v1/boards/<slug>/jobs` × 14 tier-S slugs |
 | [lever](./src/fetchers/lever.ts) | JSON API | `api.lever.co/v0/postings/<slug>` × 6 tier-S slugs |
 | [remoteok](./src/fetchers/remoteok.ts) | JSON API | `remoteok.com/api` |
@@ -100,7 +100,7 @@ The three ATS fetchers (Ashby, Greenhouse, Lever) carry the bulk of the high-qua
 | [hn-hiring](./src/fetchers/hn-hiring.ts) | Algolia API | latest "Ask HN: Who is hiring" thread |
 | [hn-jobs](./src/fetchers/hn-jobs.ts) | Algolia API | `hn.algolia.com/api/v1/search_by_date?tags=job` |
 
-The Ashby tier-S list covers the AI frontier (OpenAI, Mistral, Cohere, Perplexity, Cursor, ElevenLabs, Modal, LangChain, Pinecone, Supabase, Neon, Clerk, PostHog, Browserbase) plus web3 (Linear, Ramp, Uniswap, Mysten Labs, Paradigm, Polygon Labs, Base, Blockworks, Succinct, Espresso). Greenhouse adds Anthropic, Vercel, Mercury, Coinbase. Lever adds Binance, Ledger, CoinGecko, CoinMarketCap, Safe, Arbitrum Foundation.
+The Ashby tier-S list covers the AI frontier (OpenAI, Mistral, Cohere, Perplexity, Cursor, ElevenLabs, Modal, LangChain, LangFuse, LlamaIndex, OpenRouter, Pinecone, Supabase, Neon, Clerk, PostHog, Browserbase, Replit, Runway, Notion, Anyscale, BaseTen, Character, Weaviate) plus web3 (Linear, Ramp, Uniswap, Mysten Labs, Paradigm, Polygon Labs, Base, Blockworks, Succinct, Espresso, Phantom, Polymarket, Alchemy, Stacks). Greenhouse adds Anthropic, Vercel, Mercury, Coinbase. Lever adds Binance, Ledger, CoinGecko, CoinMarketCap, Safe, Arbitrum Foundation.
 
 Adding a 12th source is one new file in `src/fetchers/`, one entry in `Source`, one normalizer in `normalize.ts`, and one line in `src/index.ts`. See [`CLAUDE.md`](./CLAUDE.md#how-to-add-a-new-fetcher) for the exact recipe.
 
@@ -296,7 +296,7 @@ job-hunt/
 ├── src/
 │   ├── fetchers/              # one file per source
 │   │   ├── _shared.ts         # fetchMultiSlug helper for ATS fetchers
-│   │   ├── ashby.ts           # 26 tier-S slugs (largest contributor)
+│   │   ├── ashby.ts           # 39 tier-S slugs (largest contributor)
 │   │   ├── greenhouse.ts      # 14 tier-S slugs
 │   │   ├── lever.ts           # 6 tier-S slugs
 │   │   ├── remoteok.ts

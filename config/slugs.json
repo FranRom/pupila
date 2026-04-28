@@ -25,7 +25,20 @@
     "browserbase",
     "langchain",
     "langfuse",
-    "posthog"
+    "posthog",
+    "phantom",
+    "polymarket",
+    "alchemy",
+    "stacks",
+    "replit",
+    "runway",
+    "notion",
+    "baseten",
+    "character",
+    "anyscale",
+    "llamaindex",
+    "openrouter",
+    "weaviate"
   ],
   "greenhouse": [
     "anthropic",
