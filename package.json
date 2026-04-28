@@ -12,6 +12,7 @@
     "start": "node dist/index.js",
     "dev": "tsx src/index.ts",
     "ai-review": "tsx src/ai-review.ts",
+    "daily": "pnpm run dev && pnpm run ai-review",
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.test.json && tsc --noEmit -p ui/tsconfig.json",
     "lint": "biome check",
     "lint:fix": "biome check --write",

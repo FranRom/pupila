@@ -13,7 +13,7 @@ The pipeline is tuned for: senior/lead/staff frontend, web3 (EVM + Solana), and 
 - Node 22 LTS, ESM, TypeScript 5.9 (NodeNext)
 - Biome 2.4 (lint + format, single config in `biome.json`)
 - pnpm 10
-- Vitest 3 (tests in `tests/`, run via `pnpm test` — 113 cases)
+- Vitest 3 (tests in `tests/`, run via `pnpm test` — 120 cases)
 - simple-git-hooks (pre-commit `lint && typecheck`)
 - Single runtime dep: `fast-xml-parser`. Native `fetch` only.
 
@@ -26,13 +26,14 @@ pnpm start                  # built output: requires pnpm run build first
 pnpm run typecheck          # tsc --noEmit on src/, then on src/+tests/ via tsconfig.test.json
 pnpm run lint               # biome check
 pnpm run lint:fix            # biome check --write
-pnpm test                   # vitest run (113 unit tests)
+pnpm test                   # vitest run (120 unit tests)
 pnpm run test:watch         # vitest watch mode
 pnpm run ui                 # local-only UI: Vite dev server on http://127.0.0.1:5173, reads data/jobs.json
 pnpm run ai-review          # local-only: shells out to `claude -p` to write data/ai-reviews.json
 pnpm run ai-review --top=50 # raise the per-run cap (default 20 highest-fitScore unreviewed)
 pnpm run ai-review --force  # re-review entries that already exist
 pnpm run ai-review --ids=a,b # review specific job ids only
+pnpm run daily              # convenience: pnpm run dev && pnpm run ai-review (morning routine)
 ```
 
 The pipeline writes to `data/jobs.json` (slim — `body` field stripped), `data/feed.xml` (RSS 2.0 of new jobs), `JOBS.md`, optionally `data/archive/<YYYY-MM>.json` on day 1 of the month, and per-source raw dumps in `data/raw/<source>-<YYYY-MM-DD>.json` (gitignored). `README.md` is hand-maintained — never overwrite it from code.
@@ -77,6 +78,7 @@ tests/
   aave.test.ts             # 7 cases  — __NEXT_DATA__ extraction + normalizer
   ashby-private.test.ts    # 9 cases  — GraphQL list/detail parsers + slug-to-company derivation
   ai-review-parse.test.ts  # 9 cases  — markdown-fence stripping, invalid verdicts, missing fields, dirty arrays
+  normalize-hn.test.ts     # 7 cases  — hn-hiring header parsing, plausible-company guard, role-pattern fallback
   utils.test.ts            # 20 cases — URL safety, stripHtml, time math, human date formatter
 
 ui/                 # local-only browser dashboard (Vite + React)
@@ -289,9 +291,10 @@ To trigger the daily run manually: `gh workflow run jobs.yml`.
 
 ## Tests
 
-Vitest, 113 cases across 9 files in `tests/` with `*.test.ts` glob. Run via `pnpm test` (CI) or `pnpm run test:watch` (interactive).
+Vitest, 120 cases across 10 files in `tests/` with `*.test.ts` glob. Run via `pnpm test` (CI) or `pnpm run test:watch` (interactive).
 
 - **`tests/utils.test.ts`** (20): `isSafeUrl` allowlist, `normalizeUrl` (utm strip, scheme reject), `stripHtml`, `normalizeText`, `sha1Hex`, `relativeTime`, `withinDays`, `formatDateTimeUTC` (human-readable "DD Month YYYY, HH:MM UTC").
+- **`tests/normalize-hn.test.ts`** (7): `normalizeHnHiring` header extraction with `|` and em-dash separators, plausible-company guard (rejects whole-body leak, sentence-like candidates, >60 char strings), role-pattern fallback when no header is present.
 - **`tests/filters.test.ts`** (33): every hard-drop branch (junior, senior_req, US-only, compound non-eng, non-frontend eng, non-eng role, non-tech role, exec, URL scheme), `droppedByRule` rule attribution, every score signal, category derivation, score capping with `_signals.capped`, US-centric penalty, plural title acceptance, frontendTitle/frontendBody bonuses, boilerplate stripping (AI keywords in EEO footer must NOT score), tiered keyword weighting (1 mention = half-weight, 4+ = 1.5× boost across `stackPrimary` and `frontendBody`).
 - **`tests/dedup.test.ts`** (10): id collapse, normalized company+title collapse, fitScore tiebreak, source priority tiebreak (`ashby > greenhouse > remoteok`, `lever > web3career`), empty input, plus 5 cases for `compareJobs` covering the four-key chain (fitScore desc → salaryMax desc with null-as-zero → postedAt desc → id asc).
 - **`tests/applied.test.ts`** (4): `STATUS_EMOJI` map presence, `summarizeApplied` empty input, grouping/counting, ordering (offer → interview → applied → withdrawn → rejected).
@@ -311,6 +314,10 @@ A Vite + React 19 dashboard at `ui/` that reads `data/jobs.json` and `data/ai-re
 Single-component MVP (no router, no state-management lib): filter chips for category/source/applied, search box, sortable columns (score / salaryMax / postedAt), dark-mode via `prefers-color-scheme`. Score cells are tier-colored (green ≥80, gold 50-79, muted <50). Long company/title cells are clamped to 2 lines via `display: -webkit-box` (the clamp is on a `<span>` wrapper inside the `<td>` — applying it directly on the `<td>` breaks table-cell layout).
 
 **Expandable rows.** Clicking a row opens a 3-column detail panel with: the LLM "AI take" (summary, verdict reason, wants/offers/red-flags) when `data/ai-reviews.json` has an entry for that job; the `_signals` score breakdown showing which scoring rules fired and what they contributed; meta (location, tags, posted date, id). The Apply link in the row uses `e.stopPropagation()` so it doesn't trigger expand. Verdict badge (`strong-match` / `match` / `weak-match` / `skip`) appears next to the title when an AI review exists.
+
+**Group by company (default on).** When the `Group by company` checkbox is on, jobs fold by lower-cased `company` field. Single-job "groups" render flat (no header noise) — only multi-job companies get a collapsible header row showing top score + role count + a one-line preview of the top role. Click the header to reveal the rest. The active sort key (`fitScore` / `salaryMax` / `postedAt`) drives both the within-group order and the inter-group order (using each group's top job as the comparator). Toggle off for a flat view.
+
+**URL-encoded state.** All filter / sort / group / expand state syncs to `window.location.search` via `history.replaceState` (no back-button spam). Keys: `q` (search), `cat`, `src`, `applied=1`, `sort`, `dir=asc`, `group=0` (only when off, since on is the default), `expanded=<jobId>`, `co=<lowercased-company>`. Defaults are omitted from the URL to keep it short. On load the App reads the URL once via a `useMemo` lazy initializer; afterwards a single `useEffect` writes back any state change. **Don't use `pushState`** — every keystroke would create a history entry.
 
 `ui/src/types.ts` is a deliberate copy of the relevant subset of `src/types.ts` (`Job`, `JobSignals`, `AppliedEntry`, `AiReview`, `AiReviews`). The pipeline strips `body` from the persisted `data/jobs.json`, but **`_signals` is kept** so the UI can render it without re-running scoring. Don't rewrite ui/src/types.ts to import from `src/types.ts` — that pulls in `with { type: 'json' }` config imports that don't resolve in the browser context.
 
@@ -336,8 +343,7 @@ The HTML has `<meta name="robots" content="noindex,nofollow">` as belt-and-suspe
 
 **Daily workflow:**
 ```bash
-pnpm run dev         # writes data/jobs.json + data/jobs-bodies.json
-pnpm run ai-review   # writes data/ai-reviews.json (top 20 unreviewed)
+pnpm run daily       # = `pnpm run dev && pnpm run ai-review` — fetch + write data/jobs.json + ai-reviews.json
 pnpm run ui          # browse with verdicts + score breakdowns inline
 git add data/jobs.json data/feed.xml data/ai-reviews.json JOBS.md
 git commit -m "chore: daily run + ai reviews"

@@ -255,6 +255,19 @@ export function normalizeAiJobsNet(items: RawAiJobs[], fetchedAt: string): Job[]
   });
 }
 
+// Plausible company name: short-ish, no sentence punctuation, starts alphanumeric.
+// Reject the "post has no header → first segment is the entire body" case which
+// otherwise leaks an entire job description into the company column.
+function isPlausibleCompany(s: string): boolean {
+  if (!s || s.length > 60) return false;
+  if (/[.!?]/.test(s)) return false;
+  if (!/^[A-Za-z0-9]/.test(s)) return false;
+  return true;
+}
+
+const HN_ROLE_PATTERN =
+  /\b(?:senior|sr\.?|staff|principal|lead|head)?\s*(?:full[- ]?stack|frontend|front[- ]end|backend|back[- ]end|software|web|mobile)?\s*(?:engineer|developer|architect)s?\b[^.!?\n]{0,60}/i;
+
 export function normalizeHnHiring(items: RawHnHiringPost[], fetchedAt: string): Job[] {
   return items.flatMap((p) => {
     const url = `https://news.ycombinator.com/item?id=${p.commentId}`;
@@ -265,12 +278,25 @@ export function normalizeHnHiring(items: RawHnHiringPost[], fetchedAt: string): 
       .split(HN_HEAD_SEP_RE)
       .map((s) => s.trim())
       .filter(Boolean);
-    const company = headerParts[0] ?? null;
-    const titleCandidate =
-      headerParts.find((p) => /\b(engineer|developer|architect|lead|director|head)\b/i.test(p)) ??
-      headerParts[1] ??
-      firstLine;
-    const title = titleCandidate.slice(0, 140);
+    const hasHeader = headerParts.length >= 2;
+    const company =
+      hasHeader && headerParts[0] && isPlausibleCompany(headerParts[0]) ? headerParts[0] : null;
+
+    let title: string;
+    if (hasHeader) {
+      const titleCandidate =
+        headerParts.find((part) =>
+          /\b(engineer|developer|architect|lead|director|head)\b/i.test(part),
+        ) ??
+        headerParts[1] ??
+        firstLine;
+      title = titleCandidate.slice(0, 140);
+    } else {
+      // No header → look for a role-keyword phrase anywhere in the body before
+      // falling back to a truncated first line.
+      const match = text.match(HN_ROLE_PATTERN);
+      title = match ? match[0].trim().slice(0, 140) : firstLine.slice(0, 100);
+    }
     const remote = inferRemote(text);
     const applyUrls = text.match(APPLY_LINK_RE) ?? [];
     return [

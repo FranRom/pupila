@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import aiReviewsData from '../../data/ai-reviews.json' with { type: 'json' };
 import jobsData from '../../data/jobs.json' with { type: 'json' };
 import type {
@@ -33,14 +33,85 @@ const CATEGORY_OPTIONS: ReadonlyArray<Category | 'all'> = [
 type SortKey = 'fitScore' | 'salaryMax' | 'postedAt';
 type SortDir = 'asc' | 'desc';
 
+interface CompanyGroup {
+  /** lowercased — used as identity for expand state and grouping key */
+  key: string;
+  /** original casing for display */
+  display: string;
+  jobs: Job[];
+  topScore: number;
+  topJob: Job;
+}
+
+function readUrl(): {
+  search: string;
+  category: Category | 'all';
+  source: Source | 'all';
+  appliedOnly: boolean;
+  sortKey: SortKey;
+  sortDir: SortDir;
+  groupByCompany: boolean;
+  expanded: string | null;
+  expandedCompany: string | null;
+} {
+  const p = new URLSearchParams(window.location.search);
+  const cat = p.get('cat');
+  const sortKey = p.get('sort');
+  const sortDir = p.get('dir');
+  return {
+    search: p.get('q') ?? '',
+    category:
+      cat === 'web3+ai' || cat === 'web3' || cat === 'ai' || cat === 'general' ? cat : 'all',
+    source: (p.get('src') as Source | 'all' | null) ?? 'all',
+    appliedOnly: p.get('applied') === '1',
+    sortKey: sortKey === 'salaryMax' || sortKey === 'postedAt' ? sortKey : 'fitScore',
+    sortDir: sortDir === 'asc' ? 'asc' : 'desc',
+    groupByCompany: p.get('group') !== '0',
+    expanded: p.get('expanded'),
+    expandedCompany: p.get('co'),
+  };
+}
+
 export function App() {
-  const [search, setSearch] = useState('');
-  const [category, setCategory] = useState<Category | 'all'>('all');
-  const [source, setSource] = useState<Source | 'all'>('all');
-  const [appliedOnly, setAppliedOnly] = useState(false);
-  const [sortKey, setSortKey] = useState<SortKey>('fitScore');
-  const [sortDir, setSortDir] = useState<SortDir>('desc');
-  const [expanded, setExpanded] = useState<string | null>(null);
+  const initial = useMemo(() => readUrl(), []);
+  const [search, setSearch] = useState(initial.search);
+  const [category, setCategory] = useState<Category | 'all'>(initial.category);
+  const [source, setSource] = useState<Source | 'all'>(initial.source);
+  const [appliedOnly, setAppliedOnly] = useState(initial.appliedOnly);
+  const [sortKey, setSortKey] = useState<SortKey>(initial.sortKey);
+  const [sortDir, setSortDir] = useState<SortDir>(initial.sortDir);
+  const [groupByCompany, setGroupByCompany] = useState(initial.groupByCompany);
+  const [expanded, setExpanded] = useState<string | null>(initial.expanded);
+  const [expandedCompany, setExpandedCompany] = useState<string | null>(initial.expandedCompany);
+
+  // Sync state → URL via replaceState so the back button doesn't get spammed.
+  useEffect(() => {
+    const p = new URLSearchParams();
+    if (search) p.set('q', search);
+    if (category !== 'all') p.set('cat', category);
+    if (source !== 'all') p.set('src', source);
+    if (appliedOnly) p.set('applied', '1');
+    if (sortKey !== 'fitScore') p.set('sort', sortKey);
+    if (sortDir !== 'desc') p.set('dir', sortDir);
+    if (!groupByCompany) p.set('group', '0');
+    if (expanded) p.set('expanded', expanded);
+    if (expandedCompany) p.set('co', expandedCompany);
+    const qs = p.toString();
+    const next = `${window.location.pathname}${qs ? `?${qs}` : ''}`;
+    if (next !== `${window.location.pathname}${window.location.search}`) {
+      window.history.replaceState(null, '', next);
+    }
+  }, [
+    search,
+    category,
+    source,
+    appliedOnly,
+    sortKey,
+    sortDir,
+    groupByCompany,
+    expanded,
+    expandedCompany,
+  ]);
 
   const sources = useMemo(() => {
     const s = new Set<Source>();
@@ -69,6 +140,40 @@ export function App() {
     });
     return filtered;
   }, [search, category, source, appliedOnly, sortKey, sortDir]);
+
+  // When grouping is on, fold jobs by lower-cased company. Single-job
+  // "groups" render flat (no header); only multi-job groups get a collapsible
+  // header. Within a group, jobs use the same sort as the table.
+  const groups = useMemo<CompanyGroup[] | null>(() => {
+    if (!groupByCompany) return null;
+    const map = new Map<string, Job[]>();
+    for (const j of visible) {
+      const key = (j.company ?? '(unknown)').toLowerCase();
+      const arr = map.get(key);
+      if (arr) arr.push(j);
+      else map.set(key, [j]);
+    }
+    const result: CompanyGroup[] = [];
+    for (const [key, jobs] of map) {
+      const topJob = jobs[0];
+      if (!topJob) continue;
+      result.push({
+        key,
+        display: topJob.company ?? '(unknown)',
+        jobs,
+        topScore: topJob.fitScore,
+        topJob,
+      });
+    }
+    const dir = sortDir === 'desc' ? -1 : 1;
+    result.sort((a, b) => {
+      const av = sortValue(a.topJob, sortKey);
+      const bv = sortValue(b.topJob, sortKey);
+      if (av === bv) return a.display < b.display ? -1 : 1;
+      return av < bv ? -1 * dir : 1 * dir;
+    });
+    return result;
+  }, [visible, groupByCompany, sortKey, sortDir]);
 
   const totals = useMemo(() => {
     const counts: Record<Category, number> = { 'web3+ai': 0, web3: 0, ai: 0, general: 0 };
@@ -135,6 +240,15 @@ export function App() {
           Applied only
         </label>
 
+        <label className="checkbox">
+          <input
+            type="checkbox"
+            checked={groupByCompany}
+            onChange={(e) => setGroupByCompany(e.target.checked)}
+          />
+          Group by company
+        </label>
+
         {(search || category !== 'all' || source !== 'all' || appliedOnly) && (
           <button
             type="button"
@@ -182,23 +296,104 @@ export function App() {
             </tr>
           </thead>
           <tbody>
-            {visible.map((j) => {
-              const isOpen = expanded === j.id;
-              const review = AI_REVIEWS[j.id];
-              return (
-                <FragmentRow
-                  key={j.id}
-                  job={j}
-                  isOpen={isOpen}
-                  review={review}
-                  onToggle={() => setExpanded(isOpen ? null : j.id)}
-                />
-              );
-            })}
+            {groups
+              ? groups.map((g) => (
+                  <CompanyBlock
+                    key={g.key}
+                    group={g}
+                    isOpen={expandedCompany === g.key}
+                    expanded={expanded}
+                    onToggleCompany={() =>
+                      setExpandedCompany(expandedCompany === g.key ? null : g.key)
+                    }
+                    onToggleJob={(id) => setExpanded(expanded === id ? null : id)}
+                  />
+                ))
+              : visible.map((j) => {
+                  const isOpen = expanded === j.id;
+                  const review = AI_REVIEWS[j.id];
+                  return (
+                    <FragmentRow
+                      key={j.id}
+                      job={j}
+                      isOpen={isOpen}
+                      review={review}
+                      onToggle={() => setExpanded(isOpen ? null : j.id)}
+                    />
+                  );
+                })}
           </tbody>
         </table>
       )}
     </div>
+  );
+}
+
+interface CompanyBlockProps {
+  group: CompanyGroup;
+  isOpen: boolean;
+  expanded: string | null;
+  onToggleCompany: () => void;
+  onToggleJob: (id: string) => void;
+}
+
+function CompanyBlock({
+  group,
+  isOpen,
+  expanded,
+  onToggleCompany,
+  onToggleJob,
+}: CompanyBlockProps) {
+  // Single-job groups render flat — no header noise.
+  if (group.jobs.length === 1) {
+    const job = group.jobs[0];
+    if (!job) return null;
+    const jobOpen = expanded === job.id;
+    return (
+      <FragmentRow
+        job={job}
+        isOpen={jobOpen}
+        review={AI_REVIEWS[job.id]}
+        onToggle={() => onToggleJob(job.id)}
+      />
+    );
+  }
+  return (
+    <>
+      <tr className={`group-row ${isOpen ? 'open' : ''}`} onClick={onToggleCompany}>
+        <td className={`score ${scoreTier(group.topScore)}`}>
+          <span className="caret" aria-hidden>
+            {isOpen ? '▾' : '▸'}
+          </span>
+          {group.topScore}
+        </td>
+        <td colSpan={6}>
+          <span className="group-co">{group.display}</span>
+          <span className="group-count">
+            {group.jobs.length} role{group.jobs.length === 1 ? '' : 's'}
+          </span>
+          {!isOpen && (
+            <span className="group-preview" title={group.topJob.title}>
+              {group.topJob.title}
+            </span>
+          )}
+        </td>
+      </tr>
+      {isOpen &&
+        group.jobs.map((j) => {
+          const jobOpen = expanded === j.id;
+          return (
+            <FragmentRow
+              key={j.id}
+              job={j}
+              isOpen={jobOpen}
+              review={AI_REVIEWS[j.id]}
+              onToggle={() => onToggleJob(j.id)}
+              indent
+            />
+          );
+        })}
+    </>
   );
 }
 
@@ -207,12 +402,16 @@ interface FragmentRowProps {
   isOpen: boolean;
   review: AiReview | undefined;
   onToggle: () => void;
+  indent?: boolean;
 }
 
-function FragmentRow({ job, isOpen, review, onToggle }: FragmentRowProps) {
+function FragmentRow({ job, isOpen, review, onToggle, indent }: FragmentRowProps) {
+  const rowClass = [job.applied ? 'applied' : '', isOpen ? 'open' : '', indent ? 'indent' : '']
+    .filter(Boolean)
+    .join(' ');
   return (
     <>
-      <tr className={`${job.applied ? 'applied' : ''} ${isOpen ? 'open' : ''}`} onClick={onToggle}>
+      <tr className={rowClass} onClick={onToggle}>
         <td className={`score ${scoreTier(job.fitScore)}`}>
           <span className="caret" aria-hidden>
             {isOpen ? '▾' : '▸'}

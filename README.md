@@ -21,7 +21,7 @@ Manually checking 11 job boards every morning is tedious. This repo replaces tha
 | Language | TypeScript 5.9 (NodeNext, strict) |
 | Lint + format | Biome 2.4 |
 | Package manager | pnpm 10 |
-| Tests | Vitest 3 (113 unit tests across filters, dedup, utils, applied, salary, feed, aave, ashby-private; tiered keyword weighting + salary-aware sort tiebreak both have dedicated cases) |
+| Tests | Vitest 3 (120 unit tests across filters, dedup, utils, applied, salary, feed, aave, ashby-private; tiered keyword weighting + salary-aware sort tiebreak both have dedicated cases) |
 | Pre-commit | simple-git-hooks (runs lint + typecheck on every commit) |
 | HTTP | Native `fetch` with `AbortController` (30s timeout, 1 retry on 5xx/network) |
 | RSS parsing | `fast-xml-parser` (only runtime dep) |
@@ -276,11 +276,12 @@ It runs against **your Claude Code subscription** (e.g. Max plan) via `claude -p
 ### Daily flow
 
 ```bash
-pnpm run dev         # writes data/jobs.json + data/jobs-bodies.json (sidecar, gitignored)
-pnpm run ai-review   # picks the top 20 unreviewed by fitScore, writes data/ai-reviews.json
+pnpm run daily       # = `pnpm run dev && pnpm run ai-review` (the morning routine)
 pnpm run ui          # browse — verdicts appear inline, click any row for the full review
 git commit data/jobs.json data/feed.xml data/ai-reviews.json JOBS.md
 ```
+
+(If you only want to refresh listings without burning AI quota, `pnpm run dev` alone still works.)
 
 CLI flags:
 
@@ -302,6 +303,10 @@ In `pnpm run ui`, every job row is clickable. The expanded panel has three colum
 3. **Meta** — location, tags, posted date, internal id (handy for `--ids=` re-review).
 
 A small verdict badge (`strong-match` / `match` / `weak-match` / `skip`) also appears next to the title in the main row when a review exists, so you can scan from the table without expanding.
+
+**Group-by-company (default on).** When toggled on, jobs fold by company — `Vercel (24 roles)` becomes a single click-to-expand row instead of dominating the top of the table. Single-job "groups" stay flat (no header noise). The active sort key drives both the within-group order and the inter-group order, using each group's top job as the comparator.
+
+**URL-encoded filter state.** Every filter, sort, and expand toggle syncs to `window.location.search` (via `replaceState`, so the back-button stays clean). Bookmark `http://127.0.0.1:5173/?q=react&cat=ai&src=ashby` and the dashboard hydrates back to the same view next time. Defaults are omitted from the URL, so a "clean" view leaves you with just `/`.
 
 ### Architecture choices worth knowing
 
@@ -384,6 +389,7 @@ job-hunt/
 │   ├── aave.test.ts                # 7 cases: __NEXT_DATA__ extraction + normalizer
 │   ├── ashby-private.test.ts       # 9 cases: GraphQL parsers + normalizer + slug-to-company
 │   ├── ai-review-parse.test.ts     # 9 cases: markdown-fence stripping, invalid verdicts, missing fields, dirty arrays
+│   ├── normalize-hn.test.ts        # 7 cases: hn-hiring header parsing + plausible-company guard + role-pattern fallback
 │   └── utils.test.ts               # 20 cases: URL safety, stripHtml, time math, human date formatter
 ├── biome.json
 ├── tsconfig.json
@@ -405,10 +411,11 @@ pnpm start                   # built output (run pnpm run build first)
 pnpm run typecheck           # tsc --noEmit on src/, then on src/+tests/ (tsconfig.test.json)
 pnpm run lint                # biome check
 pnpm run lint:fix            # biome check --write
-pnpm test                    # vitest run (113 unit tests)
+pnpm test                    # vitest run (120 unit tests)
 pnpm run test:watch          # vitest in watch mode
 pnpm run ui                  # local browser UI (Vite dev server, 127.0.0.1:5173)
 pnpm run ai-review           # local-only: per-job LLM review via your Claude Code subscription
+pnpm run daily               # convenience: dev + ai-review back-to-back
 ```
 
 The pre-commit hook runs `lint && typecheck` on every commit. To bypass it for an emergency commit: `SKIP_SIMPLE_GIT_HOOKS=1 git commit ...`.
