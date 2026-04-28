@@ -31,8 +31,8 @@ jobs:
       - name: Run aggregator
         run: pnpm run dev
 
-      - name: Commit jobs.json and JOBS.md
+      - name: Commit jobs.json, feed.xml and JOBS.md
         uses: stefanzweifel/git-auto-commit-action@b863ae1933cb653a53c021fe36dbb774e1fb9403 # v5
         with:
           commit_message: 'chore: update jobs'
-          file_pattern: 'data/jobs.json data/archive JOBS.md'
+          file_pattern: 'data/jobs.json data/feed.xml data/archive JOBS.md'

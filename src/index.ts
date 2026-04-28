@@ -1,5 +1,6 @@
 import { loadAppliedMap } from './applied.js';
 import { dedupe } from './dedup.js';
+import { renderFeed } from './feed.js';
 import { fetchAiJobsNet } from './fetchers/aijobsnet.js';
 import { fetchAshby } from './fetchers/ashby.js';
 import { fetchCryptoJobsList } from './fetchers/cryptojobslist.js';
@@ -145,6 +146,7 @@ async function main(): Promise<void> {
     await writeJson(`data/archive/${month}.json`, slimJobs);
   }
   await writeFileEnsured('JOBS.md', renderReadme(dedupResult.kept, stats, newJobs, removedJobs));
+  await writeFileEnsured('data/feed.xml', renderFeed(newJobs, fetchedAt));
 
   console.log('--- Run summary ---');
   for (const t of tasks) {
