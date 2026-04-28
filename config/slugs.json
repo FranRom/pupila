@@ -43,12 +43,5 @@
     "magiceden",
     "ledger"
   ],
-  "lever": [
-    "ledger",
-    "binance",
-    "coingecko",
-    "coinmarketcap",
-    "safe",
-    "arbitrumfoundation"
-  ]
+  "lever": ["ledger", "binance", "coingecko", "coinmarketcap", "safe", "arbitrumfoundation"]
 }
