@@ -1,0 +1,29 @@
+{
+  "name": "job-hunt",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Personal job aggregator pipeline that runs daily on GitHub Actions.",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "tsx src/index.ts",
+    "typecheck": "tsc --noEmit",
+    "lint": "biome check",
+    "lint:fix": "biome check --write",
+    "format": "biome format --write"
+  },
+  "dependencies": {
+    "fast-xml-parser": "^4.5.0"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.0.0",
+    "@types/node": "^22.10.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0"
+  },
+  "packageManager": "pnpm@10.11.0"
+}
