@@ -5,7 +5,7 @@ export interface RenderStats {
   generatedAt: string;
   fetchedTotal: number;
   keptTotal: number;
-  bySource: Record<Source, { fetched: number; kept: number; errors: number }>;
+  bySource: Record<Source, { fetched: number; kept: number }>;
   byCategory: Record<Category, number>;
   droppedHard: number;
   droppedScore: number;

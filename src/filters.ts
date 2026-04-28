@@ -4,7 +4,7 @@ import { withinDays } from './utils.js';
 const TITLE_JUNIOR = /\b(junior|jr|intern|entry-?level|associate|graduate|trainee|apprentice)\b/i;
 
 const TITLE_SENIOR_REQ =
-  /\b(senior|sr|staff|principal|lead|head|director|engineer|developer|architect)\b/i;
+  /\b(senior|sr|staff|principal|lead|head|director|engineers?|developers?|architects?)\b/i;
 
 const BODY_HARD_US_OR_ONSITE =
   /\b(must be (authorized|located)[\s\S]{0,40}(united states|US only|US-based only|US citizen)|onsite only|on-site only|in-office only|relocate to (san francisco|new york|nyc))\b/i;
@@ -13,7 +13,7 @@ const NON_ENGINEERING =
   /\b(marketing|sales|recruiter|community manager|customer support|business development|legal|compliance|hr |finance |accountant)\b/i;
 
 const TITLE_ENGINEERING_KW =
-  /\b(engineer|developer|architect|programmer|tech lead|cto|engineering)\b/i;
+  /\b(engineers?|developers?|architects?|programmers?|tech lead|cto|engineering)\b/i;
 
 const W3_TITLE_BODY = /\b(web3|crypto|defi|blockchain|wallet|onchain|on-chain|dapp|nft)\b/i;
 
