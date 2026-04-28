@@ -8,7 +8,8 @@ export type Source =
   | 'hn-hiring'
   | 'hn-jobs'
   | 'greenhouse'
-  | 'ashby';
+  | 'ashby'
+  | 'lever';
 
 export type Category = 'web3' | 'ai' | 'web3+ai' | 'general';
 
@@ -144,6 +145,33 @@ export interface RawAshbyJob {
 }
 
 export interface RawAshbyJobWithSlug extends RawAshbyJob {
+  __slug: string;
+}
+
+export interface RawLeverJob {
+  id: string;
+  text: string;
+  categories?: {
+    team?: string;
+    department?: string;
+    location?: string;
+    commitment?: string;
+    allLocations?: string[];
+  };
+  tags?: string[];
+  workplaceType?: string;
+  createdAt?: number;
+  hostedUrl: string;
+  applyUrl?: string;
+  descriptionPlain?: string;
+  description?: string;
+  additionalPlain?: string;
+  additional?: string;
+  lists?: { text: string; content: string }[];
+  country?: string;
+}
+
+export interface RawLeverJobWithSlug extends RawLeverJob {
   __slug: string;
 }
 

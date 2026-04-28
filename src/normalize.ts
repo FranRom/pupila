@@ -6,6 +6,7 @@ import type {
   RawGreenhouseJobWithSlug,
   RawHnHiringPost,
   RawHnHit,
+  RawLeverJobWithSlug,
   RawRemoteOk,
   RawRemotive,
   RawRssItem,
@@ -324,6 +325,41 @@ export function normalizeAshby(items: RawAshbyJobWithSlug[], fetchedAt: string):
       body: asPlain(j.descriptionPlain),
       tags,
       postedAt: safeIso(j.publishedAt),
+      fetchedAt,
+      fitScore: 0,
+      category: 'general',
+    };
+  });
+}
+
+export function normalizeLever(items: RawLeverJobWithSlug[], fetchedAt: string): Job[] {
+  return items.map((j) => {
+    const company = j.__slug.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+    const cat = j.categories ?? {};
+    const location = cat.location ?? null;
+    const allLocs = cat.allLocations ?? (location ? [location] : []);
+    const remote =
+      j.workplaceType === 'remote' ||
+      allLocs.some((l) => /remote|worldwide|anywhere/i.test(l ?? ''));
+    const body = asPlain(
+      j.descriptionPlain ||
+        j.description ||
+        [j.additionalPlain, j.additional, ...(j.lists?.map((l) => l.content) ?? [])]
+          .filter(Boolean)
+          .join('\n\n'),
+    );
+    const tags = joinTags(j.tags, [cat.team, cat.department, cat.commitment, j.__slug]);
+    return {
+      id: makeId('lever', j.hostedUrl, `${company}-${j.text}-${j.id}`),
+      source: 'lever',
+      title: j.text.trim(),
+      company,
+      url: j.hostedUrl,
+      location,
+      remote,
+      body,
+      tags,
+      postedAt: safeIso(j.createdAt),
       fetchedAt,
       fitScore: 0,
       category: 'general',

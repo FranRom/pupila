@@ -15,6 +15,7 @@ export interface RenderStats {
 
 const SOURCES: Source[] = [
   'ashby',
+  'lever',
   'greenhouse',
   'cryptojobslist',
   'web3career',

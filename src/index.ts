@@ -5,6 +5,7 @@ import { fetchCryptoJobsList } from './fetchers/cryptojobslist.js';
 import { fetchGreenhouse } from './fetchers/greenhouse.js';
 import { fetchHnHiring } from './fetchers/hn-hiring.js';
 import { fetchHnJobs } from './fetchers/hn-jobs.js';
+import { fetchLever } from './fetchers/lever.js';
 import { fetchRemoteOk } from './fetchers/remoteok.js';
 import { fetchRemotive } from './fetchers/remotive.js';
 import { fetchWeb3Career } from './fetchers/web3career.js';
@@ -17,6 +18,7 @@ import {
   normalizeGreenhouse,
   normalizeHnHiring,
   normalizeHnJobs,
+  normalizeLever,
   normalizeRemoteOk,
   normalizeRemotive,
   normalizeWeb3Career,
@@ -73,6 +75,7 @@ async function main(): Promise<void> {
     processFetcher('hn-jobs', fetchHnJobs, normalizeHnJobs, fetchedAt, today),
     processFetcher('greenhouse', fetchGreenhouse, normalizeGreenhouse, fetchedAt, today),
     processFetcher('ashby', fetchAshby, normalizeAshby, fetchedAt, today),
+    processFetcher('lever', fetchLever, normalizeLever, fetchedAt, today),
   ]);
 
   const allJobs = tasks.flatMap((t) => t.jobs);
