@@ -253,6 +253,38 @@ describe('applyFilters — scoring', () => {
     expect(r.kept[0]?._signals?.frontendTitle).toBe(10);
   });
 
+  it('halves stackPrimary weight when only one stack keyword appears', () => {
+    const r = applyFilters([
+      makeJob({
+        title: 'Senior Engineer',
+        body: 'You will work with React on our platform. anthropic claude remote.',
+      }),
+    ]);
+    // Only "react" once → tiered to half-weight (10 → 5).
+    expect(r.kept[0]?._signals?.stackPrimary).toBe(5);
+  });
+
+  it('boosts stackPrimary 1.5× when stack keywords appear 4+ times', () => {
+    const r = applyFilters([
+      makeJob({
+        title: 'Senior Engineer',
+        body: 'react components, react hooks, react router, react context, typescript everywhere, next.js. anthropic claude remote.',
+      }),
+    ]);
+    // 6 occurrences of stackPrimary → 1.5× boost (10 → 15).
+    expect(r.kept[0]?._signals?.stackPrimary).toBe(15);
+  });
+
+  it('boosts frontendBody 1.5× on multiple role-specific phrases', () => {
+    const r = applyFilters([
+      makeJob({
+        title: 'Senior Engineer',
+        body: 'Own the design system, ship react components, drive accessibility, optimise web vitals, and mentor on responsive design. anthropic claude remote.',
+      }),
+    ]);
+    expect(r.kept[0]?._signals?.frontendBody).toBe(15);
+  });
+
   it('does not award frontend bonus to generic Software Engineer titles', () => {
     const r = applyFilters([
       makeJob({

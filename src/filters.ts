@@ -9,6 +9,24 @@ function compileKw(fragments: readonly string[]): RegExp {
   return new RegExp(`\\b(${fragments.join('|')})\\b`, 'i');
 }
 
+function compileKwGlobal(fragments: readonly string[]): RegExp {
+  return new RegExp(`\\b(${fragments.join('|')})\\b`, 'gi');
+}
+
+function countMatches(re: RegExp, text: string): number {
+  return text.match(re)?.length ?? 0;
+}
+
+// Tier the binary keyword score by occurrence count: 1 mention is half-weight,
+// 2-3 is the original weight, 4+ gets a 1.5× boost. Lets a body where "react"
+// appears 8 times outscore one where it appears once in a "nice to have" list.
+function tieredWeight(count: number, baseWeight: number): number {
+  if (count === 0) return 0;
+  if (count === 1) return Math.floor(baseWeight * 0.5);
+  if (count <= 3) return baseWeight;
+  return Math.floor(baseWeight * 1.5);
+}
+
 const TITLE_JUNIOR = compileKw(profile.keywords.junior);
 const TITLE_SENIOR_REQ = compileKw(profile.keywords.seniorReq);
 const TITLE_ENGINEERING_KW = compileKw(profile.keywords.engineering);
@@ -23,13 +41,13 @@ const W3_TITLE_BODY = compileKw(profile.keywords.w3TitleBody);
 const W3_STACK = compileKw(profile.keywords.w3Stack);
 const AI_TITLE_BODY = compileKw(profile.keywords.aiTitleBody);
 const AI_STACK = compileKw(profile.keywords.aiStack);
-const STACK_PRIMARY = compileKw(profile.keywords.stackPrimary);
-const STACK_RN = compileKw(profile.keywords.stackRn);
-const STACK_OTHER = compileKw(profile.keywords.stackOther);
+const STACK_PRIMARY_G = compileKwGlobal(profile.keywords.stackPrimary);
+const STACK_RN_G = compileKwGlobal(profile.keywords.stackRn);
+const STACK_OTHER_G = compileKwGlobal(profile.keywords.stackOther);
 const TITLE_LEAD = compileKw(profile.keywords.titleLead);
 const TITLE_SENIOR = compileKw(profile.keywords.titleSenior);
 const TITLE_FRONTEND_KW = compileKw(profile.keywords.titleFrontend);
-const BODY_FRONTEND_KW = compileKw(profile.keywords.bodyFrontend);
+const BODY_FRONTEND_KW_G = compileKwGlobal(profile.keywords.bodyFrontend);
 const LOC_REMOTE = compileKw(profile.keywords.locationRemote);
 const REMOTE_WORLD = compileKw(profile.keywords.remoteWorld);
 const US_CENTRIC_SOFT = compileKw(profile.keywords.usCentricSoft);
@@ -98,13 +116,13 @@ export function applyFilters(jobs: Job[]): FilterResult {
       web3Stack: W3_STACK.test(scoringBody) ? W.web3Stack : 0,
       aiTitleBody: AI_TITLE_BODY.test(scoringTitleAndBody) ? W.aiTitleBody : 0,
       aiStack: AI_STACK.test(scoringBody) ? W.aiStack : 0,
-      stackPrimary: STACK_PRIMARY.test(scoringBody) ? W.stackPrimary : 0,
-      stackRn: STACK_RN.test(scoringBody) ? W.stackRn : 0,
-      stackOther: STACK_OTHER.test(scoringBody) ? W.stackOther : 0,
+      stackPrimary: tieredWeight(countMatches(STACK_PRIMARY_G, scoringBody), W.stackPrimary),
+      stackRn: tieredWeight(countMatches(STACK_RN_G, scoringBody), W.stackRn),
+      stackOther: tieredWeight(countMatches(STACK_OTHER_G, scoringBody), W.stackOther),
       leadTitle: TITLE_LEAD.test(title) ? W.leadTitle : 0,
       seniorTitle: TITLE_SENIOR.test(title) ? W.seniorTitle : 0,
       frontendTitle: TITLE_FRONTEND_KW.test(title) ? W.frontendTitle : 0,
-      frontendBody: BODY_FRONTEND_KW.test(scoringBody) ? W.frontendBody : 0,
+      frontendBody: tieredWeight(countMatches(BODY_FRONTEND_KW_G, scoringBody), W.frontendBody),
       locationRemote: LOC_REMOTE.test(locText) ? W.locationRemote : 0,
       freshness7d: fresh7 ? W.freshness7d : 0,
       freshness14d: !fresh7 && withinDays(job.postedAt, 14) ? W.freshness14d : 0,
