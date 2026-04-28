@@ -1,6 +1,7 @@
 import { loadAppliedMap } from './applied.js';
 import { dedupe } from './dedup.js';
 import { renderFeed } from './feed.js';
+import { fetchAave } from './fetchers/aave.js';
 import { fetchAiJobsNet } from './fetchers/aijobsnet.js';
 import { fetchAshby } from './fetchers/ashby.js';
 import { fetchCryptoJobsList } from './fetchers/cryptojobslist.js';
@@ -14,6 +15,7 @@ import { fetchWeb3Career } from './fetchers/web3career.js';
 import { fetchWeWorkRemotely } from './fetchers/weworkremotely.js';
 import { applyFilters } from './filters.js';
 import {
+  normalizeAave,
   normalizeAiJobsNet,
   normalizeAshby,
   normalizeCryptoJobsList,
@@ -79,6 +81,7 @@ async function main(): Promise<void> {
     processFetcher('greenhouse', fetchGreenhouse, normalizeGreenhouse, fetchedAt, today),
     processFetcher('ashby', fetchAshby, normalizeAshby, fetchedAt, today),
     processFetcher('lever', fetchLever, normalizeLever, fetchedAt, today),
+    processFetcher('aave', fetchAave, normalizeAave, fetchedAt, today),
   ]);
 
   const allJobs = tasks.flatMap((t) => t.jobs);

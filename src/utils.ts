@@ -219,3 +219,9 @@ export const JSON_HEADERS: Record<string, string> = {
   'User-Agent': DEFAULT_USER_AGENT,
   Accept: 'application/json',
 };
+
+export const HTML_HEADERS: Record<string, string> = {
+  'User-Agent': DEFAULT_USER_AGENT,
+  Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+  'Accept-Language': 'en-US,en;q=0.9',
+};

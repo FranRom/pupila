@@ -2,6 +2,7 @@ import type { Job, Source } from './types.js';
 import { normalizeText, sha1Hex } from './utils.js';
 
 const SOURCE_PRIORITY: Record<Source, number> = {
+  aave: 12,
   ashby: 11,
   lever: 10,
   greenhouse: 9,

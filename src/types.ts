@@ -9,7 +9,8 @@ export type Source =
   | 'hn-jobs'
   | 'greenhouse'
   | 'ashby'
-  | 'lever';
+  | 'lever'
+  | 'aave';
 
 export type Category = 'web3' | 'ai' | 'web3+ai' | 'general';
 
@@ -225,6 +226,19 @@ export interface RawAiJobs {
   seniority: string | null;
   companyAndLocation: string | null;
   postedRelative: string | null;
+}
+
+export interface RawAavePost {
+  id: string;
+  slug: string;
+  title: string;
+  summary?: string | null;
+  description?: string | null;
+  team?: string | null;
+  department?: string | null;
+  location?: string | null;
+  commitment?: string | null;
+  workplaceType?: string | null;
 }
 
 export interface FetcherResult<T> {

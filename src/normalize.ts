@@ -2,6 +2,7 @@ import { rssLink } from './rss.js';
 import { parseSalary } from './salary.js';
 import type {
   Job,
+  RawAavePost,
   RawAiJobs,
   RawAshbyJobWithSlug,
   RawGreenhouseJobWithSlug,
@@ -404,6 +405,33 @@ function formatLeverSalary(
   const fmt = (n: number) => (n >= 1000 ? `${Math.round(n / 1000)}K` : `${n}`);
   const ccy = range.currency ?? '';
   return `${fmt(min)}-${fmt(max)} ${ccy}`.trim();
+}
+
+export function normalizeAave(items: RawAavePost[], fetchedAt: string): Job[] {
+  return items.map((p) => {
+    const url = `https://aave.com/careers/${p.slug}`;
+    const remote = p.workplaceType === 'remote';
+    const body = asPlain(
+      [p.summary, p.description].filter((x): x is string => Boolean(x)).join('\n\n'),
+    );
+    const tags = joinTags([p.team, p.department, p.commitment, p.workplaceType, 'aave']);
+    return {
+      id: makeId('aave', url, p.id),
+      source: 'aave',
+      title: p.title.trim(),
+      company: 'Aave',
+      url,
+      location: p.location?.trim() || null,
+      remote,
+      body,
+      tags,
+      ...withSalary(null),
+      postedAt: null,
+      fetchedAt,
+      fitScore: 0,
+      category: 'general',
+    };
+  });
 }
 
 export function normalizeGreenhouse(items: RawGreenhouseJobWithSlug[], fetchedAt: string): Job[] {
