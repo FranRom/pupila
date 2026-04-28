@@ -1,14 +1,8 @@
+import slugs from '../../config/slugs.json' with { type: 'json' };
 import type { RawLeverJob, RawLeverJobWithSlug } from '../types.js';
 import { fetchJson, JSON_HEADERS } from '../utils.js';
 
-export const TIER_S_LEVER_SLUGS = [
-  'ledger',
-  'binance',
-  'coingecko',
-  'coinmarketcap',
-  'safe',
-  'arbitrumfoundation',
-] as const;
+export const TIER_S_LEVER_SLUGS: readonly string[] = slugs.lever;
 
 const board = (slug: string) => `https://api.lever.co/v0/postings/${slug}?mode=json`;
 

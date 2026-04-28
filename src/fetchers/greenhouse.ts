@@ -1,22 +1,8 @@
+import slugs from '../../config/slugs.json' with { type: 'json' };
 import type { RawGreenhouseJob, RawGreenhouseJobWithSlug } from '../types.js';
 import { fetchJson, JSON_HEADERS } from '../utils.js';
 
-export const TIER_S_SLUGS = [
-  'anthropic',
-  'vercel',
-  'linear',
-  'ramp',
-  'mercury',
-  'coinbase',
-  'uniswaplabs',
-  'aave',
-  'chainlink',
-  'morpho',
-  'lifi',
-  'mysten-labs',
-  'magiceden',
-  'ledger',
-] as const;
+export const TIER_S_SLUGS: readonly string[] = slugs.greenhouse;
 
 const board = (slug: string) =>
   `https://boards-api.greenhouse.io/v1/boards/${slug}/jobs?content=true`;
