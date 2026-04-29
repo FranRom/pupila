@@ -211,7 +211,7 @@ When tuning regexes, run `pnpm run dev`, then `jq '.[0]._signals' data/jobs.json
 
 ## Application tracking
 
-`config/applied.json` is a hand-edited list of jobs you've applied to. Schema in `src/types.ts`:
+`config/applied.json` is the source of truth for jobs you've applied to. It can be hand-edited, but day-to-day it's written by the local UI via the dev-server middleware (see "Local UI"). Schema in `src/types.ts`:
 
 ```ts
 type ApplicationStatus = 'applied' | 'interview' | 'offer' | 'rejected' | 'withdrawn';
@@ -228,6 +228,8 @@ Wired in `src/index.ts` after dedup+sort: every kept job gets `job.applied = app
 2. Prefixes the title cell with the status emoji in every category section so already-applied jobs are still visible (deliberate — you may want to follow up or compare against a duplicate posting).
 
 **Don't filter applied jobs out of the main list.** The user explicitly asked for them to remain visible.
+
+**Persistence model.** Edits made via the UI go straight to disk (`config/applied.json`), but they only carry across `pnpm run dev` runs because the next pipeline run reads that file. To survive across machines / a fresh checkout / a CI run, the user has to commit `config/applied.json`. The auto-commit pattern in `jobs.yml` does NOT include `config/applied.json` — that's deliberate (the workflow shouldn't touch user-owned config), so this is a manual `git commit` step in the daily routine.
 
 ## Dedup
 
@@ -318,6 +320,8 @@ Single-component MVP (no router, no state-management lib): filter chips for cate
 **Group by company (default on).** When the `Group by company` checkbox is on, jobs fold by lower-cased `company` field. Single-job "groups" render flat (no header noise) — only multi-job companies get a collapsible header row showing top score + role count + a one-line preview of the top role. Click the header to reveal the rest. The active sort key (`fitScore` / `salaryMax` / `postedAt`) drives both the within-group order and the inter-group order (using each group's top job as the comparator). Toggle off for a flat view.
 
 **URL-encoded state.** All filter / sort / group / expand state syncs to `window.location.search` via `history.replaceState` (no back-button spam). Keys: `q` (search), `cat`, `src`, `applied=1`, `sort`, `dir=asc`, `group=0` (only when off, since on is the default), `expanded=<jobId>`, `co=<lowercased-company>`. Defaults are omitted from the URL to keep it short. On load the App reads the URL once via a `useMemo` lazy initializer; afterwards a single `useEffect` writes back any state change. **Don't use `pushState`** — every keystroke would create a history entry.
+
+**Mark-as-applied from the UI.** The expanded detail panel has an "Applied" bar with status pills (📝 applied / 💬 interview / 🎯 offer / ❌ rejected / ⏸ withdrawn) plus a notes input. Clicking a pill toggles the status; clicking the active pill again clears it. Notes save on blur or Enter. All edits go through a small Vite middleware (`appliedApiPlugin` in `ui/vite.config.ts`) exposing `GET / POST / DELETE /api/applied`, which reads/writes `config/applied.json` directly. The UI uses optimistic updates (the pill flips immediately; a failure rolls back and surfaces a banner). On mount, the App fetches `/api/applied` and reconciles with the baked-in `j.applied` field from `jobs.json`, so hand-edits or changes from a prior session show up correctly. The middleware only runs under `pnpm run ui` — a static `pnpm run ui:build` preview won't have it (the UI silently falls back to the baked-in state). `config/applied.json` is the same file `loadAppliedMap` reads in `pnpm run dev`, so subsequent pipeline runs pick up UI edits with no extra plumbing. **The user must `git add config/applied.json && git commit` to keep edits across machines / a fresh checkout / a CI run** — the workflow's auto-commit pattern deliberately doesn't include `config/applied.json`.
 
 `ui/src/types.ts` is a deliberate copy of the relevant subset of `src/types.ts` (`Job`, `JobSignals`, `AppliedEntry`, `AiReview`, `AiReviews`). The pipeline strips `body` from the persisted `data/jobs.json`, but **`_signals` is kept** so the UI can render it without re-running scoring. Don't rewrite ui/src/types.ts to import from `src/types.ts` — that pulls in `with { type: 'json' }` config imports that don't resolve in the browser context.
 

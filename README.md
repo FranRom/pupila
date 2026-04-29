@@ -247,7 +247,7 @@ Each table row: `Score | Title | Company | Source | Posted (relative) | Link`. T
 
 ## Application tracking
 
-[`config/applied.json`](./config/applied.json) is a hand-edited list of jobs you've applied to. Schema:
+[`config/applied.json`](./config/applied.json) is the source of truth for jobs you've applied to. The fastest way to update it is from the UI: open a job's detail panel and click a status pill.
 
 ```jsonc
 [
@@ -261,6 +261,23 @@ Each table row: `Score | Title | Company | Source | Posted (relative) | Link`. T
 ```
 
 [`src/applied.ts`](./src/applied.ts) loads the file at run-time, hashes each `url` with the same `sha1(normalizeUrl(...))` used for `Job.id`, and attaches the matching entry as `Job.applied`. Matched jobs are surfaced in the "📋 Application status" section at the top of `JOBS.md` *and* keep appearing in their normal category section with the status emoji prefix — a deliberate choice so already-applied jobs aren't filtered out (you may want to re-check, follow up, or compare against a new posting).
+
+### Marking jobs as applied (UI flow)
+
+When `pnpm run ui` is running, the dev server exposes a tiny `GET / POST / DELETE /api/applied` middleware that reads/writes `config/applied.json` directly. In the UI:
+
+1. Click any row to expand the detail panel.
+2. The "Status" bar at the top has five pills (📝 applied / 💬 interview / 🎯 offer / ❌ rejected / ⏸ withdrawn). Click one to set, click again to clear.
+3. The notes input next to the pills saves on blur or Enter.
+
+Edits are optimistic — the row updates instantly and the file is written behind the scenes. A failure rolls back and shows a banner. **Persistence:** the change is on disk immediately for the next `pnpm run dev`, but to keep it across machines / a fresh clone / the next CI run, commit `config/applied.json`:
+
+```bash
+git add config/applied.json
+git commit -m "chore: applied to <company>"
+```
+
+The daily workflow's auto-commit deliberately doesn't touch `config/applied.json`, so this is a manual step. Hand-editing the JSON still works — the UI re-reads it on next mount.
 
 ## AI per-job review
 

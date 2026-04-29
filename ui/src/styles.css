@@ -555,3 +555,143 @@ tbody tr.indent td.score {
   background: var(--badge-rejected-bg);
   color: var(--badge-rejected-fg);
 }
+
+/* Applied controls (in detail panel) */
+
+.applied-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.625rem 1.25rem;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+  font-size: 0.8125rem;
+}
+
+.applied-label {
+  color: var(--muted);
+  text-transform: uppercase;
+  font-size: 0.6875rem;
+  letter-spacing: 0.04em;
+  font-weight: 600;
+}
+
+.applied-pills {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+}
+
+.applied-bar .pill {
+  padding: 0.25rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg);
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-family: inherit;
+  cursor: pointer;
+  text-transform: lowercase;
+  letter-spacing: 0.02em;
+}
+
+.applied-bar .pill:hover {
+  background: var(--row-hover);
+  color: var(--fg);
+}
+
+.applied-bar .pill-active {
+  font-weight: 700;
+  border-color: currentColor;
+  box-shadow:
+    0 0 0 2px var(--bg),
+    0 0 0 3px currentColor;
+}
+
+.applied-bar .pill-check {
+  margin-right: 0.125rem;
+  font-weight: 700;
+}
+
+.applied-bar .pill-applied {
+  background: var(--badge-applied-bg);
+  color: var(--badge-applied-fg);
+}
+
+.applied-bar .pill-interview {
+  background: var(--badge-interview-bg);
+  color: var(--badge-interview-fg);
+}
+
+.applied-bar .pill-offer {
+  background: var(--badge-offer-bg);
+  color: var(--badge-offer-fg);
+}
+
+.applied-bar .pill-rejected {
+  background: var(--badge-rejected-bg);
+  color: var(--badge-rejected-fg);
+}
+
+.applied-bar .pill-withdrawn {
+  background: var(--badge-withdrawn-bg);
+  color: var(--badge-withdrawn-fg);
+}
+
+.applied-clear {
+  border: 1px dashed var(--border);
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.75rem;
+  cursor: pointer;
+  padding: 0.25rem 0.5rem;
+  border-radius: 999px;
+}
+
+.applied-clear:hover {
+  color: var(--badge-rejected-fg);
+  border-color: var(--badge-rejected-fg);
+}
+
+.applied-notes {
+  flex: 1 1 200px;
+  min-width: 160px;
+  padding: 0.25rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: inherit;
+  font-size: 0.8125rem;
+}
+
+.applied-notes:focus {
+  outline: 1px solid var(--accent);
+  outline-offset: -1px;
+}
+
+.api-error {
+  margin-bottom: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  background: var(--badge-rejected-bg);
+  color: var(--badge-rejected-fg);
+  border-radius: 4px;
+  font-size: 0.8125rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.api-error button {
+  border: 1px solid currentColor;
+  background: transparent;
+  color: inherit;
+  padding: 0.125rem 0.5rem;
+  border-radius: 4px;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.75rem;
+}

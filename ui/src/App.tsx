@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import aiReviewsData from '../../data/ai-reviews.json' with { type: 'json' };
 import jobsData from '../../data/jobs.json' with { type: 'json' };
 import type {
   AiReview,
   AiReviews,
   ApplicationStatus,
+  AppliedEntry,
   Category,
   Job,
   JobSignals,
@@ -21,6 +22,14 @@ const STATUS_EMOJI: Record<ApplicationStatus, string> = {
   rejected: '❌',
   withdrawn: '⏸',
 };
+
+const STATUS_OPTIONS: ApplicationStatus[] = [
+  'applied',
+  'interview',
+  'offer',
+  'rejected',
+  'withdrawn',
+];
 
 const CATEGORY_OPTIONS: ReadonlyArray<Category | 'all'> = [
   'all',
@@ -42,6 +51,9 @@ interface CompanyGroup {
   topScore: number;
   topJob: Job;
 }
+
+type AppliedMap = Record<string, AppliedEntry>;
+type SetApplied = (job: Job, status: ApplicationStatus | null, notes?: string) => Promise<void>;
 
 function readUrl(): {
   search: string;
@@ -72,6 +84,14 @@ function readUrl(): {
   };
 }
 
+function buildInitialApplied(): AppliedMap {
+  const out: AppliedMap = {};
+  for (const j of ALL_JOBS) {
+    if (j.applied) out[j.id] = j.applied;
+  }
+  return out;
+}
+
 export function App() {
   const initial = useMemo(() => readUrl(), []);
   const [search, setSearch] = useState(initial.search);
@@ -83,6 +103,34 @@ export function App() {
   const [groupByCompany, setGroupByCompany] = useState(initial.groupByCompany);
   const [expanded, setExpanded] = useState<string | null>(initial.expanded);
   const [expandedCompany, setExpandedCompany] = useState<string | null>(initial.expandedCompany);
+  const [appliedById, setAppliedById] = useState<AppliedMap>(buildInitialApplied);
+  const [apiError, setApiError] = useState<string | null>(null);
+
+  // On mount, sync from /api/applied so changes hand-edited or made via a
+  // previous UI session (since the last `pnpm run dev`) override the baked-in
+  // state from jobs.json.
+  useEffect(() => {
+    let cancelled = false;
+    fetch('/api/applied')
+      .then((r) => (r.ok ? (r.json() as Promise<AppliedEntry[]>) : Promise.reject(r.status)))
+      .then((entries) => {
+        if (cancelled) return;
+        const byUrl = new Map(entries.map((e) => [e.url, e]));
+        const next: AppliedMap = {};
+        for (const j of ALL_JOBS) {
+          const e = byUrl.get(j.url);
+          if (e) next[j.id] = e;
+        }
+        setAppliedById(next);
+      })
+      .catch(() => {
+        // Middleware unavailable (e.g. running a static preview build) —
+        // fall back to the baked-in state from jobs.json.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // Sync state → URL via replaceState so the back button doesn't get spammed.
   useEffect(() => {
@@ -113,6 +161,68 @@ export function App() {
     expandedCompany,
   ]);
 
+  const setApplied = useCallback<SetApplied>(async (job, status, notes) => {
+    let prevSnapshot: AppliedEntry | undefined;
+    setAppliedById((prev) => {
+      prevSnapshot = prev[job.id];
+      return prev;
+    });
+
+    if (status === null) {
+      setAppliedById((prev) => {
+        const next = { ...prev };
+        delete next[job.id];
+        return next;
+      });
+      try {
+        const res = await fetch('/api/applied', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url: job.url }),
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        setApiError(null);
+      } catch (err) {
+        setAppliedById((prev) => {
+          if (!prevSnapshot) return prev;
+          return { ...prev, [job.id]: prevSnapshot };
+        });
+        setApiError(`Failed to clear status: ${err instanceof Error ? err.message : String(err)}`);
+      }
+      return;
+    }
+
+    const today = new Date().toISOString().slice(0, 10);
+    const finalNotes = notes !== undefined ? notes : prevSnapshot?.notes;
+    const optimistic: AppliedEntry = {
+      url: job.url,
+      status,
+      date: prevSnapshot?.date ?? today,
+      ...(finalNotes ? { notes: finalNotes } : {}),
+    };
+    setAppliedById((prev) => ({ ...prev, [job.id]: optimistic }));
+
+    try {
+      const res = await fetch('/api/applied', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(optimistic),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const saved = (await res.json()) as AppliedEntry;
+      setAppliedById((prev) => ({ ...prev, [job.id]: saved }));
+      setApiError(null);
+    } catch (err) {
+      setAppliedById((prev) => {
+        const next = { ...prev };
+        if (prevSnapshot) next[job.id] = prevSnapshot;
+        else delete next[job.id];
+        return next;
+      });
+      setApiError(`Failed to save status: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }, []);
+
   const sources = useMemo(() => {
     const s = new Set<Source>();
     for (const j of ALL_JOBS) s.add(j.source);
@@ -124,7 +234,7 @@ export function App() {
     const filtered = ALL_JOBS.filter((j) => {
       if (category !== 'all' && j.category !== category) return false;
       if (source !== 'all' && j.source !== source) return false;
-      if (appliedOnly && !j.applied) return false;
+      if (appliedOnly && !appliedById[j.id]) return false;
       if (q) {
         const hay = `${j.title} ${j.company ?? ''} ${j.location ?? ''}`.toLowerCase();
         if (!hay.includes(q)) return false;
@@ -139,7 +249,7 @@ export function App() {
       return av < bv ? -1 * dir : 1 * dir;
     });
     return filtered;
-  }, [search, category, source, appliedOnly, sortKey, sortDir]);
+  }, [search, category, source, appliedOnly, sortKey, sortDir, appliedById]);
 
   // When grouping is on, fold jobs by lower-cased company. Single-job
   // "groups" render flat (no header); only multi-job groups get a collapsible
@@ -181,7 +291,7 @@ export function App() {
     return counts;
   }, []);
 
-  const appliedCount = useMemo(() => ALL_JOBS.filter((j) => j.applied).length, []);
+  const appliedCount = useMemo(() => Object.keys(appliedById).length, [appliedById]);
 
   function toggleSort(key: SortKey) {
     if (sortKey === key) setSortDir(sortDir === 'desc' ? 'asc' : 'desc');
@@ -205,6 +315,15 @@ export function App() {
           showing <strong>{visible.length}</strong>
         </div>
       </header>
+
+      {apiError && (
+        <div className="api-error" role="alert">
+          {apiError}{' '}
+          <button type="button" onClick={() => setApiError(null)}>
+            dismiss
+          </button>
+        </div>
+      )}
 
       <div className="filters">
         <input
@@ -303,6 +422,8 @@ export function App() {
                     group={g}
                     isOpen={expandedCompany === g.key}
                     expanded={expanded}
+                    appliedById={appliedById}
+                    setApplied={setApplied}
                     onToggleCompany={() =>
                       setExpandedCompany(expandedCompany === g.key ? null : g.key)
                     }
@@ -318,6 +439,8 @@ export function App() {
                       job={j}
                       isOpen={isOpen}
                       review={review}
+                      applied={appliedById[j.id]}
+                      setApplied={setApplied}
                       onToggle={() => setExpanded(isOpen ? null : j.id)}
                     />
                   );
@@ -333,6 +456,8 @@ interface CompanyBlockProps {
   group: CompanyGroup;
   isOpen: boolean;
   expanded: string | null;
+  appliedById: AppliedMap;
+  setApplied: SetApplied;
   onToggleCompany: () => void;
   onToggleJob: (id: string) => void;
 }
@@ -341,6 +466,8 @@ function CompanyBlock({
   group,
   isOpen,
   expanded,
+  appliedById,
+  setApplied,
   onToggleCompany,
   onToggleJob,
 }: CompanyBlockProps) {
@@ -354,6 +481,8 @@ function CompanyBlock({
         job={job}
         isOpen={jobOpen}
         review={AI_REVIEWS[job.id]}
+        applied={appliedById[job.id]}
+        setApplied={setApplied}
         onToggle={() => onToggleJob(job.id)}
       />
     );
@@ -388,6 +517,8 @@ function CompanyBlock({
               job={j}
               isOpen={jobOpen}
               review={AI_REVIEWS[j.id]}
+              applied={appliedById[j.id]}
+              setApplied={setApplied}
               onToggle={() => onToggleJob(j.id)}
               indent
             />
@@ -401,12 +532,22 @@ interface FragmentRowProps {
   job: Job;
   isOpen: boolean;
   review: AiReview | undefined;
+  applied: AppliedEntry | undefined;
+  setApplied: SetApplied;
   onToggle: () => void;
   indent?: boolean;
 }
 
-function FragmentRow({ job, isOpen, review, onToggle, indent }: FragmentRowProps) {
-  const rowClass = [job.applied ? 'applied' : '', isOpen ? 'open' : '', indent ? 'indent' : '']
+function FragmentRow({
+  job,
+  isOpen,
+  review,
+  applied,
+  setApplied,
+  onToggle,
+  indent,
+}: FragmentRowProps) {
+  const rowClass = [applied ? 'applied' : '', isOpen ? 'open' : '', indent ? 'indent' : '']
     .filter(Boolean)
     .join(' ');
   return (
@@ -420,9 +561,9 @@ function FragmentRow({ job, isOpen, review, onToggle, indent }: FragmentRowProps
         </td>
         <td className="title" title={job.title}>
           <span className="clamp-2">
-            {job.applied && (
-              <span className={`badge badge-${job.applied.status}`} title={job.applied.notes}>
-                {STATUS_EMOJI[job.applied.status]} {job.applied.status}
+            {applied && (
+              <span className={`badge badge-${applied.status}`} title={applied.notes}>
+                {STATUS_EMOJI[applied.status]} {applied.status}
               </span>
             )}
             {review && <span className={`badge verdict-${review.verdict}`}>{review.verdict}</span>}
@@ -451,7 +592,7 @@ function FragmentRow({ job, isOpen, review, onToggle, indent }: FragmentRowProps
       {isOpen && (
         <tr className="detail-row">
           <td colSpan={7}>
-            <DetailPanel job={job} review={review} />
+            <DetailPanel job={job} review={review} applied={applied} setApplied={setApplied} />
           </td>
         </tr>
       )}
@@ -462,46 +603,139 @@ function FragmentRow({ job, isOpen, review, onToggle, indent }: FragmentRowProps
 interface DetailPanelProps {
   job: Job;
   review: AiReview | undefined;
+  applied: AppliedEntry | undefined;
+  setApplied: SetApplied;
 }
 
-function DetailPanel({ job, review }: DetailPanelProps) {
+function DetailPanel({ job, review, applied, setApplied }: DetailPanelProps) {
   return (
-    <div className="detail">
-      <section>
-        <h3>AI take</h3>
-        {review ? (
-          <ReviewBody review={review} />
+    <>
+      <AppliedBar job={job} applied={applied} setApplied={setApplied} />
+      <div className="detail">
+        <section>
+          <h3>AI take</h3>
+          {review ? (
+            <ReviewBody review={review} />
+          ) : (
+            <p className="placeholder">
+              No AI review yet — run <code>pnpm run ai-review</code> after the next pipeline run.
+            </p>
+          )}
+        </section>
+        <section>
+          <h3>Score breakdown</h3>
+          {job._signals ? (
+            <SignalsList signals={job._signals} />
+          ) : (
+            <p className="placeholder">
+              No <code>_signals</code> on this job (older entry).
+            </p>
+          )}
+        </section>
+        <section>
+          <h3>Meta</h3>
+          <dl className="meta">
+            <dt>Location</dt>
+            <dd>
+              {job.location ?? '—'} {job.remote ? '· remote' : ''}
+            </dd>
+            <dt>Tags</dt>
+            <dd>{job.tags.length ? job.tags.join(', ') : '—'}</dd>
+            <dt>Posted</dt>
+            <dd>{job.postedAt ? new Date(job.postedAt).toLocaleDateString() : 'unknown'}</dd>
+            <dt>ID</dt>
+            <dd className="mono">{job.id}</dd>
+          </dl>
+        </section>
+      </div>
+    </>
+  );
+}
+
+interface AppliedBarProps {
+  job: Job;
+  applied: AppliedEntry | undefined;
+  setApplied: SetApplied;
+}
+
+function AppliedBar({ job, applied, setApplied }: AppliedBarProps) {
+  const [notesDraft, setNotesDraft] = useState(applied?.notes ?? '');
+  // Reset the notes draft whenever the underlying entry changes (e.g. after
+  // server confirms or status switches via the pills).
+  useEffect(() => {
+    setNotesDraft(applied?.notes ?? '');
+  }, [applied?.notes]);
+
+  const persistNotes = () => {
+    if (!applied) return;
+    const trimmed = notesDraft.trim();
+    if (trimmed === (applied.notes ?? '')) return;
+    void setApplied(job, applied.status, trimmed);
+  };
+
+  return (
+    <div className="applied-bar">
+      <span className="applied-label">
+        {applied ? (
+          <>
+            Currently{' '}
+            <strong>
+              {STATUS_EMOJI[applied.status]} {applied.status}
+            </strong>{' '}
+            since {applied.date}
+          </>
         ) : (
-          <p className="placeholder">
-            No AI review yet — run <code>pnpm run ai-review</code> after the next pipeline run.
-          </p>
+          'Not applied'
         )}
-      </section>
-      <section>
-        <h3>Score breakdown</h3>
-        {job._signals ? (
-          <SignalsList signals={job._signals} />
-        ) : (
-          <p className="placeholder">
-            No <code>_signals</code> on this job (older entry).
-          </p>
+      </span>
+      <div className="applied-pills">
+        {STATUS_OPTIONS.map((s) => {
+          const active = applied?.status === s;
+          return (
+            <button
+              key={s}
+              type="button"
+              className={`pill ${active ? `pill-active pill-${s}` : ''}`}
+              aria-pressed={active}
+              onClick={() => void setApplied(job, active ? null : s)}
+              title={active ? 'Click to clear' : `Mark as ${s}`}
+            >
+              {active && (
+                <span className="pill-check" aria-hidden>
+                  ✓{' '}
+                </span>
+              )}
+              {STATUS_EMOJI[s]} {s}
+            </button>
+          );
+        })}
+        {applied && (
+          <button
+            type="button"
+            className="applied-clear"
+            onClick={() => void setApplied(job, null)}
+            title="Clear status"
+          >
+            clear
+          </button>
         )}
-      </section>
-      <section>
-        <h3>Meta</h3>
-        <dl className="meta">
-          <dt>Location</dt>
-          <dd>
-            {job.location ?? '—'} {job.remote ? '· remote' : ''}
-          </dd>
-          <dt>Tags</dt>
-          <dd>{job.tags.length ? job.tags.join(', ') : '—'}</dd>
-          <dt>Posted</dt>
-          <dd>{job.postedAt ? new Date(job.postedAt).toLocaleDateString() : 'unknown'}</dd>
-          <dt>ID</dt>
-          <dd className="mono">{job.id}</dd>
-        </dl>
-      </section>
+      </div>
+      {applied && (
+        <input
+          type="text"
+          className="applied-notes"
+          placeholder="notes (saved on blur)"
+          value={notesDraft}
+          onChange={(e) => setNotesDraft(e.target.value)}
+          onBlur={persistNotes}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              (e.target as HTMLInputElement).blur();
+            }
+          }}
+        />
+      )}
     </div>
   );
 }
