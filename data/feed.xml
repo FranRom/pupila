@@ -5,206 +5,190 @@
     <link>https://github.com/FranRom/job-hunt/blob/main/JOBS.md</link>
     <description>Daily senior frontend / web3 / AI engineering jobs new since the last run.</description>
     <language>en-us</language>
-    <lastBuildDate>Sun, 03 May 2026 08:49:30 GMT</lastBuildDate>
+    <lastBuildDate>Mon, 04 May 2026 09:23:44 GMT</lastBuildDate>
     <item>
-      <title>[57] Lead React Native Engineer — Hevy</title>
-      <link>https://news.ycombinator.com/item?id=47986567</link>
-      <guid isPermaLink="false">b5a53af8382f894d0bffba82fce0bbec75cf8684</guid>
-      <pubDate>Sat, 02 May 2026 14:13:26 GMT</pubDate>
+      <title>[70] Full Stack &amp;#x2F; Applied AI Engineer — Cora AI</title>
+      <link>https://news.ycombinator.com/item?id=48003986</link>
+      <guid isPermaLink="false">aea349f57cdffa425949b30e1ceb7d3ccca19e56</guid>
+      <pubDate>Mon, 04 May 2026 02:31:57 GMT</pubDate>
+      <category>ai</category>
+      <description><strong>Cora AI</strong> · Score: 70 · Source: hn-hiring · Category: ai</description>
+    </item>
+    <item>
+      <title>[65] Staff AI engineer — San Francisco</title>
+      <link>https://aijobs.net/job/staff-ai-engineer-san-francisco-112255/</link>
+      <guid isPermaLink="false">a32ddcfb5d42230ffe84d3f646044a01a8c2d40b</guid>
+      <pubDate>Sun, 03 May 2026 09:23:46 GMT</pubDate>
+      <category>ai</category>
+      <description><strong>San Francisco</strong> · 💰 USD 125K-170K · Score: 65 · Source: aijobsnet · Category: ai</description>
+    </item>
+    <item>
+      <title>[65] Tech Lead, AI Engineer, Senior&amp;#x2F;Lead Infra engineer&amp;#x2F;devops — EggAI</title>
+      <link>https://news.ycombinator.com/item?id=48005926</link>
+      <guid isPermaLink="false">70c53cfdd1ef139f37f06ece72fcfb40c0a9bef1</guid>
+      <pubDate>Mon, 04 May 2026 08:03:34 GMT</pubDate>
+      <category>ai</category>
+      <description><strong>EggAI</strong> · Score: 65 · Source: hn-hiring · Category: ai</description>
+    </item>
+    <item>
+      <title>[65] Senior Staff Software Engineer — Coinbase</title>
+      <link>https://www.coinbase.com/careers/positions/7881537?gh_jid=7881537</link>
+      <guid isPermaLink="false">9102ab6441a9908ebd23d93ebdd6ec8c0f24835f</guid>
+      <pubDate>Mon, 04 May 2026 00:52:36 GMT</pubDate>
+      <category>web3</category>
+      <description><strong>Coinbase</strong> · Remote - USA · Score: 65 · Source: greenhouse · Category: web3</description>
+    </item>
+    <item>
+      <title>[60] Full Stack Engineer — Kepler</title>
+      <link>https://news.ycombinator.com/item?id=47999884</link>
+      <guid isPermaLink="false">e0708824d8f95f8da584fce9d448043e98139528</guid>
+      <pubDate>Sun, 03 May 2026 18:28:34 GMT</pubDate>
+      <category>ai</category>
+      <description><strong>Kepler</strong> · Score: 60 · Source: hn-hiring · Category: ai</description>
+    </item>
+    <item>
+      <title>[50] AI Engineer — &amp;#x27;s-Hertogenbosch, NL, 5232 CE</title>
+      <link>https://aijobs.net/job/ai-engineer-s-hertogenbosch-nl-5232-ce-112253/</link>
+      <guid isPermaLink="false">6a0cafc1ef685064923a98adecee8c5593288934</guid>
+      <pubDate>Mon, 04 May 2026 05:23:46 GMT</pubDate>
+      <category>ai</category>
+      <description><strong>&amp;#x27;s-Hertogenbosch, NL, 5232 CE</strong> · 💰 EUR 60K-84K · Score: 50 · Source: aijobsnet · Category: ai</description>
+    </item>
+    <item>
+      <title>[50] Senior Rails Engineer — TrakPro</title>
+      <link>https://news.ycombinator.com/item?id=48000122</link>
+      <guid isPermaLink="false">024d9cc35b5a72a648da6fae826a3a06c8517299</guid>
+      <pubDate>Sun, 03 May 2026 18:51:22 GMT</pubDate>
+      <category>ai</category>
+      <description><strong>TrakPro</strong> · Score: 50 · Source: hn-hiring · Category: ai</description>
+    </item>
+    <item>
+      <title>[50] AI Engineer — Tel Aviv District, Israel</title>
+      <link>https://aijobs.net/job/ai-engineer-tel-aviv-district-israel-112143/</link>
+      <guid isPermaLink="false">b95e4dd4d2e0edc540c73b22f2d26384b32d09a5</guid>
+      <pubDate>Sun, 03 May 2026 14:23:46 GMT</pubDate>
+      <category>ai</category>
+      <description><strong>Tel Aviv District, Israel</strong> · 💰 Mid-level · Score: 50 · Source: aijobsnet · Category: ai</description>
+    </item>
+    <item>
+      <title>[45] Commercial GenAi Lead — Bucuresti, RO</title>
+      <link>https://aijobs.net/job/commercial-genai-lead-bucuresti-ro-112267/</link>
+      <guid isPermaLink="false">1ffbf708556d59856cdc54cc2e6040be95b6a691</guid>
+      <pubDate>Mon, 04 May 2026 00:23:46 GMT</pubDate>
+      <category>ai</category>
+      <description><strong>Bucuresti, RO</strong> · 💰 RON 180K-246K · Score: 45 · Source: aijobsnet · Category: ai</description>
+    </item>
+    <item>
+      <title>[45] Software Engineer (AI Data Engine, Staff/ Senior, Open Source, SaaS) — Worldwide R</title>
+      <link>https://aijobs.net/job/software-engineer-ai-data-engine-staff-senior-open-source-saas-worldwide-112190/</link>
+      <guid isPermaLink="false">75a161cdbd6d73379607cd42b8a0265ff8a7d58c</guid>
+      <pubDate>Sun, 03 May 2026 09:23:46 GMT</pubDate>
       <category>general</category>
-      <description><strong>Hevy</strong> · Score: 57 · Source: hn-hiring · Category: general</description>
+      <description><strong>Worldwide R</strong> · 💰 USD 155K-230K · Score: 45 · Source: aijobsnet · Category: general</description>
     </item>
     <item>
-      <title>[55] Principal Engineer, AI Systems — FunnelStory</title>
-      <link>https://news.ycombinator.com/item?id=47988194</link>
-      <guid isPermaLink="false">ac75b2d15c7c90d9648d07159d2857422335c618</guid>
-      <pubDate>Sat, 02 May 2026 17:04:51 GMT</pubDate>
-      <category>ai</category>
-      <description><strong>FunnelStory</strong> · Score: 55 · Source: hn-hiring · Category: ai</description>
-    </item>
-    <item>
-      <title>[50] Senior Software Engineer — Kraken Tech</title>
-      <link>https://news.ycombinator.com/item?id=47985200</link>
-      <guid isPermaLink="false">0a7653c39691fe37035f9e855dcad2eedb1fbc25</guid>
-      <pubDate>Sat, 02 May 2026 10:41:35 GMT</pubDate>
-      <category>ai</category>
-      <description><strong>Kraken Tech</strong> · Score: 50 · Source: hn-hiring · Category: ai</description>
-    </item>
-    <item>
-      <title>[50] Superhuman lead engineer. Lean startup and unix philosophy run deep at Mitte. We ship every day and like to design systems, be thoughtful ab</title>
-      <link>https://news.ycombinator.com/item?id=47984681</link>
-      <guid isPermaLink="false">3d043cc36b6d0f0704b68153a79a8b252bc2d3bd</guid>
-      <pubDate>Sat, 02 May 2026 08:55:18 GMT</pubDate>
-      <category>ai</category>
-      <description>Score: 50 · Source: hn-hiring · Category: ai</description>
-    </item>
-    <item>
-      <title>[45] Staff Engineer, Datacenter Server Lifecycle — Anthropic</title>
-      <link>https://job-boards.greenhouse.io/anthropic/jobs/5139038008</link>
-      <guid isPermaLink="false">863a3f6b3355d44ed739e42cc469c3759e100d10</guid>
-      <pubDate>Wed, 29 Apr 2026 05:03:18 GMT</pubDate>
-      <category>ai</category>
-      <description><strong>Anthropic</strong> · San Francisco, CA | New York City, NY | Seattle, WA · Score: 45 · Source: greenhouse · Category: ai</description>
-    </item>
-    <item>
-      <title>[45] Applied AI Architect, Industries — Anthropic</title>
-      <link>https://job-boards.greenhouse.io/anthropic/jobs/4977624008</link>
-      <guid isPermaLink="false">6e7ba79967e5edf96aca75d55813cf490feb29ad</guid>
-      <pubDate>Fri, 24 Apr 2026 19:38:24 GMT</pubDate>
-      <category>ai</category>
-      <description><strong>Anthropic</strong> · Munich, Germany · Score: 45 · Source: greenhouse · Category: ai</description>
-    </item>
-    <item>
-      <title>[45] Applied AI Architect — Anthropic</title>
-      <link>https://job-boards.greenhouse.io/anthropic/jobs/5117581008</link>
-      <guid isPermaLink="false">b2ecc7875c88c982a55254d0ef97fb82ba33275b</guid>
-      <pubDate>Fri, 24 Apr 2026 19:31:32 GMT</pubDate>
-      <category>ai</category>
-      <description><strong>Anthropic</strong> · Bangalore, India · Score: 45 · Source: greenhouse · Category: ai</description>
-    </item>
-    <item>
-      <title>[45] Staff Software Engineer, Inference — Anthropic</title>
-      <link>https://job-boards.greenhouse.io/anthropic/jobs/5097742008</link>
-      <guid isPermaLink="false">d99c9266d5848d9c2b6f95197e2d22ca20187b01</guid>
-      <pubDate>Wed, 01 Apr 2026 14:49:08 GMT</pubDate>
-      <category>ai</category>
-      <description><strong>Anthropic</strong> · London, UK · Score: 45 · Source: greenhouse · Category: ai</description>
-    </item>
-    <item>
-      <title>[44] Full-Stack Engineer with 2 years experience building consumer-facing applicatio</title>
-      <link>https://news.ycombinator.com/item?id=47989541</link>
-      <guid isPermaLink="false">041add03a65ab667e11f1eb4de46e4b027a0bc5d</guid>
-      <pubDate>Sat, 02 May 2026 19:22:40 GMT</pubDate>
+      <title>[45] Software (ML Product) Engineer (Staff/ Senior, Open Source, Python) — Worldwide R</title>
+      <link>https://aijobs.net/job/software-ml-product-engineer-staff-senior-open-source-python-worldwide-112231/</link>
+      <guid isPermaLink="false">647b9cf04bb46223b8af6b727cc302f3d7f476a9</guid>
+      <pubDate>Sun, 03 May 2026 09:23:46 GMT</pubDate>
       <category>general</category>
-      <description>Score: 44 · Source: hn-hiring · Category: general</description>
+      <description><strong>Worldwide R</strong> · 💰 USD 140K-200K · Score: 45 · Source: aijobsnet · Category: general</description>
     </item>
     <item>
-      <title>[42] Senior Frontend Product Engineer — Deducta</title>
-      <link>https://news.ycombinator.com/item?id=47985734</link>
-      <guid isPermaLink="false">f4c45e2676fc7d692ffe9c82c4641b0e11f99b89</guid>
-      <pubDate>Sat, 02 May 2026 12:14:57 GMT</pubDate>
+      <title>[45] Full-Stack Developer, AI Applications — Titan Ai</title>
+      <link>https://weworkremotely.com/remote-jobs/titan-ai-full-stack-developer-ai-applications</link>
+      <guid isPermaLink="false">6c8a5066298285dca91483fb1fc518c2b9624a23</guid>
+      <pubDate>Wed, 08 Apr 2026 20:32:08 GMT</pubDate>
+      <category>ai</category>
+      <description><strong>Titan Ai</strong> · Score: 45 · Source: weworkremotely · Category: ai</description>
+    </item>
+    <item>
+      <title>[40] Senior AI Engineer — Sydney, New South Wales, Australia</title>
+      <link>https://aijobs.net/job/senior-ai-engineer-sydney-new-south-wales-australia-112260/</link>
+      <guid isPermaLink="false">569e0a51f7828f589053a5283210a32038d18f4d</guid>
+      <pubDate>Mon, 04 May 2026 02:23:46 GMT</pubDate>
+      <category>ai</category>
+      <description><strong>Sydney, New South Wales, Australia</strong> · 💰 AUD 130K-178K · Score: 40 · Source: aijobsnet · Category: ai</description>
+    </item>
+    <item>
+      <title>[40] Senior AI Engineer — Abu Dhabi, AE</title>
+      <link>https://aijobs.net/job/senior-ai-engineer-abu-dhabi-ae-112262/</link>
+      <guid isPermaLink="false">287b58ac21e7a527ba38a0b0d8ce80b1368088d1</guid>
+      <pubDate>Mon, 04 May 2026 00:23:46 GMT</pubDate>
+      <category>ai</category>
+      <description><strong>Abu Dhabi, AE</strong> · 💰 AED 90K-108K · Score: 40 · Source: aijobsnet · Category: ai</description>
+    </item>
+    <item>
+      <title>[40] Sr. Software Engineer (AI/ML) (PhD / Postdoc) — Hyderabad, India</title>
+      <link>https://aijobs.net/job/sr-software-engineer-aiml-phd-postdoc-hyderabad-india-112258/</link>
+      <guid isPermaLink="false">c6e4c595825111888b3b3debf799f009bb12fd5b</guid>
+      <pubDate>Mon, 04 May 2026 06:23:46 GMT</pubDate>
+      <category>ai</category>
+      <description><strong>Hyderabad, India</strong> · 💰 INR 1500K-2400K · Score: 40 · Source: aijobsnet · Category: ai</description>
+    </item>
+    <item>
+      <title>[35] AI Lead (Brazil) — Remote/Brazil R</title>
+      <link>https://aijobs.net/job/ai-lead-brazil-remotebrazil-112268/</link>
+      <guid isPermaLink="false">78a6d9f1a4c9a8ed257c334645c0eafcc6829544</guid>
+      <pubDate>Sun, 03 May 2026 09:23:46 GMT</pubDate>
       <category>general</category>
-      <description><strong>Deducta</strong> · Score: 42 · Source: hn-hiring · Category: general</description>
+      <description><strong>Remote/Brazil R</strong> · 💰 BRL 144K-144K · Score: 35 · Source: aijobsnet · Category: general</description>
     </item>
     <item>
-      <title>[40] AI Engineer — Remote R</title>
-      <link>https://aijobs.net/job/ai-engineer-remote-111363/</link>
-      <guid isPermaLink="false">7d17b7a1d062e0794efabcac0b8c15d157fd78d9</guid>
-      <pubDate>Sat, 02 May 2026 08:49:32 GMT</pubDate>
-      <category>ai</category>
-      <description><strong>Remote R</strong> · 💰 USD 101K-175K · Score: 40 · Source: aijobsnet · Category: ai</description>
-    </item>
-    <item>
-      <title>[40] AI Workflow Engineer - Freelance AI Trainer — France - Remote R</title>
-      <link>https://aijobs.net/job/ai-workflow-engineer-freelance-ai-trainer-france-remote-111886/</link>
-      <guid isPermaLink="false">385085e2bf941a7d4b8b624aa5aace9334b93082</guid>
-      <pubDate>Sat, 02 May 2026 08:49:32 GMT</pubDate>
-      <category>ai</category>
-      <description><strong>France - Remote R</strong> · 💰 USD 120K-120K · Score: 40 · Source: aijobsnet · Category: ai</description>
-    </item>
-    <item>
-      <title>[40] AI Workflow Engineer - Freelance AI Trainer — Germany - Remote R</title>
-      <link>https://aijobs.net/job/ai-workflow-engineer-freelance-ai-trainer-germany-remote-111883/</link>
-      <guid isPermaLink="false">4ab8649fb2fb639aaae5abb25ffa2f881b06cc10</guid>
-      <pubDate>Sat, 02 May 2026 08:49:32 GMT</pubDate>
-      <category>ai</category>
-      <description><strong>Germany - Remote R</strong> · 💰 USD 120K-120K · Score: 40 · Source: aijobsnet · Category: ai</description>
-    </item>
-    <item>
-      <title>[40] AI Workflow Engineer - Freelance AI Trainer — Romania - Remote R</title>
-      <link>https://aijobs.net/job/ai-workflow-engineer-freelance-ai-trainer-romania-remote-111884/</link>
-      <guid isPermaLink="false">bd7042a92a496cd0c402c854f84aabec1a5ebe0c</guid>
-      <pubDate>Sat, 02 May 2026 08:49:32 GMT</pubDate>
-      <category>ai</category>
-      <description><strong>Romania - Remote R</strong> · 💰 USD 120K-120K · Score: 40 · Source: aijobsnet · Category: ai</description>
-    </item>
-    <item>
-      <title>[40] Sr.AI ML Developer (Python) — US-FL-Tampa</title>
-      <link>https://aijobs.net/job/srai-ml-developer-python-us-fl-tampa-111862/</link>
-      <guid isPermaLink="false">2a51f8911ff16f62a566fe85c46aa5f26a8cd864</guid>
-      <pubDate>Sat, 02 May 2026 12:49:32 GMT</pubDate>
-      <category>ai</category>
-      <description><strong>US-FL-Tampa</strong> · 💰 USD 115K · Score: 40 · Source: aijobsnet · Category: ai</description>
-    </item>
-    <item>
-      <title>[40] AI Workflow Engineer - Freelance AI Trainer — Spain - Remote R</title>
-      <link>https://aijobs.net/job/ai-workflow-engineer-freelance-ai-trainer-spain-remote-111888/</link>
-      <guid isPermaLink="false">4da9f687251a2dc41daba8ee6ec310a31118bf4a</guid>
-      <pubDate>Sat, 02 May 2026 08:49:32 GMT</pubDate>
-      <category>ai</category>
-      <description><strong>Spain - Remote R</strong> · 💰 USD 100K-100K · Score: 40 · Source: aijobsnet · Category: ai</description>
-    </item>
-    <item>
-      <title>[40] AI Workflow Engineer - Freelance AI Trainer — Portugal - Remote R</title>
-      <link>https://aijobs.net/job/ai-workflow-engineer-freelance-ai-trainer-portugal-remote-111882/</link>
-      <guid isPermaLink="false">f984f1b9cb9856d0c9c84db61165ce5f28bac8a0</guid>
-      <pubDate>Sat, 02 May 2026 08:49:32 GMT</pubDate>
-      <category>ai</category>
-      <description><strong>Portugal - Remote R</strong> · 💰 USD 100K-100K · Score: 40 · Source: aijobsnet · Category: ai</description>
-    </item>
-    <item>
-      <title>[40] Digital Full Stack Engineer HR172 — Smart Working Solutions</title>
-      <link>https://remoteOK.com/remote-jobs/remote-digital-full-stack-engineer-hr172-smart-working-solutions-1131414</link>
-      <guid isPermaLink="false">73a239ab093b3ca04da62ce1c1e7fd273c26f4d0</guid>
-      <pubDate>Fri, 01 May 2026 08:00:03 GMT</pubDate>
+      <title>[35] SREs, EMs, Lead Backend Engineer — N26 SE</title>
+      <link>https://news.ycombinator.com/item?id=48005990</link>
+      <guid isPermaLink="false">7f461004dbd6ca3f7676e29c71176e0fc95c2101</guid>
+      <pubDate>Mon, 04 May 2026 08:13:41 GMT</pubDate>
       <category>general</category>
-      <description><strong>Smart Working Solutions</strong> · Score: 40 · Source: remoteok · Category: general</description>
+      <description><strong>N26 SE</strong> · Score: 35 · Source: hn-hiring · Category: general</description>
     </item>
     <item>
-      <title>[35] Founding Engineer — Octozi</title>
-      <link>https://news.ycombinator.com/item?id=47986311</link>
-      <guid isPermaLink="false">89c7068b6e53df6d4d9e2c3d4b0a16cb0131d2f0</guid>
-      <pubDate>Sat, 02 May 2026 13:39:02 GMT</pubDate>
+      <title>[35] Analytics Engineer — Coinbase</title>
+      <link>https://www.coinbase.com/careers/positions/7843707?gh_jid=7843707</link>
+      <guid isPermaLink="false">010fb0ba63b0dc1a16bd97d170fa04ffc25e8651</guid>
+      <pubDate>Sat, 25 Apr 2026 00:12:31 GMT</pubDate>
+      <category>web3</category>
+      <description><strong>Coinbase</strong> · Remote - UK · Score: 35 · Source: greenhouse · Category: web3</description>
+    </item>
+    <item>
+      <title>[30] Senior Software Engineer II - Applied AI (Remote Eligible) — -REMOTE, USA- R</title>
+      <link>https://aijobs.net/job/senior-software-engineer-ii-applied-ai-remote-eligible-remote-usa-112289/</link>
+      <guid isPermaLink="false">fea8d7c426044582720ee0a15b195744ffbd1dd2</guid>
+      <pubDate>Sun, 03 May 2026 23:23:46 GMT</pubDate>
+      <category>general</category>
+      <description><strong>-REMOTE, USA- R</strong> · 💰 USD 192K-245K · Score: 30 · Source: aijobsnet · Category: general</description>
+    </item>
+    <item>
+      <title>[30] Software Engineer (Backend, Java) - Risk — Binance</title>
+      <link>https://jobs.lever.co/binance/701bc45c-8f78-484d-8a6e-174850e9864e</link>
+      <guid isPermaLink="false">98601c3eecac8a5d96b3c392807bc8cf9f571cb8</guid>
+      <pubDate>Mon, 25 May 58308 13:03:33 GMT</pubDate>
+      <category>web3</category>
+      <description><strong>Binance</strong> · Asia · Score: 30 · Source: lever · Category: web3</description>
+    </item>
+    <item>
+      <title>[30] Java Engineer — DeFi/ Web3 — Binance</title>
+      <link>https://jobs.lever.co/binance/f3fa8ebe-5ea7-4404-a0ca-6e743c75b3a9</link>
+      <guid isPermaLink="false">87040d4d68283758c2edcfb274889671643165a0</guid>
+      <pubDate>Tue, 17 Jun 58273 13:37:51 GMT</pubDate>
+      <category>web3</category>
+      <description><strong>Binance</strong> · Asia · Score: 30 · Source: lever · Category: web3</description>
+    </item>
+    <item>
+      <title>[30] Googlers. We use AI and human creative expertise to transform video advertising. We&amp;#x27;re looking for a Senior Software Engineer, Data &amp; M — Sundogs</title>
+      <link>https://news.ycombinator.com/item?id=48005795</link>
+      <guid isPermaLink="false">fcb4488a7772e07edd1f927145d475a9f88eb0dd</guid>
+      <pubDate>Mon, 04 May 2026 07:43:24 GMT</pubDate>
+      <category>general</category>
+      <description><strong>Sundogs</strong> · Score: 30 · Source: hn-hiring · Category: general</description>
+    </item>
+    <item>
+      <title>[30] AI Research Engineer - Agentic AI &amp; Intelligent Automation — Colombo</title>
+      <link>https://aijobs.net/job/ai-research-engineer-agentic-ai-intelligent-automation-colombo-112145/</link>
+      <guid isPermaLink="false">5b972ab1dfcc22ef7ae31b26646622ce6a42150e</guid>
+      <pubDate>Sun, 03 May 2026 09:23:46 GMT</pubDate>
       <category>ai</category>
-      <description><strong>Octozi</strong> · Score: 35 · Source: hn-hiring · Category: ai</description>
-    </item>
-    <item>
-      <title>[35] Software Engineer — Axis Communications</title>
-      <link>https://news.ycombinator.com/item?id=47985407</link>
-      <guid isPermaLink="false">c2ed4305d3bae07aa21214595f2365db4968d413</guid>
-      <pubDate>Sat, 02 May 2026 11:21:46 GMT</pubDate>
-      <category>ai</category>
-      <description><strong>Axis Communications</strong> · Score: 35 · Source: hn-hiring · Category: ai</description>
-    </item>
-    <item>
-      <title>[30] Agentic AI Developer — San Francisco, CA, United States</title>
-      <link>https://aijobs.net/job/agentic-ai-developer-san-francisco-ca-united-states-111361/</link>
-      <guid isPermaLink="false">63249f7d57c0d1ecb514fdf887b54369337f2947</guid>
-      <pubDate>Sat, 02 May 2026 08:49:32 GMT</pubDate>
-      <category>ai</category>
-      <description><strong>San Francisco, CA, United States</strong> · 💰 USD 140K-200K · Score: 30 · Source: aijobsnet · Category: ai</description>
-    </item>
-    <item>
-      <title>[30] Senior Backend Engineer (Architecture &amp; AI Systems) — Senior Backend Engineer (Architecture &amp; AI Systems)</title>
-      <link>https://news.ycombinator.com/item?id=47988764</link>
-      <guid isPermaLink="false">bb152e3bd4b14a9daa7ea23f2ed442ac78c96047</guid>
-      <pubDate>Sat, 02 May 2026 18:02:18 GMT</pubDate>
-      <category>general</category>
-      <description><strong>Senior Backend Engineer (Architecture &amp; AI Systems)</strong> · Score: 30 · Source: hn-hiring · Category: general</description>
-    </item>
-    <item>
-      <title>[30] Full Stack Developer with 7+ years of experience (React</title>
-      <link>https://news.ycombinator.com/item?id=47986820</link>
-      <guid isPermaLink="false">b8c5836c4f43bc03596d0041976065f87022d2ae</guid>
-      <pubDate>Sat, 02 May 2026 14:43:16 GMT</pubDate>
-      <category>general</category>
-      <description>Score: 30 · Source: hn-hiring · Category: general</description>
-    </item>
-    <item>
-      <title>[30] Flutter mobile engineer, Software Engineer — Siia</title>
-      <link>https://news.ycombinator.com/item?id=47985782</link>
-      <guid isPermaLink="false">162c4da8c2ad038f2627d529ad8eb240855eec68</guid>
-      <pubDate>Sat, 02 May 2026 12:21:01 GMT</pubDate>
-      <category>general</category>
-      <description><strong>Siia</strong> · Score: 30 · Source: hn-hiring · Category: general</description>
-    </item>
-    <item>
-      <title>[30] Full Stack Developer (m/w/d) — Miragon</title>
-      <link>https://weworkremotely.com/remote-jobs/miragon-full-stack-developer-m-w-d</link>
-      <guid isPermaLink="false">9dbfe1590d94a9b90ce8ce73ec17e4af2dbdfdf2</guid>
-      <pubDate>Tue, 07 Apr 2026 20:31:03 GMT</pubDate>
-      <category>general</category>
-      <description><strong>Miragon</strong> · Score: 30 · Source: weworkremotely · Category: general</description>
+      <description><strong>Colombo</strong> · 💰 Senior-level · Score: 30 · Source: aijobsnet · Category: ai</description>
     </item>
   </channel>
 </rss>
