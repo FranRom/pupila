@@ -93,30 +93,6 @@
     "verdict": "match",
     "reason": "Stack and AI-engineering focus fit well and Spain qualifies as fully remote, but the role tops out at senior-IC (no staff/principal track signaled) so it's a solid match rather than a strong one — the 90 score over-weights the AI keyword density."
   },
-  "f88face0cdb63b7f5c32bb0f63e080a100d24e99": {
-    "jobId": "f88face0cdb63b7f5c32bb0f63e080a100d24e99",
-    "reviewedAt": "2026-04-29T08:32:56.085Z",
-    "model": "claude-code",
-    "summary": "Backend-leaning Software Engineer at Vercel building identity/access management systems (SCIM, SSO, SAML, OAuth2) using Node.js, TypeScript, SQL, and AWS.",
-    "wants": [
-      "Strong backend experience with Node.js, TypeScript, SQL/NoSQL",
-      "Deep identity/auth protocol expertise (LDAP, SAML, SSO, OAuth2, OIDC, SCIM)",
-      "Infrastructure-as-Code experience (Terraform, CloudFormation, Kubernetes) and on-call readiness"
-    ],
-    "offers": [
-      "Equity in a high-profile dev-tools company (Next.js, v0, AI SDK)",
-      "Flexible time off and healthcare",
-      "Mentorship and event/conference budget"
-    ],
-    "redFlags": [
-      "Explicitly backend role — frontend skills are not the focus despite React being mentioned",
-      "Location is Remote - United States; candidate is based in Spain and this is almost certainly US-only",
-      "Heavy identity/auth specialty (SCIM, LDAP, AD) is outside the candidate's stated frontend/web3/AI focus",
-      "On-call rotations and IaC/Kubernetes work signal SRE-adjacent responsibilities"
-    ],
-    "verdict": "skip",
-    "reason": "Despite the 90 rule-based score (driven by Vercel's Next.js/AI association), this is a US-only backend identity-management role — wrong specialty, wrong location, and not a frontend IC position."
-  },
   "65e09c0697106d1c66d62d5759718a07b8c8080d": {
     "jobId": "65e09c0697106d1c66d62d5759718a07b8c8080d",
     "reviewedAt": "2026-04-29T08:33:09.513Z",
@@ -258,52 +234,6 @@
     "verdict": "weak-match",
     "reason": "Keywords align (web3+ai, principal, remote) but the role reads as ML/backend chatbot engineering at a crypto exchange, not frontend-led AI work, and the posting is too thin to confirm EMEA remote or stack fit — rule-based 75 overweights the keyword overlap."
   },
-  "cceb4e940cab742f8e56dbe309db54d1ef4911a0": {
-    "jobId": "cceb4e940cab742f8e56dbe309db54d1ef4911a0",
-    "reviewedAt": "2026-04-29T08:34:25.579Z",
-    "model": "claude-code",
-    "summary": "Senior Backend Engineer role at Li.Fi building Node.js/TypeScript backend systems (MongoDB, Redis, ethers.js, K8s/AWS) for a multi-chain DeFi liquidity API.",
-    "wants": [
-      "Strong TypeScript and senior/lead backend experience",
-      "Software design/architecture + document DBs and caching",
-      "EMEA or APAC location; blockchain understanding (EVM nice-to-have)"
-    ],
-    "offers": [
-      "€90K–€130K + equity, fully remote EMEA",
-      "Web3/DeFi mission with cross-chain liquidity infra",
-      "Mentorship scope and architectural ownership"
-    ],
-    "redFlags": [
-      "Pure backend role — no frontend work, which is the candidate's core specialty",
-      "Stack (MongoDB, Redis, K8s, backend APIs) doesn't leverage React/Next/design-system experience",
-      "'Reports to Backend Lead' confirms it's an IC backend track, not a frontend or full-stack role"
-    ],
-    "verdict": "skip",
-    "reason": "Despite the web3 + EMEA + senior-TypeScript keyword match driving a 75 score, this is explicitly a backend IC role and the candidate avoids pure backend positions."
-  },
-  "dd45647e27465f6db7f1a482a9348bab5301926a": {
-    "jobId": "dd45647e27465f6db7f1a482a9348bab5301926a",
-    "reviewedAt": "2026-04-29T08:34:35.628Z",
-    "model": "claude-code",
-    "summary": "Backend AI/ML engineer role to build LLM agents, RAG pipelines, and conduct LLM training/alignment (SFT/RLHF) in Python for CoinMarketCap's Web3 AI agent.",
-    "wants": [
-      "3+ years building RAG pipelines, agent frameworks (LangGraph/CrewAI), or LLM training",
-      "Strong Python + PyTorch/TensorFlow with distributed training and inference experience",
-      "Hands-on SFT/RLHF/LoRA alignment and vector DB (OpenSearch) work"
-    ],
-    "offers": [
-      "Web3 + AI domain crossover with proprietary dataset",
-      "Global/remote-friendly location",
-      "Core algorithm role on a flagship product"
-    ],
-    "redFlags": [
-      "Pure backend ML/AI role — no frontend, React, or TypeScript anywhere in the JD",
-      "Requires Python/PyTorch and LLM training expertise the candidate doesn't have",
-      "Title says 'AI Algorithm Engineer' — this is ML research/infra, not AI application engineering"
-    ],
-    "verdict": "skip",
-    "reason": "Despite the web3+ai keyword hit, this is a Python ML/algorithm role doing model training and RAG infra — completely outside a frontend engineer's stack."
-  },
   "40927f571dd6649015a94d6e82982438d7541609": {
     "jobId": "40927f571dd6649015a94d6e82982438d7541609",
     "reviewedAt": "2026-04-29T08:34:53.367Z",
@@ -325,97 +255,6 @@
     ],
     "verdict": "skip",
     "reason": "Despite a Senior title and Next.js mentions inflating the rule score, this is a Marketing/DevRel ecosystem leadership role in SF/NYC — a direct hit on the candidate's avoid list and wrong geography."
-  },
-  "9592fd20ec4d21d07cd031022c1e50b5f57db23b": {
-    "jobId": "9592fd20ec4d21d07cd031022c1e50b5f57db23b",
-    "reviewedAt": "2026-04-29T08:35:11.116Z",
-    "model": "claude-code",
-    "summary": "Fractional-to-full-time 'Head of AI & Engineering' leadership role at a small bootstrapped B2B services company, owning the build of a multi-agent LLM platform with one direct report.",
-    "wants": [
-      "Technical leader who translates CEO vision into spec, plan, and shipped product autonomously",
-      "Hands-on with multi-agent orchestration (LangGraph/LangChain), RAG, vector DBs, Python/Node",
-      "Willing to start fractional and manage one AI Engineer"
-    ],
-    "offers": [
-      "Equity in a profitable, non-VC-funded company (unencumbered cap table)",
-      "Remote, work on a real production AI platform rather than a 0→1 prototype",
-      "Seat at the leadership table in a 4-person core team"
-    ],
-    "redFlags": [
-      "'Head of' = management role with a direct report; candidate wants IC, not people leadership",
-      "Stack is Python/LangGraph/AWS-heavy backend AI; React/Next.js is incidental, not the focus",
-      "Fractional start with no disclosed salary — comp is equity-weighted at a small services firm"
-    ],
-    "verdict": "skip",
-    "reason": "Despite the AI keyword match driving the 75 score, this is a backend-AI engineering manager role, not a senior frontend IC position the candidate is targeting."
-  },
-  "86e21841ea79a60ba2ba9fa8ad6a307a9cf1b97c": {
-    "jobId": "86e21841ea79a60ba2ba9fa8ad6a307a9cf1b97c",
-    "reviewedAt": "2026-04-29T08:35:20.787Z",
-    "model": "claude-code",
-    "summary": "Senior full-stack developer at Scite (AI tools for scientific literature) working across React frontend and Python backend, remote but US-only.",
-    "wants": [
-      "Strong generalist who works across Python and JavaScript/React",
-      "Comfort with data-intensive systems (PostgreSQL, Elasticsearch)",
-      "Familiarity with LLM APIs and RAG pipelines (bonus)"
-    ],
-    "offers": [
-      "Production AI/ML work with Claude, OpenAI, RAG, and a launched MCP server",
-      "Small team with growing enterprise adoption"
-    ],
-    "redFlags": [
-      "REMOTE (US) — explicitly US-only, candidate is in Spain",
-      "Heavy Python/backend expectation; not a frontend-focused role",
-      "Title is just 'Senior Developer' — generalist full-stack, not the senior frontend IC the candidate targets"
-    ],
-    "verdict": "skip",
-    "reason": "Hard location mismatch (US-only) and the role is a Python-leaning full-stack generalist, not a frontend specialist — the 75 score over-weights the AI keyword density."
-  },
-  "4fae1728bf147fc476334d5faf26eac31b55717f": {
-    "jobId": "4fae1728bf147fc476334d5faf26eac31b55717f",
-    "reviewedAt": "2026-04-29T08:35:31.121Z",
-    "model": "claude-code",
-    "summary": "Senior/Staff full-stack engineer role at Norm Ai (legal/compliance AI startup) building their platform, hybrid/in-person in NYC.",
-    "wants": [
-      "Full-stack engineering experience at senior or staff level",
-      "Ability to work hybrid/in-person in NYC",
-      "Comfort building product on top of LLMs in a legal/compliance domain"
-    ],
-    "offers": [
-      "$190k–$280k base for Senior+Staff IC",
-      "Well-funded ($140M+) with tier-1 backers (Blackstone, Bain, Coatue, Benioff)",
-      "Working on frontier-AI legal reasoning with real enterprise deployment"
-    ],
-    "redFlags": [
-      "Hybrid/in-person in NYC — disqualifying for a Spain-based remote candidate",
-      "Full-stack framing skews backend-heavy; not a frontend specialist role",
-      "Listing is a multi-role catch-all, not a specific JD"
-    ],
-    "verdict": "skip",
-    "reason": "NYC hybrid/in-person requirement is a hard location mismatch regardless of the strong AI signal that drove the 75 score."
-  },
-  "9aa7c8954b1cbabac418e0fc1f676647855372df": {
-    "jobId": "9aa7c8954b1cbabac418e0fc1f676647855372df",
-    "reviewedAt": "2026-04-29T08:35:51.393Z",
-    "model": "claude-code",
-    "summary": "Multi-role HN listing for Oscilar (AI risk-decisioning platform) covering Sr/Staff Backend, Infra, GenAI, Web SDK, Full-Stack and PM positions across specific countries.",
-    "wants": [
-      "Senior/Staff IC engineers across backend, infra, GenAI, and frontend SDK",
-      "AI/ML engineering or full-stack experience for AI agent platform roles",
-      "Specialty depth (Java backend, infrastructure, or web SDK) depending on the specific opening"
-    ],
-    "offers": [
-      "Remote work within listed regions",
-      "Exposure to GenAI / AI agent platform work",
-      "Staff-level IC tracks"
-    ],
-    "redFlags": [
-      "Remote is restricted to US/Canada/Brazil/Poland/UK — Spain is not listed, so candidate is likely ineligible",
-      "Vague aggregated post: only the Web SDK and Full-Stack AI Agent roles plausibly fit a frontend candidate; others (Java backend, infra, PM) are off-spec",
-      "The only Europe-tagged role is Infrastructure Engineer, which is a wrong-specialty fit"
-    ],
-    "verdict": "weak-match",
-    "reason": "Location eligibility excludes Spain and only 1–2 of the six roles are frontend-shaped, so the 75 rule-based score overstates the real fit."
   },
   "073ab95223be088a003bd54df3c3866b69a11bf6": {
     "jobId": "073ab95223be088a003bd54df3c3866b69a11bf6",
@@ -440,28 +279,466 @@
     "verdict": "skip",
     "reason": "Role is SF-based full-stack with mandatory backend/distributed-systems depth — the AI-stack keyword match inflates the rule-based 70, but location and specialty mismatch make it a skip."
   },
-  "7fa89b2909d96891f17d02254645823982ad9e2a": {
-    "jobId": "7fa89b2909d96891f17d02254645823982ad9e2a",
-    "reviewedAt": "2026-04-29T08:36:23.437Z",
+  "30c30156044d9b75333ba323bda2781bcebd1142": {
+    "jobId": "30c30156044d9b75333ba323bda2781bcebd1142",
+    "reviewedAt": "2026-05-07T13:51:27.789Z",
     "model": "claude-code",
-    "summary": "Architect-level role at Flipside focused on designing AI agents for blockchain/crypto contexts, with apparent Solana relevance.",
+    "summary": "Senior/Staff Java backend engineer role at Oscilar, an AI risk-decisioning platform, hiring across Brazil and North America.",
     "wants": [
-      "AI agent architecture and design experience",
-      "Blockchain/crypto domain knowledge, Solana exposure",
-      "Senior/architect-level seniority (implied by title and salary band)"
+      "Strong Java backend engineering experience at senior/staff level",
+      "Backend systems work on a risk/fraud/compliance decisioning platform",
+      "Located in Brazil or North America"
     ],
     "offers": [
-      "Wide salary band $140k–$300k suggesting room for senior+ comp",
-      "Intersection of AI and web3 — matches candidate's dual specialty",
-      "Flipside is an established crypto-data company"
+      "Remote work within specified regions (US/Canada/Brazil/Poland/UK)",
+      "Exposure to an AI-focused platform (risk decisioning, fraud, credit)"
     ],
     "redFlags": [
-      "Posting body is essentially empty — no actual role description, requirements, or responsibilities",
-      "Location not specified; Flipside has historically been US-leaning, remote eligibility for EMEA unclear",
-      "'Architect' title may lean backend/systems-design rather than frontend IC, which is the candidate's core strength",
-      "Huge salary range ($140k–$300k) suggests level is undefined — could be IC or a quasi-lead role"
+      "Pure Java backend role — candidate is a frontend engineer, no Java experience",
+      "Location restricted to Brazil/North America — candidate is in Spain",
+      "No frontend, React, or TypeScript involvement at all",
+      "HN aggregate post listing multiple roles; this specific listing is the wrong specialty"
+    ],
+    "verdict": "skip",
+    "reason": "Despite the inflated 85 score (likely from 'AI' keywords in the company description), this is a Java backend role restricted to Brazil/North America — completely wrong specialty and wrong region for a Spain-based frontend engineer."
+  },
+  "f23fc77b9f6df237638815deebeda2471f9f5c11": {
+    "jobId": "f23fc77b9f6df237638815deebeda2471f9f5c11",
+    "reviewedAt": "2026-05-07T13:51:45.140Z",
+    "model": "claude-code",
+    "summary": "Staff full-stack engineer role (Go/TS/React/Postgres) leading AI & Automation initiatives at a retail customer-service AI company.",
+    "wants": [
+      "5-10+ years full-stack with Go, TypeScript, React, Postgres",
+      "Hands-on experience with generative AI, multi-agent systems, RAG pipelines",
+      "Product-minded IC who ships fast and collaborates closely"
+    ],
+    "offers": [
+      "Production AI work with real customers (Crate & Barrel, Sephora, REI)",
+      "Equity plus salary range $60k–$215k",
+      "Remote-first culture with a Staff-level scope"
+    ],
+    "redFlags": [
+      "Header explicitly says 'Remote (US)' — likely US-only, mismatched with Spain/EMEA candidate",
+      "Go is a primary stack expectation; candidate's strength is React/Next/TS, not backend Go",
+      "Salary band $60k–$215k is suspiciously wide and likely tied to US location/leveling"
+    ],
+    "verdict": "skip",
+    "reason": "The 'Remote (US)' tag overrides the AI-stack match — the candidate is EMEA-based and this role is geographically gated, so the 85 rule-based score is misleading."
+  },
+  "b2ea190cc8afe3e7012e39bd3371c43f29b62d03": {
+    "jobId": "b2ea190cc8afe3e7012e39bd3371c43f29b62d03",
+    "reviewedAt": "2026-05-07T13:51:57.600Z",
+    "model": "claude-code",
+    "summary": "Backend-leaning software engineer role at Vercel focused on identity/access management (SCIM, SSO, SAML, OAuth2) using Node.js, TypeScript, SQL, and AWS infrastructure.",
+    "wants": [
+      "Backend Node.js/TypeScript experience with SQL/NoSQL databases",
+      "Deep identity & security protocol knowledge (LDAP, SAML, SSO, OAuth2, OIDC, RBAC/ABAC)",
+      "Infrastructure-as-Code experience (Terraform, CloudFormation, Kubernetes) and on-call ops"
+    ],
+    "offers": [
+      "Equity in a high-profile dev-tools company (Next.js, v0, AI SDK)",
+      "WFH stipend and gear",
+      "Mentorship and event/conference budget"
+    ],
+    "redFlags": [
+      "Explicitly Backend role — candidate is a frontend specialist; React is mentioned but not the focus",
+      "Location restricted to Remote - United States; candidate is in Spain",
+      "Identity/auth domain (SCIM, LDAP, AD) is a niche backend specialty, not the candidate's web3/AI frontend background",
+      "No web3 content despite the rule-based 'web3+ai' category — keyword false positive"
+    ],
+    "verdict": "skip",
+    "reason": "Backend identity-management role restricted to US remote — wrong specialty and wrong geography despite the inflated fit score."
+  },
+  "22c77cbddbe47ccf057287fc794a90191d25bb3d": {
+    "jobId": "22c77cbddbe47ccf057287fc794a90191d25bb3d",
+    "reviewedAt": "2026-05-07T13:52:11.565Z",
+    "model": "claude-code",
+    "summary": "Senior Staff Engineer role at OKX focused on AI agent development in a crypto/blockchain context, listed as remote.",
+    "wants": [
+      "AI agent development experience",
+      "Senior/staff-level engineering",
+      "Blockchain/crypto domain familiarity"
+    ],
+    "offers": [
+      "Remote work",
+      "Crypto + AI intersection at a major exchange",
+      "Senior Staff IC title"
+    ],
+    "redFlags": [
+      "Posting body is essentially empty — just tag keywords, no real role description or requirements",
+      "Salary band $126k–$131k is unusually narrow and low for a 'Senior Staff' title at a major exchange, suggesting either a mislabeled level or a region-capped band",
+      "No mention of frontend — 'AI Agent Development' likely implies backend/Python/LLM-infra work, which is a poor fit for a frontend-focused candidate",
+      "OKX has had US regulatory issues and historically restricts hiring by region; 'Remote' may mean APAC-only"
     ],
     "verdict": "weak-match",
-    "reason": "Surface keywords (AI + Solana + senior comp) align, but the posting body is too thin to confirm fit and 'AI Agent Architect' likely emphasizes backend/systems design over the candidate's frontend strength."
+    "reason": "Keywords trigger web3+ai category but the role is almost certainly backend AI infra rather than frontend, the posting body is content-free, and the comp band undermines the 'Senior Staff' label."
+  },
+  "6495671d23d2e4a63c036afcc85628f9cee49f12": {
+    "jobId": "6495671d23d2e4a63c036afcc85628f9cee49f12",
+    "reviewedAt": "2026-05-07T13:52:23.093Z",
+    "model": "claude-code",
+    "summary": "Senior Go backend engineer role at Polygon Labs building OMSX, a payments/financial infrastructure platform on Polygon, remote from London.",
+    "wants": [
+      "5+ years backend, 3+ years production Go",
+      "Deep PostgreSQL and distributed-systems/API design experience",
+      "Daily use of AI coding agents (Claude Code, Cursor, Copilot)"
+    ],
+    "offers": [
+      "Greenfield backend work on high-scale onchain payments infrastructure",
+      "Remote (London-based listing) at a well-funded web3 org",
+      "Web3 + AI-native engineering culture"
+    ],
+    "redFlags": [
+      "Pure backend Go role — candidate is a frontend engineer with no Go in their stack",
+      "Title and responsibilities are explicitly backend services, PostgreSQL, Redis — not React/Next/TS",
+      "Location says 'London - Remote' which may mean UK-only rather than remote-EMEA",
+      "Salary not disclosed"
+    ],
+    "verdict": "skip",
+    "reason": "Despite matching web3+AI keywords, this is a Senior Go backend role requiring 3+ years production Go — a hard mismatch for a frontend engineer with no Go experience."
+  },
+  "d8255a7293babf5192c69c0646b70873395df1ae": {
+    "jobId": "d8255a7293babf5192c69c0646b70873395df1ae",
+    "reviewedAt": "2026-05-07T13:52:51.220Z",
+    "model": "claude-code",
+    "summary": "Bundled HN posting for four Staff-level roles at Seeq (industrial time-series analytics with GenAI layer): Full Stack JVM+React, Frontend Design Systems, Developer Experience, and Platform.",
+    "wants": [
+      "Staff-level IC across very different specialties (frontend, JVM full-stack, K8s devex, K8s/Terraform platform)",
+      "React + Tailwind + design-systems chops for the one frontend role",
+      "PST time-zone crossover during the working day"
+    ],
+    "offers": [
+      "$170k base + annual bonus + equity (US baseline; localized for other countries)",
+      "Established remote culture with annual meetups and home-office allowance",
+      "GenAI work layered on top of a calculation engine for streaming time-series data"
+    ],
+    "redFlags": [
+      "Only one of the four roles (Frontend Design Systems) actually matches a frontend IC; the other three are backend/platform/devex",
+      "'Some crossover with PST required' is painful from Spain (8–9h offset, late-evening hours)",
+      "Salary explicitly US-based with downward 'local adjustments' for other countries",
+      "Domain is industrial process analytics, not the web3/AI-engineering work the candidate targets"
+    ],
+    "verdict": "weak-match",
+    "reason": "Score of 77 is inflated by the bundled posting matching multiple keyword sets; only the Design Systems sub-role fits, and PST overlap plus localized comp from Spain weaken it further."
+  },
+  "206dcac361d1cf803ea1890a358a055a4cf02ea9": {
+    "jobId": "206dcac361d1cf803ea1890a358a055a4cf02ea9",
+    "reviewedAt": "2026-05-07T13:53:09.566Z",
+    "model": "claude-code",
+    "summary": "Senior Backend Engineer at Brandfetch building serverless AWS infrastructure (Lambda/DynamoDB), ingestion pipelines, and an MCP server for their brand-asset platform.",
+    "wants": [
+      "8+ years backend software development",
+      "Deep AWS proficiency (CloudFormation, Lambda, DynamoDB, API Gateway, OpenSearch)",
+      "REST API and Serverless DevOps pipeline experience"
+    ],
+    "offers": [
+      "Competitive salary + equity in a profitable, growing company",
+      "Remote (UTC+0 to UTC+9, fits Spain)",
+      "Interesting problems: MCP server for AI agents, vector search, billions-scale ingestion"
+    ],
+    "redFlags": [
+      "Pure backend role — explicitly on the candidate's avoid list",
+      "Stack is Node/Python/AWS infra with zero frontend or React surface",
+      "'Experience with Machine Learning' is a soft ask, not AI-engineering IC work — the rule-based score is inflated by MCP/AI keywords in a backend posting"
+    ],
+    "verdict": "skip",
+    "reason": "Despite the 75 score from MCP/AI keywords, this is a backend infrastructure role (AWS serverless, ingestion, REST APIs) with no frontend component — direct mismatch with the candidate's avoid list."
+  },
+  "7ec337239d5023091a9360aded264eea3ec97812": {
+    "jobId": "7ec337239d5023091a9360aded264eea3ec97812",
+    "reviewedAt": "2026-05-07T13:53:28.059Z",
+    "model": "claude-code",
+    "summary": "Hands-on Principal Engineer role owning data pipelines, lakehouse architecture, and AI/LLM infrastructure for a Berlin-based asset management fund.",
+    "wants": [
+      "Deep experience with AWS + Databricks/Spark + Python data platforms",
+      "Ability to design large-scale data pipelines and lakehouse architectures end-to-end",
+      "Backend/infra leadership chops for agentic AI, RAG, and LLMOps systems"
+    ],
+    "offers": [
+      "Competitive comp with relocation & visa support",
+      "Strong fund track record (>30% p.a. since inception) and AI-forward investment thesis",
+      "Small ~40-person team with flat hierarchy and tech-entrepreneurship culture"
+    ],
+    "redFlags": [
+      "Pure data/platform engineering role — candidate's avoid list explicitly excludes data engineering and backend specialties",
+      "Stack is Python/Spark/Databricks/PostgreSQL with zero frontend; React/TS skills are irrelevant here",
+      "Berlin onsite 2 days/week — incompatible with Spain-based / remote-EMEA preference"
+    ],
+    "verdict": "skip",
+    "reason": "Rule-based 75 is inflated by AI keywords (RAG, agentic, LLMOps), but the actual role is data-platform/backend engineering in Berlin onsite — wrong specialty, wrong stack, wrong location."
+  },
+  "ebafec5b1e128b4d4bcde9cd8cf7a51f82ca4648": {
+    "jobId": "ebafec5b1e128b4d4bcde9cd8cf7a51f82ca4648",
+    "reviewedAt": "2026-05-07T13:53:52.098Z",
+    "model": "claude-code",
+    "summary": "Bitcoin-only fintech (River) hiring across three tracks; the relevant opening is Senior React Full-stack ($150-220K) on a ground-up React + React Native consumer app rewrite, remote US/Europe/South America.",
+    "wants": [
+      "Senior React + React Native engineer for greenfield consumer app rewrite",
+      "Full-stack comfort — likely touching the Elixir/GraphQL monolith",
+      "Production fintech sensibility (payments, trading, custody flows)"
+    ],
+    "offers": [
+      "$150-220K + equity for the React role; profitable company with public proof-of-reserves",
+      "Remote-friendly including Europe (works for Spain)",
+      "Greenfield React/RN rewrite — design-system and component-library work fits candidate's strengths"
+    ],
+    "redFlags": [
+      "'Full-stack' likely means shipping Elixir/GraphQL too — candidate has no Elixir background",
+      "Bitcoin-only ≠ candidate's EVM/Solana/wagmi/viem web3 experience; that skillset isn't leveraged",
+      "Bundled HN post covers 3 roles; the Elixir Staff and ML roles are not a fit and could muddy screening"
+    ],
+    "verdict": "match",
+    "reason": "The Senior React role genuinely fits (RN rewrite, remote-EU, senior IC, strong comp), but Bitcoin-only stack and Elixir-flavored full-stack expectation knock it down from strong-match."
+  },
+  "0d93781d9cada95581cb9a9d32bc2aebf3e4807e": {
+    "jobId": "0d93781d9cada95581cb9a9d32bc2aebf3e4807e",
+    "reviewedAt": "2026-05-07T13:54:32.655Z",
+    "model": "claude-code",
+    "summary": "Senior Frontend Engineer building the Slush Wallet (Sui ecosystem) at Mysten Labs, working in a React Native + Expo + TypeScript + Tailwind/NativeWind stack with GraphQL/Relay against a Node/Bun backend.",
+    "wants": [
+      "5+ years shipping user-facing web apps in React or similar component frameworks",
+      "Comfort going deeper into the stack to fix bugs end-to-end and shape architecture",
+      "Strong async communication in a fully remote, fast-moving startup; React Native a plus not required"
+    ],
+    "offers": [
+      "$164K–$226K USD band, transparent",
+      "Core IC role on a flagship product (Slush Wallet) at a well-funded Sui infra company ($300M Series B)",
+      "Modern stack the candidate already uses daily (RN/Expo, TS, Tailwind, GraphQL)"
+    ],
+    "redFlags": [
+      "Location header says 'USA (Remote)' but body claims 'hiring across the world' — verify Spain/EMEA is actually in scope before investing time",
+      "Web3 exposure here is Sui-specific (Move, Mysten SDK), not the candidate's EVM/Solana background — ramp-up on a new chain",
+      "Background check requirement is unusual for EMEA hires and may signal US-centric ops"
+    ],
+    "verdict": "match",
+    "reason": "Stack alignment is excellent (RN+Expo+TS+Tailwind+GraphQL) and it's a senior IC web3 wallet role, but the USA-tagged location and Sui-specific ecosystem keep it from strong-match until remote-EMEA eligibility is confirmed."
+  },
+  "61d99239a9bd88bc70ae89f0ceb09b225f5ae087": {
+    "jobId": "61d99239a9bd88bc70ae89f0ceb09b225f5ae087",
+    "reviewedAt": "2026-05-07T13:54:45.645Z",
+    "model": "claude-code",
+    "summary": "Binance Accelerator Program internship for university students/recent grads to work on LLM agent workflows and AI tooling within Binance's Web3 ecosystem, based in Asia.",
+    "wants": [
+      "Current university student or recent graduate (early-career only)",
+      "Hands-on AI/LLM agent engineering: tool integrations, agent workflows, backend services",
+      "Willingness to be based in Asia for a fixed-term program"
+    ],
+    "offers": [
+      "Exposure to production Web3/crypto systems at the largest exchange",
+      "Structured networking and development program alongside the job",
+      "Mentorship from full-time engineers on agent/AI architecture"
+    ],
+    "redFlags": [
+      "Internship/early-career program — explicitly excludes a senior engineer with ~10 years experience",
+      "Location is Asia, not remote-EMEA or Spain-friendly",
+      "Fixed-term, not a permanent IC role"
+    ],
+    "verdict": "skip",
+    "reason": "This is an internship for students/recent grads located in Asia — a hard mismatch with a senior IC based in Spain, despite the web3+ai keyword overlap that inflated the rule-based score."
+  },
+  "7d3e76f1a4ac08377f767ec88b52ad641acc4879": {
+    "jobId": "7d3e76f1a4ac08377f767ec88b52ad641acc4879",
+    "reviewedAt": "2026-05-07T13:54:55.793Z",
+    "model": "claude-code",
+    "summary": "A fixed-term internship/early-career accelerator program at Binance for current university students and recent graduates to work on AI agent engineering, based in Taipei, Taiwan.",
+    "wants": [
+      "Current university students or recent graduates",
+      "6-month commitment, 5 days per week",
+      "Builder mindset with hands-on experimentation in AI/LLM tools"
+    ],
+    "offers": [
+      "Hands-on work on agent workflows, tool integrations, and AI system architecture",
+      "Networking and professional development within Binance's Web3 ecosystem"
+    ],
+    "redFlags": [
+      "Explicitly an early-career/intern program — excludes a senior engineer with ~10 years experience",
+      "Location is Taipei, Taiwan — no remote option mentioned, candidate is in Spain and prefers remote-EMEA",
+      "Fixed-term internship, not a permanent senior IC role"
+    ],
+    "verdict": "skip",
+    "reason": "This is an internship for students/recent grads in Taipei — a hard mismatch on level and location despite the web3+AI keyword overlap that drove the 70 score."
+  },
+  "9a465701bc2246d3aa6635893490e71741525ab5": {
+    "jobId": "9a465701bc2246d3aa6635893490e71741525ab5",
+    "reviewedAt": "2026-05-07T13:55:23.679Z",
+    "model": "claude-code",
+    "summary": "Hybrid SDK-engineer / developer-advocate role at CoinMarketCap building an agent-skills marketplace, MCP server, and CLI while running hackathons and producing technical content as the public technical face of CMC for Agent.",
+    "wants": [
+      "Crypto-native fluency: DEX AMMs, perp funding, bridge risk, on-chain identity, can read Solidity",
+      "Hands-on AI agent systems in production: function calling, tool use, MCP, LangGraph or OpenClaw",
+      "Proven SDK/CLI/API author whose tooling outside developers actually adopted, plus strong technical-content chops"
+    ],
+    "offers": [
+      "Global / remote-friendly location",
+      "Greenfield surface: design the skill-signing and revenue-share contract powering a new capabilities market",
+      "High-visibility partnerships (BNB Hack, YZi Labs, Virtuals/ACP) and conference presence"
+    ],
+    "redFlags": [
+      "Heavy DevRel coloring (hackathon ops, launch posts, cookbook recipes, 'technical face at events', Discord support) — candidate explicitly avoids developer-relations roles",
+      "Frontend / React / Next.js skills are essentially irrelevant; the work is SDK/CLI/server-side and agent-protocol plumbing",
+      "Crypto-native depth bar (perp funding, bridge risk, Solidity reading) is well above 'web3 frontend with wagmi/viem' experience; salary undisclosed"
+    ],
+    "verdict": "skip",
+    "reason": "Despite the web3+AI keyword overlap and rule-score of 70, the actual job is a DevRel/SDK-evangelist role with crypto-native and agent-infrastructure depth requirements that don't match a senior frontend IC."
+  },
+  "ebda337748f6844a8886ea3fd39cf35fe4ca97ed": {
+    "jobId": "ebda337748f6844a8886ea3fd39cf35fe4ca97ed",
+    "reviewedAt": "2026-05-07T13:55:36.044Z",
+    "model": "claude-code",
+    "summary": "Senior LLM algorithm/research engineer role on a small AI team at Binance building in-house LLMs for on-chain data, trading, and compliance.",
+    "wants": [
+      "LLM/algorithm research and model-building expertise (not frontend app development)",
+      "Data science / ML engineering background to ingest and reason over on-chain datasets",
+      "Willingness to work from Asia on a lean research team"
+    ],
+    "offers": [
+      "Greenfield AI work at a major crypto exchange spanning trading, compliance, and Web3 data",
+      "Small elite team (3–5) with broad scope across multiple internal products"
+    ],
+    "redFlags": [
+      "Role is LLM/ML research engineering, not frontend — candidate is a frontend engineer with API-level AI experience, not a model/algorithm builder",
+      "Location is 'Asia' with no remote-EMEA or Spain mention",
+      "Tone targets 'young' researchers, suggesting hands-on ML/algorithm specialists rather than senior frontend ICs",
+      "No salary disclosure"
+    ],
+    "verdict": "skip",
+    "reason": "Despite the web3+ai keyword overlap, this is an LLM algorithm/data-science IC role based in Asia — wrong specialty (model research, not frontend) and wrong location for the candidate."
+  },
+  "8069c0ac833e6e61da6f0cb68a01f4a85282ff14": {
+    "jobId": "8069c0ac833e6e61da6f0cb68a01f4a85282ff14",
+    "reviewedAt": "2026-05-07T13:55:48.168Z",
+    "model": "claude-code",
+    "summary": "Senior Software Engineer on Fullstory's Web Capture team building JS/TS session-replay SDK with React and Go, semi-onsite in Atlanta (1 day/week in office).",
+    "wants": [
+      "Senior frontend/SDK engineer with strong JavaScript/TypeScript and React",
+      "Some Go (golang) for backend pieces",
+      "Willingness to work onsite in Atlanta 1 day/week"
+    ],
+    "offers": [
+      "$145–170k USD base + up to 10% bonus, equity, 401k match",
+      "5-week sabbatical after 5 years, unlimited PTO, generous holidays",
+      "Interesting product domain: privacy-preserving session replay and analytics SDK"
+    ],
+    "redFlags": [
+      "Location is Atlanta with weekly onsite requirement — candidate is in Spain and wants remote-worldwide/EMEA",
+      "No web3 or AI engineering content despite rule-based 'ai' category (the AI tag came from sibling roles in the same HN post, not this one)",
+      "Requires Go, which isn't in the candidate's stated stack"
+    ],
+    "verdict": "skip",
+    "reason": "Atlanta semi-onsite rules this out for a Spain-based candidate; the rule-based 70 misfired on sibling-role AI keywords bleeding into this posting."
+  },
+  "aea349f57cdffa425949b30e1ceb7d3ccca19e56": {
+    "jobId": "aea349f57cdffa425949b30e1ceb7d3ccca19e56",
+    "reviewedAt": "2026-05-07T13:56:01.003Z",
+    "model": "claude-code",
+    "summary": "Full-stack/applied AI engineer at an early-stage startup building voice agents and customer-success automation, US-only remote with LA/SF preference.",
+    "wants": [
+      "Full-stack engineer who can ship applied AI features (voice agents, knowledge graphs, multi-agent, evals)",
+      "Comfort with autonomy in an early-stage, real-user product environment",
+      "Likely US work authorization given the explicit US-only remote constraint"
+    ],
+    "offers": [
+      "$190–250k + early equity",
+      "Fully covered healthcare for employee and dependents, 401(k)",
+      "Cutting-edge applied AI scope: voice agents, knowledge graphs, multi-agent systems, evals"
+    ],
+    "redFlags": [
+      "REMOTE US ONLY — hard mismatch for a Spain-based candidate",
+      "No mention of frontend/React; role leans backend/full-stack applied AI",
+      "401(k) and US healthcare strongly imply US-employment-only, not just timezone"
+    ],
+    "verdict": "skip",
+    "reason": "Posting explicitly states REMOTE US ONLY, which disqualifies a Spain-based candidate regardless of the AI/stack signal."
+  },
+  "5cef662bfc26a80580ec737866d1ec6a10dbd8a6": {
+    "jobId": "5cef662bfc26a80580ec737866d1ec6a10dbd8a6",
+    "reviewedAt": "2026-05-07T13:56:26.428Z",
+    "model": "claude-code",
+    "summary": "Part-time 1099 contract role (10-20 hrs/week) at an early-stage AI consultancy building bespoke LLM apps for executive clients, restricted to US-based contractors.",
+    "wants": [
+      "Full-stack engineer who has shipped end-to-end at a small/early company",
+      "Hands-on LLM application experience (RAG, agents, evals, prompt engineering) with real opinions",
+      "Strong written communication and client-scoping ability"
+    ],
+    "offers": [
+      "$75-150/hr contract with 40-hr monthly minimum, scaling with demand",
+      "Stack overlaps cleanly with candidate (TS, React/Next, Claude APIs, RAG/agents)",
+      "Potential conversion to full-time at $150k-$220k as the practice grows"
+    ],
+    "redFlags": [
+      "Explicitly Remote (US) / Austin-based and 1099 — incompatible with a Spain-based candidate",
+      "Fractional 10-20 hrs/week contract, not the senior/lead IC role the candidate is targeting",
+      "Heavy client-facing scoping work edges toward solutions/forward-deployed territory"
+    ],
+    "verdict": "skip",
+    "reason": "Stack alignment is strong but the role is US-only 1099 contract work — a hard location/employment-type mismatch the rule-based score missed."
+  },
+  "73c1f9405bbec3b1b973357aa166736cfc611eee": {
+    "jobId": "73c1f9405bbec3b1b973357aa166736cfc611eee",
+    "reviewedAt": "2026-05-07T13:56:39.495Z",
+    "model": "claude-code",
+    "summary": "Design Engineer role at vvd, an AI-native creative tools startup, building end-to-end polished product experiences in React/TypeScript/Next.js.",
+    "wants": [
+      "Strong frontend craft: taste, interaction, motion, polish",
+      "Ability to ship from rough idea to implementation without specs",
+      "Working knowledge of APIs/auth/data flow to be self-sufficient"
+    ],
+    "offers": [
+      "Fully remote, work from anywhere",
+      "AI-native tooling (Cursor, Claude Code) baked into workflow",
+      "Small-team end-to-end ownership of product surface"
+    ],
+    "redFlags": [
+      "No seniority level stated — 'Design Engineer' could be IC at any level, comp not disclosed",
+      "Tiny startup (HN hiring post, vvd.world) — likely early-stage with associated risk",
+      "Role leans heavily design/craft; candidate's web3+AI depth is largely irrelevant here"
+    ],
+    "verdict": "match",
+    "reason": "Stack and remote-anywhere fit cleanly and the candidate's design-system experience aligns, but the unstated level plus pure-frontend-craft framing (no AI/web3 leverage) makes it solid rather than strong."
+  },
+  "d35024f1a5101bf5f4c8b8a406949a7ae410519a": {
+    "jobId": "d35024f1a5101bf5f4c8b8a406949a7ae410519a",
+    "reviewedAt": "2026-05-07T13:56:51.482Z",
+    "model": "claude-code",
+    "summary": "Senior backend/platform engineer role building Mercury's internal AI platform (MCP servers, LLM gateway, RAG, eval harnesses) for company-wide AI enablement.",
+    "wants": [
+      "5+ years backend experience in complex production systems",
+      "Fluency across languages plus platform/infra/devtools",
+      "Hands-on LLM systems shipped to production (RAG, agents, evals)"
+    ],
+    "offers": [
+      "Greenfield internal AI platform work with broad scope",
+      "High-agency role shaping company-wide AI strategy"
+    ],
+    "redFlags": [
+      "Explicitly a backend/platform role — candidate is a frontend engineer",
+      "Location restricted to US/Canada remote or US offices; Spain not eligible",
+      "No salary disclosed"
+    ],
+    "verdict": "skip",
+    "reason": "Despite AI keyword overlap, this is a backend/platform IC role restricted to US/Canada — wrong specialty and ineligible location for an EMEA-based frontend engineer."
+  },
+  "804cdc18938c7a063c40915ccbef468a2e981711": {
+    "jobId": "804cdc18938c7a063c40915ccbef468a2e981711",
+    "reviewedAt": "2026-05-07T13:57:05.459Z",
+    "model": "claude-code",
+    "summary": "Staff-level protocol/blockchain engineer role at Polygon Labs working on EVM internals, consensus, parallelized execution, PBS/MEV, and Geth contributions on the Chain Engineering team.",
+    "wants": [
+      "Deep protocol/EVM internals expertise (Geth contributions, parallelized execution, PBS/MEV mitigation)",
+      "Low-level systems engineering for sub-second finality and gigagas throughput",
+      "Staff-level technical leadership on consensus/scalability architecture"
+    ],
+    "offers": [
+      "Remote, working on widely-used L2 infrastructure with real scale",
+      "AI-native engineering culture with AI tooling integrated into the dev workflow",
+      "Influence over long-term roadmap (quantum-resilient, payment lanes, finality)"
+    ],
+    "redFlags": [
+      "Core specialty is protocol/Geth/EVM internals — a frontend engineer's React/Next.js/wallet-integration skills don't apply here",
+      "Requires Go/low-level systems and consensus expertise, not TypeScript/UI work",
+      "Salary not disclosed"
+    ],
+    "verdict": "skip",
+    "reason": "Despite the web3 keyword overlap that drove the 70 score, this is a backend protocol/consensus engineering role (Geth, EVM execution, PBS) — fundamentally mismatched with a senior frontend engineer's skill set."
   }
 }
