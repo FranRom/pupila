@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs';
 import { loadAppliedMap } from './applied.js';
 import { compareJobs, dedupe } from './dedup.js';
 import { renderFeed } from './feed.js';
@@ -49,13 +50,47 @@ async function processFetcher<T>(
   fetchedAt: string,
   today: string,
 ): Promise<FetcherTaskResult<T>> {
-  const { items, errors } = await fetcher();
-  const jobs = normalizer(items, fetchedAt);
-  await writeJson(`data/raw/${source}-${today}.json`, items);
-  return { source, fetched: items.length, jobs, raw: items, errors };
+  // The `[start]` / `[done]` / `[error]` lines are parsed by the UI's
+  // /api/fetch-jobs middleware to drive the live worker panel. Don't
+  // change the format without updating the parser in ui/vite.config.ts.
+  console.log(`[start] ${source}`);
+  try {
+    const { items, errors } = await fetcher();
+    const jobs = normalizer(items, fetchedAt);
+    await writeJson(`data/raw/${source}-${today}.json`, items);
+    console.log(`[done] ${source} fetched=${items.length} errors=${errors.length}`);
+    return { source, fetched: items.length, jobs, raw: items, errors };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.log(`[error] ${source} ${msg}`);
+    throw err;
+  }
+}
+
+const BRIEF_PATH = 'config/candidate-brief.md';
+
+function ensureCandidateBrief(): void {
+  if (existsSync(BRIEF_PATH)) return;
+  if (process.env.JOB_HUNT_NO_BRIEF_CHECK === '1') return;
+  if (process.argv.includes('--no-brief-check')) return;
+  console.error(`
+✗ ${BRIEF_PATH} not found.
+
+The aggregator expects you to set up your candidate profile first:
+
+  pnpm run setup-brief --file ~/path/to/cv.pdf
+  # or, drop your CV into the UI's Profile tab:
+  pnpm run ui
+
+To skip this check (raw aggregation only, no AI review):
+  JOB_HUNT_NO_BRIEF_CHECK=1 pnpm run dev
+`);
+  process.exit(1);
 }
 
 async function main(): Promise<void> {
+  ensureCandidateBrief();
+
   const fetchedAt = new Date().toISOString();
   const today = isoToday();
 

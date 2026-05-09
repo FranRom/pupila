@@ -37,7 +37,15 @@ pnpm run ai-review --force  # re-review entries that already exist
 pnpm run ai-review --ids=a,b # review specific job ids only
 pnpm run setup-brief --file ~/cv.pdf  # generate config/candidate-brief.md from a CV (PDF/DOCX/MD/TXT)
 pnpm run daily              # convenience: pnpm run dev && pnpm run ai-review (morning routine)
+pnpm run clean              # wipe locally-generated artifacts (jobs.json, JOBS.md, feed.xml, archives, logs)
+pnpm run clean -- --all     # also wipe candidate-brief.md + applied.json (full reset)
 ```
+
+**Mandatory CV gate.** `pnpm run dev` checks for `config/candidate-brief.md` at startup and exits 1 with a setup hint if missing. Bypass with `JOB_HUNT_NO_BRIEF_CHECK=1` or `--no-brief-check` for raw-aggregator mode.
+
+**First-run onboarding.** When `config/preferences.json` is missing or has `onboardedAt: null`, opening the UI shows a 3-step wizard (`ui/src/Onboarding.tsx`): pick LLM CLI → drop CV → confirm generated brief. The wizard POSTs `/api/preferences` with the chosen provider + today's date as `onboardedAt`, which becomes a one-shot gate — once stamped, the wizard never re-triggers even if the brief is later removed.
+
+**AI Apply (per-job).** UI rows have an `AI Apply ✨` button next to the existing `Apply ↗` link. Clicking it POSTs `/api/ai-apply` with `{ jobId }`, which runs the chosen LLM CLI on (brief + job posting + CV file) and writes a tailored cover-letter package to `data/applications/<jobId>.md`. The job is auto-marked as applied. The middleware lives in `ui/vite.config.ts` (`aiApplyApiPlugin`); search for `// TODO: Phase 2` to find the spots where browser-driven autosubmit would plug in. The headless LLM CLIs can't drive a browser, so v1 stops at "generate the package, user copy/pastes".
 
 The pipeline writes to `data/jobs.json` (slim — `body` field stripped), `data/feed.xml` (RSS 2.0 of new jobs), `JOBS.md`, optionally `data/archive/<YYYY-MM>.json` on day 1 of the month, and per-source raw dumps in `data/raw/<source>-<YYYY-MM-DD>.json` (gitignored). `README.md` is hand-maintained — never overwrite it from code.
 
@@ -79,6 +87,8 @@ config/
   candidate-brief.example.md  # committed template; copied to candidate-brief.md if user prefers manual setup
   applied.json                # GITIGNORED — personal application history (UI writes here via /api/applied)
   applied.example.json        # committed template (empty array)
+  preferences.json            # GITIGNORED — { provider, onboardedAt }; written by the onboarding wizard
+  cv.{pdf,docx,md,txt}        # GITIGNORED — raw CV file kept on disk so AI Apply can re-attach it
 
 examples/
   franron/          # the original frontend + web3 + AI worked example (profile.json, slugs.json, candidate-brief.md, applied.json)

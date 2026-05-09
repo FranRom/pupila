@@ -43,11 +43,15 @@ pnpm install
 
 Or click "Fork" on GitHub, then `git clone <your-fork>`.
 
-### 2. Generate your candidate brief
+### 2. Generate your candidate brief (required)
 
-The brief at `config/candidate-brief.md` is the natural-language description of who you are, what you want, and what to avoid. The AI per-job review uses it.
+The brief at `config/candidate-brief.md` is the natural-language description of who you are, what you want, and what to avoid. **This step is mandatory** — `pnpm run dev` will refuse to start until the file exists. (Bypass with `JOB_HUNT_NO_BRIEF_CHECK=1` if you genuinely want raw aggregation with no AI review.)
 
-**The file is gitignored** — it contains CV-derived personal information and should never be committed. The repo ships [`config/candidate-brief.example.md`](./config/candidate-brief.example.md) as a committed template; setup-brief writes to the gitignored canonical path. The fastest way to fill it in is to run your CV through your local LLM CLI:
+**The file is gitignored** — it contains CV-derived personal information and should never be committed. The repo ships [`config/candidate-brief.example.md`](./config/candidate-brief.example.md) as a committed template; setup-brief writes to the gitignored canonical path.
+
+The friendliest path is the **first-run onboarding wizard**: run `pnpm run ui` on a clean repo and the UI walks you through (1) picking your LLM CLI, (2) dropping your CV, (3) confirming the auto-generated brief. After "Looks good", `config/preferences.json` is stamped with `onboardedAt`, the wizard never re-triggers, and you land on the Jobs view.
+
+For the CLI-only path, run setup-brief directly:
 
 ```bash
 pnpm run setup-brief --file ~/Documents/cv.pdf      # PDF
@@ -63,6 +67,11 @@ pnpm run ui   # http://127.0.0.1:5173 → Profile tab → drop your CV
 ```
 
 The auto-detected provider order is `claude` → `codex` → `gemini` → `opencode` (whichever is on `PATH` first). Override with `JOB_HUNT_LLM=codex pnpm run setup-brief ...`. No API keys; uses your existing CLI subscription.
+
+> **The two personalization layers, briefly:**
+> - `config/profile.json` (committed defaults) controls **what gets fetched + scored** (weights, keyword lists, tier-S slugs).
+> - `config/candidate-brief.md` (gitignored, CV-derived) controls **the per-job AI verdict** (`pnpm run ai-review`).
+> Both matter for the full daily flow.
 
 ### 3. Tune the scoring profile
 
@@ -126,16 +135,28 @@ These files are **gitignored** and never committed, so a public fork can't leak 
 
 | File | What it is | First-run source |
 |---|---|---|
-| `config/candidate-brief.md` | LLM-generated CV summary | `pnpm run setup-brief` (or copy `config/candidate-brief.example.md`) |
+| `config/candidate-brief.md` | LLM-generated CV summary | Onboarding wizard / `pnpm run setup-brief` (or copy `config/candidate-brief.example.md`) |
+| `config/cv.{pdf,docx,md,txt}` | Original CV file | Saved by the onboarding wizard / `setup-brief` so AI Apply can re-attach it |
 | `config/applied.json` | Your application history | UI Profile → status pills (or copy `config/applied.example.json`) |
+| `config/preferences.json` | Your chosen LLM CLI + onboarding-complete stamp | Onboarding wizard |
 | `data/jobs.json` | Daily aggregator output, tuned to your profile | Auto-created by `pnpm run dev` |
 | `data/ai-reviews.json` | Per-job LLM verdicts | Auto-created by `pnpm run ai-review` |
+| `data/applications/<job-id>.md` | AI-generated application packages (cover letter, highlights, Q&A) | Auto-created by AI Apply |
 | `data/feed.xml` | RSS feed of new matches | Auto-created by `pnpm run dev` |
 | `JOBS.md` | Daily readable matches table | Auto-created by `pnpm run dev` |
 | `data/archive/*.json` | Monthly snapshots | Auto-created on day 1 of each month |
 | `data/launchd-*.log`, `data/cron-*.log` | Local schedule logs | Auto-created by the scheduler |
 
 The UI fetches `data/jobs.json` and `data/ai-reviews.json` at runtime from `/api/jobs` and `/api/reviews` (provided by the Vite middleware) — that's why a fresh clone with no data files still loads cleanly. If you genuinely want git history of any of these (e.g. you're using a private fork as a personal sync mechanism), remove the relevant line from `.gitignore` and `git add` the file.
+
+#### Reset to a clean slate
+
+```bash
+pnpm run clean              # wipe generated outputs, archives, raw caches, schedule logs
+pnpm run clean -- --all     # also wipe candidate-brief.md + applied.json
+```
+
+Idempotent — running on an already-clean state prints `nothing to clean`. Useful when re-tuning your profile (so old jobs don't muddy the diff against the next run) or when handing the repo to someone else.
 
 ## Stack
 
@@ -405,6 +426,26 @@ git commit -m "chore: applied to <company>"
 
 The pipeline deliberately does not auto-commit `config/applied.json`, so this is a manual step. Hand-editing the JSON still works — the UI re-reads it on next mount.
 
+## AI Apply (per-job, optional)
+
+Every row in the local UI has two action buttons:
+
+- **Apply ↗** — opens the job's posting URL in a new tab (existing behavior).
+- **AI Apply ✨** — generates a tailored application package from your candidate brief, the job posting, and your CV. The output is saved to `data/applications/<job-id>.md` and shown inline in the row's expanded detail panel with copy-to-clipboard buttons per section.
+
+The package contains:
+
+- **Cover letter** — 3–4 paragraphs, written in first person, naturally referencing 2–3 specifics from your CV that match the role.
+- **Highlights** — 4–6 bullet talking points for "why are you a good fit?" form fields.
+- **Common-question answers** — short copy-pasteable replies for "why this company / why this role / start date / salary expectations".
+- **Apply checklist** — what to attach + which form fields will need a custom answer beyond the above.
+
+Clicking **AI Apply ✨** also auto-marks the job as applied in `config/applied.json` (with a note pointing at the application file).
+
+The button shells out to the LLM CLI you picked during onboarding (or auto-detect). If you don't have a CLI installed, the button still appears but the request will fail with a helpful error — install one of `claude` / `codex` / `gemini` / `opencode` to use AI Apply. (If you're skipping AI features entirely, the regular Apply ↗ link still works.)
+
+> **Future iteration:** the headless LLM CLIs can't drive a browser, so v1 stops at "generate the package, you copy/paste". Browser-driven autosubmit (Playwright + LLM-driven form-field discovery) is captured as Phase 2 in the plan and `// TODO: Phase 2` comments are scattered around `/api/ai-apply` and the UI button so future-you knows where to plug in.
+
 ## AI per-job review
 
 [`src/ai-review.ts`](./src/ai-review.ts) is an **optional, local-only** companion that adds an LLM "second opinion" to selected jobs. Each job gets a structured review — summary, what they want, what they offer, red flags, and a verdict (`strong-match | match | weak-match | skip`) — so you can scan the day's matches in seconds instead of reading every posting.
@@ -562,8 +603,13 @@ pnpm test                    # vitest run (120 unit tests)
 pnpm run test:watch          # vitest in watch mode
 pnpm run ui                  # local browser UI (Vite dev server, 127.0.0.1:5173)
 pnpm run ai-review           # local-only: per-job LLM review via your local LLM CLI
+pnpm run setup-brief         # ingest CV (.pdf/.docx/.md/.txt) → config/candidate-brief.md
 pnpm run daily               # convenience: dev + ai-review back-to-back
+pnpm run clean               # wipe locally-generated artifacts (jobs.json, JOBS.md, feed.xml, archives, logs)
+pnpm run clean -- --all      # also wipe candidate-brief.md + applied.json (full reset)
 ```
+
+> **Heads up:** `pnpm run dev` refuses to start unless `config/candidate-brief.md` exists — set up your candidate brief first via `pnpm run setup-brief` or the UI Profile tab. Bypass with `JOB_HUNT_NO_BRIEF_CHECK=1` (or `--no-brief-check`) for raw aggregation without AI review.
 
 The pre-commit hook runs `lint && typecheck` on every commit. To bypass it for an emergency commit: `SKIP_SIMPLE_GIT_HOOKS=1 git commit ...`.
 

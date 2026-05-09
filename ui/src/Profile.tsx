@@ -226,8 +226,6 @@ export function Profile() {
       <section
         className={`cv-drop ${dragActive ? 'cv-drop-active' : ''} ${busy ? 'cv-drop-busy' : ''}`}
         aria-label="CV upload drop zone"
-        // biome-ignore lint/a11y/noStaticElementInteractions: drop targets are
-        // inherently mouse-only; keyboard users have the "Choose file" button.
         onDragOver={(e) => {
           e.preventDefault();
           setDragActive(true);

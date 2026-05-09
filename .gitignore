@@ -10,12 +10,19 @@ ui/dist/
 # scripted/UI flows will populate the real files locally.
 config/candidate-brief.md
 config/applied.json
+config/preferences.json
+config/cv.pdf
+config/cv.docx
+config/cv.md
+config/cv.txt
 data/jobs.json
 data/ai-reviews.json
 data/feed.xml
 JOBS.md
 data/archive/*
 !data/archive/.gitkeep
+data/applications/*
+!data/applications/.gitkeep
 data/jobs-bodies.json
 data/raw/*
 !data/raw/.gitkeep

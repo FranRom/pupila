@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Onboarding } from './Onboarding.tsx';
 import { Profile } from './Profile.tsx';
 import type {
   AiReview,
@@ -12,6 +13,11 @@ import type {
 } from './types.ts';
 
 type Tab = 'jobs' | 'profile';
+
+interface PreferencesResponse {
+  provider: string | null;
+  onboardedAt: string | null;
+}
 
 const STATUS_EMOJI: Record<ApplicationStatus, string> = {
   applied: '📝',
@@ -105,8 +111,12 @@ export function App() {
   const [allJobs, setAllJobs] = useState<Job[]>([]);
   const [aiReviews, setAiReviews] = useState<AiReviews>({});
   const [dataLoading, setDataLoading] = useState(true);
+  // Onboarding state. `null` while we're still fetching /api/preferences;
+  // `false` once we've confirmed the user has finished onboarding (or
+  // they bypass via the Profile tab); `true` triggers the wizard.
+  const [showOnboarding, setShowOnboarding] = useState<boolean | null>(null);
 
-  // Load jobs + AI reviews + applied state on mount.
+  // Load jobs + AI reviews + applied state + preferences on mount.
   useEffect(() => {
     let cancelled = false;
     const loadJobs = fetch('/api/jobs')
@@ -118,19 +128,30 @@ export function App() {
     const loadApplied = fetch('/api/applied')
       .then((r) => (r.ok ? (r.json() as Promise<AppliedEntry[]>) : Promise.resolve([])))
       .catch(() => [] as AppliedEntry[]);
-    Promise.all([loadJobs, loadReviews, loadApplied]).then(([jobs, reviews, applied]) => {
-      if (cancelled) return;
-      setAllJobs(jobs);
-      setAiReviews(reviews);
-      const byUrl = new Map(applied.map((e) => [e.url, e]));
-      const nextApplied: AppliedMap = {};
-      for (const j of jobs) {
-        const e = byUrl.get(j.url);
-        if (e) nextApplied[j.id] = e;
-      }
-      setAppliedById(nextApplied);
-      setDataLoading(false);
-    });
+    const loadPrefs = fetch('/api/preferences')
+      .then((r) =>
+        r.ok
+          ? (r.json() as Promise<PreferencesResponse>)
+          : Promise.resolve({ provider: null, onboardedAt: null } as PreferencesResponse),
+      )
+      .catch(() => ({ provider: null, onboardedAt: null }) as PreferencesResponse);
+    Promise.all([loadJobs, loadReviews, loadApplied, loadPrefs]).then(
+      ([jobs, reviews, applied, prefs]) => {
+        if (cancelled) return;
+        setAllJobs(jobs);
+        setAiReviews(reviews);
+        const byUrl = new Map(applied.map((e) => [e.url, e]));
+        const nextApplied: AppliedMap = {};
+        for (const j of jobs) {
+          const e = byUrl.get(j.url);
+          if (e) nextApplied[j.id] = e;
+        }
+        setAppliedById(nextApplied);
+        setDataLoading(false);
+        // First run = no `onboardedAt` stamp yet. Show the wizard.
+        setShowOnboarding(!prefs.onboardedAt);
+      },
+    );
     return () => {
       cancelled = true;
     };
@@ -305,6 +326,38 @@ export function App() {
       setSortKey(key);
       setSortDir('desc');
     }
+  }
+
+  if (showOnboarding === null) {
+    return (
+      <div className="app">
+        <p className="placeholder">Loading…</p>
+      </div>
+    );
+  }
+  if (showOnboarding) {
+    return (
+      <div className="app">
+        <Onboarding
+          onComplete={async () => {
+            setShowOnboarding(false);
+            // Refresh data after onboarding (the brief was just generated;
+            // jobs.json may still be empty until the user runs the
+            // aggregator, but we still want the new state).
+            const [jobs, reviews] = await Promise.all([
+              fetch('/api/jobs')
+                .then((r) => (r.ok ? r.json() : []))
+                .catch(() => []),
+              fetch('/api/reviews')
+                .then((r) => (r.ok ? r.json() : {}))
+                .catch(() => ({})),
+            ]);
+            setAllJobs(jobs as Job[]);
+            setAiReviews(reviews as AiReviews);
+          }}
+        />
+      </div>
+    );
   }
 
   return (
@@ -569,6 +622,21 @@ function CompanyBlock({
   );
 }
 
+interface AiApplyState {
+  busy: boolean;
+  body: string | null;
+  path: string | null;
+  error: string | null;
+}
+
+interface AiApplyResponse {
+  ok: boolean;
+  path: string;
+  body: string;
+  applied?: AppliedEntry;
+  provider?: string;
+}
+
 interface FragmentRowProps {
   job: Job;
   isOpen: boolean;
@@ -591,6 +659,49 @@ function FragmentRow({
   const rowClass = [applied ? 'applied' : '', isOpen ? 'open' : '', indent ? 'indent' : '']
     .filter(Boolean)
     .join(' ');
+  const [aiApply, setAiApply] = useState<AiApplyState>({
+    busy: false,
+    body: null,
+    path: null,
+    error: null,
+  });
+
+  const triggerAiApply = useCallback(async () => {
+    if (
+      !window.confirm(
+        `Generate a tailored application package for "${job.title}" at ${job.company ?? '?'}?\n\nThis runs your local LLM CLI and saves a markdown file at data/applications/${job.id}.md. The job will be auto-marked as applied.`,
+      )
+    ) {
+      return;
+    }
+    setAiApply({ busy: true, body: null, path: null, error: null });
+    try {
+      const res = await fetch('/api/ai-apply', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ jobId: job.id }),
+      });
+      if (!res.ok) {
+        const errBody = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(errBody.error ?? `HTTP ${res.status}`);
+      }
+      const data = (await res.json()) as AiApplyResponse;
+      setAiApply({ busy: false, body: data.body, path: data.path, error: null });
+      // The server already wrote applied.json server-side — sync local state
+      // by refetching, mirroring what setApplied('applied') would do but
+      // without the optimistic round-trip.
+      if (data.applied) {
+        await setApplied(job, data.applied.status as ApplicationStatus, data.applied.notes);
+      }
+    } catch (err) {
+      setAiApply({
+        busy: false,
+        body: null,
+        path: null,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }, [job, setApplied]);
   return (
     <>
       <tr className={rowClass} onClick={onToggle}>
@@ -628,12 +739,31 @@ function FragmentRow({
           >
             Apply ↗
           </a>
+          {' · '}
+          <button
+            type="button"
+            className="ai-apply-link"
+            disabled={aiApply.busy}
+            onClick={(e) => {
+              e.stopPropagation();
+              void triggerAiApply();
+            }}
+            title="Generate a tailored cover letter + application package via your local LLM CLI"
+          >
+            {aiApply.busy ? '… generating' : 'AI Apply ✨'}
+          </button>
         </td>
       </tr>
       {isOpen && (
         <tr className="detail-row">
           <td colSpan={7}>
-            <DetailPanel job={job} review={review} applied={applied} setApplied={setApplied} />
+            <DetailPanel
+              job={job}
+              review={review}
+              applied={applied}
+              setApplied={setApplied}
+              aiApply={aiApply}
+            />
           </td>
         </tr>
       )}
@@ -646,12 +776,19 @@ interface DetailPanelProps {
   review: AiReview | undefined;
   applied: AppliedEntry | undefined;
   setApplied: SetApplied;
+  aiApply: AiApplyState;
 }
 
-function DetailPanel({ job, review, applied, setApplied }: DetailPanelProps) {
+function DetailPanel({ job, review, applied, setApplied, aiApply }: DetailPanelProps) {
   return (
     <>
       <AppliedBar job={job} applied={applied} setApplied={setApplied} />
+      {aiApply.error && (
+        <div className="api-error" role="alert">
+          AI Apply failed: {aiApply.error}
+        </div>
+      )}
+      {aiApply.body && <AiApplyPanel body={aiApply.body} path={aiApply.path} />}
       <div className="detail">
         <section>
           <h3>AI take</h3>
@@ -913,4 +1050,68 @@ function relativeTime(iso: string | null): string {
   const months = Math.floor(days / 30);
   if (months === 1) return '1mo ago';
   return `${months}mo ago`;
+}
+
+interface AiApplyPanelProps {
+  body: string;
+  path: string | null;
+}
+
+// Renders the AI Apply markdown package with a copy-to-clipboard button per
+// `## Section`. The user copy/pastes each section into the actual application
+// form. (Phase 2: replace this with a "Submit via Playwright" flow that
+// auto-fills the live application.)
+function AiApplyPanel({ body, path }: AiApplyPanelProps) {
+  const sections = useMemo(() => splitMarkdownByH2(body), [body]);
+  return (
+    <div className="ai-apply-panel">
+      <header>
+        <strong>✨ AI Apply package</strong>
+        {path && <span className="muted"> · saved to {path}</span>}
+      </header>
+      {sections.length === 0 ? (
+        <pre className="ai-apply-raw">{body}</pre>
+      ) : (
+        sections.map((s) => (
+          <section key={s.heading} className="ai-apply-section">
+            <header>
+              <h4>{s.heading}</h4>
+              <button
+                type="button"
+                className="ai-apply-copy"
+                onClick={() => {
+                  void navigator.clipboard.writeText(s.body.trim());
+                }}
+              >
+                Copy
+              </button>
+            </header>
+            <pre>{s.body.trim()}</pre>
+          </section>
+        ))
+      )}
+    </div>
+  );
+}
+
+interface MarkdownSection {
+  heading: string;
+  body: string;
+}
+
+function splitMarkdownByH2(md: string): MarkdownSection[] {
+  const lines = md.split('\n');
+  const out: MarkdownSection[] = [];
+  let current: MarkdownSection | null = null;
+  for (const line of lines) {
+    const m = line.match(/^##\s+(.+)$/);
+    if (m?.[1]) {
+      if (current) out.push(current);
+      current = { heading: m[1].trim(), body: '' };
+    } else if (current) {
+      current.body += `${line}\n`;
+    }
+  }
+  if (current) out.push(current);
+  return out;
 }

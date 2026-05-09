@@ -15,11 +15,15 @@
 // order). Override with JOB_HUNT_LLM=<provider>.
 
 import { existsSync } from 'node:fs';
+import { copyFile } from 'node:fs/promises';
 import { writeBriefBody } from './lib/brief-template.js';
 import { detectFormat, parseCvFile } from './lib/cv-parser.js';
 import { detectLlmCli, runLlm } from './lib/llm.js';
 
-const MAX_CV_CHARS = 12000;
+// How many chars of the parsed CV we send to the LLM. Configurable via
+// JOB_HUNT_CV_MAX_CHARS for users hitting OOM kills on large CVs.
+const MAX_CV_CHARS = Number(process.env.JOB_HUNT_CV_MAX_CHARS ?? '12000');
+const CV_DEST_BASENAME = 'config/cv';
 
 interface CliArgs {
   file: string | null;
@@ -98,12 +102,24 @@ async function main(): Promise<void> {
       console.error(`✗ File not found: ${args.file}`);
       process.exit(1);
     }
-    console.log(`Reading ${args.file} (${detectFormat(args.file)})...`);
+    const format = detectFormat(args.file);
+    console.log(`Reading ${args.file} (${format})...`);
     try {
       cvText = await parseCvFile(args.file);
     } catch (err) {
       console.error(`✗ Failed to parse CV: ${err instanceof Error ? err.message : String(err)}`);
       process.exit(1);
+    }
+    // Persist the raw CV alongside the parsed brief so AI Apply can
+    // re-attach it later. Copies in place — most-recent upload wins.
+    const dest = `${CV_DEST_BASENAME}.${format}`;
+    try {
+      await copyFile(args.file, dest);
+      console.log(`Saved CV to ${dest}.`);
+    } catch (err) {
+      console.warn(
+        `! Could not copy CV to ${dest}: ${err instanceof Error ? err.message : String(err)} (continuing — AI Apply won't have a CV file to re-attach)`,
+      );
     }
   } else {
     if (process.stdin.isTTY) {
