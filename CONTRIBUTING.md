@@ -35,8 +35,8 @@ Use `pnpm run daily` only when you intentionally want to run both aggregation an
 Most personalization should be a config edit, not code:
 
 - Add or remove tracked companies in [`config/slugs.json`](./config/slugs.json).
-- Tune scoring weights and keyword lists in [`config/profile.json`](./config/profile.json).
-- Put worked personal examples under [`examples/`](./examples/) instead of hard-coding one person's preferences into defaults.
+- Tune scoring weights and keyword lists in [`config/profile.json`](./config/profile.json) — or let `/api/profile-generate` regenerate it from `config/candidate-brief.md`.
+- Personal data (brief, applied history, raw CV) lives in gitignored `config/` files only. Don't commit example/personal config to the repo.
 
 If a filter regex, hard-drop rule, or scoring behavior changes, update the matching tests in `tests/` in the same change.
 

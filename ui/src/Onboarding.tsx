@@ -143,6 +143,15 @@ export function Onboarding({ onComplete }: OnboardingProps) {
         const errBody = (await prefRes.json().catch(() => ({}))) as { error?: string };
         throw new Error(errBody.error ?? `preferences save: HTTP ${prefRes.status}`);
       }
+      // Fire-and-forget scoring-profile generation. We don't block the
+      // wizard handoff on it (can take 10–20s) — the Settings → Scoring
+      // profile panel reflects the result on next visit, and a manual
+      // retry button is there if it fails.
+      void fetch('/api/profile-generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ provider: provider === 'auto' ? null : provider }),
+      }).catch(() => undefined);
       onComplete();
     } catch (err) {
       setError(`Could not finish onboarding: ${err instanceof Error ? err.message : String(err)}`);

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { AiApplyProgress, type AiApplyState as DockState } from './AiApplyProgress.tsx';
 import { FetchProgress } from './FetchProgress.tsx';
 import { relativeTime } from './format.ts';
 import { Onboarding } from './Onboarding.tsx';
@@ -107,6 +108,16 @@ export function App() {
   const [expandedCompany, setExpandedCompany] = useState<string | null>(initial.expandedCompany);
   const [appliedById, setAppliedById] = useState<AppliedMap>({});
   const [apiError, setApiError] = useState<string | null>(null);
+  // Lifted AI Apply state — the dock at App root is the only source of
+  // truth for "is something running"; FragmentRow reads {busyJobId, result,
+  // error} to know what to render and whether to disable its button.
+  const [aiApplyBusyId, setAiApplyBusyId] = useState<string | null>(null);
+  const [aiApplyResult, setAiApplyResult] = useState<{
+    jobId: string;
+    body: string;
+    path: string;
+  } | null>(null);
+  const [aiApplyError, setAiApplyError] = useState<{ jobId: string; error: string } | null>(null);
   const [tab, setTab] = useState<Tab>(initial.tab);
   // jobs.json and ai-reviews.json are gitignored personal/AI artifacts —
   // fetched at runtime from the dev-server middleware so a fresh clone
@@ -144,6 +155,70 @@ export function App() {
       if (e) nextApplied[j.id] = e;
     }
     setAppliedById(nextApplied);
+  }, []);
+
+  // POST /api/ai-apply — kicks off a background LLM run. The
+  // <AiApplyProgress /> dock at root polls /api/ai-apply-progress for live
+  // state. We just need to bookmark which jobId we asked for so per-row
+  // buttons render the right state. Refuses 409 if another run is in flight.
+  const triggerAiApply = useCallback(
+    async (job: Job) => {
+      if (aiApplyBusyId) return; // another run in flight; rely on disabled button
+      const ok = window.confirm(
+        `Generate a tailored application package for "${job.title}" at ${job.company ?? '?'}?\n\nThis runs your local LLM CLI (CV at config/cv.* re-attached automatically) and saves a markdown file at data/applications/${job.id}.md. The job will be auto-marked as applied.`,
+      );
+      if (!ok) return;
+      setAiApplyBusyId(job.id);
+      setAiApplyResult(null);
+      setAiApplyError(null);
+      try {
+        const res = await fetch('/api/ai-apply', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ jobId: job.id }),
+        });
+        if (!res.ok && res.status !== 202) {
+          const errBody = (await res.json().catch(() => ({}))) as { error?: string };
+          throw new Error(errBody.error ?? `HTTP ${res.status}`);
+        }
+        // Don't wait for the body — the dock will stream it in.
+      } catch (err) {
+        setAiApplyError({
+          jobId: job.id,
+          error: err instanceof Error ? err.message : String(err),
+        });
+        setAiApplyBusyId(null);
+      }
+    },
+    [aiApplyBusyId],
+  );
+
+  // Called by the AiApplyProgress dock when a run finishes.
+  const onAiApplyComplete = useCallback((dockState: DockState) => {
+    if (dockState.status === 'done' && dockState.jobId && dockState.path) {
+      setAiApplyResult({
+        jobId: dockState.jobId,
+        body: dockState.output,
+        path: dockState.path,
+      });
+      // Sync applied state without an extra round-trip.
+      if (dockState.applied) {
+        const appliedJobId = dockState.jobId;
+        const appliedEntry = dockState.applied;
+        setAppliedById((prev) => ({
+          ...prev,
+          [appliedJobId]: {
+            url: appliedEntry.url,
+            status: appliedEntry.status as ApplicationStatus,
+            date: appliedEntry.date,
+            ...(appliedEntry.notes ? { notes: appliedEntry.notes } : {}),
+          },
+        }));
+      }
+    } else if (dockState.status === 'error' && dockState.jobId && dockState.error) {
+      setAiApplyError({ jobId: dockState.jobId, error: dockState.error });
+    }
+    setAiApplyBusyId(null);
   }, []);
 
   // POST /api/fetch-jobs — kicks off the aggregator. The FetchProgress
@@ -517,6 +592,7 @@ export function App() {
                   />
                   <th>Title</th>
                   <th>Company</th>
+                  <th>Location</th>
                   <th>Source</th>
                   <SortableTh
                     label="Salary"
@@ -544,6 +620,10 @@ export function App() {
                         appliedById={appliedById}
                         aiReviews={aiReviews}
                         setApplied={setApplied}
+                        triggerAiApply={triggerAiApply}
+                        aiApplyBusyId={aiApplyBusyId}
+                        aiApplyResult={aiApplyResult}
+                        aiApplyError={aiApplyError}
                         onToggleCompany={() =>
                           setExpandedCompany(expandedCompany === g.key ? null : g.key)
                         }
@@ -561,6 +641,10 @@ export function App() {
                           review={review}
                           applied={appliedById[j.id]}
                           setApplied={setApplied}
+                          triggerAiApply={triggerAiApply}
+                          aiApplyBusyId={aiApplyBusyId}
+                          aiApplyResult={aiApplyResult}
+                          aiApplyError={aiApplyError}
                           onToggle={() => setExpanded(isOpen ? null : j.id)}
                         />
                       );
@@ -571,6 +655,7 @@ export function App() {
         </>
       )}
       <FetchProgress onComplete={reloadJobsAndReviews} />
+      <AiApplyProgress onComplete={onAiApplyComplete} />
     </div>
   );
 }
@@ -599,6 +684,16 @@ function FetchCta({ onFetch }: FetchCtaProps) {
   );
 }
 
+interface AiApplyResult {
+  jobId: string;
+  body: string;
+  path: string;
+}
+interface AiApplyError {
+  jobId: string;
+  error: string;
+}
+
 interface CompanyBlockProps {
   group: CompanyGroup;
   isOpen: boolean;
@@ -606,6 +701,10 @@ interface CompanyBlockProps {
   appliedById: AppliedMap;
   aiReviews: AiReviews;
   setApplied: SetApplied;
+  triggerAiApply: (job: Job) => void;
+  aiApplyBusyId: string | null;
+  aiApplyResult: AiApplyResult | null;
+  aiApplyError: AiApplyError | null;
   onToggleCompany: () => void;
   onToggleJob: (id: string) => void;
 }
@@ -617,6 +716,10 @@ function CompanyBlock({
   appliedById,
   aiReviews,
   setApplied,
+  triggerAiApply,
+  aiApplyBusyId,
+  aiApplyResult,
+  aiApplyError,
   onToggleCompany,
   onToggleJob,
 }: CompanyBlockProps) {
@@ -632,6 +735,10 @@ function CompanyBlock({
         review={aiReviews[job.id]}
         applied={appliedById[job.id]}
         setApplied={setApplied}
+        triggerAiApply={triggerAiApply}
+        aiApplyBusyId={aiApplyBusyId}
+        aiApplyResult={aiApplyResult}
+        aiApplyError={aiApplyError}
         onToggle={() => onToggleJob(job.id)}
       />
     );
@@ -645,7 +752,7 @@ function CompanyBlock({
           </span>
           {group.topScore}
         </td>
-        <td colSpan={6}>
+        <td colSpan={7}>
           <span className="group-co">{group.display}</span>
           <span className="group-count">
             {group.jobs.length} role{group.jobs.length === 1 ? '' : 's'}
@@ -668,6 +775,10 @@ function CompanyBlock({
               review={aiReviews[j.id]}
               applied={appliedById[j.id]}
               setApplied={setApplied}
+              triggerAiApply={triggerAiApply}
+              aiApplyBusyId={aiApplyBusyId}
+              aiApplyResult={aiApplyResult}
+              aiApplyError={aiApplyError}
               onToggle={() => onToggleJob(j.id)}
               indent
             />
@@ -677,27 +788,16 @@ function CompanyBlock({
   );
 }
 
-interface AiApplyState {
-  busy: boolean;
-  body: string | null;
-  path: string | null;
-  error: string | null;
-}
-
-interface AiApplyResponse {
-  ok: boolean;
-  path: string;
-  body: string;
-  applied?: AppliedEntry;
-  provider?: string;
-}
-
 interface FragmentRowProps {
   job: Job;
   isOpen: boolean;
   review: AiReview | undefined;
   applied: AppliedEntry | undefined;
   setApplied: SetApplied;
+  triggerAiApply: (job: Job) => void;
+  aiApplyBusyId: string | null;
+  aiApplyResult: AiApplyResult | null;
+  aiApplyError: AiApplyError | null;
   onToggle: () => void;
   indent?: boolean;
 }
@@ -708,55 +808,20 @@ function FragmentRow({
   review,
   applied,
   setApplied,
+  triggerAiApply,
+  aiApplyBusyId,
+  aiApplyResult,
+  aiApplyError,
   onToggle,
   indent,
 }: FragmentRowProps) {
   const rowClass = [applied ? 'applied' : '', isOpen ? 'open' : '', indent ? 'indent' : '']
     .filter(Boolean)
     .join(' ');
-  const [aiApply, setAiApply] = useState<AiApplyState>({
-    busy: false,
-    body: null,
-    path: null,
-    error: null,
-  });
-
-  const triggerAiApply = useCallback(async () => {
-    if (
-      !window.confirm(
-        `Generate a tailored application package for "${job.title}" at ${job.company ?? '?'}?\n\nThis runs your local LLM CLI and saves a markdown file at data/applications/${job.id}.md. The job will be auto-marked as applied.`,
-      )
-    ) {
-      return;
-    }
-    setAiApply({ busy: true, body: null, path: null, error: null });
-    try {
-      const res = await fetch('/api/ai-apply', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ jobId: job.id }),
-      });
-      if (!res.ok) {
-        const errBody = (await res.json().catch(() => ({}))) as { error?: string };
-        throw new Error(errBody.error ?? `HTTP ${res.status}`);
-      }
-      const data = (await res.json()) as AiApplyResponse;
-      setAiApply({ busy: false, body: data.body, path: data.path, error: null });
-      // The server already wrote applied.json server-side — sync local state
-      // by refetching, mirroring what setApplied('applied') would do but
-      // without the optimistic round-trip.
-      if (data.applied) {
-        await setApplied(job, data.applied.status as ApplicationStatus, data.applied.notes);
-      }
-    } catch (err) {
-      setAiApply({
-        busy: false,
-        body: null,
-        path: null,
-        error: err instanceof Error ? err.message : String(err),
-      });
-    }
-  }, [job, setApplied]);
+  const isMine = aiApplyBusyId === job.id;
+  const otherBusy = aiApplyBusyId !== null && aiApplyBusyId !== job.id;
+  const myResult = aiApplyResult && aiApplyResult.jobId === job.id ? aiApplyResult : null;
+  const myError = aiApplyError && aiApplyError.jobId === job.id ? aiApplyError : null;
   return (
     <>
       <tr className={rowClass} onClick={onToggle}>
@@ -780,6 +845,9 @@ function FragmentRow({
         <td className="company" title={job.company ?? ''}>
           <span className="clamp-2">{job.company ?? '—'}</span>
         </td>
+        <td className="location" title={job.location ?? ''}>
+          <span className="clamp-2">{formatLocation(job)}</span>
+        </td>
         <td>
           <span className="source">{job.source}</span>
         </td>
@@ -798,26 +866,31 @@ function FragmentRow({
           <button
             type="button"
             className="ai-apply-link"
-            disabled={aiApply.busy}
+            disabled={isMine || otherBusy}
             onClick={(e) => {
               e.stopPropagation();
-              void triggerAiApply();
+              triggerAiApply(job);
             }}
-            title="Generate a tailored cover letter + application package via your local LLM CLI"
+            title={
+              otherBusy
+                ? 'Another AI Apply is in progress'
+                : 'Generate a tailored cover letter + application package via your local LLM CLI'
+            }
           >
-            {aiApply.busy ? '… generating' : 'AI Apply ✨'}
+            {isMine ? '… generating' : 'AI Apply ✨'}
           </button>
         </td>
       </tr>
       {isOpen && (
         <tr className="detail-row">
-          <td colSpan={7}>
+          <td colSpan={8}>
             <DetailPanel
               job={job}
               review={review}
               applied={applied}
               setApplied={setApplied}
-              aiApply={aiApply}
+              aiApplyResult={myResult}
+              aiApplyError={myError}
             />
           </td>
         </tr>
@@ -831,19 +904,27 @@ interface DetailPanelProps {
   review: AiReview | undefined;
   applied: AppliedEntry | undefined;
   setApplied: SetApplied;
-  aiApply: AiApplyState;
+  aiApplyResult: AiApplyResult | null;
+  aiApplyError: AiApplyError | null;
 }
 
-function DetailPanel({ job, review, applied, setApplied, aiApply }: DetailPanelProps) {
+function DetailPanel({
+  job,
+  review,
+  applied,
+  setApplied,
+  aiApplyResult,
+  aiApplyError,
+}: DetailPanelProps) {
   return (
     <>
       <AppliedBar job={job} applied={applied} setApplied={setApplied} />
-      {aiApply.error && (
+      {aiApplyError && (
         <div className="api-error" role="alert">
-          AI Apply failed: {aiApply.error}
+          AI Apply failed: {aiApplyError.error}
         </div>
       )}
-      {aiApply.body && <AiApplyPanel body={aiApply.body} path={aiApply.path} />}
+      {aiApplyResult && <AiApplyPanel body={aiApplyResult.body} path={aiApplyResult.path} />}
       <div className="detail">
         <section>
           <h3>AI take</h3>
@@ -1080,6 +1161,17 @@ function SortableTh({ label, active, dir, onClick }: SortableThProps) {
       </button>
     </th>
   );
+}
+
+// Compact display for the Location column. Falls back to "Remote" if the
+// job is flagged remote but has no explicit location string, "—" if neither.
+// Trim is here (not in the data) so we can keep the raw value in the
+// `title` tooltip for the full text.
+function formatLocation(job: Job): string {
+  const raw = (job.location ?? '').trim();
+  if (raw) return raw;
+  if (job.remote) return 'Remote';
+  return '—';
 }
 
 function scoreTier(score: number): 'score-high' | 'score-mid' | 'score-low' {

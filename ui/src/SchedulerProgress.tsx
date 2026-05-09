@@ -62,7 +62,11 @@ export function SchedulerProgress({ onComplete }: SchedulerProgressProps) {
           completedRef.current = true;
           onComplete();
           dismissTimerRef.current = window.setTimeout(() => setHidden(true), DISMISS_MS);
-        } else if (next.status === 'error') {
+        } else if (next.status === 'error' && !completedRef.current) {
+          // Notify parent on error too, otherwise schedulerOp stays set in
+          // Settings.tsx and Install/Uninstall buttons lock forever.
+          completedRef.current = true;
+          onComplete();
           setHidden(false);
         }
       } catch {

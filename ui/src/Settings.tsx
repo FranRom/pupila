@@ -2,15 +2,16 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { formatBytes, relativeTime } from './format.ts';
 import { SchedulerProgress } from './SchedulerProgress.tsx';
 
-// Settings tab. Six numbered panels — terminal-grade dashboard aesthetic
+// Settings tab. Seven numbered panels — terminal-grade dashboard aesthetic
 // matching the rest of the app.
 //
-//   [01] LLM CLI       — switch + test the configured provider
-//   [02] Scheduler     — read state + install/uninstall daily agents
-//   [03] Last run      — stats parsed from data/jobs.json
-//   [04] Disk usage    — bytes/files for data/raw, data/applications, data/archive
-//   [05] Maintenance   — clean / clean:onboarding / clean:all
-//   [06] Environment   — node, repo path, brief/cv presence, providers
+//   [01] LLM CLI         — switch + test the configured provider
+//   [02] Scheduler       — read state + install/uninstall daily agents
+//   [03] Scoring profile — view + regenerate config/profile.json from the brief
+//   [04] Last run        — stats parsed from data/jobs.json
+//   [05] Disk usage      — bytes/files for data/raw, data/applications, data/archive
+//   [06] Maintenance     — clean / clean:onboarding / clean:all
+//   [07] Environment     — node, repo path, brief/cv presence, providers
 //
 // Long-running ops (scheduler install/uninstall) reuse the FetchProgress
 // docked-card pattern via SchedulerProgress so the live-feedback affordance
@@ -78,6 +79,45 @@ interface CleanResult {
   error?: string;
 }
 
+interface ScoringProfile {
+  weights?: Record<string, number>;
+  keywords?: Record<string, string[] | undefined>;
+  [key: string]: unknown;
+}
+
+interface ProfileGenerateResult {
+  ok: boolean;
+  weightsChanged: string[];
+  keywordsChanged: string[];
+  provider: string;
+  error?: string;
+}
+
+const PERSONAL_WEIGHT_KEYS = [
+  'web3TitleBody',
+  'web3Stack',
+  'aiTitleBody',
+  'aiStack',
+  'stackPrimary',
+  'stackRn',
+  'stackOther',
+  'frontendTitle',
+  'frontendBody',
+] as const;
+
+const PERSONAL_KEYWORD_KEYS = [
+  'stackPrimary',
+  'stackRn',
+  'stackOther',
+  'titleFrontend',
+  'bodyFrontend',
+  'w3TitleBody',
+  'w3Stack',
+  'aiTitleBody',
+  'aiStack',
+  'titleExcludedSpecialties',
+] as const;
+
 type CleanMode = 'default' | 'all' | 'onboarding';
 
 interface CleanModeMeta {
@@ -135,6 +175,10 @@ export function Settings() {
   });
   const [cleaning, setCleaning] = useState<CleanMode | null>(null);
   const [cleanResult, setCleanResult] = useState<CleanResult | null>(null);
+  const [profile, setProfile] = useState<ScoringProfile | null>(null);
+  const [regenBusy, setRegenBusy] = useState(false);
+  const [regenResult, setRegenResult] = useState<ProfileGenerateResult | null>(null);
+  const [showRawProfile, setShowRawProfile] = useState(false);
   const [skipReview, setSkipReview] = useState(false);
   const [schedulerOp, setSchedulerOp] = useState<'install' | 'uninstall' | null>(null);
   const [confirmDialog, setConfirmDialog] = useState<ConfirmDialog | null>(null);
@@ -150,12 +194,13 @@ export function Settings() {
         return null;
       }
     };
-    const [p, s, rs, d, e] = await Promise.all([
+    const [p, s, rs, d, e, prof] = await Promise.all([
       grab<PreferencesResponse>('/api/preferences'),
       grab<SchedulerStatus>('/api/scheduler-status'),
       grab<RunSummary>('/api/run-summary'),
       grab<DiskUsage>('/api/disk-usage'),
       grab<EnvInfo>('/api/env'),
+      grab<ScoringProfile>('/api/profile'),
     ]);
     if (p) {
       setPrefs(p);
@@ -165,13 +210,14 @@ export function Settings() {
     setRunSummary(rs);
     setDisk(d);
     setEnvInfo(e);
+    setProfile(prof);
   }, []);
 
   useEffect(() => {
     void loadAll();
   }, [loadAll]);
 
-  // Lock body scroll while the confirm modal is open + close on Esc.
+  // Close the confirm modal on Esc.
   useEffect(() => {
     if (!confirmDialog) return;
     const onKey = (e: KeyboardEvent) => {
@@ -253,6 +299,31 @@ export function Settings() {
     [loadAll],
   );
 
+  const regenerateProfile = useCallback(async () => {
+    setRegenBusy(true);
+    setRegenResult(null);
+    setError(null);
+    try {
+      const res = await fetch('/api/profile-generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ provider: provider === 'auto' ? null : provider }),
+      });
+      const body = (await res.json()) as ProfileGenerateResult;
+      if (!res.ok) {
+        throw new Error(body.error ?? `HTTP ${res.status}`);
+      }
+      setRegenResult(body);
+      // Reload the profile so the UI reflects the new state.
+      const r = await fetch('/api/profile');
+      if (r.ok) setProfile((await r.json()) as ScoringProfile);
+    } catch (err) {
+      setError(`Profile regeneration failed: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setRegenBusy(false);
+    }
+  }, [provider]);
+
   const installScheduler = useCallback(async () => {
     setError(null);
     setSchedulerOp('install');
@@ -316,6 +387,19 @@ export function Settings() {
       onConfirm: () => {
         setConfirmDialog(null);
         void runClean(mode);
+      },
+    });
+  };
+
+  const askToRegenerateProfile = () => {
+    setConfirmDialog({
+      title: 'Regenerate scoring profile',
+      body: 'This re-runs the local LLM CLI on your candidate brief and overwrites the personal weights + keyword arrays in config/profile.json (stackPrimary, titleFrontend, w3*, ai*, titleExcludedSpecialties, etc.). Universal rules (junior excludes, US-only filter, scoring config) are preserved. Takes 10–20 seconds.',
+      destructive: false,
+      confirmLabel: 'Regenerate',
+      onConfirm: () => {
+        setConfirmDialog(null);
+        void regenerateProfile();
       },
     });
   };
@@ -559,9 +643,51 @@ export function Settings() {
         )}
       </Section>
 
-      {/* ── [03] Last run ────────────────────────────────────────── */}
+      {/* ── [03] Scoring profile ─────────────────────────────────── */}
       <Section
         index="03"
+        title="Scoring profile"
+        subtitle="config/profile.json — auto-generated from your brief. Drives which roles surface."
+        meta={<ProfileStatusChip profile={profile} />}
+      >
+        {!profile ? <SkeletonRows count={4} /> : <ProfileSummary profile={profile} />}
+        <div className="settings-actions">
+          <button
+            type="button"
+            className="settings-button settings-button-primary"
+            disabled={regenBusy || !envInfo}
+            onClick={askToRegenerateProfile}
+          >
+            {regenBusy ? 'Regenerating…' : 'Regenerate from brief'}
+          </button>
+          <button
+            type="button"
+            className="settings-button settings-button-secondary"
+            onClick={() => setShowRawProfile((v) => !v)}
+          >
+            {showRawProfile ? 'Hide raw JSON' : 'View raw JSON'}
+          </button>
+        </div>
+        {regenResult && (
+          <div className="settings-snippet">
+            <p className="muted">
+              ✓ Updated {regenResult.weightsChanged.length} weight
+              {regenResult.weightsChanged.length === 1 ? '' : 's'} (
+              {regenResult.weightsChanged.join(', ') || 'none'}) and{' '}
+              {regenResult.keywordsChanged.length} keyword group
+              {regenResult.keywordsChanged.length === 1 ? '' : 's'} (
+              {regenResult.keywordsChanged.join(', ') || 'none'}).
+            </p>
+          </div>
+        )}
+        {showRawProfile && profile && (
+          <pre className="settings-clean-output">{JSON.stringify(profile, null, 2)}</pre>
+        )}
+      </Section>
+
+      {/* ── [04] Last run ────────────────────────────────────────── */}
+      <Section
+        index="04"
         title="Last run"
         subtitle="Snapshot of the most recent aggregator output."
         meta={
@@ -609,9 +735,9 @@ export function Settings() {
         )}
       </Section>
 
-      {/* ── [04] Disk usage ──────────────────────────────────────── */}
+      {/* ── [05] Disk usage ──────────────────────────────────────── */}
       <Section
-        index="04"
+        index="05"
         title="Disk usage"
         subtitle="Local artifacts under data/."
         meta={
@@ -639,9 +765,9 @@ export function Settings() {
         )}
       </Section>
 
-      {/* ── [05] Maintenance ─────────────────────────────────────── */}
+      {/* ── [06] Maintenance ─────────────────────────────────────── */}
       <Section
-        index="05"
+        index="06"
         title="Maintenance"
         subtitle="Reset local state. Each action shows a confirmation before it runs."
       >
@@ -667,9 +793,9 @@ export function Settings() {
         )}
       </Section>
 
-      {/* ── [06] Environment ─────────────────────────────────────── */}
+      {/* ── [07] Environment ─────────────────────────────────────── */}
       <Section
-        index="06"
+        index="07"
         title="Environment"
         subtitle="Runtime + filesystem state for debugging."
         action={
@@ -761,6 +887,55 @@ function Section({ index, title, subtitle, meta, action, children }: SectionProp
 
 function ProviderChip({ provider }: { provider: ProviderChoice }) {
   return <span className="settings-meta-pill settings-meta-pill-ok mono">{provider}</span>;
+}
+
+function ProfileStatusChip({ profile }: { profile: ScoringProfile | null }) {
+  if (!profile) return null;
+  const weights = profile.weights ?? {};
+  const personalActive = PERSONAL_WEIGHT_KEYS.some((k) => (weights[k] ?? 0) > 0);
+  if (personalActive) {
+    return <span className="settings-meta-pill settings-meta-pill-ok">active</span>;
+  }
+  return <span className="settings-meta-pill settings-meta-pill-warn">needs tuning</span>;
+}
+
+function ProfileSummary({ profile }: { profile: ScoringProfile }) {
+  const keywords = profile.keywords ?? {};
+  const weights = profile.weights ?? {};
+  const populatedKwGroups = PERSONAL_KEYWORD_KEYS.filter((k) => {
+    const v = keywords[k];
+    return Array.isArray(v) && v.length > 0;
+  });
+  const activeWeightCount = PERSONAL_WEIGHT_KEYS.filter((k) => (weights[k] ?? 0) > 0).length;
+  if (populatedKwGroups.length === 0 && activeWeightCount === 0) {
+    return (
+      <div className="settings-empty">
+        <strong>Profile is neutral</strong>
+        <p className="muted">
+          No personal keywords or weights are set yet. Click "Regenerate from brief" to populate
+          them based on <code>config/candidate-brief.md</code>.
+        </p>
+      </div>
+    );
+  }
+  return (
+    <ul className="profile-summary-list">
+      {populatedKwGroups.map((k) => {
+        const arr = keywords[k] as string[];
+        const preview = arr.slice(0, 6).join(', ');
+        const more = arr.length > 6 ? ` +${arr.length - 6} more` : '';
+        return (
+          <li key={k} className="profile-summary-row">
+            <span className="profile-summary-key mono">{k}</span>
+            <span className="profile-summary-value">
+              {preview}
+              {more}
+            </span>
+          </li>
+        );
+      })}
+    </ul>
+  );
 }
 
 function SkeletonRows({ count }: { count: number }) {

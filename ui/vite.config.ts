@@ -1,4 +1,4 @@
-import { type ChildProcess, exec, spawn } from 'node:child_process';
+import { exec, spawn } from 'node:child_process';
 import { existsSync, statSync } from 'node:fs';
 import { readdir, readFile, stat, writeFile } from 'node:fs/promises';
 import os from 'node:os';
@@ -15,6 +15,12 @@ import {
   runLlm,
   SUPPORTED_PROVIDERS,
 } from '../src/lib/llm.js';
+import {
+  generateProfileFromBrief,
+  mergeProfile,
+  type ProfileShape,
+  stripFences,
+} from '../src/lib/profile-generator.js';
 
 const REPO_ROOT = fileURLToPath(new URL('..', import.meta.url));
 const APPLIED_PATH = path.join(REPO_ROOT, 'config', 'applied.json');
@@ -22,6 +28,7 @@ const APPLIED_EXAMPLE_PATH = path.join(REPO_ROOT, 'config', 'applied.example.jso
 const JOBS_PATH = path.join(REPO_ROOT, 'data', 'jobs.json');
 const REVIEWS_PATH = path.join(REPO_ROOT, 'data', 'ai-reviews.json');
 const PREFERENCES_PATH = path.join(REPO_ROOT, 'config', 'preferences.json');
+const PROFILE_PATH = path.join(REPO_ROOT, 'config', 'profile.json');
 const APPLICATIONS_DIR = path.join(REPO_ROOT, 'data', 'applications');
 const CV_BASENAME = path.join(REPO_ROOT, 'config', 'cv');
 
@@ -182,14 +189,6 @@ Aim for 6-10 lines total. Drop anything that doesn't help a job-matching tool de
 
 CV:
 ${cvText.slice(0, CV_MAX_CHARS)}`;
-}
-
-function stripFences(text: string): string {
-  let cleaned = text.trim();
-  if (cleaned.startsWith('```')) {
-    cleaned = cleaned.replace(/^```(?:[a-z]+)?\n?/i, '').replace(/\n?```\s*$/, '');
-  }
-  return cleaned.trim();
 }
 
 interface BriefGetResponse {
@@ -541,20 +540,95 @@ A short bulleted action list specific to this posting:
 //   4. Pre-fill each field with a tailored excerpt of the package below.
 //   5. Attach the CV file from `cvPath`.
 //   6. Stop short of submit; return control to the user for review.
+// AI Apply lives in two stages now. POST /api/ai-apply validates inputs
+// (job exists, brief present, CV present), writes an initial state slot,
+// kicks off `runLlm` in the background with an `onChunk` callback that
+// streams stdout into `state.output`, and returns 202 immediately. The UI
+// then polls GET /api/ai-apply-progress for live state. On completion the
+// markdown file gets written and config/applied.json is updated.
+//
+// Single in-flight (the LLM CLI is heavy + the streaming dock can only
+// show one at a time anyway).
+type AiApplyStatus = 'idle' | 'running' | 'done' | 'error';
+const AI_APPLY_OUTPUT_CAP = 16_000;
+
+interface AiApplyState {
+  jobId: string | null;
+  jobTitle: string | null;
+  company: string | null;
+  cvPath: string | null;
+  status: AiApplyStatus;
+  startedAt: string | null;
+  finishedAt: string | null;
+  output: string;
+  path: string | null;
+  applied: AppliedEntry | null;
+  provider: string | null;
+  error: string | null;
+}
+
+function emptyAiApplyState(): AiApplyState {
+  return {
+    jobId: null,
+    jobTitle: null,
+    company: null,
+    cvPath: null,
+    status: 'idle',
+    startedAt: null,
+    finishedAt: null,
+    output: '',
+    path: null,
+    applied: null,
+    provider: null,
+    error: null,
+  };
+}
+
 function aiApplyApiPlugin(): Plugin {
+  let state: AiApplyState = emptyAiApplyState();
+  let inFlight = false;
+
   return {
     name: 'job-hunt-ai-apply-api',
     configureServer(server) {
+      server.middlewares.use('/api/ai-apply-progress', async (req, res) => {
+        if (req.method !== 'GET') {
+          res.statusCode = 405;
+          res.end();
+          return;
+        }
+        res.setHeader('Content-Type', 'application/json');
+        res.end(JSON.stringify(state));
+      });
+
       server.middlewares.use('/api/ai-apply', async (req, res) => {
         if (req.method !== 'POST') {
           res.statusCode = 405;
           res.end();
           return;
         }
+        if (inFlight) {
+          res.statusCode = 409;
+          res.setHeader('Content-Type', 'application/json');
+          res.end(
+            JSON.stringify({
+              error: 'an AI Apply run is already in flight',
+              state,
+            }),
+          );
+          return;
+        }
+        // Claim the lock SYNCHRONOUSLY before any await — otherwise a
+        // second concurrent POST can slip past the guard during the first
+        // `await readBody(req)`, launching two LLM processes. Any early
+        // return below releases the lock; the background block clears it
+        // on completion.
+        inFlight = true;
         try {
           const body = (await readBody(req)) as AiApplyPostBody;
           const jobId = typeof body.jobId === 'string' ? body.jobId.trim() : '';
           if (!jobId) {
+            inFlight = false;
             res.statusCode = 400;
             res.setHeader('Content-Type', 'application/json');
             res.end(JSON.stringify({ error: 'jobId required' }));
@@ -564,6 +638,7 @@ function aiApplyApiPlugin(): Plugin {
           const jobs = await readJsonOrDefault<JobShape[]>(JOBS_PATH, []);
           const job = jobs.find((j) => j.id === jobId);
           if (!job) {
+            inFlight = false;
             res.statusCode = 404;
             res.setHeader('Content-Type', 'application/json');
             res.end(JSON.stringify({ error: `job ${jobId} not found in data/jobs.json` }));
@@ -572,6 +647,7 @@ function aiApplyApiPlugin(): Plugin {
 
           const briefBody = await readBriefBody();
           if (!briefBody) {
+            inFlight = false;
             res.statusCode = 412;
             res.setHeader('Content-Type', 'application/json');
             res.end(
@@ -584,6 +660,7 @@ function aiApplyApiPlugin(): Plugin {
 
           const cv = await findCvPath();
           if (!cv) {
+            inFlight = false;
             res.statusCode = 412;
             res.setHeader('Content-Type', 'application/json');
             res.end(
@@ -615,62 +692,84 @@ function aiApplyApiPlugin(): Plugin {
             cvFilename: cv.path,
           });
 
-          let raw: string;
-          try {
-            raw = await runLlm(prompt, provider);
-          } catch (err) {
-            res.statusCode = 502;
-            res.setHeader('Content-Type', 'application/json');
-            res.end(
-              JSON.stringify({
-                error: `LLM CLI failed: ${err instanceof Error ? err.message : String(err)}`,
-              }),
-            );
-            return;
-          }
-
-          const cleaned = raw.trim();
-          if (!cleaned) {
-            res.statusCode = 502;
-            res.setHeader('Content-Type', 'application/json');
-            res.end(JSON.stringify({ error: 'LLM returned empty output' }));
-            return;
-          }
-
-          // mkdir -p data/applications/
-          const fs = await import('node:fs/promises');
-          await fs.mkdir(APPLICATIONS_DIR, { recursive: true });
-          const applicationPath = path.join(APPLICATIONS_DIR, `${jobId}.md`);
-          const header = `<!-- Auto-generated by /api/ai-apply for job ${jobId} on ${new Date().toISOString()} -->\n# ${job.title} — ${job.company ?? 'unknown'}\n\n[${job.url}](${job.url})\n\n`;
-          await writeFile(applicationPath, `${header}${cleaned}\n`, 'utf8');
-
-          // Auto-mark as applied in config/applied.json (mirrors the
-          // existing /api/applied POST flow, but inline so we don't
-          // re-do an HTTP round-trip).
-          const entries = await readApplied();
-          const idx = entries.findIndex((e) => e?.url === job.url);
-          const today = new Date().toISOString().slice(0, 10);
-          const next: AppliedEntry = {
-            url: job.url,
-            status: 'applied',
-            date: today,
-            notes: `Application package: data/applications/${jobId}.md`,
+          // All inputs validated — seed the state slot, kick off the LLM in
+          // the background (lock already claimed at the top), return 202.
+          // path.relative only returns '' when both paths are identical, which
+          // can't happen here (cv.path is a file, REPO_ROOT is a directory).
+          const cvRelativePath = path.relative(REPO_ROOT, cv.path);
+          state = {
+            jobId,
+            jobTitle: job.title,
+            company: job.company,
+            cvPath: cvRelativePath,
+            status: 'running',
+            startedAt: new Date().toISOString(),
+            finishedAt: null,
+            output: '',
+            path: null,
+            applied: null,
+            provider: provider ?? 'auto',
+            error: null,
           };
-          if (idx >= 0) entries[idx] = next;
-          else entries.push(next);
-          await writeApplied(entries);
 
+          // Background — never awaited inside the request handler.
+          (async () => {
+            try {
+              const raw = await runLlm(prompt, provider, (chunk: string) => {
+                // Append + cap to AI_APPLY_OUTPUT_CAP chars to keep the
+                // poll response bounded.
+                state.output = (state.output + chunk).slice(-AI_APPLY_OUTPUT_CAP);
+              });
+              const cleaned = raw.trim();
+              if (!cleaned) {
+                state.status = 'error';
+                state.error = 'LLM returned empty output';
+                state.finishedAt = new Date().toISOString();
+                return;
+              }
+              const fs = await import('node:fs/promises');
+              await fs.mkdir(APPLICATIONS_DIR, { recursive: true });
+              const applicationPath = path.join(APPLICATIONS_DIR, `${jobId}.md`);
+              const header = `<!-- Auto-generated by /api/ai-apply for job ${jobId} on ${new Date().toISOString()} -->\n# ${job.title} — ${job.company ?? 'unknown'}\n\n[${job.url}](${job.url})\n\n`;
+              await writeFile(applicationPath, `${header}${cleaned}\n`, 'utf8');
+
+              const entries = await readApplied();
+              const idx = entries.findIndex((e) => e?.url === job.url);
+              const today = new Date().toISOString().slice(0, 10);
+              const appliedEntry: AppliedEntry = {
+                url: job.url,
+                status: 'applied',
+                date: today,
+                notes: `Application package: data/applications/${jobId}.md`,
+              };
+              if (idx >= 0) entries[idx] = appliedEntry;
+              else entries.push(appliedEntry);
+              await writeApplied(entries);
+
+              state.path = `data/applications/${jobId}.md`;
+              state.applied = appliedEntry;
+              state.output = cleaned.slice(-AI_APPLY_OUTPUT_CAP);
+              state.status = 'done';
+              state.finishedAt = new Date().toISOString();
+            } catch (err) {
+              state.status = 'error';
+              state.error = `LLM CLI failed: ${err instanceof Error ? err.message : String(err)}`;
+              state.finishedAt = new Date().toISOString();
+            } finally {
+              inFlight = false;
+            }
+          })().catch((err) => {
+            // Defensive — should not be reachable since the inner try/catch
+            // covers everything, but log if it ever does.
+            console.error('[ai-apply background]', err);
+            inFlight = false;
+          });
+
+          res.statusCode = 202;
           res.setHeader('Content-Type', 'application/json');
-          res.end(
-            JSON.stringify({
-              ok: true,
-              path: `data/applications/${jobId}.md`,
-              body: cleaned,
-              applied: next,
-              provider: provider ?? 'auto',
-            }),
-          );
+          res.end(JSON.stringify(state));
         } catch (err) {
+          inFlight = false;
           console.error('[ai-apply api]', err);
           res.statusCode = 500;
           res.setHeader('Content-Type', 'application/json');
@@ -1273,7 +1372,9 @@ function emptySchedulerState(): SchedulerOpState {
 
 function schedulerOpsApiPlugin(): Plugin {
   let state: SchedulerOpState = emptySchedulerState();
-  let inFlight: ChildProcess | null = null;
+  // Boolean (not the ChildProcess reference) so we can claim the lock
+  // synchronously before any await — race-safe gating across concurrent POSTs.
+  let inFlight = false;
 
   function startScript(op: SchedulerOp, args: string[], res: import('node:http').ServerResponse) {
     const platform = process.platform;
@@ -1284,6 +1385,7 @@ function schedulerOpsApiPlugin(): Plugin {
           ? path.join(REPO_ROOT, 'scripts', 'install-cron.sh')
           : null;
     if (!script) {
+      inFlight = false;
       res.statusCode = 501;
       res.setHeader('Content-Type', 'application/json');
       res.end(
@@ -1304,7 +1406,6 @@ function schedulerOpsApiPlugin(): Plugin {
       env: process.env,
       stdio: 'pipe',
     });
-    inFlight = proc;
     proc.stdout?.setEncoding('utf8');
     proc.stderr?.setEncoding('utf8');
     proc.stdout?.on('data', (c: string) => {
@@ -1319,14 +1420,14 @@ function schedulerOpsApiPlugin(): Plugin {
       state.status = 'error';
       state.finishedAt = new Date().toISOString();
       state.lastError = err.message;
-      inFlight = null;
+      inFlight = false;
     });
     proc.on('exit', (code) => {
       state.exitCode = code;
       state.finishedAt = new Date().toISOString();
       state.status = code === 0 ? 'done' : 'error';
       if (code !== 0) state.lastError = `exit code ${code}`;
-      inFlight = null;
+      inFlight = false;
     });
     res.statusCode = 202;
     res.setHeader('Content-Type', 'application/json');
@@ -1358,12 +1459,16 @@ function schedulerOpsApiPlugin(): Plugin {
           res.end(JSON.stringify({ error: 'a scheduler op is already running', state }));
           return;
         }
+        // Claim sync, before any await — startScript / proc handlers
+        // release on completion; catch + early-return release on failure.
+        inFlight = true;
         try {
           const body = (await readBody(req)) as SchedulerInstallBody;
           const args: string[] = [];
           if (body.skipReview === true) args.push('--no-review');
           startScript('install', args, res);
         } catch (err) {
+          inFlight = false;
           res.statusCode = 500;
           res.setHeader('Content-Type', 'application/json');
           res.end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }));
@@ -1382,6 +1487,7 @@ function schedulerOpsApiPlugin(): Plugin {
           res.end(JSON.stringify({ error: 'a scheduler op is already running', state }));
           return;
         }
+        inFlight = true;
         startScript('uninstall', ['--uninstall'], res);
       });
     },
@@ -1398,7 +1504,8 @@ interface CleanPostBody {
 // Wraps `pnpm exec tsx scripts/clean.ts [--all|--onboarding]`. Single
 // concurrent run so a fat-fingered double-click can't race.
 function cleanApiPlugin(): Plugin {
-  let inFlight: ChildProcess | null = null;
+  // Boolean lock claimed sync (the proc reference isn't needed elsewhere).
+  let inFlight = false;
   return {
     name: 'job-hunt-clean-api',
     configureServer(server) {
@@ -1414,6 +1521,8 @@ function cleanApiPlugin(): Plugin {
           res.end(JSON.stringify({ error: 'a clean run is already in flight' }));
           return;
         }
+        // Claim before any await — race-safe.
+        inFlight = true;
         try {
           const body = (await readBody(req)) as CleanPostBody;
           const mode =
@@ -1421,6 +1530,7 @@ function cleanApiPlugin(): Plugin {
               ? (body.mode as CleanMode)
               : null;
           if (!mode) {
+            inFlight = false;
             res.statusCode = 400;
             res.setHeader('Content-Type', 'application/json');
             res.end(
@@ -1439,33 +1549,34 @@ function cleanApiPlugin(): Plugin {
             env: process.env,
             stdio: 'pipe',
           });
-          inFlight = proc;
           let buf = '';
           proc.stdout?.setEncoding('utf8');
           proc.stderr?.setEncoding('utf8');
+          // Cap accumulator inline (matches scheduler / fetch-jobs behavior)
+          // so a runaway script can't OOM the dev server.
           proc.stdout?.on('data', (c: string) => {
-            buf += c;
+            buf = (buf + c).slice(-4000);
           });
           proc.stderr?.on('data', (c: string) => {
-            buf += c;
+            buf = (buf + c).slice(-4000);
           });
           await new Promise<void>((resolve) => {
             proc.on('exit', (code) => {
               const ok = code === 0;
-              inFlight = null;
+              inFlight = false;
               res.statusCode = ok ? 200 : 500;
               res.setHeader('Content-Type', 'application/json');
               res.end(
                 JSON.stringify({
                   ok,
                   exitCode: code,
-                  output: buf.slice(-4000),
+                  output: buf,
                 }),
               );
               resolve();
             });
             proc.on('error', (err) => {
-              inFlight = null;
+              inFlight = false;
               res.statusCode = 500;
               res.setHeader('Content-Type', 'application/json');
               res.end(
@@ -1475,11 +1586,127 @@ function cleanApiPlugin(): Plugin {
             });
           });
         } catch (err) {
-          inFlight = null;
+          inFlight = false;
           console.error('[clean api]', err);
           res.statusCode = 500;
           res.setHeader('Content-Type', 'application/json');
           res.end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }));
+        }
+      });
+    },
+  };
+}
+
+// ── Profile generator API ──────────────────────────────────────────────────
+//
+// POST /api/profile-generate — runs the LLM CLI on the candidate brief and
+// merges the resulting personalization delta into config/profile.json.
+// Universal fields (junior excludes, seniorReq, US-only filter, etc.) are
+// preserved; only personal weight/keyword slices are touched.
+// GET /api/profile — returns the live profile.json (used by the Settings
+// "Scoring profile" panel to show what's active and detect "neutral" state).
+
+interface ProfileGenerateBody {
+  provider?: unknown;
+}
+
+function profileApiPlugin(): Plugin {
+  let inFlight = false;
+  return {
+    name: 'job-hunt-profile-api',
+    configureServer(server) {
+      server.middlewares.use('/api/profile', async (req, res) => {
+        if (req.method !== 'GET') {
+          res.statusCode = 405;
+          res.end();
+          return;
+        }
+        try {
+          const profile = await readJsonOrDefault<ProfileShape | null>(PROFILE_PATH, null);
+          res.setHeader('Content-Type', 'application/json');
+          res.end(JSON.stringify(profile));
+        } catch (err) {
+          console.error('[profile api]', err);
+          res.statusCode = 500;
+          res.setHeader('Content-Type', 'application/json');
+          res.end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }));
+        }
+      });
+
+      server.middlewares.use('/api/profile-generate', async (req, res) => {
+        if (req.method !== 'POST') {
+          res.statusCode = 405;
+          res.end();
+          return;
+        }
+        if (inFlight) {
+          res.statusCode = 409;
+          res.setHeader('Content-Type', 'application/json');
+          res.end(JSON.stringify({ error: 'profile generation is already running' }));
+          return;
+        }
+        inFlight = true;
+        try {
+          const body = (await readBody(req)) as ProfileGenerateBody;
+          const rawProvider = typeof body.provider === 'string' ? body.provider : null;
+          const provider =
+            rawProvider && SUPPORTED_PROVIDERS.includes(rawProvider as LlmProvider)
+              ? (rawProvider as LlmProvider)
+              : undefined;
+
+          const briefBody = await readBriefBody();
+          if (!briefBody?.trim()) {
+            res.statusCode = 412;
+            res.setHeader('Content-Type', 'application/json');
+            res.end(
+              JSON.stringify({
+                error: 'config/candidate-brief.md is missing or empty — finish onboarding first.',
+              }),
+            );
+            return;
+          }
+
+          const base = await readJsonOrDefault<ProfileShape | null>(PROFILE_PATH, null);
+          if (!base || typeof base !== 'object') {
+            res.statusCode = 500;
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ error: 'config/profile.json is missing or unparseable.' }));
+            return;
+          }
+
+          let delta: Awaited<ReturnType<typeof generateProfileFromBrief>>;
+          try {
+            delta = await generateProfileFromBrief(briefBody, provider);
+          } catch (err) {
+            res.statusCode = 502;
+            res.setHeader('Content-Type', 'application/json');
+            res.end(
+              JSON.stringify({
+                error: `LLM CLI failed: ${err instanceof Error ? err.message : String(err)}`,
+              }),
+            );
+            return;
+          }
+
+          const { profile, weightsChanged, keywordsChanged } = mergeProfile(base, delta);
+          await writeFile(PROFILE_PATH, `${JSON.stringify(profile, null, 2)}\n`, 'utf8');
+
+          res.setHeader('Content-Type', 'application/json');
+          res.end(
+            JSON.stringify({
+              ok: true,
+              weightsChanged,
+              keywordsChanged,
+              provider: provider ?? 'auto',
+            }),
+          );
+        } catch (err) {
+          console.error('[profile-generate api]', err);
+          res.statusCode = 500;
+          res.setHeader('Content-Type', 'application/json');
+          res.end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }));
+        } finally {
+          inFlight = false;
         }
       });
     },
@@ -1497,6 +1724,7 @@ export default defineConfig({
     llmDetectApiPlugin(),
     aiApplyApiPlugin(),
     fetchJobsApiPlugin(),
+    profileApiPlugin(),
     schedulerStatusApiPlugin(),
     schedulerOpsApiPlugin(),
     llmTestApiPlugin(),

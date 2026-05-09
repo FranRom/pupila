@@ -1,5 +1,5 @@
 {
-  "_comment": "Scoring profile. Customize for your role: set non-zero weights for the keyword groups that match what you're looking for. See examples/franron/profile.json for a worked frontend+web3+AI example, and the README's 'Forking & personalizing' section for guidance.",
+  "_comment": "Scoring profile. Generated automatically from config/candidate-brief.md by /api/profile-generate after onboarding. Re-run from the Settings tab → Scoring profile → Regenerate. To hand-tune: edit weights and keyword arrays directly.",
   "scoring": {
     "minScoreToKeep": 30,
     "maxScore": 100,
@@ -103,7 +103,7 @@
       "cfo",
       "coo"
     ],
-    "_comment_specialties": "Opt-in: drop titles outside your specialty (e.g. backend engineers exclude frontend, frontend engineers exclude backend/SRE/data/etc.). Empty = no specialty filtering. See examples/franron/profile.json for a frontend example.",
+    "_comment_specialties": "Opt-in: drop titles outside your specialty (e.g. backend engineers exclude frontend, frontend engineers exclude backend/SRE/data/etc.). Empty = no specialty filtering. Filled automatically from the brief's 'what to avoid' paragraph.",
     "titleExcludedSpecialties": [],
     "titleNonEngRole": [
       "(growth|account|customer|product|project|program|brand|content|partnerships?|community|country|regional|market|business|operations|recruiting|talent|sales|marketing|category) (manager|lead|director|head)s?"
@@ -122,14 +122,41 @@
       "researcher",
       "economist"
     ],
+    "_comment_geo": "US-only / on-site hard-drop patterns. Checked against `${job.location}\\n${job.body}`. The `nonUsRescue` list below is the escape hatch — if the posting also mentions a non-US region we can target (worldwide / EMEA / Europe), the hard-drop is skipped. Tune both lists together.",
     "bodyHardUsOrOnsite": [
       "must be (authorized|located)[\\s\\S]{0,40}(united states|US only|US-based only|US citizen)",
       "onsite only",
       "on-site only",
       "in-office only",
-      "relocate to (san francisco|new york|nyc)"
+      "relocate to (san francisco|new york|nyc)",
+      "US[ -]?only",
+      "USA[ -]?only",
+      "United States[ -]?only",
+      "North America[ -]?only",
+      "US[ -]?based",
+      "USA[ -]?based",
+      "must (be|work|reside|live) (in|located in|based in) (the )?(US|USA|United States|North America)",
+      "(authoriz(e|ed|ation) to work in|work authorization in) (the )?(US|USA|United States)",
+      "(EST|PST|CST|MST) (timezone|time zone|zone) (only|required|preferred)",
+      "(EST|PST|CST|MST) (only|required|preferred)",
+      "eastern (time|standard) (zone )?(only|required|preferred)",
+      "remote[\\s,\\-—()]+(US|USA|United States|North America)( only)?",
+      "remote (in )?(US|USA|United States|North America)( only)?",
+      "(US|USA|United States) (work )?authorization (required|needed)"
     ],
-    "_comment_personal_kw": "Domain keyword lists. Empty by default — fill in to score signals for your sector/stack. See examples/franron/profile.json for the original frontend+web3+AI lists.",
+    "nonUsRescue": [
+      "worldwide",
+      "globally",
+      "anywhere",
+      "emea",
+      "europe",
+      "european",
+      "EMEA-friendly",
+      "remote-emea",
+      "any timezone",
+      "all timezones?"
+    ],
+    "_comment_personal_kw": "Domain keyword lists. Empty by default — filled automatically from the brief's stack/preferences. Re-run from Settings → Scoring profile → Regenerate, or edit directly to hand-tune.",
     "w3TitleBody": [],
     "w3Stack": [],
     "aiTitleBody": [],

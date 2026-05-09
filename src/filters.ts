@@ -11,14 +11,32 @@ export type FilterProfile = typeof profileJson;
 const NEVER_MATCH = /(?!)/;
 const NEVER_MATCH_GLOBAL = /(?!)/g;
 
+// Defensive compile — a single bad regex fragment (likely from an
+// LLM-generated profile.json) would otherwise crash `pnpm run dev` at
+// startup. Falls back to NEVER_MATCH and warns so the bad keyword group is
+// disabled rather than fatal.
 function compileKw(fragments: readonly string[] | undefined): RegExp {
   if (!fragments || fragments.length === 0) return NEVER_MATCH;
-  return new RegExp(`\\b(${fragments.join('|')})\\b`, 'i');
+  try {
+    return new RegExp(`\\b(${fragments.join('|')})\\b`, 'i');
+  } catch (err) {
+    console.warn(
+      `[filters] compileKw failed for keyword group; falling back to NEVER_MATCH. Fragments: ${JSON.stringify(fragments).slice(0, 200)}. Error: ${err instanceof Error ? err.message : String(err)}`,
+    );
+    return NEVER_MATCH;
+  }
 }
 
 function compileKwGlobal(fragments: readonly string[] | undefined): RegExp {
   if (!fragments || fragments.length === 0) return NEVER_MATCH_GLOBAL;
-  return new RegExp(`\\b(${fragments.join('|')})\\b`, 'gi');
+  try {
+    return new RegExp(`\\b(${fragments.join('|')})\\b`, 'gi');
+  } catch (err) {
+    console.warn(
+      `[filters] compileKwGlobal failed for keyword group; falling back to NEVER_MATCH. Fragments: ${JSON.stringify(fragments).slice(0, 200)}. Error: ${err instanceof Error ? err.message : String(err)}`,
+    );
+    return NEVER_MATCH_GLOBAL;
+  }
 }
 
 function countMatches(re: RegExp, text: string): number {
@@ -78,6 +96,7 @@ export function createFilters(profile: FilterProfile): FilterApi {
   const TITLE_NON_ENG_ROLE = compileKw(K.titleNonEngRole);
   const TITLE_NON_TECH_ROLE = compileKw(K.titleNonTechRole);
   const BODY_HARD_US_OR_ONSITE = compileKw(K.bodyHardUsOrOnsite);
+  const NON_US_RESCUE = compileKw(K.nonUsRescue);
   const W3_TITLE_BODY = compileKw(K.w3TitleBody);
   const W3_STACK = compileKw(K.w3Stack);
   const AI_TITLE_BODY = compileKw(K.aiTitleBody);
@@ -102,7 +121,18 @@ export function createFilters(profile: FilterProfile): FilterApi {
     { name: 'unsafe_url', test: (job) => !isSafeUrl(job.url) },
     { name: 'junior_title', test: (job) => TITLE_JUNIOR.test(job.title) },
     { name: 'missing_senior_req', test: (job) => !TITLE_SENIOR_REQ.test(job.title) },
-    { name: 'hard_us_or_onsite', test: (job) => BODY_HARD_US_OR_ONSITE.test(job.body) },
+    {
+      // Includes job.location so a posting whose body never mentions geography
+      // but whose location field says "United States" still drops. The rescue
+      // skips the drop if the same haystack also mentions a non-US region the
+      // candidate can target (worldwide / EMEA / Europe).
+      name: 'hard_us_or_onsite',
+      test: (job) => {
+        const haystack = `${job.location ?? ''}\n${job.body}`;
+        if (!BODY_HARD_US_OR_ONSITE.test(haystack)) return false;
+        return !NON_US_RESCUE.test(haystack);
+      },
+    },
     {
       name: 'non_engineering',
       test: (job) =>

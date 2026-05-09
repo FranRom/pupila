@@ -17,7 +17,10 @@ export function relativeTime(iso: string | null): string {
   if (days < 30) return `${days}d ago`;
   const months = Math.floor(days / 30);
   if (months === 1) return '1mo ago';
-  return `${months}mo ago`;
+  if (months < 12) return `${months}mo ago`;
+  const years = Math.floor(months / 12);
+  if (years === 1) return '1y ago';
+  return `${years}y ago`;
 }
 
 export function formatBytes(bytes: number): string {

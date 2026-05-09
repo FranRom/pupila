@@ -244,7 +244,12 @@ interface RawRunResult {
   partialStdoutBytes: number;
 }
 
-function spawnAndPipe(cmd: string, args: readonly string[], prompt: string): Promise<RawRunResult> {
+function spawnAndPipe(
+  cmd: string,
+  args: readonly string[],
+  prompt: string,
+  onChunk?: (chunk: string) => void,
+): Promise<RawRunResult> {
   const started = Date.now();
   return new Promise((resolve, reject) => {
     const proc = spawn(cmd, [...args], {
@@ -272,7 +277,15 @@ function spawnAndPipe(cmd: string, args: readonly string[], prompt: string): Pro
     }, RUN_TIMEOUT_MS);
 
     proc.stdout.on('data', (d: Buffer) => {
-      stdout += d.toString();
+      const chunk = d.toString();
+      stdout += chunk;
+      if (onChunk) {
+        try {
+          onChunk(chunk);
+        } catch {
+          // never let a callback exception break the LLM run
+        }
+      }
     });
     proc.stderr.on('data', (d: Buffer) => {
       stderr += d.toString();
@@ -319,11 +332,19 @@ function spawnAndPipe(cmd: string, args: readonly string[], prompt: string): Pro
  * --version`) to disambiguate the failure mode, and produces a detailed
  * error message that says exactly what we observed (signal, runtime,
  * prompt size, free memory, smoke test result) and what to try next.
+ *
+ * Pass `onChunk` to receive stdout chunks as they stream in (used by the
+ * AI Apply dock so the user sees the LLM output live). `onChunk` exceptions
+ * are caught and dropped — they will never break the underlying run.
  */
-export async function runLlm(prompt: string, override?: LlmProvider): Promise<string> {
+export async function runLlm(
+  prompt: string,
+  override?: LlmProvider,
+  onChunk?: (chunk: string) => void,
+): Promise<string> {
   const invocation = await detectLlmCli(override);
   const promptBytes = Buffer.byteLength(prompt, 'utf8');
-  const result = await spawnAndPipe(invocation.cmd, invocation.argTemplate, prompt);
+  const result = await spawnAndPipe(invocation.cmd, invocation.argTemplate, prompt, onChunk);
 
   if (result.exitCode === 0) {
     return result.stdout;

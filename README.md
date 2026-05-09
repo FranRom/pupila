@@ -14,7 +14,7 @@ Designed to be **cloned and run locally**. No hosted scheduler, no public dashbo
 
 Then schedule the aggregator with `scripts/install-launchd.sh` (macOS) or `scripts/install-cron.sh` (Linux). Two agents are installed by default: one for the aggregator, one for the AI per-job review.
 
-A real worked example (the original frontend + web3 + AI configuration this repo was built from) lives in [`examples/franron/`](./examples/franron/) for reference.
+After onboarding, `config/profile.json` is auto-generated from your candidate brief by `/api/profile-generate` (scoring weights + keyword lists tuned to the stack you actually work in, and an exclusion list pulled from your brief's "what to avoid" section). Re-runnable from the Settings tab → Scoring profile → Regenerate.
 
 Contributing rules and project invariants live in [`CONTRIBUTING.md`](./CONTRIBUTING.md).
 
@@ -73,17 +73,17 @@ The auto-detected provider order is `claude` → `codex` → `gemini` → `openc
 > - `config/candidate-brief.md` (gitignored, CV-derived) controls **the per-job AI verdict** (`pnpm run ai-review`).
 > Both matter for the full daily flow.
 
-### 3. Tune the scoring profile
+### 3. Scoring profile (auto-generated, hand-tunable)
 
-Edit [`config/profile.json`](./config/profile.json):
+[`config/profile.json`](./config/profile.json) drives what gets scored. After onboarding finishes, `/api/profile-generate` runs your local LLM CLI on the brief and fills in:
 
-- **Weights**: set non-zero values for the keyword groups that match your role. Empty arrays score 0 even with non-zero weights, so adjust both.
-  - Senior IC search: `seniorTitle: 10`, `leadTitle: 15` (already set as defaults).
-  - Frontend: copy `frontendTitle` / `frontendBody` keywords + weights from [`examples/franron/profile.json`](./examples/franron/profile.json).
-  - Web3 / AI: same — borrow `w3*` / `ai*` lists from the franron example.
-  - Backend / SRE / data: build your own keyword lists; the universal hard-drop rules already exclude junior, exec, sales/recruiter/support roles.
-- **`titleExcludedSpecialties`**: opt-in title exclusion. A frontend engineer would put `(security|data|devops|sre|...) engineers?` here to drop those titles. A backend engineer might exclude `(frontend|ui|ux) engineers?`. Empty by default = no specialty filtering.
-- **Region**: append regional terms to `locationRemote` if you want a regional bonus (e.g. `"emea"`, `"cet"`, `"spain"`).
+- **Weights**: non-zero values for stacks/domains the brief actually mentions (e.g. `stackPrimary: 10` if you work with React/Next/TypeScript daily).
+- **Keyword lists**: `stackPrimary`, `stackRn`, `stackOther`, `titleFrontend`, `bodyFrontend`, `w3*`, `ai*` — populated from your stack.
+- **`titleExcludedSpecialties`**: pulled from the brief's "what to avoid" paragraph. A frontend brief gets `(backend|data|devops|sre|...) engineers?` here so those titles hard-drop.
+
+Universal hard-drop rules (junior/exec/sales/recruiter/support) and seniority weights stay at sensible defaults regardless of the brief.
+
+Re-run after editing the brief by going to **Settings → Scoring profile → Regenerate** (or POST `/api/profile-generate`). To hand-tune, edit `config/profile.json` directly — your edits won't be overwritten unless you regenerate.
 
 Tweak, run `pnpm run dev`, inspect `JOBS.md`, repeat.
 
