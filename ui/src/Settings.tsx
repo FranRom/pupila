@@ -1,16 +1,20 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { formatBytes, relativeTime } from './format.ts';
+import { SchedulerProgress } from './SchedulerProgress.tsx';
 
-// Settings tab. Six panels:
-//   1. LLM CLI       — switch + test the configured provider
-//   2. Scheduler     — read-only: launchd/cron registration + last run
-//   3. Last run      — stats parsed from data/jobs.json
-//   4. Disk usage    — bytes/files for data/raw, data/applications, data/archive
-//   5. Maintenance   — clean / clean:all / clean:onboarding (with confirms)
-//   6. Environment   — node version, repo path, brief/cv presence, providers
+// Settings tab. Six numbered panels — terminal-grade dashboard aesthetic
+// matching the rest of the app.
 //
-// All read APIs are GET; all writes (provider switch, clean) require an
-// explicit user gesture. No auto-trigger logic here.
+//   [01] LLM CLI       — switch + test the configured provider
+//   [02] Scheduler     — read state + install/uninstall daily agents
+//   [03] Last run      — stats parsed from data/jobs.json
+//   [04] Disk usage    — bytes/files for data/raw, data/applications, data/archive
+//   [05] Maintenance   — clean / clean:onboarding / clean:all
+//   [06] Environment   — node, repo path, brief/cv presence, providers
+//
+// Long-running ops (scheduler install/uninstall) reuse the FetchProgress
+// docked-card pattern via SchedulerProgress so the live-feedback affordance
+// is consistent across the app.
 
 type Provider = 'claude' | 'codex' | 'gemini' | 'opencode';
 type ProviderChoice = Provider | 'auto';
@@ -74,13 +78,46 @@ interface CleanResult {
   error?: string;
 }
 
-const CLEAN_DESCRIPTIONS: Record<'default' | 'all' | 'onboarding', string> = {
-  default:
-    'Wipe generated artifacts (jobs.json, JOBS.md, feed.xml, raw dumps, archive, logs). Keeps brief + applied.json.',
-  all: 'Wipe everything above PLUS your candidate brief and applied.json — full reset.',
-  onboarding:
-    'Wipe preferences + brief + raw CV. Keeps jobs.json and applied.json. The first-run wizard will re-trigger.',
+type CleanMode = 'default' | 'all' | 'onboarding';
+
+interface CleanModeMeta {
+  command: string;
+  shortDesc: string;
+  longDesc: string;
+  destructive: boolean;
+}
+
+const CLEAN_MODES: Record<CleanMode, CleanModeMeta> = {
+  default: {
+    command: 'pnpm run clean',
+    shortDesc: 'Wipe generated artifacts',
+    longDesc:
+      'Removes data/jobs.json, JOBS.md, feed.xml, raw dumps, archive, and logs. Keeps your candidate brief and applied jobs.',
+    destructive: false,
+  },
+  onboarding: {
+    command: 'pnpm run clean:onboarding',
+    shortDesc: 'Reset onboarding only',
+    longDesc:
+      'Removes config/preferences.json, candidate-brief.md, and the raw CV file. Keeps jobs.json and applied.json. The first-run wizard will trigger again.',
+    destructive: false,
+  },
+  all: {
+    command: 'pnpm run clean -- --all',
+    shortDesc: 'Full reset (destructive)',
+    longDesc:
+      'Removes everything from "Wipe generated artifacts" PLUS your candidate brief AND your applied job history. This cannot be undone.',
+    destructive: true,
+  },
 };
+
+interface ConfirmDialog {
+  title: string;
+  body: string;
+  destructive: boolean;
+  confirmLabel: string;
+  onConfirm: () => void;
+}
 
 export function Settings() {
   const [prefs, setPrefs] = useState<PreferencesResponse | null>(null);
@@ -96,8 +133,12 @@ export function Settings() {
     busy: false,
     result: null,
   });
-  const [cleaning, setCleaning] = useState<'default' | 'all' | 'onboarding' | null>(null);
+  const [cleaning, setCleaning] = useState<CleanMode | null>(null);
   const [cleanResult, setCleanResult] = useState<CleanResult | null>(null);
+  const [skipReview, setSkipReview] = useState(false);
+  const [schedulerOp, setSchedulerOp] = useState<'install' | 'uninstall' | null>(null);
+  const [confirmDialog, setConfirmDialog] = useState<ConfirmDialog | null>(null);
+  const [copiedSnippet, setCopiedSnippet] = useState<string | null>(null);
 
   const loadAll = useCallback(async () => {
     const grab = async <T,>(url: string): Promise<T | null> => {
@@ -129,6 +170,16 @@ export function Settings() {
   useEffect(() => {
     void loadAll();
   }, [loadAll]);
+
+  // Lock body scroll while the confirm modal is open + close on Esc.
+  useEffect(() => {
+    if (!confirmDialog) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setConfirmDialog(null);
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [confirmDialog]);
 
   const saveProvider = useCallback(async () => {
     setSavingProvider(true);
@@ -180,11 +231,7 @@ export function Settings() {
   }, [provider]);
 
   const runClean = useCallback(
-    async (mode: 'default' | 'all' | 'onboarding') => {
-      const ok = window.confirm(
-        `Run pnpm run clean${mode === 'default' ? '' : `:${mode}`}?\n\n${CLEAN_DESCRIPTIONS[mode]}`,
-      );
-      if (!ok) return;
+    async (mode: CleanMode) => {
       setCleaning(mode);
       setCleanResult(null);
       setError(null);
@@ -196,7 +243,6 @@ export function Settings() {
         });
         const body = (await res.json()) as CleanResult;
         setCleanResult(body);
-        // Reload everything that might have changed.
         await loadAll();
       } catch (err) {
         setError(`Clean failed: ${err instanceof Error ? err.message : String(err)}`);
@@ -207,8 +253,132 @@ export function Settings() {
     [loadAll],
   );
 
+  const installScheduler = useCallback(async () => {
+    setError(null);
+    setSchedulerOp('install');
+    try {
+      const res = await fetch('/api/scheduler-install', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ skipReview }),
+      });
+      if (!res.ok && res.status !== 202) {
+        const errBody = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(errBody.error ?? `HTTP ${res.status}`);
+      }
+    } catch (err) {
+      setError(`Install failed: ${err instanceof Error ? err.message : String(err)}`);
+      setSchedulerOp(null);
+    }
+  }, [skipReview]);
+
+  const uninstallScheduler = useCallback(async () => {
+    setError(null);
+    setSchedulerOp('uninstall');
+    try {
+      const res = await fetch('/api/scheduler-uninstall', { method: 'POST' });
+      if (!res.ok && res.status !== 202) {
+        const errBody = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(errBody.error ?? `HTTP ${res.status}`);
+      }
+    } catch (err) {
+      setError(`Uninstall failed: ${err instanceof Error ? err.message : String(err)}`);
+      setSchedulerOp(null);
+    }
+  }, []);
+
+  const onSchedulerComplete = useCallback(async () => {
+    setSchedulerOp(null);
+    // Re-fetch scheduler status so the pills + last-run flip to the new state.
+    try {
+      const res = await fetch('/api/scheduler-status');
+      if (res.ok) setScheduler((await res.json()) as SchedulerStatus);
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  const copy = useCallback((text: string) => {
+    void navigator.clipboard.writeText(text);
+    setCopiedSnippet(text);
+    window.setTimeout(() => {
+      setCopiedSnippet((current) => (current === text ? null : current));
+    }, 1500);
+  }, []);
+
+  const askToClean = (mode: CleanMode) => {
+    const meta = CLEAN_MODES[mode];
+    setConfirmDialog({
+      title: meta.command,
+      body: meta.longDesc,
+      destructive: meta.destructive,
+      confirmLabel: meta.destructive ? 'Yes, delete everything' : 'Run',
+      onConfirm: () => {
+        setConfirmDialog(null);
+        void runClean(mode);
+      },
+    });
+  };
+
+  const askToInstall = () => {
+    if (!scheduler) return;
+    const cmdSummary = skipReview ? `${scheduler.installCmd} --no-review` : scheduler.installCmd;
+    setConfirmDialog({
+      title: 'Install scheduler',
+      body: `This will run \`${cmdSummary}\` from the repo root. It writes ${
+        scheduler.platform === 'darwin'
+          ? 'launchd plists in ~/Library/LaunchAgents/'
+          : 'entries to your crontab'
+      } so the aggregator${skipReview ? '' : ' and AI review'} run daily. You can uninstall at any time.`,
+      destructive: false,
+      confirmLabel: 'Install',
+      onConfirm: () => {
+        setConfirmDialog(null);
+        void installScheduler();
+      },
+    });
+  };
+
+  const askToUninstall = () => {
+    if (!scheduler) return;
+    setConfirmDialog({
+      title: 'Uninstall scheduler',
+      body: `This will run \`${scheduler.uninstallCmd}\` from the repo root and remove the daily ${
+        scheduler.platform === 'darwin' ? 'launchd agents' : 'crontab entries'
+      }. Your jobs.json and applied.json are not touched.`,
+      destructive: true,
+      confirmLabel: 'Uninstall',
+      onConfirm: () => {
+        setConfirmDialog(null);
+        void uninstallScheduler();
+      },
+    });
+  };
+
   const showSavedToast = providerSavedAt && Date.now() - providerSavedAt < 3000;
   const detectedAny = envInfo ? PROVIDERS.some((p) => envInfo.providers[p]) : false;
+  const schedulerBusy = schedulerOp !== null;
+
+  const totalDisk = disk?.total.bytes ?? 0;
+  const diskBuckets = useMemo(() => {
+    if (!disk) return null;
+    const items = [
+      { key: 'raw', label: 'data/raw', bucket: disk.raw, note: 'per-source raw dumps' },
+      {
+        key: 'applications',
+        label: 'data/applications',
+        bucket: disk.applications,
+        note: 'AI Apply markdown packages',
+      },
+      {
+        key: 'archive',
+        label: 'data/archive',
+        bucket: disk.archive,
+        note: 'month-end snapshots',
+      },
+    ];
+    return items;
+  }, [disk]);
 
   return (
     <div className="settings">
@@ -221,16 +391,21 @@ export function Settings() {
         </div>
       )}
 
-      {/* 1. LLM CLI */}
-      <section className="settings-section">
-        <header className="settings-section-header">
-          <h2>LLM CLI</h2>
-          <span className="muted">
-            Currently using: <strong>{prefs?.provider ?? 'unknown'}</strong>
-          </span>
-        </header>
+      {/* ── [01] LLM CLI ─────────────────────────────────────────── */}
+      <Section
+        index="01"
+        title="LLM CLI"
+        subtitle="Local CLI used for the CV summary, AI review, and AI Apply."
+        meta={
+          prefs?.provider ? (
+            <ProviderChip provider={prefs.provider} />
+          ) : (
+            <span className="settings-meta-pill settings-meta-pill-warn">not set</span>
+          )
+        }
+      >
         {!envInfo ? (
-          <p className="placeholder">Probing installed CLIs…</p>
+          <SkeletonRows count={5} />
         ) : (
           <ul className="provider-list">
             <li>
@@ -270,7 +445,7 @@ export function Settings() {
         )}
         {!detectedAny && envInfo && (
           <p className="warn">
-            No supported LLM CLI found on PATH. Install one (e.g.{' '}
+            No supported LLM CLI on PATH. Install one (e.g.{' '}
             <a
               href="https://docs.claude.com/en/docs/claude-code/quickstart"
               target="_blank"
@@ -278,13 +453,13 @@ export function Settings() {
             >
               Claude Code
             </a>
-            ) to use AI Apply, AI review, and the CV summarizer.
+            ) to enable AI features.
           </p>
         )}
         <div className="settings-actions">
           <button
             type="button"
-            className="settings-button"
+            className="settings-button settings-button-primary"
             disabled={savingProvider || !envInfo}
             onClick={() => void saveProvider()}
           >
@@ -301,69 +476,115 @@ export function Settings() {
           {showSavedToast && <span className="settings-toast">✓ saved</span>}
         </div>
         {llmTest.result && <LlmTestResultPanel result={llmTest.result} />}
-      </section>
+      </Section>
 
-      {/* 2. Scheduler */}
-      <section className="settings-section">
-        <header className="settings-section-header">
-          <h2>Scheduler</h2>
-          <span className="muted">
-            {scheduler ? `${scheduler.platform} · read-only` : 'loading…'}
-          </span>
-        </header>
-        {scheduler && (
+      {/* ── [02] Scheduler ───────────────────────────────────────── */}
+      <Section
+        index="02"
+        title="Scheduler"
+        subtitle="Run the daily aggregator and AI review without opening this UI."
+        meta={
+          scheduler ? <span className="settings-meta-pill mono">{scheduler.platform}</span> : null
+        }
+      >
+        {!scheduler ? (
+          <SkeletonRows count={2} />
+        ) : (
           <>
             <div className="scheduler-grid">
               <SchedulerRow
                 label="Aggregator"
+                cmd="pnpm run dev"
                 installed={scheduler.installed.aggregate}
                 lastRun={scheduler.lastRun.aggregate}
               />
               <SchedulerRow
                 label="AI review"
+                cmd="pnpm run ai-review"
                 installed={scheduler.installed.review}
                 lastRun={scheduler.lastRun.review}
               />
             </div>
-            {(!scheduler.installed.aggregate || !scheduler.installed.review) && (
-              <div className="settings-snippet">
-                <p className="muted">
-                  Install with <code>{scheduler.installCmd}</code> (run from the repo root).
-                </p>
-              </div>
-            )}
-            {(scheduler.installed.aggregate || scheduler.installed.review) && (
-              <div className="settings-snippet">
-                <p className="muted">
-                  Uninstall with <code>{scheduler.uninstallCmd}</code>.
-                </p>
-              </div>
-            )}
-            {scheduler.platform === 'other' && (
+
+            {scheduler.platform === 'other' ? (
               <p className="warn">
                 Unknown platform — only macOS and Linux scheduler scripts are bundled.
               </p>
+            ) : (
+              <>
+                <TerminalBlock
+                  command={
+                    skipReview ? `${scheduler.installCmd} --no-review` : scheduler.installCmd
+                  }
+                  busy={schedulerOp === 'install'}
+                  disabled={schedulerBusy}
+                  onRun={askToInstall}
+                  onCopy={copy}
+                  copied={
+                    copiedSnippet ===
+                    (skipReview ? `${scheduler.installCmd} --no-review` : scheduler.installCmd)
+                  }
+                  runLabel={
+                    scheduler.installed.aggregate || scheduler.installed.review
+                      ? 'Reinstall'
+                      : 'Install'
+                  }
+                />
+                <label className="checkbox checkbox-inline">
+                  <input
+                    type="checkbox"
+                    checked={skipReview}
+                    onChange={(e) => setSkipReview(e.target.checked)}
+                    disabled={schedulerBusy}
+                  />
+                  Skip the AI review agent (<code>--no-review</code>) — useful if you don't have an
+                  LLM CLI installed.
+                </label>
+
+                {(scheduler.installed.aggregate || scheduler.installed.review) && (
+                  <TerminalBlock
+                    command={scheduler.uninstallCmd}
+                    busy={schedulerOp === 'uninstall'}
+                    disabled={schedulerBusy}
+                    onRun={askToUninstall}
+                    onCopy={copy}
+                    copied={copiedSnippet === scheduler.uninstallCmd}
+                    runLabel="Uninstall"
+                    danger
+                  />
+                )}
+              </>
             )}
           </>
         )}
-      </section>
+      </Section>
 
-      {/* 3. Last run */}
-      <section className="settings-section">
-        <header className="settings-section-header">
-          <h2>Last run</h2>
-          <span className="muted">
-            {runSummary?.generatedAt
-              ? `${relativeTime(runSummary.generatedAt)}${
-                  runSummary.ageHours !== null && runSummary.ageHours >= 24 ? ' ⚠️ stale' : ''
-                }`
-              : 'no run yet'}
-          </span>
-        </header>
-        {runSummary && runSummary.total > 0 ? (
+      {/* ── [03] Last run ────────────────────────────────────────── */}
+      <Section
+        index="03"
+        title="Last run"
+        subtitle="Snapshot of the most recent aggregator output."
+        meta={
+          runSummary?.generatedAt ? (
+            <span
+              className={`settings-meta-pill ${
+                runSummary.ageHours !== null && runSummary.ageHours >= 24
+                  ? 'settings-meta-pill-warn'
+                  : 'settings-meta-pill-ok'
+              }`}
+            >
+              {relativeTime(runSummary.generatedAt)}
+              {runSummary.ageHours !== null && runSummary.ageHours >= 24 ? ' · stale' : ''}
+            </span>
+          ) : null
+        }
+      >
+        {!runSummary ? (
+          <SkeletonRows count={3} />
+        ) : runSummary.total > 0 ? (
           <>
             <div className="run-summary-totals">
-              <Stat label="Total kept" value={runSummary.total.toLocaleString()} />
+              <Stat label="Kept" value={runSummary.total.toLocaleString()} accent />
               {(['web3+ai', 'web3', 'ai', 'general'] as const).map((c) => (
                 <Stat key={c} label={c} value={(runSummary.byCategory[c] ?? 0).toLocaleString()} />
               ))}
@@ -381,69 +602,62 @@ export function Settings() {
             </ul>
           </>
         ) : (
-          <p className="placeholder">
-            jobs.json is empty — run the aggregator from the Jobs tab or wait for the daily cron.
-          </p>
+          <EmptyState
+            title="No data yet"
+            body="Run the aggregator from the Jobs tab to populate this panel."
+          />
         )}
-      </section>
+      </Section>
 
-      {/* 4. Disk usage */}
-      <section className="settings-section">
-        <header className="settings-section-header">
-          <h2>Disk usage</h2>
-          <span className="muted">
-            {disk ? `${formatBytes(disk.total.bytes)} · ${disk.total.files} files` : 'loading…'}
-          </span>
-        </header>
-        {disk && (
+      {/* ── [04] Disk usage ──────────────────────────────────────── */}
+      <Section
+        index="04"
+        title="Disk usage"
+        subtitle="Local artifacts under data/."
+        meta={
+          disk ? (
+            <span className="settings-meta-pill mono">
+              {formatBytes(disk.total.bytes)} · {disk.total.files} files
+            </span>
+          ) : null
+        }
+      >
+        {!disk ? (
+          <SkeletonRows count={3} />
+        ) : (
           <ul className="disk-list">
-            <DiskRow
-              label="data/raw"
-              bucket={disk.raw}
-              note="per-source raw dumps from each fetch"
-            />
-            <DiskRow
-              label="data/applications"
-              bucket={disk.applications}
-              note="AI Apply markdown packages"
-            />
-            <DiskRow
-              label="data/archive"
-              bucket={disk.archive}
-              note="month-end snapshots of jobs.json"
-            />
+            {diskBuckets?.map((b) => (
+              <DiskRow
+                key={b.key}
+                label={b.label}
+                bucket={b.bucket}
+                note={b.note}
+                totalBytes={totalDisk}
+              />
+            ))}
           </ul>
         )}
-      </section>
+      </Section>
 
-      {/* 5. Maintenance */}
-      <section className="settings-section">
-        <header className="settings-section-header">
-          <h2>Maintenance</h2>
-        </header>
+      {/* ── [05] Maintenance ─────────────────────────────────────── */}
+      <Section
+        index="05"
+        title="Maintenance"
+        subtitle="Reset local state. Each action shows a confirmation before it runs."
+      >
         <div className="maintenance-list">
-          <MaintenanceRow
-            label="pnpm run clean"
-            description={CLEAN_DESCRIPTIONS.default}
-            busy={cleaning === 'default'}
-            disabled={cleaning !== null}
-            onClick={() => void runClean('default')}
-          />
-          <MaintenanceRow
-            label="pnpm run clean:onboarding"
-            description={CLEAN_DESCRIPTIONS.onboarding}
-            busy={cleaning === 'onboarding'}
-            disabled={cleaning !== null}
-            onClick={() => void runClean('onboarding')}
-          />
-          <MaintenanceRow
-            label="pnpm run clean (--all)"
-            description={CLEAN_DESCRIPTIONS.all}
-            danger
-            busy={cleaning === 'all'}
-            disabled={cleaning !== null}
-            onClick={() => void runClean('all')}
-          />
+          {(Object.keys(CLEAN_MODES) as CleanMode[]).map((mode) => {
+            const meta = CLEAN_MODES[mode];
+            return (
+              <MaintenanceRow
+                key={mode}
+                meta={meta}
+                busy={cleaning === mode}
+                disabled={cleaning !== null}
+                onClick={() => askToClean(mode)}
+              />
+            );
+          })}
         </div>
         {cleanResult && (
           <pre className="settings-clean-output">
@@ -451,21 +665,26 @@ export function Settings() {
               (cleanResult.ok ? 'done.' : `(no output, exit ${cleanResult.exitCode})`)}
           </pre>
         )}
-      </section>
+      </Section>
 
-      {/* 6. Environment */}
-      <section className="settings-section">
-        <header className="settings-section-header">
-          <h2>Environment</h2>
+      {/* ── [06] Environment ─────────────────────────────────────── */}
+      <Section
+        index="06"
+        title="Environment"
+        subtitle="Runtime + filesystem state for debugging."
+        action={
           <button
             type="button"
             className="settings-button settings-button-secondary settings-button-small"
             onClick={() => void loadAll()}
           >
-            Refresh
+            Refresh all
           </button>
-        </header>
-        {envInfo && (
+        }
+      >
+        {!envInfo ? (
+          <SkeletonRows count={5} />
+        ) : (
           <dl className="env-grid">
             <dt>Node</dt>
             <dd className="mono">{envInfo.node}</dd>
@@ -474,9 +693,21 @@ export function Settings() {
             <dt>Repo</dt>
             <dd className="mono">{envInfo.repoRoot}</dd>
             <dt>Brief</dt>
-            <dd>{envInfo.briefPresent ? '✓ present' : '✗ missing'}</dd>
+            <dd>
+              {envInfo.briefPresent ? (
+                <span className="env-badge env-badge-ok">✓ present</span>
+              ) : (
+                <span className="env-badge env-badge-missing">✗ missing</span>
+              )}
+            </dd>
             <dt>CV file</dt>
-            <dd>{envInfo.cvPresent ? '✓ present' : '✗ missing'}</dd>
+            <dd>
+              {envInfo.cvPresent ? (
+                <span className="env-badge env-badge-ok">✓ present</span>
+              ) : (
+                <span className="env-badge env-badge-missing">✗ missing</span>
+              )}
+            </dd>
             <dt>Providers</dt>
             <dd>
               {PROVIDERS.map((p) => (
@@ -490,83 +721,189 @@ export function Settings() {
             </dd>
           </dl>
         )}
-      </section>
+      </Section>
+
+      <ConfirmModal dialog={confirmDialog} onClose={() => setConfirmDialog(null)} />
+      <SchedulerProgress onComplete={onSchedulerComplete} />
     </div>
   );
 }
 
-function SchedulerRow({
-  label,
-  installed,
-  lastRun,
-}: {
+interface SectionProps {
+  index: string;
+  title: string;
+  subtitle: string;
+  meta?: React.ReactNode;
+  action?: React.ReactNode;
+  children: React.ReactNode;
+}
+
+function Section({ index, title, subtitle, meta, action, children }: SectionProps) {
+  return (
+    <section className="settings-section">
+      <header className="settings-section-header">
+        <div className="settings-section-titles">
+          <span className="settings-section-index">[{index}]</span>
+          <div>
+            <h2>{title}</h2>
+            <p className="settings-section-subtitle">{subtitle}</p>
+          </div>
+        </div>
+        <div className="settings-section-meta">
+          {meta}
+          {action}
+        </div>
+      </header>
+      <div className="settings-section-body">{children}</div>
+    </section>
+  );
+}
+
+function ProviderChip({ provider }: { provider: ProviderChoice }) {
+  return <span className="settings-meta-pill settings-meta-pill-ok mono">{provider}</span>;
+}
+
+function SkeletonRows({ count }: { count: number }) {
+  return (
+    <div className="settings-skeleton" aria-hidden>
+      {Array.from({ length: count }).map((_, i) => (
+        // biome-ignore lint/suspicious/noArrayIndexKey: skeleton placeholders are static
+        <div key={i} className="settings-skeleton-row" />
+      ))}
+    </div>
+  );
+}
+
+interface SchedulerRowProps {
   label: string;
+  cmd: string;
   installed: boolean;
   lastRun: string | null;
-}) {
+}
+
+function SchedulerRow({ label, cmd, installed, lastRun }: SchedulerRowProps) {
   return (
     <div className="scheduler-row">
-      <span className="scheduler-label">{label}</span>
+      <div className="scheduler-row-text">
+        <span className="scheduler-label">{label}</span>
+        <code className="scheduler-cmd">{cmd}</code>
+      </div>
       <span className={`scheduler-pill scheduler-pill-${installed ? 'on' : 'off'}`}>
         {installed ? 'loaded' : 'not loaded'}
       </span>
       <span className="scheduler-lastrun">
-        {lastRun ? `last run ${relativeTime(lastRun)}` : '—'}
+        {lastRun ? `last run ${relativeTime(lastRun)}` : 'never run'}
       </span>
     </div>
   );
 }
 
-function Stat({ label, value }: { label: string; value: string }) {
+interface TerminalBlockProps {
+  command: string;
+  busy: boolean;
+  disabled: boolean;
+  onRun: () => void;
+  onCopy: (cmd: string) => void;
+  copied: boolean;
+  runLabel: string;
+  danger?: boolean;
+}
+
+function TerminalBlock({
+  command,
+  busy,
+  disabled,
+  onRun,
+  onCopy,
+  copied,
+  runLabel,
+  danger,
+}: TerminalBlockProps) {
   return (
-    <div className="stat-chip">
+    <div className={`terminal-block ${danger ? 'terminal-block-danger' : ''}`}>
+      <code className="terminal-block-line">
+        <span className="terminal-block-prompt">$</span>
+        <span className="terminal-block-cmd">{command}</span>
+      </code>
+      <div className="terminal-block-actions">
+        <button
+          type="button"
+          className="terminal-block-copy"
+          onClick={() => onCopy(command)}
+          title="Copy command"
+        >
+          {copied ? '✓ copied' : 'Copy'}
+        </button>
+        <button
+          type="button"
+          className={`terminal-block-run ${danger ? 'terminal-block-run-danger' : ''}`}
+          disabled={disabled || busy}
+          onClick={onRun}
+        >
+          {busy ? 'Running…' : runLabel}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function Stat({ label, value, accent }: { label: string; value: string; accent?: boolean }) {
+  return (
+    <div className={`stat-chip ${accent ? 'stat-chip-accent' : ''}`}>
       <span className="stat-label">{label}</span>
       <span className="stat-value">{value}</span>
     </div>
   );
 }
 
-function DiskRow({ label, bucket, note }: { label: string; bucket: DiskBucket; note: string }) {
+function DiskRow({
+  label,
+  bucket,
+  note,
+  totalBytes,
+}: {
+  label: string;
+  bucket: DiskBucket;
+  note: string;
+  totalBytes: number;
+}) {
+  const pct = totalBytes > 0 ? Math.max(2, Math.round((bucket.bytes / totalBytes) * 100)) : 0;
   return (
     <li className="disk-row">
-      <span className="disk-label mono">{label}</span>
-      <span className="disk-size">{formatBytes(bucket.bytes)}</span>
-      <span className="disk-files muted">{bucket.files} files</span>
+      <div className="disk-row-head">
+        <span className="disk-label mono">{label}</span>
+        <span className="disk-size">{formatBytes(bucket.bytes)}</span>
+        <span className="disk-files muted">{bucket.files} files</span>
+      </div>
+      <div className="disk-bar" aria-hidden>
+        <div className="disk-bar-fill" style={{ width: `${pct}%` }} />
+      </div>
       <span className="disk-note muted">{note}</span>
     </li>
   );
 }
 
 interface MaintenanceRowProps {
-  label: string;
-  description: string;
-  danger?: boolean;
+  meta: CleanModeMeta;
   busy: boolean;
   disabled: boolean;
   onClick: () => void;
 }
 
-function MaintenanceRow({
-  label,
-  description,
-  danger,
-  busy,
-  disabled,
-  onClick,
-}: MaintenanceRowProps) {
+function MaintenanceRow({ meta, busy, disabled, onClick }: MaintenanceRowProps) {
   return (
-    <div className="maintenance-row">
+    <div className={`maintenance-row ${meta.destructive ? 'maintenance-row-danger' : ''}`}>
       <div className="maintenance-text">
-        <code className="maintenance-label">{label}</code>
-        <p className="muted">{description}</p>
+        <code className="maintenance-label">{meta.command}</code>
+        <p className="muted">{meta.shortDesc}</p>
       </div>
       <button
         type="button"
-        className={`settings-button ${danger ? 'settings-button-danger' : 'settings-button-secondary'}`}
+        className={`settings-button ${meta.destructive ? 'settings-button-danger' : 'settings-button-secondary'}`}
         disabled={disabled}
         onClick={onClick}
       >
-        {busy ? 'Running…' : danger ? 'Run (destructive)' : 'Run'}
+        {busy ? 'Running…' : meta.destructive ? 'Run (destructive)' : 'Run'}
       </button>
     </div>
   );
@@ -583,16 +920,99 @@ function LlmTestResultPanel({ result }: { result: LlmTestResult }) {
     <div className={`llm-test-result ${result.ok ? tier : 'llm-test-fail'}`}>
       {result.ok ? (
         <>
-          <strong>✓ {result.provider}</strong>
-          <span className="muted"> · {result.latencyMs}ms</span>
+          <div className="llm-test-result-head">
+            <strong>✓ {result.provider}</strong>
+            <span className="muted">{result.latencyMs}ms</span>
+          </div>
           <pre>{result.output}</pre>
         </>
       ) : (
         <>
-          <strong>✗ {result.provider} failed</strong>
+          <div className="llm-test-result-head">
+            <strong>✗ {result.provider} failed</strong>
+          </div>
           <pre>{result.error ?? 'unknown error'}</pre>
         </>
       )}
+    </div>
+  );
+}
+
+function EmptyState({ title, body }: { title: string; body: string }) {
+  return (
+    <div className="settings-empty">
+      <strong>{title}</strong>
+      <p className="muted">{body}</p>
+    </div>
+  );
+}
+
+interface ConfirmModalProps {
+  dialog: ConfirmDialog | null;
+  onClose: () => void;
+}
+
+function ConfirmModal({ dialog, onClose }: ConfirmModalProps) {
+  const confirmRef = useRef<HTMLButtonElement | null>(null);
+  // Focus the confirm action on open so the user can hit Enter to proceed
+  // (and Esc to cancel — global listener in the parent handles that).
+  useEffect(() => {
+    if (dialog) confirmRef.current?.focus();
+  }, [dialog]);
+
+  if (!dialog) return null;
+  // Click-outside-to-dismiss: only fires when the click target is the overlay
+  // itself, not a bubbled click from inside the modal. Avoids needing a
+  // stopPropagation handler on the inner div.
+  const onOverlayMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (e.target === e.currentTarget) onClose();
+  };
+  // Local keyboard handler on the overlay (in addition to the global Esc
+  // listener in the parent) so this component is fully keyboard-accessible
+  // standalone too.
+  const onOverlayKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key === 'Escape' && e.target === e.currentTarget) onClose();
+  };
+  return (
+    <div
+      className="confirm-overlay"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="confirm-modal-title"
+      onMouseDown={onOverlayMouseDown}
+      onKeyDown={onOverlayKeyDown}
+    >
+      <div className={`confirm-modal ${dialog.destructive ? 'confirm-modal-danger' : ''}`}>
+        <header className="confirm-modal-header">
+          <h3 id="confirm-modal-title">{dialog.title}</h3>
+          <button
+            type="button"
+            className="confirm-modal-close"
+            aria-label="Close"
+            onClick={onClose}
+          >
+            ×
+          </button>
+        </header>
+        <p className="confirm-modal-body">{dialog.body}</p>
+        <div className="confirm-modal-actions">
+          <button
+            type="button"
+            className="settings-button settings-button-secondary"
+            onClick={onClose}
+          >
+            Cancel
+          </button>
+          <button
+            ref={confirmRef}
+            type="button"
+            className={`settings-button ${dialog.destructive ? 'settings-button-danger' : 'settings-button-primary'}`}
+            onClick={dialog.onConfirm}
+          >
+            {dialog.confirmLabel}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
