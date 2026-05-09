@@ -154,7 +154,7 @@ export function Onboarding({ onComplete }: OnboardingProps) {
   return (
     <div className="onboarding">
       <header className="onboarding-header">
-        <h1>Welcome to job-hunt</h1>
+        <AsciiHero />
         <p className="subtitle">
           A 30-second setup. Pick your LLM CLI, drop your CV, confirm the generated brief.
         </p>
@@ -283,6 +283,35 @@ export function Onboarding({ onComplete }: OnboardingProps) {
           </div>
         </section>
       )}
+    </div>
+  );
+}
+
+// Hand-laid ASCII block reading "job hunt" — figlet-style "Standard" font,
+// trimmed and aligned. Each line types itself out with a staggered delay
+// (CSS keyframes in styles.css), and a blinking cursor lands at the end of
+// the tagline. Falls back to instant render under prefers-reduced-motion.
+const ASCII_HERO_LINES: readonly string[] = [
+  '   _       _        _                 _   ',
+  '  (_) ___ | |__    | |__  _   _ _ __ | |_ ',
+  "  | |/ _ \\| '_ \\   | '_ \\| | | | '_ \\| __|",
+  '  | | (_) | |_) |  | | | | |_| | | | | |_ ',
+  ' _/ |\\___/|_.__/   |_| |_|\\__,_|_| |_|\\__|',
+  '|__/                                      ',
+];
+
+function AsciiHero() {
+  return (
+    <div className="ascii-hero" role="img" aria-label="job-hunt">
+      {ASCII_HERO_LINES.map((line) => (
+        <span key={line} className="ascii-hero-line">
+          {line}
+        </span>
+      ))}
+      <span className="ascii-hero-tag">
+        &gt; hunting for your next role across 13 sources
+        <span className="ascii-hero-cursor" />
+      </span>
     </div>
   );
 }

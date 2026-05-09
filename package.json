@@ -15,6 +15,7 @@
     "ai-review": "tsx src/ai-review.ts",
     "setup-brief": "tsx src/setup-brief.ts",
     "clean": "tsx scripts/clean.ts",
+    "clean:onboarding": "tsx scripts/clean.ts --onboarding",
     "daily": "pnpm run dev && pnpm run ai-review",
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.test.json && tsc --noEmit -p ui/tsconfig.json",
     "lint": "biome check",

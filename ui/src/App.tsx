@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { FetchProgress } from './FetchProgress.tsx';
 import { Onboarding } from './Onboarding.tsx';
 import { Profile } from './Profile.tsx';
 import type {
@@ -116,18 +117,50 @@ export function App() {
   // they bypass via the Profile tab); `true` triggers the wizard.
   const [showOnboarding, setShowOnboarding] = useState<boolean | null>(null);
 
+  // Re-fetch jobs + AI reviews + applied entries (e.g. after the fetch-jobs
+  // run completes, or after onboarding finishes). Reconciles applied
+  // status with the current jobs list so URL-keyed entries land on the
+  // right job ids.
+  const reloadJobsAndReviews = useCallback(async () => {
+    const [jobs, reviews, applied] = await Promise.all([
+      fetch('/api/jobs')
+        .then((r) => (r.ok ? (r.json() as Promise<Job[]>) : Promise.resolve([] as Job[])))
+        .catch(() => [] as Job[]),
+      fetch('/api/reviews')
+        .then((r) => (r.ok ? (r.json() as Promise<AiReviews>) : Promise.resolve({} as AiReviews)))
+        .catch(() => ({}) as AiReviews),
+      fetch('/api/applied')
+        .then((r) => (r.ok ? (r.json() as Promise<AppliedEntry[]>) : Promise.resolve([])))
+        .catch(() => [] as AppliedEntry[]),
+    ]);
+    setAllJobs(jobs);
+    setAiReviews(reviews);
+    const byUrl = new Map(applied.map((e) => [e.url, e]));
+    const nextApplied: AppliedMap = {};
+    for (const j of jobs) {
+      const e = byUrl.get(j.url);
+      if (e) nextApplied[j.id] = e;
+    }
+    setAppliedById(nextApplied);
+  }, []);
+
+  // POST /api/fetch-jobs — kicks off the aggregator. The FetchProgress
+  // component handles its own polling + parent re-fetch on success.
+  const triggerFetch = useCallback(async () => {
+    try {
+      const res = await fetch('/api/fetch-jobs', { method: 'POST' });
+      if (!res.ok && res.status !== 202) {
+        const errBody = (await res.json().catch(() => ({}))) as { error?: string };
+        setApiError(errBody.error ?? `fetch run failed: HTTP ${res.status}`);
+      }
+    } catch (err) {
+      setApiError(`fetch run failed: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }, []);
+
   // Load jobs + AI reviews + applied state + preferences on mount.
   useEffect(() => {
     let cancelled = false;
-    const loadJobs = fetch('/api/jobs')
-      .then((r) => (r.ok ? (r.json() as Promise<Job[]>) : Promise.resolve([] as Job[])))
-      .catch(() => [] as Job[]);
-    const loadReviews = fetch('/api/reviews')
-      .then((r) => (r.ok ? (r.json() as Promise<AiReviews>) : Promise.resolve({} as AiReviews)))
-      .catch(() => ({}) as AiReviews);
-    const loadApplied = fetch('/api/applied')
-      .then((r) => (r.ok ? (r.json() as Promise<AppliedEntry[]>) : Promise.resolve([])))
-      .catch(() => [] as AppliedEntry[]);
     const loadPrefs = fetch('/api/preferences')
       .then((r) =>
         r.ok
@@ -135,27 +168,16 @@ export function App() {
           : Promise.resolve({ provider: null, onboardedAt: null } as PreferencesResponse),
       )
       .catch(() => ({ provider: null, onboardedAt: null }) as PreferencesResponse);
-    Promise.all([loadJobs, loadReviews, loadApplied, loadPrefs]).then(
-      ([jobs, reviews, applied, prefs]) => {
-        if (cancelled) return;
-        setAllJobs(jobs);
-        setAiReviews(reviews);
-        const byUrl = new Map(applied.map((e) => [e.url, e]));
-        const nextApplied: AppliedMap = {};
-        for (const j of jobs) {
-          const e = byUrl.get(j.url);
-          if (e) nextApplied[j.id] = e;
-        }
-        setAppliedById(nextApplied);
-        setDataLoading(false);
-        // First run = no `onboardedAt` stamp yet. Show the wizard.
-        setShowOnboarding(!prefs.onboardedAt);
-      },
-    );
+    Promise.all([reloadJobsAndReviews(), loadPrefs]).then(([, prefs]) => {
+      if (cancelled) return;
+      setDataLoading(false);
+      // First run = no `onboardedAt` stamp yet. Show the wizard.
+      setShowOnboarding(!prefs.onboardedAt);
+    });
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [reloadJobsAndReviews]);
 
   // Sync state → URL via replaceState so the back button doesn't get spammed.
   useEffect(() => {
@@ -341,19 +363,13 @@ export function App() {
         <Onboarding
           onComplete={async () => {
             setShowOnboarding(false);
-            // Refresh data after onboarding (the brief was just generated;
-            // jobs.json may still be empty until the user runs the
-            // aggregator, but we still want the new state).
-            const [jobs, reviews] = await Promise.all([
-              fetch('/api/jobs')
-                .then((r) => (r.ok ? r.json() : []))
-                .catch(() => []),
-              fetch('/api/reviews')
-                .then((r) => (r.ok ? r.json() : {}))
-                .catch(() => ({})),
-            ]);
-            setAllJobs(jobs as Job[]);
-            setAiReviews(reviews as AiReviews);
+            await reloadJobsAndReviews();
+            // First-time user just finished onboarding and jobs.json is
+            // still empty — kick off the first aggregator run automatically
+            // so they don't land on an empty table with no obvious next
+            // action. The FetchProgress card handles the live UI; the
+            // poller will call reloadJobsAndReviews when it finishes.
+            void triggerFetch();
           }}
         />
       </div>
@@ -474,7 +490,11 @@ export function App() {
           </div>
 
           {visible.length === 0 ? (
-            <p className="empty">No jobs match the current filters.</p>
+            allJobs.length === 0 ? (
+              <FetchCta onFetch={triggerFetch} />
+            ) : (
+              <p className="empty">No jobs match the current filters.</p>
+            )
           ) : (
             <table>
               <thead>
@@ -540,6 +560,31 @@ export function App() {
           )}
         </>
       )}
+      <FetchProgress onComplete={reloadJobsAndReviews} />
+    </div>
+  );
+}
+
+interface FetchCtaProps {
+  onFetch: () => void;
+}
+
+function FetchCta({ onFetch }: FetchCtaProps) {
+  return (
+    <div className="fetch-cta">
+      <h2>No jobs yet</h2>
+      <p>
+        Run the aggregator to pull listings from 13 sources (Ashby, Greenhouse, Lever, Hacker News,
+        Web3 boards, etc.). Takes about 30–60 seconds.
+      </p>
+      <button type="button" className="fetch-cta-button" onClick={onFetch}>
+        ✨ Fetch jobs now
+      </button>
+      <p className="muted fetch-cta-hint">
+        After the first run you can schedule daily fetches with{' '}
+        <code>scripts/install-launchd.sh</code> (macOS) or <code>scripts/install-cron.sh</code>{' '}
+        (Linux).
+      </p>
     </div>
   );
 }

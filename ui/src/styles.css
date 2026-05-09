@@ -1030,3 +1030,268 @@ tbody tr.indent td.score {
   border-radius: 6px;
   font-size: 0.875rem;
 }
+
+/* ASCII hero shown at the top of the onboarding wizard. */
+.ascii-hero {
+  display: block;
+  margin: 0.5rem 0 0.75rem;
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 0.78rem;
+  line-height: 1.05;
+  color: var(--accent);
+  white-space: pre;
+  overflow: hidden;
+  letter-spacing: 0;
+}
+.ascii-hero-line {
+  display: block;
+  white-space: pre;
+  overflow: hidden;
+  width: 0;
+  animation: ascii-type 0.55s steps(40, end) forwards;
+}
+.ascii-hero-line:nth-child(1) {
+  animation-delay: 0.05s;
+}
+.ascii-hero-line:nth-child(2) {
+  animation-delay: 0.2s;
+}
+.ascii-hero-line:nth-child(3) {
+  animation-delay: 0.35s;
+}
+.ascii-hero-line:nth-child(4) {
+  animation-delay: 0.5s;
+}
+.ascii-hero-line:nth-child(5) {
+  animation-delay: 0.65s;
+}
+.ascii-hero-line:nth-child(6) {
+  animation-delay: 0.8s;
+}
+.ascii-hero-cursor {
+  display: inline-block;
+  width: 0.6em;
+  height: 1em;
+  vertical-align: text-bottom;
+  background: var(--accent);
+  margin-left: 0.15em;
+  animation: ascii-blink 1s steps(1, end) infinite;
+  opacity: 0;
+  animation-delay: 1s, 1.05s;
+  animation-name: ascii-fadein, ascii-blink;
+  animation-duration: 0.2s, 1s;
+  animation-fill-mode: forwards, none;
+  animation-iteration-count: 1, infinite;
+}
+.ascii-hero-tag {
+  display: block;
+  margin-top: 0.5rem;
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 0.75rem;
+  color: var(--muted);
+  opacity: 0;
+  animation: ascii-fadein 0.4s ease forwards;
+  animation-delay: 1.2s;
+}
+
+@keyframes ascii-type {
+  from {
+    width: 0;
+  }
+  to {
+    width: 100%;
+  }
+}
+@keyframes ascii-blink {
+  50% {
+    opacity: 0;
+  }
+}
+@keyframes ascii-fadein {
+  to {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ascii-hero-line,
+  .ascii-hero-cursor,
+  .ascii-hero-tag {
+    animation: none !important;
+    width: 100%;
+    opacity: 1;
+  }
+}
+
+/* Empty-state CTA shown when jobs.json has no entries. */
+.fetch-cta {
+  margin: 3rem auto;
+  max-width: 520px;
+  text-align: center;
+  padding: 2rem 1.5rem;
+  border: 1px dashed var(--border);
+  border-radius: 12px;
+  background: var(--bg-elevated);
+}
+.fetch-cta h2 {
+  margin: 0 0 0.5rem;
+  font-size: 1.1rem;
+}
+.fetch-cta p {
+  margin: 0 0 1rem;
+  color: var(--muted);
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+.fetch-cta-button {
+  border: 1px solid var(--accent);
+  background: var(--accent);
+  color: white;
+  padding: 0.625rem 1.25rem;
+  border-radius: 8px;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.9375rem;
+  font-weight: 600;
+}
+.fetch-cta-button:hover {
+  filter: brightness(1.05);
+}
+.fetch-cta-hint {
+  margin-top: 1rem !important;
+  font-size: 0.75rem !important;
+}
+.fetch-cta-hint code {
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 0.75rem;
+  background: var(--bg);
+  padding: 0.125rem 0.375rem;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+}
+
+/* Bottom-right docked progress panel. */
+.fetch-progress {
+  position: fixed;
+  right: 1rem;
+  bottom: 1rem;
+  width: 280px;
+  max-height: 70vh;
+  overflow-y: auto;
+  z-index: 50;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+  font-size: 0.8125rem;
+  animation: fp-slide-in 0.25s ease-out;
+}
+.fetch-progress-running {
+  border-color: var(--accent);
+}
+.fetch-progress-done {
+  border-color: var(--score-high);
+}
+.fetch-progress-error {
+  border-color: var(--badge-rejected-fg);
+}
+.fetch-progress-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.625rem 0.875rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
+  border-radius: 10px 10px 0 0;
+}
+.fetch-progress-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 600;
+  font-size: 0.8125rem;
+}
+.fetch-progress-spinner {
+  display: inline-block;
+  width: 0.75rem;
+  height: 0.75rem;
+  border: 2px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: fp-spin 0.7s linear infinite;
+}
+.fetch-progress-count {
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+.fetch-progress-list {
+  list-style: none;
+  margin: 0;
+  padding: 0.375rem 0;
+}
+.fetch-progress-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.25rem 0.875rem;
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 0.75rem;
+  color: var(--muted);
+  transition: background 0.15s;
+}
+.fetch-progress-row.fetch-progress-running {
+  color: var(--fg);
+  background: var(--row-hover);
+  border: none;
+}
+.fetch-progress-row.fetch-progress-done {
+  color: var(--score-high);
+}
+.fetch-progress-row.fetch-progress-error {
+  color: var(--badge-rejected-fg);
+}
+.fetch-progress-state {
+  font-variant-numeric: tabular-nums;
+}
+.fetch-progress-error {
+  margin: 0;
+  padding: 0.5rem 0.875rem;
+  font-size: 0.75rem;
+  color: var(--badge-rejected-fg);
+  border-top: 1px solid var(--border);
+  background: var(--badge-rejected-bg);
+  word-break: break-word;
+}
+.fetch-progress-dismiss {
+  display: block;
+  width: 100%;
+  border: none;
+  border-top: 1px solid var(--border);
+  background: transparent;
+  color: var(--muted);
+  padding: 0.5rem;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.75rem;
+  border-radius: 0 0 10px 10px;
+}
+.fetch-progress-dismiss:hover {
+  background: var(--row-hover);
+  color: var(--fg);
+}
+
+@keyframes fp-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes fp-slide-in {
+  from {
+    transform: translateY(8px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
