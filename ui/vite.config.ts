@@ -1,7 +1,10 @@
-import { spawn } from 'node:child_process';
-import { readFile, writeFile } from 'node:fs/promises';
+import { type ChildProcess, exec, spawn } from 'node:child_process';
+import { existsSync, statSync } from 'node:fs';
+import { readdir, readFile, stat, writeFile } from 'node:fs/promises';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { promisify } from 'node:util';
 import react from '@vitejs/plugin-react';
 import { type Connect, defineConfig, type Plugin } from 'vite';
 import { readBriefBody, writeBriefBody } from '../src/lib/brief-template.js';
@@ -859,6 +862,479 @@ function fetchJobsApiPlugin(): Plugin {
   };
 }
 
+// ── Settings tab endpoints ──────────────────────────────────────────────────
+
+const execAsync = promisify(exec);
+const BRIEF_PATH = path.join(REPO_ROOT, 'config', 'candidate-brief.md');
+const DATA_DIR = path.join(REPO_ROOT, 'data');
+
+async function safeMtime(p: string): Promise<string | null> {
+  try {
+    const s = await stat(p);
+    return s.mtime.toISOString();
+  } catch {
+    return null;
+  }
+}
+
+async function maxMtime(paths: readonly string[]): Promise<string | null> {
+  let best = 0;
+  for (const p of paths) {
+    try {
+      const s = await stat(p);
+      const t = s.mtime.getTime();
+      if (t > best) best = t;
+    } catch {
+      // missing → skip
+    }
+  }
+  return best === 0 ? null : new Date(best).toISOString();
+}
+
+interface SchedulerStatus {
+  platform: 'darwin' | 'linux' | 'other';
+  installed: { aggregate: boolean; review: boolean };
+  lastRun: { aggregate: string | null; review: string | null };
+  installCmd: string;
+  uninstallCmd: string;
+}
+
+// Detect launchd/cron registration without modifying any system state.
+function schedulerStatusApiPlugin(): Plugin {
+  return {
+    name: 'job-hunt-scheduler-status-api',
+    configureServer(server) {
+      server.middlewares.use('/api/scheduler-status', async (req, res) => {
+        if (req.method !== 'GET') {
+          res.statusCode = 405;
+          res.end();
+          return;
+        }
+        try {
+          const platform = process.platform;
+          const user = os.userInfo().username;
+          const status: SchedulerStatus = {
+            platform: platform === 'darwin' ? 'darwin' : platform === 'linux' ? 'linux' : 'other',
+            installed: { aggregate: false, review: false },
+            lastRun: { aggregate: null, review: null },
+            installCmd:
+              platform === 'darwin' ? 'scripts/install-launchd.sh' : 'scripts/install-cron.sh',
+            uninstallCmd:
+              platform === 'darwin'
+                ? 'scripts/install-launchd.sh --uninstall'
+                : 'scripts/install-cron.sh --uninstall',
+          };
+
+          if (platform === 'darwin') {
+            const aggLabel = `dev.${user}.job-hunt.aggregate`;
+            const revLabel = `dev.${user}.job-hunt.review`;
+            try {
+              const { stdout } = await execAsync('launchctl list', { timeout: 4000 });
+              status.installed.aggregate = stdout.includes(aggLabel);
+              status.installed.review = stdout.includes(revLabel);
+            } catch {
+              // launchctl not available — leave installed as false
+            }
+            status.lastRun.aggregate = await maxMtime([
+              path.join(DATA_DIR, 'launchd-aggregate.out.log'),
+              path.join(DATA_DIR, 'launchd-aggregate.err.log'),
+            ]);
+            status.lastRun.review = await maxMtime([
+              path.join(DATA_DIR, 'launchd-review.out.log'),
+              path.join(DATA_DIR, 'launchd-review.err.log'),
+            ]);
+          } else if (platform === 'linux') {
+            try {
+              const { stdout } = await execAsync('crontab -l', { timeout: 4000 });
+              status.installed.aggregate = stdout.includes(`# job-hunt:aggregate:${REPO_ROOT}`);
+              status.installed.review = stdout.includes(`# job-hunt:review:${REPO_ROOT}`);
+            } catch {
+              // no crontab → installed remains false
+            }
+            status.lastRun.aggregate = await safeMtime(path.join(DATA_DIR, 'cron-aggregate.log'));
+            status.lastRun.review = await safeMtime(path.join(DATA_DIR, 'cron-review.log'));
+          }
+
+          res.setHeader('Content-Type', 'application/json');
+          res.end(JSON.stringify(status));
+        } catch (err) {
+          console.error('[scheduler-status api]', err);
+          res.statusCode = 500;
+          res.setHeader('Content-Type', 'application/json');
+          res.end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }));
+        }
+      });
+    },
+  };
+}
+
+interface LlmTestPostBody {
+  provider?: unknown;
+}
+
+// Tiny prompt to confirm the chosen LLM CLI works end-to-end.
+function llmTestApiPlugin(): Plugin {
+  return {
+    name: 'job-hunt-llm-test-api',
+    configureServer(server) {
+      server.middlewares.use('/api/llm-test', async (req, res) => {
+        if (req.method !== 'POST') {
+          res.statusCode = 405;
+          res.end();
+          return;
+        }
+        try {
+          const body = (await readBody(req)) as LlmTestPostBody;
+          const rawProvider = typeof body.provider === 'string' ? body.provider : 'auto';
+          const provider =
+            rawProvider !== 'auto' && SUPPORTED_PROVIDERS.includes(rawProvider as LlmProvider)
+              ? (rawProvider as LlmProvider)
+              : undefined;
+
+          const TIMEOUT_MS = 30_000;
+          const started = Date.now();
+          let timeoutId: NodeJS.Timeout | undefined;
+          const timeout = new Promise<never>((_, reject) => {
+            timeoutId = setTimeout(
+              () => reject(new Error(`LLM CLI timed out after ${TIMEOUT_MS / 1000}s`)),
+              TIMEOUT_MS,
+            );
+          });
+          let raw: string;
+          try {
+            raw = await Promise.race([
+              runLlm('Reply with the single word OK and nothing else.', provider),
+              timeout,
+            ]);
+          } finally {
+            if (timeoutId) clearTimeout(timeoutId);
+          }
+          const latencyMs = Date.now() - started;
+          const output = raw.trim().slice(0, 200);
+          res.setHeader('Content-Type', 'application/json');
+          res.end(
+            JSON.stringify({
+              ok: output.length > 0,
+              provider: provider ?? 'auto',
+              latencyMs,
+              output,
+            }),
+          );
+        } catch (err) {
+          res.statusCode = 502;
+          res.setHeader('Content-Type', 'application/json');
+          res.end(
+            JSON.stringify({
+              ok: false,
+              error: err instanceof Error ? err.message : String(err),
+            }),
+          );
+        }
+      });
+    },
+  };
+}
+
+interface RunSummaryJob {
+  source: string;
+  category: string;
+  fetchedAt?: string;
+}
+
+interface RunSummary {
+  generatedAt: string | null;
+  total: number;
+  byCategory: Record<string, number>;
+  bySource: Array<{ name: string; kept: number }>;
+  ageHours: number | null;
+}
+
+// Aggregate stats over the slim jobs.json so the Settings tab can show
+// "last run X hours ago, kept N jobs across M sources" without re-running
+// the pipeline.
+function runSummaryApiPlugin(): Plugin {
+  return {
+    name: 'job-hunt-run-summary-api',
+    configureServer(server) {
+      server.middlewares.use('/api/run-summary', async (req, res) => {
+        if (req.method !== 'GET') {
+          res.statusCode = 405;
+          res.end();
+          return;
+        }
+        try {
+          const jobs = await readJsonOrDefault<RunSummaryJob[]>(JOBS_PATH, []);
+          const byCategory: Record<string, number> = {
+            'web3+ai': 0,
+            web3: 0,
+            ai: 0,
+            general: 0,
+          };
+          const sourceMap = new Map<string, number>();
+          let maxFetched = 0;
+          for (const j of jobs) {
+            byCategory[j.category] = (byCategory[j.category] ?? 0) + 1;
+            sourceMap.set(j.source, (sourceMap.get(j.source) ?? 0) + 1);
+            if (j.fetchedAt) {
+              const t = new Date(j.fetchedAt).getTime();
+              if (Number.isFinite(t) && t > maxFetched) maxFetched = t;
+            }
+          }
+          let generatedAt: string | null =
+            maxFetched > 0 ? new Date(maxFetched).toISOString() : null;
+          if (!generatedAt) {
+            generatedAt = await safeMtime(JOBS_PATH);
+          }
+          const ageHours = generatedAt
+            ? Math.max(0, Math.floor((Date.now() - new Date(generatedAt).getTime()) / 3_600_000))
+            : null;
+          const bySource = [...sourceMap.entries()]
+            .map(([name, kept]) => ({ name, kept }))
+            .sort((a, b) => b.kept - a.kept);
+          const summary: RunSummary = {
+            generatedAt,
+            total: jobs.length,
+            byCategory,
+            bySource,
+            ageHours,
+          };
+          res.setHeader('Content-Type', 'application/json');
+          res.end(JSON.stringify(summary));
+        } catch (err) {
+          console.error('[run-summary api]', err);
+          res.statusCode = 500;
+          res.setHeader('Content-Type', 'application/json');
+          res.end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }));
+        }
+      });
+    },
+  };
+}
+
+interface DiskBucket {
+  bytes: number;
+  files: number;
+}
+
+interface DiskUsage {
+  raw: DiskBucket;
+  applications: DiskBucket;
+  archive: DiskBucket;
+  total: DiskBucket;
+}
+
+const MAX_WALK_DEPTH = 4;
+
+async function walkBucket(absDir: string): Promise<DiskBucket> {
+  const result: DiskBucket = { bytes: 0, files: 0 };
+  async function walk(dir: string, depth: number): Promise<void> {
+    if (depth > MAX_WALK_DEPTH) return;
+    let entries: import('node:fs').Dirent[];
+    try {
+      entries = await readdir(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const entry of entries) {
+      if (entry.name.startsWith('.')) continue;
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        await walk(full, depth + 1);
+      } else if (entry.isFile()) {
+        try {
+          const s = await stat(full);
+          result.bytes += s.size;
+          result.files += 1;
+        } catch {
+          // missing/permission — skip
+        }
+      }
+    }
+  }
+  await walk(absDir, 0);
+  return result;
+}
+
+function diskUsageApiPlugin(): Plugin {
+  return {
+    name: 'job-hunt-disk-usage-api',
+    configureServer(server) {
+      server.middlewares.use('/api/disk-usage', async (req, res) => {
+        if (req.method !== 'GET') {
+          res.statusCode = 405;
+          res.end();
+          return;
+        }
+        try {
+          const [raw, applications, archive] = await Promise.all([
+            walkBucket(path.join(DATA_DIR, 'raw')),
+            walkBucket(APPLICATIONS_DIR),
+            walkBucket(path.join(DATA_DIR, 'archive')),
+          ]);
+          const total: DiskBucket = {
+            bytes: raw.bytes + applications.bytes + archive.bytes,
+            files: raw.files + applications.files + archive.files,
+          };
+          const out: DiskUsage = { raw, applications, archive, total };
+          res.setHeader('Content-Type', 'application/json');
+          res.end(JSON.stringify(out));
+        } catch (err) {
+          console.error('[disk-usage api]', err);
+          res.statusCode = 500;
+          res.setHeader('Content-Type', 'application/json');
+          res.end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }));
+        }
+      });
+    },
+  };
+}
+
+interface EnvInfo {
+  node: string;
+  platform: string;
+  repoRoot: string;
+  briefPresent: boolean;
+  cvPresent: boolean;
+  providers: Record<LlmProvider, boolean>;
+  preferredProvider: LlmProvider | 'auto' | null;
+}
+
+function envApiPlugin(): Plugin {
+  return {
+    name: 'job-hunt-env-api',
+    configureServer(server) {
+      server.middlewares.use('/api/env', async (req, res) => {
+        if (req.method !== 'GET') {
+          res.statusCode = 405;
+          res.end();
+          return;
+        }
+        try {
+          const [providers, prefs, cv] = await Promise.all([
+            availableProviders(),
+            readPreferences(),
+            findCvPath(),
+          ]);
+          const info: EnvInfo = {
+            node: process.version,
+            platform: process.platform,
+            repoRoot: REPO_ROOT,
+            briefPresent: existsSync(BRIEF_PATH) && statSync(BRIEF_PATH).size > 0,
+            cvPresent: cv !== null,
+            providers,
+            preferredProvider: prefs.provider,
+          };
+          res.setHeader('Content-Type', 'application/json');
+          res.end(JSON.stringify(info));
+        } catch (err) {
+          console.error('[env api]', err);
+          res.statusCode = 500;
+          res.setHeader('Content-Type', 'application/json');
+          res.end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }));
+        }
+      });
+    },
+  };
+}
+
+type CleanMode = 'default' | 'all' | 'onboarding';
+const VALID_CLEAN_MODES = new Set<CleanMode>(['default', 'all', 'onboarding']);
+
+interface CleanPostBody {
+  mode?: unknown;
+}
+
+// Wraps `pnpm exec tsx scripts/clean.ts [--all|--onboarding]`. Single
+// concurrent run so a fat-fingered double-click can't race.
+function cleanApiPlugin(): Plugin {
+  let inFlight: ChildProcess | null = null;
+  return {
+    name: 'job-hunt-clean-api',
+    configureServer(server) {
+      server.middlewares.use('/api/clean', async (req, res) => {
+        if (req.method !== 'POST') {
+          res.statusCode = 405;
+          res.end();
+          return;
+        }
+        if (inFlight) {
+          res.statusCode = 409;
+          res.setHeader('Content-Type', 'application/json');
+          res.end(JSON.stringify({ error: 'a clean run is already in flight' }));
+          return;
+        }
+        try {
+          const body = (await readBody(req)) as CleanPostBody;
+          const mode =
+            typeof body.mode === 'string' && VALID_CLEAN_MODES.has(body.mode as CleanMode)
+              ? (body.mode as CleanMode)
+              : null;
+          if (!mode) {
+            res.statusCode = 400;
+            res.setHeader('Content-Type', 'application/json');
+            res.end(
+              JSON.stringify({
+                error: `mode must be one of: ${[...VALID_CLEAN_MODES].join(', ')}`,
+              }),
+            );
+            return;
+          }
+          const args = ['exec', 'tsx', 'scripts/clean.ts'];
+          if (mode === 'all') args.push('--all');
+          else if (mode === 'onboarding') args.push('--onboarding');
+
+          const proc = spawn('pnpm', args, {
+            cwd: REPO_ROOT,
+            env: process.env,
+            stdio: 'pipe',
+          });
+          inFlight = proc;
+          let buf = '';
+          proc.stdout?.setEncoding('utf8');
+          proc.stderr?.setEncoding('utf8');
+          proc.stdout?.on('data', (c: string) => {
+            buf += c;
+          });
+          proc.stderr?.on('data', (c: string) => {
+            buf += c;
+          });
+          await new Promise<void>((resolve) => {
+            proc.on('exit', (code) => {
+              const ok = code === 0;
+              inFlight = null;
+              res.statusCode = ok ? 200 : 500;
+              res.setHeader('Content-Type', 'application/json');
+              res.end(
+                JSON.stringify({
+                  ok,
+                  exitCode: code,
+                  output: buf.slice(-4000),
+                }),
+              );
+              resolve();
+            });
+            proc.on('error', (err) => {
+              inFlight = null;
+              res.statusCode = 500;
+              res.setHeader('Content-Type', 'application/json');
+              res.end(
+                JSON.stringify({ ok: false, exitCode: null, error: err.message, output: buf }),
+              );
+              resolve();
+            });
+          });
+        } catch (err) {
+          inFlight = null;
+          console.error('[clean api]', err);
+          res.statusCode = 500;
+          res.setHeader('Content-Type', 'application/json');
+          res.end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }));
+        }
+      });
+    },
+  };
+}
+
 export default defineConfig({
   root: fileURLToPath(new URL('.', import.meta.url)),
   plugins: [
@@ -870,6 +1346,12 @@ export default defineConfig({
     llmDetectApiPlugin(),
     aiApplyApiPlugin(),
     fetchJobsApiPlugin(),
+    schedulerStatusApiPlugin(),
+    llmTestApiPlugin(),
+    runSummaryApiPlugin(),
+    diskUsageApiPlugin(),
+    envApiPlugin(),
+    cleanApiPlugin(),
   ],
   server: { port: 5173, open: true, host: '127.0.0.1' },
 });

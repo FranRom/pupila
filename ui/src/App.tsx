@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { FetchProgress } from './FetchProgress.tsx';
+import { relativeTime } from './format.ts';
 import { Onboarding } from './Onboarding.tsx';
 import { Profile } from './Profile.tsx';
+import { Settings } from './Settings.tsx';
 import type {
   AiReview,
   AiReviews,
@@ -13,7 +15,7 @@ import type {
   Source,
 } from './types.ts';
 
-type Tab = 'jobs' | 'profile';
+type Tab = 'jobs' | 'profile' | 'settings';
 
 interface PreferencesResponse {
   provider: string | null;
@@ -88,7 +90,7 @@ function readUrl(): {
     groupByCompany: p.get('group') !== '0',
     expanded: p.get('expanded'),
     expandedCompany: p.get('co'),
-    tab: tab === 'profile' ? 'profile' : 'jobs',
+    tab: tab === 'profile' ? 'profile' : tab === 'settings' ? 'settings' : 'jobs',
   };
 }
 
@@ -407,6 +409,13 @@ export function App() {
           >
             Profile
           </button>
+          <button
+            type="button"
+            className={`tab ${tab === 'settings' ? 'tab-active' : ''}`}
+            onClick={() => setTab('settings')}
+          >
+            Settings
+          </button>
         </div>
         {tab === 'jobs' && (
           <div className="counts">
@@ -416,6 +425,7 @@ export function App() {
       </header>
 
       {tab === 'profile' && <Profile />}
+      {tab === 'settings' && <Settings />}
       {tab === 'jobs' && (
         <>
           {apiError && (
@@ -1082,19 +1092,6 @@ function sortValue(j: Job, key: SortKey): number {
   if (key === 'fitScore') return j.fitScore;
   if (key === 'salaryMax') return j.salaryMax ?? 0;
   return j.postedAt ? new Date(j.postedAt).getTime() : 0;
-}
-
-function relativeTime(iso: string | null): string {
-  if (!iso) return 'unknown';
-  const ms = Date.now() - new Date(iso).getTime();
-  if (Number.isNaN(ms)) return 'unknown';
-  const days = Math.floor(ms / 86_400_000);
-  if (days < 1) return 'today';
-  if (days === 1) return '1d ago';
-  if (days < 30) return `${days}d ago`;
-  const months = Math.floor(days / 30);
-  if (months === 1) return '1mo ago';
-  return `${months}mo ago`;
 }
 
 interface AiApplyPanelProps {

@@ -357,6 +357,19 @@ The HTML has `<meta name="robots" content="noindex,nofollow">` as belt-and-suspe
 
 `pnpm run typecheck` runs all three TS configs: `tsconfig.json`, `tsconfig.test.json`, and `ui/tsconfig.json`.
 
+### Settings tab
+
+Third tab next to Jobs / Profile (`ui/src/Settings.tsx`). Six panels, all backed by Vite middleware in `ui/vite.config.ts`:
+
+1. **LLM CLI** — switch the configured provider (POST `/api/preferences`) and "Test connection" (POST `/api/llm-test`, runs a 6-token prompt with a 30s timeout, shows latency badge: green ≤3s, yellow ≤10s, red >10s).
+2. **Scheduler** — read-only. GET `/api/scheduler-status` runs `launchctl list` (darwin) or `crontab -l` (linux) to detect `dev.${USER}.job-hunt.aggregate` / `.review` and reads the mtime of `data/launchd-*.{out,err}.log` or `data/cron-*.log` for "last run X ago". Never installs/uninstalls — shows the install command as copy-pasteable text.
+3. **Last run** — GET `/api/run-summary` parses `data/jobs.json` for total kept, by-category counts, and per-source kept counts. Sources with `kept === 0` get a 🚨 chip. `generatedAt` derives from `max(job.fetchedAt)` with mtime fallback; `ageHours >= 24` shows a "stale" warning.
+4. **Disk usage** — GET `/api/disk-usage` walks `data/raw`, `data/applications`, `data/archive` with depth cap 4, returns `{ bytes, files }` per bucket.
+5. **Maintenance** — three buttons that POST `/api/clean` with `mode: 'default'|'all'|'onboarding'`. Each click goes through `window.confirm` describing exactly what gets deleted; on success the panel auto-refreshes scheduler/run-summary/disk panels. The endpoint serializes runs (409 if one is in flight) and shells out to `pnpm exec tsx scripts/clean.ts [<flag>]` so the same logic powers CLI and UI.
+6. **Environment** — GET `/api/env` returns `{ node, platform, repoRoot, briefPresent, cvPresent, providers, preferredProvider }`. "Refresh" button re-runs `availableProviders()` so newly-installed CLIs show up without a page reload.
+
+`relativeTime` and `formatBytes` live in `ui/src/format.ts` and are shared by App, Settings, and FetchProgress. The previous inline `relativeTime` in `App.tsx` was extracted there during this refactor — granularity changed slightly (now reports `Nm ago` / `Nh ago` for sub-day diffs instead of "today"), which is a deliberate improvement for the Settings last-run case.
+
 ## AI per-job review (`pnpm run ai-review`)
 
 [`src/ai-review.ts`](./src/ai-review.ts) is a **local-only** companion to the daily pipeline that augments selected jobs with an LLM review. It shells out via `src/lib/llm.ts` (auto-detects `claude` / `codex` / `gemini` / `opencode` on PATH, override with `JOB_HUNT_LLM=<provider>`). The CLI uses the user's local subscription (e.g. Claude Max) — **not** an API key, so there are no per-token charges. With the new local-first scheduling, the launchd/cron review agent runs this every day at 07:15 by default. If you don't have an LLM CLI installed, run `scripts/install-launchd.sh --no-review` (or the cron equivalent) to skip the review step.

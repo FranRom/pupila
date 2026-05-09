@@ -1114,10 +1114,10 @@ tbody tr.indent td.score {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .ascii-hero-line,
-  .ascii-hero-cursor,
-  .ascii-hero-tag {
-    animation: none !important;
+  .onboarding .ascii-hero .ascii-hero-line,
+  .onboarding .ascii-hero .ascii-hero-cursor,
+  .onboarding .ascii-hero .ascii-hero-tag {
+    animation: none;
     width: 100%;
     opacity: 1;
   }
@@ -1157,9 +1157,9 @@ tbody tr.indent td.score {
 .fetch-cta-button:hover {
   filter: brightness(1.05);
 }
-.fetch-cta-hint {
-  margin-top: 1rem !important;
-  font-size: 0.75rem !important;
+.fetch-cta .fetch-cta-hint {
+  margin-top: 1rem;
+  font-size: 0.75rem;
 }
 .fetch-cta-hint code {
   font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
@@ -1294,4 +1294,361 @@ tbody tr.indent td.score {
     transform: translateY(0);
     opacity: 1;
   }
+}
+
+/* Settings tab */
+.settings {
+  max-width: 860px;
+  margin: 1.5rem auto;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+.settings-section {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+.settings-section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+.settings-section h2 {
+  margin: 0;
+  font-size: 1rem;
+}
+.settings-actions {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.settings-button {
+  border: 1px solid var(--accent);
+  background: var(--accent);
+  color: white;
+  padding: 0.4rem 0.875rem;
+  border-radius: 6px;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.875rem;
+}
+.settings-button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.settings-button-secondary {
+  background: var(--bg);
+  color: var(--fg);
+  border-color: var(--border);
+}
+.settings-button-secondary:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.settings-button-danger {
+  background: var(--badge-rejected-bg);
+  color: var(--badge-rejected-fg);
+  border-color: var(--badge-rejected-fg);
+}
+.settings-button-danger:hover:not(:disabled) {
+  filter: brightness(1.1);
+}
+.settings-button-small {
+  padding: 0.25rem 0.625rem;
+  font-size: 0.75rem;
+}
+.settings-toast {
+  color: var(--score-high);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  animation: settings-fadeout 3s ease forwards;
+}
+@keyframes settings-fadeout {
+  0%,
+  60% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+.settings-snippet {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.5rem 0.75rem;
+}
+.settings-snippet code {
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 0.8125rem;
+  background: var(--bg-elevated);
+  padding: 0.125rem 0.375rem;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+}
+
+/* LLM test result panel */
+.llm-test-result {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.5rem 0.75rem;
+  background: var(--bg);
+  font-size: 0.8125rem;
+}
+.llm-test-result pre {
+  margin: 0.375rem 0 0;
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 0.75rem;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  color: var(--muted);
+}
+.llm-test-result.llm-test-fast {
+  border-color: var(--score-high);
+}
+.llm-test-result.llm-test-mid {
+  border-color: var(--score-mid);
+}
+.llm-test-result.llm-test-slow {
+  border-color: var(--badge-interview-fg);
+}
+.llm-test-result.llm-test-fail {
+  border-color: var(--badge-rejected-fg);
+  background: var(--badge-rejected-bg);
+  color: var(--badge-rejected-fg);
+}
+
+/* Scheduler */
+.scheduler-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+.scheduler-row {
+  display: grid;
+  grid-template-columns: 8rem auto 1fr;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.375rem 0.625rem;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 0.875rem;
+}
+.scheduler-label {
+  font-weight: 600;
+}
+.scheduler-pill {
+  display: inline-block;
+  padding: 0.125rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.scheduler-pill-on {
+  background: var(--badge-offer-bg);
+  color: var(--badge-offer-fg);
+}
+.scheduler-pill-off {
+  background: var(--badge-withdrawn-bg);
+  color: var(--badge-withdrawn-fg);
+}
+.scheduler-lastrun {
+  color: var(--muted);
+  font-size: 0.8125rem;
+  text-align: right;
+}
+
+/* Last-run summary */
+.run-summary-totals {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+.stat-chip {
+  display: flex;
+  flex-direction: column;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  min-width: 5.5rem;
+}
+.stat-label {
+  color: var(--muted);
+  font-size: 0.6875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.stat-value {
+  font-size: 1.125rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.source-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 0.25rem 0.75rem;
+}
+.source-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.25rem 0.5rem;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-size: 0.8125rem;
+}
+.source-row.source-row-empty {
+  border-color: var(--badge-rejected-fg);
+  color: var(--badge-rejected-fg);
+}
+.source-name {
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 0.75rem;
+}
+.source-kept {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+/* Disk usage */
+.disk-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+.disk-row {
+  display: grid;
+  grid-template-columns: 12rem 6rem 5rem 1fr;
+  gap: 0.5rem;
+  align-items: center;
+  padding: 0.375rem 0.625rem;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 0.8125rem;
+}
+.disk-label {
+  font-weight: 600;
+}
+.disk-size {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+.disk-files,
+.disk-note {
+  font-size: 0.75rem;
+}
+@media (max-width: 720px) {
+  .disk-row {
+    grid-template-columns: 1fr 5rem;
+  }
+  .disk-files,
+  .disk-note {
+    grid-column: 1 / -1;
+  }
+}
+
+/* Maintenance */
+.maintenance-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.maintenance-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.625rem 0.75rem;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+.maintenance-text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+.maintenance-text p {
+  margin: 0;
+  font-size: 0.8125rem;
+}
+.maintenance-label {
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 0.8125rem;
+  background: var(--bg-elevated);
+  padding: 0.125rem 0.375rem;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  width: fit-content;
+}
+.settings-clean-output {
+  margin: 0.25rem 0 0;
+  padding: 0.625rem 0.75rem;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 0.75rem;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  max-height: 200px;
+  overflow-y: auto;
+  color: var(--muted);
+}
+
+/* Environment */
+.env-grid {
+  margin: 0;
+  display: grid;
+  grid-template-columns: 6rem 1fr;
+  gap: 0.375rem 0.75rem;
+  font-size: 0.8125rem;
+}
+.env-grid dt {
+  color: var(--muted);
+  text-transform: uppercase;
+  font-size: 0.6875rem;
+  letter-spacing: 0.04em;
+  align-self: center;
+}
+.env-grid dd {
+  margin: 0;
+  word-break: break-all;
+}
+.env-provider {
+  display: inline-block;
+  padding: 0.125rem 0.5rem;
+  margin-right: 0.375rem;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+.env-provider-ok {
+  background: var(--badge-offer-bg);
+  color: var(--badge-offer-fg);
+}
+.env-provider-missing {
+  background: var(--badge-withdrawn-bg);
+  color: var(--badge-withdrawn-fg);
 }
