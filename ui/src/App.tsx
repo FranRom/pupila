@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import aiReviewsData from '../../data/ai-reviews.json' with { type: 'json' };
-import jobsData from '../../data/jobs.json' with { type: 'json' };
+import { Profile } from './Profile.tsx';
 import type {
   AiReview,
   AiReviews,
@@ -12,8 +11,7 @@ import type {
   Source,
 } from './types.ts';
 
-const ALL_JOBS = jobsData as unknown as Job[];
-const AI_REVIEWS = aiReviewsData as unknown as AiReviews;
+type Tab = 'jobs' | 'profile';
 
 const STATUS_EMOJI: Record<ApplicationStatus, string> = {
   applied: '📝',
@@ -65,11 +63,13 @@ function readUrl(): {
   groupByCompany: boolean;
   expanded: string | null;
   expandedCompany: string | null;
+  tab: Tab;
 } {
   const p = new URLSearchParams(window.location.search);
   const cat = p.get('cat');
   const sortKey = p.get('sort');
   const sortDir = p.get('dir');
+  const tab = p.get('tab');
   return {
     search: p.get('q') ?? '',
     category:
@@ -81,15 +81,8 @@ function readUrl(): {
     groupByCompany: p.get('group') !== '0',
     expanded: p.get('expanded'),
     expandedCompany: p.get('co'),
+    tab: tab === 'profile' ? 'profile' : 'jobs',
   };
-}
-
-function buildInitialApplied(): AppliedMap {
-  const out: AppliedMap = {};
-  for (const j of ALL_JOBS) {
-    if (j.applied) out[j.id] = j.applied;
-  }
-  return out;
 }
 
 export function App() {
@@ -103,30 +96,41 @@ export function App() {
   const [groupByCompany, setGroupByCompany] = useState(initial.groupByCompany);
   const [expanded, setExpanded] = useState<string | null>(initial.expanded);
   const [expandedCompany, setExpandedCompany] = useState<string | null>(initial.expandedCompany);
-  const [appliedById, setAppliedById] = useState<AppliedMap>(buildInitialApplied);
+  const [appliedById, setAppliedById] = useState<AppliedMap>({});
   const [apiError, setApiError] = useState<string | null>(null);
+  const [tab, setTab] = useState<Tab>(initial.tab);
+  // jobs.json and ai-reviews.json are gitignored personal/AI artifacts —
+  // fetched at runtime from the dev-server middleware so a fresh clone
+  // works without those files existing.
+  const [allJobs, setAllJobs] = useState<Job[]>([]);
+  const [aiReviews, setAiReviews] = useState<AiReviews>({});
+  const [dataLoading, setDataLoading] = useState(true);
 
-  // On mount, sync from /api/applied so changes hand-edited or made via a
-  // previous UI session (since the last `pnpm run dev`) override the baked-in
-  // state from jobs.json.
+  // Load jobs + AI reviews + applied state on mount.
   useEffect(() => {
     let cancelled = false;
-    fetch('/api/applied')
-      .then((r) => (r.ok ? (r.json() as Promise<AppliedEntry[]>) : Promise.reject(r.status)))
-      .then((entries) => {
-        if (cancelled) return;
-        const byUrl = new Map(entries.map((e) => [e.url, e]));
-        const next: AppliedMap = {};
-        for (const j of ALL_JOBS) {
-          const e = byUrl.get(j.url);
-          if (e) next[j.id] = e;
-        }
-        setAppliedById(next);
-      })
-      .catch(() => {
-        // Middleware unavailable (e.g. running a static preview build) —
-        // fall back to the baked-in state from jobs.json.
-      });
+    const loadJobs = fetch('/api/jobs')
+      .then((r) => (r.ok ? (r.json() as Promise<Job[]>) : Promise.resolve([] as Job[])))
+      .catch(() => [] as Job[]);
+    const loadReviews = fetch('/api/reviews')
+      .then((r) => (r.ok ? (r.json() as Promise<AiReviews>) : Promise.resolve({} as AiReviews)))
+      .catch(() => ({}) as AiReviews);
+    const loadApplied = fetch('/api/applied')
+      .then((r) => (r.ok ? (r.json() as Promise<AppliedEntry[]>) : Promise.resolve([])))
+      .catch(() => [] as AppliedEntry[]);
+    Promise.all([loadJobs, loadReviews, loadApplied]).then(([jobs, reviews, applied]) => {
+      if (cancelled) return;
+      setAllJobs(jobs);
+      setAiReviews(reviews);
+      const byUrl = new Map(applied.map((e) => [e.url, e]));
+      const nextApplied: AppliedMap = {};
+      for (const j of jobs) {
+        const e = byUrl.get(j.url);
+        if (e) nextApplied[j.id] = e;
+      }
+      setAppliedById(nextApplied);
+      setDataLoading(false);
+    });
     return () => {
       cancelled = true;
     };
@@ -144,6 +148,7 @@ export function App() {
     if (!groupByCompany) p.set('group', '0');
     if (expanded) p.set('expanded', expanded);
     if (expandedCompany) p.set('co', expandedCompany);
+    if (tab !== 'jobs') p.set('tab', tab);
     const qs = p.toString();
     const next = `${window.location.pathname}${qs ? `?${qs}` : ''}`;
     if (next !== `${window.location.pathname}${window.location.search}`) {
@@ -159,6 +164,7 @@ export function App() {
     groupByCompany,
     expanded,
     expandedCompany,
+    tab,
   ]);
 
   const setApplied = useCallback<SetApplied>(async (job, status, notes) => {
@@ -225,13 +231,13 @@ export function App() {
 
   const sources = useMemo(() => {
     const s = new Set<Source>();
-    for (const j of ALL_JOBS) s.add(j.source);
+    for (const j of allJobs) s.add(j.source);
     return Array.from(s).sort();
-  }, []);
+  }, [allJobs]);
 
   const visible = useMemo(() => {
     const q = search.trim().toLowerCase();
-    const filtered = ALL_JOBS.filter((j) => {
+    const filtered = allJobs.filter((j) => {
       if (category !== 'all' && j.category !== category) return false;
       if (source !== 'all' && j.source !== source) return false;
       if (appliedOnly && !appliedById[j.id]) return false;
@@ -249,7 +255,7 @@ export function App() {
       return av < bv ? -1 * dir : 1 * dir;
     });
     return filtered;
-  }, [search, category, source, appliedOnly, sortKey, sortDir, appliedById]);
+  }, [allJobs, search, category, source, appliedOnly, sortKey, sortDir, appliedById]);
 
   // When grouping is on, fold jobs by lower-cased company. Single-job
   // "groups" render flat (no header); only multi-job groups get a collapsible
@@ -287,9 +293,9 @@ export function App() {
 
   const totals = useMemo(() => {
     const counts: Record<Category, number> = { 'web3+ai': 0, web3: 0, ai: 0, general: 0 };
-    for (const j of ALL_JOBS) counts[j.category]++;
+    for (const j of allJobs) counts[j.category]++;
     return counts;
-  }, []);
+  }, [allJobs]);
 
   const appliedCount = useMemo(() => Object.keys(appliedById).length, [appliedById]);
 
@@ -307,146 +313,179 @@ export function App() {
         <div>
           <h1>Job hunt</h1>
           <p className="subtitle">
-            {ALL_JOBS.length} jobs · {totals['web3+ai']} web3+ai · {totals.web3} web3 · {totals.ai}{' '}
-            ai · {totals.general} general · {appliedCount} applied
+            {dataLoading ? (
+              'loading…'
+            ) : (
+              <>
+                {allJobs.length} jobs · {totals['web3+ai']} web3+ai · {totals.web3} web3 ·{' '}
+                {totals.ai} ai · {totals.general} general · {appliedCount} applied
+              </>
+            )}
           </p>
         </div>
-        <div className="counts">
-          showing <strong>{visible.length}</strong>
-        </div>
-      </header>
-
-      {apiError && (
-        <div className="api-error" role="alert">
-          {apiError}{' '}
-          <button type="button" onClick={() => setApiError(null)}>
-            dismiss
-          </button>
-        </div>
-      )}
-
-      <div className="filters">
-        <input
-          type="search"
-          placeholder="Search title / company / location"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
-
-        <select value={category} onChange={(e) => setCategory(e.target.value as Category | 'all')}>
-          {CATEGORY_OPTIONS.map((c) => (
-            <option key={c} value={c}>
-              {c === 'all' ? 'All categories' : c}
-            </option>
-          ))}
-        </select>
-
-        <select value={source} onChange={(e) => setSource(e.target.value as Source | 'all')}>
-          <option value="all">All sources</option>
-          {sources.map((s) => (
-            <option key={s} value={s}>
-              {s}
-            </option>
-          ))}
-        </select>
-
-        <label className="checkbox">
-          <input
-            type="checkbox"
-            checked={appliedOnly}
-            onChange={(e) => setAppliedOnly(e.target.checked)}
-          />
-          Applied only
-        </label>
-
-        <label className="checkbox">
-          <input
-            type="checkbox"
-            checked={groupByCompany}
-            onChange={(e) => setGroupByCompany(e.target.checked)}
-          />
-          Group by company
-        </label>
-
-        {(search || category !== 'all' || source !== 'all' || appliedOnly) && (
+        <div className="tabs">
           <button
             type="button"
-            className="reset"
-            onClick={() => {
-              setSearch('');
-              setCategory('all');
-              setSource('all');
-              setAppliedOnly(false);
-            }}
+            className={`tab ${tab === 'jobs' ? 'tab-active' : ''}`}
+            onClick={() => setTab('jobs')}
           >
-            Reset
+            Jobs
           </button>
+          <button
+            type="button"
+            className={`tab ${tab === 'profile' ? 'tab-active' : ''}`}
+            onClick={() => setTab('profile')}
+          >
+            Profile
+          </button>
+        </div>
+        {tab === 'jobs' && (
+          <div className="counts">
+            showing <strong>{visible.length}</strong>
+          </div>
         )}
-      </div>
+      </header>
 
-      {visible.length === 0 ? (
-        <p className="empty">No jobs match the current filters.</p>
-      ) : (
-        <table>
-          <thead>
-            <tr>
-              <SortableTh
-                label="Score"
-                active={sortKey === 'fitScore'}
-                dir={sortDir}
-                onClick={() => toggleSort('fitScore')}
+      {tab === 'profile' && <Profile />}
+      {tab === 'jobs' && (
+        <>
+          {apiError && (
+            <div className="api-error" role="alert">
+              {apiError}{' '}
+              <button type="button" onClick={() => setApiError(null)}>
+                dismiss
+              </button>
+            </div>
+          )}
+
+          <div className="filters">
+            <input
+              type="search"
+              placeholder="Search title / company / location"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+
+            <select
+              value={category}
+              onChange={(e) => setCategory(e.target.value as Category | 'all')}
+            >
+              {CATEGORY_OPTIONS.map((c) => (
+                <option key={c} value={c}>
+                  {c === 'all' ? 'All categories' : c}
+                </option>
+              ))}
+            </select>
+
+            <select value={source} onChange={(e) => setSource(e.target.value as Source | 'all')}>
+              <option value="all">All sources</option>
+              {sources.map((s) => (
+                <option key={s} value={s}>
+                  {s}
+                </option>
+              ))}
+            </select>
+
+            <label className="checkbox">
+              <input
+                type="checkbox"
+                checked={appliedOnly}
+                onChange={(e) => setAppliedOnly(e.target.checked)}
               />
-              <th>Title</th>
-              <th>Company</th>
-              <th>Source</th>
-              <SortableTh
-                label="Salary"
-                active={sortKey === 'salaryMax'}
-                dir={sortDir}
-                onClick={() => toggleSort('salaryMax')}
+              Applied only
+            </label>
+
+            <label className="checkbox">
+              <input
+                type="checkbox"
+                checked={groupByCompany}
+                onChange={(e) => setGroupByCompany(e.target.checked)}
               />
-              <SortableTh
-                label="Posted"
-                active={sortKey === 'postedAt'}
-                dir={sortDir}
-                onClick={() => toggleSort('postedAt')}
-              />
-              <th />
-            </tr>
-          </thead>
-          <tbody>
-            {groups
-              ? groups.map((g) => (
-                  <CompanyBlock
-                    key={g.key}
-                    group={g}
-                    isOpen={expandedCompany === g.key}
-                    expanded={expanded}
-                    appliedById={appliedById}
-                    setApplied={setApplied}
-                    onToggleCompany={() =>
-                      setExpandedCompany(expandedCompany === g.key ? null : g.key)
-                    }
-                    onToggleJob={(id) => setExpanded(expanded === id ? null : id)}
+              Group by company
+            </label>
+
+            {(search || category !== 'all' || source !== 'all' || appliedOnly) && (
+              <button
+                type="button"
+                className="reset"
+                onClick={() => {
+                  setSearch('');
+                  setCategory('all');
+                  setSource('all');
+                  setAppliedOnly(false);
+                }}
+              >
+                Reset
+              </button>
+            )}
+          </div>
+
+          {visible.length === 0 ? (
+            <p className="empty">No jobs match the current filters.</p>
+          ) : (
+            <table>
+              <thead>
+                <tr>
+                  <SortableTh
+                    label="Score"
+                    active={sortKey === 'fitScore'}
+                    dir={sortDir}
+                    onClick={() => toggleSort('fitScore')}
                   />
-                ))
-              : visible.map((j) => {
-                  const isOpen = expanded === j.id;
-                  const review = AI_REVIEWS[j.id];
-                  return (
-                    <FragmentRow
-                      key={j.id}
-                      job={j}
-                      isOpen={isOpen}
-                      review={review}
-                      applied={appliedById[j.id]}
-                      setApplied={setApplied}
-                      onToggle={() => setExpanded(isOpen ? null : j.id)}
-                    />
-                  );
-                })}
-          </tbody>
-        </table>
+                  <th>Title</th>
+                  <th>Company</th>
+                  <th>Source</th>
+                  <SortableTh
+                    label="Salary"
+                    active={sortKey === 'salaryMax'}
+                    dir={sortDir}
+                    onClick={() => toggleSort('salaryMax')}
+                  />
+                  <SortableTh
+                    label="Posted"
+                    active={sortKey === 'postedAt'}
+                    dir={sortDir}
+                    onClick={() => toggleSort('postedAt')}
+                  />
+                  <th />
+                </tr>
+              </thead>
+              <tbody>
+                {groups
+                  ? groups.map((g) => (
+                      <CompanyBlock
+                        key={g.key}
+                        group={g}
+                        isOpen={expandedCompany === g.key}
+                        expanded={expanded}
+                        appliedById={appliedById}
+                        aiReviews={aiReviews}
+                        setApplied={setApplied}
+                        onToggleCompany={() =>
+                          setExpandedCompany(expandedCompany === g.key ? null : g.key)
+                        }
+                        onToggleJob={(id) => setExpanded(expanded === id ? null : id)}
+                      />
+                    ))
+                  : visible.map((j) => {
+                      const isOpen = expanded === j.id;
+                      const review = aiReviews[j.id];
+                      return (
+                        <FragmentRow
+                          key={j.id}
+                          job={j}
+                          isOpen={isOpen}
+                          review={review}
+                          applied={appliedById[j.id]}
+                          setApplied={setApplied}
+                          onToggle={() => setExpanded(isOpen ? null : j.id)}
+                        />
+                      );
+                    })}
+              </tbody>
+            </table>
+          )}
+        </>
       )}
     </div>
   );
@@ -457,6 +496,7 @@ interface CompanyBlockProps {
   isOpen: boolean;
   expanded: string | null;
   appliedById: AppliedMap;
+  aiReviews: AiReviews;
   setApplied: SetApplied;
   onToggleCompany: () => void;
   onToggleJob: (id: string) => void;
@@ -467,6 +507,7 @@ function CompanyBlock({
   isOpen,
   expanded,
   appliedById,
+  aiReviews,
   setApplied,
   onToggleCompany,
   onToggleJob,
@@ -480,7 +521,7 @@ function CompanyBlock({
       <FragmentRow
         job={job}
         isOpen={jobOpen}
-        review={AI_REVIEWS[job.id]}
+        review={aiReviews[job.id]}
         applied={appliedById[job.id]}
         setApplied={setApplied}
         onToggle={() => onToggleJob(job.id)}
@@ -516,7 +557,7 @@ function CompanyBlock({
               key={j.id}
               job={j}
               isOpen={jobOpen}
-              review={AI_REVIEWS[j.id]}
+              review={aiReviews[j.id]}
               applied={appliedById[j.id]}
               setApplied={setApplied}
               onToggle={() => onToggleJob(j.id)}

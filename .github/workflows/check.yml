@@ -1,5 +1,13 @@
 name: check
 
+# Runs on every push to main and every PR. Validates that:
+#   1. Biome lint + format are clean
+#   2. All 3 TypeScript configs typecheck (src, tests, ui)
+#   3. The full Vitest suite passes
+#   4. The TypeScript build produces a dist/ output (catches issues that
+#      tsc --noEmit alone would miss, e.g. emit-only failures)
+#   5. The UI Vite build produces ui/dist/ (catches React/Vite breakage)
+#   6. No high-severity CVEs in production deps
 on:
   push:
     branches: [main]
@@ -30,15 +38,20 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Lint and format check
+      - name: Biome — lint + format check
         run: pnpm run lint
 
-      - name: Typecheck
+      - name: TypeScript — typecheck (src, tests, ui)
         run: pnpm run typecheck
 
-      - name: Run tests
+      - name: Vitest — run unit tests
         run: pnpm test
-        if: hashFiles('vitest.config.ts', 'vitest.config.js') != ''
+
+      - name: TypeScript — build (tsc → dist/)
+        run: pnpm run build
+
+      - name: Vite — build UI bundle (ui/dist/)
+        run: pnpm run ui:build
 
       - name: Audit production deps
         run: pnpm audit --prod --audit-level high

@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Personal job aggregator pipeline that runs daily on GitHub Actions.",
+  "description": "Config-driven local-first daily job aggregator.",
   "engines": {
     "node": ">=22"
   },
@@ -12,6 +12,7 @@
     "start": "node dist/index.js",
     "dev": "tsx src/index.ts",
     "ai-review": "tsx src/ai-review.ts",
+    "setup-brief": "tsx src/setup-brief.ts",
     "daily": "pnpm run dev && pnpm run ai-review",
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.test.json && tsc --noEmit -p ui/tsconfig.json",
     "lint": "biome check",
@@ -27,7 +28,9 @@
     "pre-commit": "pnpm run lint && pnpm run typecheck"
   },
   "dependencies": {
-    "fast-xml-parser": "^5.7.2"
+    "fast-xml-parser": "^5.7.2",
+    "mammoth": "^1.8.0",
+    "pdfjs-dist": "^4.10.38"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.0.0",

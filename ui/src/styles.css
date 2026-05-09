@@ -695,3 +695,154 @@ tbody tr.indent td.score {
   font: inherit;
   font-size: 0.75rem;
 }
+
+/* Tabs */
+.tabs {
+  display: flex;
+  gap: 0.25rem;
+  margin-left: 1rem;
+  align-self: flex-end;
+}
+.tab {
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+  color: var(--muted);
+  padding: 0.4rem 0.875rem;
+  border-radius: 6px;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.875rem;
+}
+.tab:hover {
+  color: var(--fg);
+}
+.tab-active {
+  color: var(--fg);
+  background: var(--bg);
+  border-color: var(--accent);
+}
+
+/* Profile view */
+.profile {
+  max-width: 860px;
+  margin: 1.5rem auto;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+.profile-header h2 {
+  margin: 0 0 0.25rem;
+}
+.api-info {
+  background: var(--applied-bg);
+  border: 1px solid var(--applied-border);
+  color: var(--fg);
+  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
+  font-size: 0.875rem;
+}
+.cv-drop {
+  border: 2px dashed var(--border);
+  border-radius: 8px;
+  padding: 1rem;
+  background: var(--bg-elevated);
+  transition:
+    border-color 0.15s,
+    background 0.15s;
+}
+.cv-drop-active {
+  border-color: var(--accent);
+  background: var(--applied-bg);
+}
+.cv-drop-busy {
+  opacity: 0.6;
+  pointer-events: none;
+}
+.cv-drop-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+.cv-drop-text {
+  flex: 1;
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+.cv-drop-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+.cv-drop-actions button,
+.cv-paste-actions button,
+.brief-actions button {
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--fg);
+  padding: 0.4rem 0.875rem;
+  border-radius: 6px;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.875rem;
+}
+.cv-drop-actions button:hover:not(:disabled),
+.cv-paste-actions button:hover:not(:disabled),
+.brief-actions button:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.cv-drop-actions button:disabled,
+.cv-paste-actions button:disabled,
+.brief-actions button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.cv-paste {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.cv-paste textarea,
+.brief-textarea {
+  width: 100%;
+  font: inherit;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.85rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.625rem;
+  background: var(--bg);
+  color: var(--fg);
+  resize: vertical;
+  box-sizing: border-box;
+}
+.cv-paste-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+.brief-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.brief-editor-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+.brief-editor-header h3 {
+  margin: 0;
+}
+.brief-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+.dirty-tag {
+  color: var(--badge-interview-fg);
+  font-weight: 600;
+}
+.muted {
+  color: var(--muted);
+}

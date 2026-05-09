@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { applyFilters } from '../src/filters.js';
+import { createFilters, type FilterProfile } from '../src/filters.js';
 import type { Job } from '../src/types.js';
+import testProfile from './fixtures/test-profile.json' with { type: 'json' };
+
+// Tests run against a stable fixture profile (Fran's tuned values) so
+// scoring assertions don't shift when `config/profile.json` is genericized.
+const { applyFilters } = createFilters(testProfile as FilterProfile);
 
 function makeJob(overrides: Partial<Job> = {}): Job {
   const now = new Date().toISOString();
