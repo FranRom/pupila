@@ -9,7 +9,6 @@ import { fileURLToPath } from 'node:url';
 // `ui/config/cv.pdf` instead of `config/cv.pdf`). Don't let this re-bit-rot.
 export const REPO_ROOT = fileURLToPath(new URL('../..', import.meta.url));
 export const APPLIED_PATH = path.join(REPO_ROOT, 'config', 'applied.json');
-export const APPLIED_EXAMPLE_PATH = path.join(REPO_ROOT, 'config', 'applied.example.json');
 export const JOBS_PATH = path.join(REPO_ROOT, 'data', 'jobs.json');
 export const REVIEWS_PATH = path.join(REPO_ROOT, 'data', 'ai-reviews.json');
 export const PREFERENCES_PATH = path.join(REPO_ROOT, 'config', 'preferences.json');

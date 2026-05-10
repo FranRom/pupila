@@ -83,10 +83,8 @@ src/
 config/
   slugs.json                  # tier-S Ashby/Greenhouse/Lever slug arrays — committed, neutral defaults
   profile.json                # scoring weights + keyword lists — committed, neutral defaults
-  candidate-brief.md          # GITIGNORED — LLM-generated CV summary (run setup-brief or copy from .example)
-  candidate-brief.example.md  # committed template; copied to candidate-brief.md if user prefers manual setup
+  candidate-brief.md          # GITIGNORED — LLM-generated CV summary (run setup-brief or use the onboarding wizard)
   applied.json                # GITIGNORED — personal application history (UI writes here via /api/applied)
-  applied.example.json        # committed template (empty array)
   preferences.json            # GITIGNORED — { provider, onboardedAt }; written by the onboarding wizard
   cv.{pdf,docx,md,txt}        # GITIGNORED — raw CV file kept on disk so AI Apply can re-attach it
 
