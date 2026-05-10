@@ -5,198 +5,134 @@
     <link>https://github.com/FranRom/job-hunt/blob/main/JOBS.md</link>
     <description>Daily senior frontend / web3 / AI engineering jobs new since the last run.</description>
     <language>en-us</language>
-    <lastBuildDate>Sat, 09 May 2026 08:43:35 GMT</lastBuildDate>
+    <lastBuildDate>Sun, 10 May 2026 08:57:02 GMT</lastBuildDate>
     <item>
-      <title>[60] Solutions Architect — Vercel</title>
-      <link>https://job-boards.greenhouse.io/vercel/jobs/5804110004</link>
-      <guid isPermaLink="false">4024477049fd4d0b202ff9bf4c562d53e5946e3a</guid>
-      <pubDate>Tue, 28 Apr 2026 13:45:28 GMT</pubDate>
-      <category>ai</category>
-      <description><strong>Vercel</strong> · Remote - Australia · Score: 60 · Source: greenhouse · Category: ai</description>
+      <title>[80] Senior GenAI Engineer (m/w/d) - Azure &amp; RAG (Ref.Nr.: 46722) — Zürich, Switzerland</title>
+      <link>https://aijobs.net/job/senior-genai-engineer-mwd-azure-rag-refnr-46722-zurich-switzerland-123197/</link>
+      <guid isPermaLink="false">9c23a9cc8d8911675cae7c232ad3f7793b173a17</guid>
+      <pubDate>Sat, 09 May 2026 08:57:03 GMT</pubDate>
+      <category>web3+ai</category>
+      <description><strong>Zürich, Switzerland</strong> · 💰 CHF 100K-140K · Score: 80 · Source: aijobsnet · Category: web3+ai</description>
     </item>
     <item>
-      <title>[55] Staff + Sr. Software Engineer, Cloud Inference Launch Engineering — Anthropic</title>
-      <link>https://job-boards.greenhouse.io/anthropic/jobs/5215028008</link>
-      <guid isPermaLink="false">d32754b3c9371cfdd6d2fdf8e3d842a93be73633</guid>
-      <pubDate>Fri, 08 May 2026 21:07:33 GMT</pubDate>
+      <title>[65] Principal Applied AI Engineer - Internal Tools — Bangalore, India</title>
+      <link>https://aijobs.net/job/principal-applied-ai-engineer-internal-tools-bangalore-india-122836/</link>
+      <guid isPermaLink="false">e23b94db6ab86cb79b3c016ffbd90c63e009358a</guid>
+      <pubDate>Sat, 09 May 2026 08:57:03 GMT</pubDate>
       <category>ai</category>
-      <description><strong>Anthropic</strong> · San Francisco, CA | Seattle, WA · Score: 55 · Source: greenhouse · Category: ai</description>
-    </item>
-    <item>
-      <title>[55] Staff / Senior Software Engineer, Compute Capacity — Anthropic</title>
-      <link>https://job-boards.greenhouse.io/anthropic/jobs/5126702008</link>
-      <guid isPermaLink="false">3d7a792dc4ff66c3527af2e6adb72a09769a4722</guid>
-      <pubDate>Fri, 08 May 2026 16:13:19 GMT</pubDate>
-      <category>ai</category>
-      <description><strong>Anthropic</strong> · San Francisco, CA | New York City, NY · Score: 55 · Source: greenhouse · Category: ai</description>
+      <description><strong>Bangalore, India</strong> · 💰 INR 400K-700K · Score: 65 · Source: aijobsnet · Category: ai</description>
     </item>
     <item>
       <title>[50] Applied AI Engineer, Beneficial Deployments — Anthropic</title>
-      <link>https://job-boards.greenhouse.io/anthropic/jobs/5068226008</link>
-      <guid isPermaLink="false">61b2012167757e1e02f3f96fd1263c45a950f90c</guid>
+      <link>https://job-boards.greenhouse.io/anthropic/jobs/5146028008</link>
+      <guid isPermaLink="false">7f692d600aea9e149f844329409e9fef1bceadee</guid>
+      <pubDate>Tue, 21 Apr 2026 14:47:53 GMT</pubDate>
+      <category>ai</category>
+      <description><strong>Anthropic</strong> · Bangalore, India · Score: 50 · Source: greenhouse · Category: ai</description>
+    </item>
+    <item>
+      <title>[50] Applied AI Engineer (Automation) — Fusemachines</title>
+      <link>https://weworkremotely.com/remote-jobs/fusemachines-applied-ai-engineer-automation</link>
+      <guid isPermaLink="false">9a31fbdf0ec69a50770b28f04964dbf1b6c483f1</guid>
+      <pubDate>Thu, 16 Apr 2026 20:52:21 GMT</pubDate>
+      <category>ai</category>
+      <description><strong>Fusemachines</strong> · Score: 50 · Source: weworkremotely · Category: ai</description>
+    </item>
+    <item>
+      <title>[45] Staff Software Engineer, Kubernetes Platform — Anthropic</title>
+      <link>https://job-boards.greenhouse.io/anthropic/jobs/5211241008</link>
+      <guid isPermaLink="false">dd47b49e5b9012c5a7956446730f27d75d57c896</guid>
+      <pubDate>Wed, 06 May 2026 15:51:46 GMT</pubDate>
+      <category>ai</category>
+      <description><strong>Anthropic</strong> · San Francisco, CA | New York City, NY | Seattle, WA · Score: 45 · Source: greenhouse · Category: ai</description>
+    </item>
+    <item>
+      <title>[45] Staff Software Engineer, Inference — Anthropic</title>
+      <link>https://job-boards.greenhouse.io/anthropic/jobs/5097742008</link>
+      <guid isPermaLink="false">d99c9266d5848d9c2b6f95197e2d22ca20187b01</guid>
       <pubDate>Wed, 01 Apr 2026 14:49:08 GMT</pubDate>
       <category>ai</category>
-      <description><strong>Anthropic</strong> · San Francisco, CA | New York City, NY · Score: 50 · Source: greenhouse · Category: ai</description>
+      <description><strong>Anthropic</strong> · London, UK · Score: 45 · Source: greenhouse · Category: ai</description>
     </item>
     <item>
-      <title>[45] Head of Machine Learning &amp; AI — London</title>
-      <link>https://aijobs.net/job/head-of-machine-learning-ai-london-122676/</link>
-      <guid isPermaLink="false">e9fb5f9e6e30bee780f7290ece651672a49ea868</guid>
-      <pubDate>Fri, 08 May 2026 18:43:37 GMT</pubDate>
+      <title>[40] Senior Quant/ML Engineer - Fixed Income - Artificial Intelligence — New York</title>
+      <link>https://aijobs.net/job/senior-quantml-engineer-fixed-income-artificial-intelligence-new-york-123565/</link>
+      <guid isPermaLink="false">dfd8f42f3b24fb3ade47c77ccdb739ebfe22decc</guid>
+      <pubDate>Sat, 09 May 2026 12:57:03 GMT</pubDate>
       <category>ai</category>
-      <description><strong>London</strong> · 💰 GBP 54K-54K · Score: 45 · Source: aijobsnet · Category: ai</description>
-    </item>
-    <item>
-      <title>[45] Applied AI Architect, Startups — Anthropic</title>
-      <link>https://job-boards.greenhouse.io/anthropic/jobs/5193973008</link>
-      <guid isPermaLink="false">5f0ed120053fe6a545cd01fd107ac606e88e28de</guid>
-      <pubDate>Wed, 29 Apr 2026 08:28:25 GMT</pubDate>
-      <category>ai</category>
-      <description><strong>Anthropic</strong> · Dublin, IE · Score: 45 · Source: greenhouse · Category: ai</description>
-    </item>
-    <item>
-      <title>[40] Generative AI Engineer — Remote R</title>
-      <link>https://aijobs.net/job/generative-ai-engineer-remote-122471/</link>
-      <guid isPermaLink="false">6ba53b5e52bb555cd5abc83b55fffe40a6a58c64</guid>
-      <pubDate>Fri, 08 May 2026 19:43:37 GMT</pubDate>
-      <category>ai</category>
-      <description><strong>Remote R</strong> · 💰 USD 100K-172K · Score: 40 · Source: aijobsnet · Category: ai</description>
-    </item>
-    <item>
-      <title>[40] Senior Social Media Strategist: Web3 Emerging Tech — Partnerverse</title>
-      <link>https://web3.career/senior-social-media-strategist-web3-emerging-tech-partnerverse/149274</link>
-      <guid isPermaLink="false">0fe92633b5635ff8fc5fad7b69e815fffcad346b</guid>
-      <pubDate>Fri, 08 May 2026 23:05:53 GMT</pubDate>
-      <category>web3</category>
-      <description><strong>Partnerverse</strong> · 💰 $90k - $90k · Score: 40 · Source: web3career · Category: web3</description>
-    </item>
-    <item>
-      <title>[40] Founding AI Engineer — SEEKING FREELANCER</title>
-      <link>https://news.ycombinator.com/item?id=48070967</link>
-      <guid isPermaLink="false">db9ed48fce88a1dcac2699b9d3032049e69912d1</guid>
-      <pubDate>Sat, 09 May 2026 01:51:46 GMT</pubDate>
-      <category>ai</category>
-      <description><strong>SEEKING FREELANCER</strong> · Score: 40 · Source: hn-hiring · Category: ai</description>
-    </item>
-    <item>
-      <title>[40] Level Agentic Engineer in Ho Chi Minh City — We The Flywheel</title>
-      <link>https://news.ycombinator.com/item?id=48062670</link>
-      <guid isPermaLink="false">bb33703056b9abb6a1c31e83458463566cb203b5</guid>
-      <pubDate>Fri, 08 May 2026 13:17:11 GMT</pubDate>
-      <category>ai</category>
-      <description><strong>We The Flywheel</strong> · Score: 40 · Source: hn-hiring · Category: ai</description>
+      <description><strong>New York</strong> · 💰 USD 165K-260K · Score: 40 · Source: aijobsnet · Category: ai</description>
     </item>
     <item>
       <title>[40] Staff Engineer, Datacenter Server Lifecycle — Anthropic</title>
-      <link>https://job-boards.greenhouse.io/anthropic/jobs/5139038008</link>
-      <guid isPermaLink="false">863a3f6b3355d44ed739e42cc469c3759e100d10</guid>
-      <pubDate>Wed, 29 Apr 2026 05:03:18 GMT</pubDate>
+      <link>https://job-boards.greenhouse.io/anthropic/jobs/5131038008</link>
+      <guid isPermaLink="false">88f962e92d1ff1553a927a691537a7a958f92dfa</guid>
+      <pubDate>Wed, 29 Apr 2026 12:58:01 GMT</pubDate>
       <category>ai</category>
-      <description><strong>Anthropic</strong> · San Francisco, CA | New York City, NY | Seattle, WA · Score: 40 · Source: greenhouse · Category: ai</description>
+      <description><strong>Anthropic</strong> · London, UK · Score: 40 · Source: greenhouse · Category: ai</description>
     </item>
     <item>
-      <title>[40] Applied AI Architect, Industries — Anthropic</title>
-      <link>https://job-boards.greenhouse.io/anthropic/jobs/4977624008</link>
-      <guid isPermaLink="false">6e7ba79967e5edf96aca75d55813cf490feb29ad</guid>
-      <pubDate>Fri, 24 Apr 2026 19:38:24 GMT</pubDate>
+      <title>[40] Applied AI Architect — Anthropic</title>
+      <link>https://job-boards.greenhouse.io/anthropic/jobs/5117581008</link>
+      <guid isPermaLink="false">b2ecc7875c88c982a55254d0ef97fb82ba33275b</guid>
+      <pubDate>Fri, 24 Apr 2026 19:31:32 GMT</pubDate>
       <category>ai</category>
-      <description><strong>Anthropic</strong> · Munich, Germany · Score: 40 · Source: greenhouse · Category: ai</description>
+      <description><strong>Anthropic</strong> · Bangalore, India · Score: 40 · Source: greenhouse · Category: ai</description>
     </item>
     <item>
-      <title>[35] Staff + Sr. Software Engineer, Cloud Inference Launch Engineering — San Francisco, CA | Seattle, WA</title>
-      <link>https://aijobs.net/job/staff-sr-software-engineer-cloud-inference-launch-engineering-san-francisco-ca-seattle-wa-122809/</link>
-      <guid isPermaLink="false">95ca84024303f37faadb32239be3038fead811c4</guid>
-      <pubDate>Fri, 08 May 2026 21:43:37 GMT</pubDate>
+      <title>[40] Senior Machine Learning Engineer, Personalization — Spotify</title>
+      <link>https://weworkremotely.com/remote-jobs/spotify-senior-machine-learning-engineer-personalization</link>
+      <guid isPermaLink="false">d5a8c0466d619305a24878054d32cd89c8b0387d</guid>
+      <pubDate>Thu, 16 Apr 2026 21:39:32 GMT</pubDate>
+      <category>ai</category>
+      <description><strong>Spotify</strong> · Score: 40 · Source: weworkremotely · Category: ai</description>
+    </item>
+    <item>
+      <title>[40] Applied AI Engineer — Anthropic</title>
+      <link>https://job-boards.greenhouse.io/anthropic/jobs/5014500008</link>
+      <guid isPermaLink="false">83a12ab7813772062c4cd0d64a40b57242d4296e</guid>
+      <pubDate>Wed, 01 Apr 2026 14:49:08 GMT</pubDate>
+      <category>ai</category>
+      <description><strong>Anthropic</strong> · Seoul, South Korea · Score: 40 · Source: greenhouse · Category: ai</description>
+    </item>
+    <item>
+      <title>[35] Mobile Developer — C4Media Inc.</title>
+      <link>https://weworkremotely.com/remote-jobs/c4media-inc-mobile-developer</link>
+      <guid isPermaLink="false">1f1245cde1ee04a5108fa68c33b4fb455ee03c6f</guid>
+      <pubDate>Tue, 14 Apr 2026 20:47:57 GMT</pubDate>
       <category>general</category>
-      <description><strong>San Francisco, CA | Seattle, WA</strong> · 💰 USD 320K-485K · Score: 35 · Source: aijobsnet · Category: general</description>
+      <description><strong>C4Media Inc.</strong> · Score: 35 · Source: weworkremotely · Category: general</description>
     </item>
     <item>
-      <title>[35] Sr Staff Engineer, Data Infrastructure — San Jose, California, United States</title>
-      <link>https://aijobs.net/job/sr-staff-engineer-data-infrastructure-san-jose-california-united-states-122601/</link>
-      <guid isPermaLink="false">d99dfa8eddc5f1fc33b26b65d06fce9db421fc4d</guid>
-      <pubDate>Sat, 09 May 2026 01:43:37 GMT</pubDate>
-      <category>general</category>
-      <description><strong>San Jose, California, United States</strong> · 💰 USD 182K-228K · Score: 35 · Source: aijobsnet · Category: general</description>
-    </item>
-    <item>
-      <title>[35] Principal Engineer, Database SQL — Remote, India R</title>
-      <link>https://aijobs.net/job/principal-engineer-database-sql-remote-india-122807/</link>
-      <guid isPermaLink="false">ca21831797a243bde3252b7ff10079a5b228ea7c</guid>
-      <pubDate>Sat, 09 May 2026 04:43:37 GMT</pubDate>
-      <category>general</category>
-      <description><strong>Remote, India R</strong> · 💰 INR 1500K-2200K · Score: 35 · Source: aijobsnet · Category: general</description>
-    </item>
-    <item>
-      <title>[35] Lead Full Stack Developer (UI/UX) — Hitachi Vantara Corporation</title>
-      <link>https://weworkremotely.com/remote-jobs/hitachi-vantara-corporation-lead-full-stack-developer-ui-ux</link>
-      <guid isPermaLink="false">fa33a8de66c160d88539781393b10a42ba456e7a</guid>
-      <pubDate>Tue, 14 Apr 2026 20:31:19 GMT</pubDate>
-      <category>general</category>
-      <description><strong>Hitachi Vantara Corporation</strong> · Score: 35 · Source: weworkremotely · Category: general</description>
-    </item>
-    <item>
-      <title>[30] iOS Engineer, ChatGPT (Seattle) — Openai</title>
-      <link>https://jobs.ashbyhq.com/openai/6a753329-3acb-4b3c-b29f-b0d10aae7ebe</link>
-      <guid isPermaLink="false">bb14a78581d9ac19721fd15697bfaccd32f7add3</guid>
-      <pubDate>Fri, 08 May 2026 17:19:04 GMT</pubDate>
+      <title>[30] Software Engineer, Generative AI, Geo Consumer — Mountain View, CA, USA</title>
+      <link>https://aijobs.net/job/software-engineer-generative-ai-geo-consumer-mountain-view-ca-usa-123300/</link>
+      <guid isPermaLink="false">3931fe217fddec1b1f3381f0fffbbfa31f489b24</guid>
+      <pubDate>Sat, 09 May 2026 11:57:03 GMT</pubDate>
       <category>ai</category>
-      <description><strong>Openai</strong> · Seattle · 💰 $255K – $405K • Offers Equity · Score: 30 · Source: ashby · Category: ai</description>
+      <description><strong>Mountain View, CA, USA</strong> · 💰 USD 147K-211K · Score: 30 · Source: aijobsnet · Category: ai</description>
     </item>
     <item>
-      <title>[30] Manager, Solutions Architect — Baseten</title>
-      <link>https://jobs.ashbyhq.com/baseten/1532aa00-5a93-4967-bb24-6561495d9605</link>
-      <guid isPermaLink="false">81085dd6169c3aafd8f549c136411ef38e272900</guid>
-      <pubDate>Fri, 08 May 2026 22:08:54 GMT</pubDate>
+      <title>[30] Cloud AI Engineer — Hyderabad, Telangana, India; Pune, Maharashtra, India</title>
+      <link>https://aijobs.net/job/cloud-ai-engineer-hyderabad-telangana-india-pune-maharashtra-india-123196/</link>
+      <guid isPermaLink="false">ce34652079960035745297143c87bd43d7f0e7e5</guid>
+      <pubDate>Sat, 09 May 2026 11:57:03 GMT</pubDate>
       <category>ai</category>
-      <description><strong>Baseten</strong> · San Francisco · 💰 $165K – $330K • Offers Equity · Score: 30 · Source: ashby · Category: ai</description>
+      <description><strong>Hyderabad, Telangana, India; Pune, Maharashtra, India</strong> · 💰 INR 1800K-3000K · Score: 30 · Source: aijobsnet · Category: ai</description>
     </item>
     <item>
-      <title>[30] Audio Software Engineer, Consumer Devices — Openai</title>
-      <link>https://jobs.ashbyhq.com/openai/15d23d99-6b15-41d8-99b1-33975447e257</link>
-      <guid isPermaLink="false">04f75435b2e37be11d8406e959d0d1e6fff45601</guid>
-      <pubDate>Sat, 09 May 2026 07:19:23 GMT</pubDate>
+      <title>[30] Solution Architect – AI Driven Data &amp; Analytics Platforms — India</title>
+      <link>https://aijobs.net/job/solution-architect-ai-driven-data-analytics-platforms-india-123463/</link>
+      <guid isPermaLink="false">7f1b3c26510aff97d9fe670f16d6cd428ba66717</guid>
+      <pubDate>Sat, 09 May 2026 08:57:03 GMT</pubDate>
+      <category>web3</category>
+      <description><strong>India</strong> · 💰 INR 2000K-4500K · Score: 30 · Source: aijobsnet · Category: web3</description>
+    </item>
+    <item>
+      <title>[30] IT Support Engineer — Anthropic</title>
+      <link>https://job-boards.greenhouse.io/anthropic/jobs/4802076008</link>
+      <guid isPermaLink="false">09f2b23efb2646543f352bebe63c3ef2395e88db</guid>
+      <pubDate>Tue, 05 May 2026 06:21:20 GMT</pubDate>
       <category>ai</category>
-      <description><strong>Openai</strong> · San Francisco · 💰 $293K – $325K • Offers Equity · Score: 30 · Source: ashby · Category: ai</description>
-    </item>
-    <item>
-      <title>[30] Senior Director, AI Enablement — Remote - United States R</title>
-      <link>https://aijobs.net/job/senior-director-ai-enablement-remote-united-states-122821/</link>
-      <guid isPermaLink="false">d2823a10829617b6a93619644dbc8f7885272761</guid>
-      <pubDate>Fri, 08 May 2026 19:43:37 GMT</pubDate>
-      <category>general</category>
-      <description><strong>Remote - United States R</strong> · 💰 USD 227K-280K · Score: 30 · Source: aijobsnet · Category: general</description>
-    </item>
-    <item>
-      <title>[30] GenAI Engineer — Singapore</title>
-      <link>https://aijobs.net/job/genai-engineer-singapore-122469/</link>
-      <guid isPermaLink="false">a36fa88d5cfe19ba302eac5d2e939ff09007dab6</guid>
-      <pubDate>Sat, 09 May 2026 02:43:37 GMT</pubDate>
-      <category>ai</category>
-      <description><strong>Singapore</strong> · 💰 SGD 165K-220K · Score: 30 · Source: aijobsnet · Category: ai</description>
-    </item>
-    <item>
-      <title>[30] AI Engineer — Brooklyn, NY 11232</title>
-      <link>https://aijobs.net/job/ai-engineer-brooklyn-ny-11232-122470/</link>
-      <guid isPermaLink="false">303811857ecdc2d927bc481b30179d849d79824f</guid>
-      <pubDate>Fri, 08 May 2026 20:43:37 GMT</pubDate>
-      <category>ai</category>
-      <description><strong>Brooklyn, NY 11232</strong> · 💰 USD 125K-150K · Score: 30 · Source: aijobsnet · Category: ai</description>
-    </item>
-    <item>
-      <title>[30] Applied AI Architect, Security — Anthropic</title>
-      <link>https://job-boards.greenhouse.io/anthropic/jobs/5101433008</link>
-      <guid isPermaLink="false">63e087273cf308b8a1a25f72a0a04d8364768c36</guid>
-      <pubDate>Fri, 08 May 2026 23:27:42 GMT</pubDate>
-      <category>ai</category>
-      <description><strong>Anthropic</strong> · New York City, NY; New York City, NY | Seattle, WA; San Francisco, CA | New York City, NY · Score: 30 · Source: greenhouse · Category: ai</description>
-    </item>
-    <item>
-      <title>[30] Senior AWS DevOps&amp;#x2F;SRE contractor — HelpMyCash</title>
-      <link>https://news.ycombinator.com/item?id=48061232</link>
-      <guid isPermaLink="false">78cdf9ab134a2352b43506a97dd0cc9f6274108e</guid>
-      <pubDate>Fri, 08 May 2026 10:38:41 GMT</pubDate>
-      <category>general</category>
-      <description><strong>HelpMyCash</strong> · Score: 30 · Source: hn-hiring · Category: general</description>
+      <description><strong>Anthropic</strong> · San Francisco, CA | Seattle, WA · Score: 30 · Source: greenhouse · Category: ai</description>
     </item>
   </channel>
 </rss>
