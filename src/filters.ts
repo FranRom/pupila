@@ -53,7 +53,7 @@ function tieredWeight(count: number, baseWeight: number): number {
   return Math.floor(baseWeight * 1.5);
 }
 
-const BOILERPLATE_HEADERS_RE =
+export const BOILERPLATE_HEADERS_RE =
   /\b(equal opportunity employer|eeo (statement|notice)|privacy notice|notice (to|for) (applicants|candidates)|reasonable accommodations?|diversity and inclusion|our commitment to diversity|background check|e-verify|why join (us|<company>)|about (us|<company>|the company|our company))\b[\s\S]*$/i;
 
 export interface FilterResult {

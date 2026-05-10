@@ -59,6 +59,10 @@ export function Onboarding({ onComplete }: OnboardingProps) {
   const [available, setAvailable] = useState<Record<Provider, boolean> | null>(null);
   const [provider, setProvider] = useState<ProviderChoice>('auto');
   const [busy, setBusy] = useState(false);
+  // Separate `tuning` state so the button label can show what's actually
+  // happening when we block on /api/profile-generate (which can take 10–20s).
+  // Without this distinction the user sees a generic "Saving…" for too long.
+  const [tuning, setTuning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [briefDraft, setBriefDraft] = useState<string>('');
   const [generatedBrief, setGeneratedBrief] = useState<string>('');
@@ -143,15 +147,32 @@ export function Onboarding({ onComplete }: OnboardingProps) {
         const errBody = (await prefRes.json().catch(() => ({}))) as { error?: string };
         throw new Error(errBody.error ?? `preferences save: HTTP ${prefRes.status}`);
       }
-      // Fire-and-forget scoring-profile generation. We don't block the
-      // wizard handoff on it (can take 10–20s) — the Settings → Scoring
-      // profile panel reflects the result on next visit, and a manual
-      // retry button is there if it fails.
-      void fetch('/api/profile-generate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ provider: provider === 'auto' ? null : provider }),
-      }).catch(() => undefined);
+      // Block onboarding handoff on profile-generate so the auto-fetch
+      // that fires next picks up the freshly-tuned profile.json. Earlier
+      // versions did this fire-and-forget, which caused the first jobs.json
+      // to score against the empty profile (max ~45 from seniority alone)
+      // even though the brief had been generated.
+      // Errors here don't block the handoff — Settings → Scoring profile
+      // has a manual retry button.
+      setTuning(true);
+      try {
+        const profileRes = await fetch('/api/profile-generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ provider: provider === 'auto' ? null : provider }),
+        });
+        if (!profileRes.ok) {
+          const errBody = (await profileRes.json().catch(() => ({}))) as { error?: string };
+          console.warn(
+            '[onboarding] profile generation failed; continuing anyway:',
+            errBody.error ?? `HTTP ${profileRes.status}`,
+          );
+        }
+      } catch (profileErr) {
+        console.warn('[onboarding] profile generation threw; continuing anyway:', profileErr);
+      } finally {
+        setTuning(false);
+      }
       onComplete();
     } catch (err) {
       setError(`Could not finish onboarding: ${err instanceof Error ? err.message : String(err)}`);
@@ -287,7 +308,11 @@ export function Onboarding({ onComplete }: OnboardingProps) {
               ← Re-upload CV
             </button>
             <button type="button" disabled={busy} onClick={() => void finish()}>
-              {busy ? 'Saving…' : 'Looks good →'}
+              {tuning
+                ? 'Tuning scoring profile from your brief…'
+                : busy
+                  ? 'Saving…'
+                  : 'Looks good →'}
             </button>
           </div>
         </section>

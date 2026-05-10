@@ -69,6 +69,12 @@ export interface Job {
   location: string | null;
   remote: boolean;
   body: string;
+  /**
+   * First ~280 chars of the boilerplate-stripped body, derived in
+   * `src/index.ts` before `body` is dropped from the slim `data/jobs.json`.
+   * Optional so existing jobs.json files without the field still load.
+   */
+  bodyPreview?: string;
   tags: string[];
   salary: string | null;
   salaryMin: number | null;

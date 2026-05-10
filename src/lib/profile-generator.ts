@@ -41,6 +41,9 @@ export interface PersonalizationDelta {
   }>;
 }
 
+// NOTE: These are duplicated in ui/src/constants/profileKeys.ts because the
+// UI runs in the browser and can't import this module (depends on Node
+// child_process via runLlm). Keep both lists in sync.
 const PERSONAL_WEIGHT_KEYS: ReadonlyArray<keyof PersonalizationDelta['weights']> = [
   'web3TitleBody',
   'web3Stack',
@@ -141,10 +144,27 @@ function isStringArray(value: unknown): value is string[] {
 // regex syntax, but bounded length + count makes it much harder.
 const MAX_KEYWORDS_PER_GROUP = 30;
 const MAX_KEYWORD_LENGTH = 80;
+
+// MED-6: heuristic guard against catastrophic-backtracking patterns.
+// Pairs with MAX_KEYWORDS_PER_GROUP + MAX_KEYWORD_LENGTH for layered defense.
+// Heuristic, not a proof — covers the common shapes the LLM produces when
+// it goes off-script.
+const NESTED_QUANTIFIER = /(\([^)]*[+*][^)]*\))[+*]/;
+const REPEATED_GROUP = /(\([^)]*\))\1/;
+const MAX_QUANTIFIERS = 5;
+function isComplexityRisky(pattern: string): boolean {
+  if (NESTED_QUANTIFIER.test(pattern)) return true;
+  if (REPEATED_GROUP.test(pattern)) return true;
+  const quantifierCount = (pattern.match(/[+*?{]/g) ?? []).length;
+  if (quantifierCount > MAX_QUANTIFIERS) return true;
+  return false;
+}
+
 function sanitizeKeywords(values: string[]): string[] {
   const out: string[] = [];
   for (const v of values) {
     if (v.length > MAX_KEYWORD_LENGTH) continue;
+    if (isComplexityRisky(v)) continue;
     try {
       // Throws SyntaxError on invalid pattern (unbalanced groups, bad quantifier).
       new RegExp(v);

@@ -68,6 +68,12 @@ export interface Job {
   url: string;
   location: string | null;
   remote: boolean;
+  /**
+   * Optional first ~280 chars of the stripped JD (boilerplate removed).
+   * Populated by the pipeline (`src/index.ts`) before stripping the full
+   * body. Optional so older `jobs.json` files without the field still load.
+   */
+  bodyPreview?: string;
   tags: string[];
   salary: string | null;
   salaryMin: number | null;

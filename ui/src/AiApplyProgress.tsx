@@ -37,7 +37,9 @@ interface AiApplyProgressProps {
   onComplete: (state: AiApplyState) => void;
 }
 
-const POLL_MS = 1000;
+// LOW-7: dual-cadence polling — cheap when idle, snappy during runs.
+const IDLE_POLL_MS = 5000;
+const ACTIVE_POLL_MS = 1000;
 const DISMISS_MS = 4000;
 
 export function AiApplyProgress({ onComplete }: AiApplyProgressProps) {
@@ -45,7 +47,11 @@ export function AiApplyProgress({ onComplete }: AiApplyProgressProps) {
   const [hidden, setHidden] = useState(true);
   const completedRef = useRef(false);
   const dismissTimerRef = useRef<number | null>(null);
+  const intervalRef = useRef<number | null>(null);
 
+  // LOW-7: dual-cadence polling — cheap when idle, snappy during runs.
+  // Re-create the interval whenever the cadence flips between running and
+  // any other state.
   useEffect(() => {
     let cancelled = false;
     const tick = async () => {
@@ -79,13 +85,24 @@ export function AiApplyProgress({ onComplete }: AiApplyProgressProps) {
       }
     };
     void tick();
-    const timer = window.setInterval(() => void tick(), POLL_MS);
+    const cadence = state?.status === 'running' ? ACTIVE_POLL_MS : IDLE_POLL_MS;
+    intervalRef.current = window.setInterval(() => void tick(), cadence);
     return () => {
       cancelled = true;
-      window.clearInterval(timer);
+      if (intervalRef.current) {
+        window.clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+    };
+  }, [onComplete, state?.status]);
+
+  // Clean up the dismiss timer on unmount only — it's separate from the
+  // poll interval so it doesn't get torn down on every cadence flip.
+  useEffect(() => {
+    return () => {
       if (dismissTimerRef.current) window.clearTimeout(dismissTimerRef.current);
     };
-  }, [onComplete]);
+  }, []);
 
   if (hidden || !state || state.status === 'idle') return null;
 

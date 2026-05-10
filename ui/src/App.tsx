@@ -2,8 +2,21 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { AiApplyProgress, type AiApplyState as DockState } from './AiApplyProgress.tsx';
 import { FetchProgress } from './FetchProgress.tsx';
 import { relativeTime } from './format.ts';
+import { AppHeader } from './jobs/AppHeader.tsx';
+import { DetailPanel } from './jobs/DetailPanel.tsx';
+import { JobsFilters } from './jobs/JobsFilters.tsx';
+import { ScoreBar } from './jobs/ScoreBar.tsx';
+import { SignalChips } from './jobs/SignalChips.tsx';
+import {
+  type AiApplyError,
+  type AiApplyResult,
+  type AppliedMap,
+  type SetApplied,
+  STATUS_EMOJI,
+} from './jobs/types.ts';
 import { Onboarding } from './Onboarding.tsx';
 import { Profile } from './Profile.tsx';
+import { SchedulerProgress } from './SchedulerProgress.tsx';
 import { Settings } from './Settings.tsx';
 import type {
   AiReview,
@@ -12,7 +25,6 @@ import type {
   AppliedEntry,
   Category,
   Job,
-  JobSignals,
   Source,
 } from './types.ts';
 
@@ -22,22 +34,6 @@ interface PreferencesResponse {
   provider: string | null;
   onboardedAt: string | null;
 }
-
-const STATUS_EMOJI: Record<ApplicationStatus, string> = {
-  applied: '📝',
-  interview: '💬',
-  offer: '🎯',
-  rejected: '❌',
-  withdrawn: '⏸',
-};
-
-const STATUS_OPTIONS: ApplicationStatus[] = [
-  'applied',
-  'interview',
-  'offer',
-  'rejected',
-  'withdrawn',
-];
 
 const CATEGORY_OPTIONS: ReadonlyArray<Category | 'all'> = [
   'all',
@@ -60,9 +56,6 @@ interface CompanyGroup {
   topJob: Job;
 }
 
-type AppliedMap = Record<string, AppliedEntry>;
-type SetApplied = (job: Job, status: ApplicationStatus | null, notes?: string) => Promise<void>;
-
 function readUrl(): {
   search: string;
   category: Category | 'all';
@@ -71,6 +64,7 @@ function readUrl(): {
   sortKey: SortKey;
   sortDir: SortDir;
   groupByCompany: boolean;
+  compact: boolean;
   expanded: string | null;
   expandedCompany: string | null;
   tab: Tab;
@@ -89,6 +83,8 @@ function readUrl(): {
     sortKey: sortKey === 'salaryMax' || sortKey === 'postedAt' ? sortKey : 'fitScore',
     sortDir: sortDir === 'asc' ? 'asc' : 'desc',
     groupByCompany: p.get('group') !== '0',
+    // Default OFF — only persisted in URL when explicitly enabled.
+    compact: p.get('compact') === '1',
     expanded: p.get('expanded'),
     expandedCompany: p.get('co'),
     tab: tab === 'profile' ? 'profile' : tab === 'settings' ? 'settings' : 'jobs',
@@ -104,6 +100,7 @@ export function App() {
   const [sortKey, setSortKey] = useState<SortKey>(initial.sortKey);
   const [sortDir, setSortDir] = useState<SortDir>(initial.sortDir);
   const [groupByCompany, setGroupByCompany] = useState(initial.groupByCompany);
+  const [compact, setCompact] = useState(initial.compact);
   const [expanded, setExpanded] = useState<string | null>(initial.expanded);
   const [expandedCompany, setExpandedCompany] = useState<string | null>(initial.expandedCompany);
   const [appliedById, setAppliedById] = useState<AppliedMap>({});
@@ -112,12 +109,8 @@ export function App() {
   // truth for "is something running"; FragmentRow reads {busyJobId, result,
   // error} to know what to render and whether to disable its button.
   const [aiApplyBusyId, setAiApplyBusyId] = useState<string | null>(null);
-  const [aiApplyResult, setAiApplyResult] = useState<{
-    jobId: string;
-    body: string;
-    path: string;
-  } | null>(null);
-  const [aiApplyError, setAiApplyError] = useState<{ jobId: string; error: string } | null>(null);
+  const [aiApplyResult, setAiApplyResult] = useState<AiApplyResult | null>(null);
+  const [aiApplyError, setAiApplyError] = useState<AiApplyError | null>(null);
   const [tab, setTab] = useState<Tab>(initial.tab);
   // jobs.json and ai-reviews.json are gitignored personal/AI artifacts —
   // fetched at runtime from the dev-server middleware so a fresh clone
@@ -129,6 +122,9 @@ export function App() {
   // `false` once we've confirmed the user has finished onboarding (or
   // they bypass via the Profile tab); `true` triggers the wizard.
   const [showOnboarding, setShowOnboarding] = useState<boolean | null>(null);
+  // LOW-9: SchedulerProgress dock now lives at App root. Settings reads
+  // schedulerCompletedAt to know when to refresh its status panel.
+  const [schedulerCompletedAt, setSchedulerCompletedAt] = useState(0);
 
   // Re-fetch jobs + AI reviews + applied entries (e.g. after the fetch-jobs
   // run completes, or after onboarding finishes). Reconciles applied
@@ -221,6 +217,12 @@ export function App() {
     setAiApplyBusyId(null);
   }, []);
 
+  // LOW-9: bookkeeping for the SchedulerProgress dock — Settings reads this
+  // to know when to refresh its status panel after install/uninstall.
+  const onSchedulerComplete = useCallback(() => {
+    setSchedulerCompletedAt(Date.now());
+  }, []);
+
   // POST /api/fetch-jobs — kicks off the aggregator. The FetchProgress
   // component handles its own polling + parent re-fetch on success.
   const triggerFetch = useCallback(async () => {
@@ -266,6 +268,7 @@ export function App() {
     if (sortKey !== 'fitScore') p.set('sort', sortKey);
     if (sortDir !== 'desc') p.set('dir', sortDir);
     if (!groupByCompany) p.set('group', '0');
+    if (compact) p.set('compact', '1');
     if (expanded) p.set('expanded', expanded);
     if (expandedCompany) p.set('co', expandedCompany);
     if (tab !== 'jobs') p.set('tab', tab);
@@ -282,72 +285,76 @@ export function App() {
     sortKey,
     sortDir,
     groupByCompany,
+    compact,
     expanded,
     expandedCompany,
     tab,
   ]);
 
-  const setApplied = useCallback<SetApplied>(async (job, status, notes) => {
-    let prevSnapshot: AppliedEntry | undefined;
-    setAppliedById((prev) => {
-      prevSnapshot = prev[job.id];
-      return prev;
-    });
+  const setApplied = useCallback<SetApplied>(
+    async (job, status, notes) => {
+      // MED-8: read snapshot directly from closure instead of via a no-op
+      // state updater (which is unsound under StrictMode double-invocation).
+      const prevSnapshot = appliedById[job.id];
 
-    if (status === null) {
-      setAppliedById((prev) => {
-        const next = { ...prev };
-        delete next[job.id];
-        return next;
-      });
+      if (status === null) {
+        setAppliedById((prev) => {
+          const next = { ...prev };
+          delete next[job.id];
+          return next;
+        });
+        try {
+          const res = await fetch('/api/applied', {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ url: job.url }),
+          });
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          setApiError(null);
+        } catch (err) {
+          setAppliedById((prev) => {
+            if (!prevSnapshot) return prev;
+            return { ...prev, [job.id]: prevSnapshot };
+          });
+          setApiError(
+            `Failed to clear status: ${err instanceof Error ? err.message : String(err)}`,
+          );
+        }
+        return;
+      }
+
+      const today = new Date().toISOString().slice(0, 10);
+      const finalNotes = notes !== undefined ? notes : prevSnapshot?.notes;
+      const optimistic: AppliedEntry = {
+        url: job.url,
+        status,
+        date: prevSnapshot?.date ?? today,
+        ...(finalNotes ? { notes: finalNotes } : {}),
+      };
+      setAppliedById((prev) => ({ ...prev, [job.id]: optimistic }));
+
       try {
         const res = await fetch('/api/applied', {
-          method: 'DELETE',
+          method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ url: job.url }),
+          body: JSON.stringify(optimistic),
         });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const saved = (await res.json()) as AppliedEntry;
+        setAppliedById((prev) => ({ ...prev, [job.id]: saved }));
         setApiError(null);
       } catch (err) {
         setAppliedById((prev) => {
-          if (!prevSnapshot) return prev;
-          return { ...prev, [job.id]: prevSnapshot };
+          const next = { ...prev };
+          if (prevSnapshot) next[job.id] = prevSnapshot;
+          else delete next[job.id];
+          return next;
         });
-        setApiError(`Failed to clear status: ${err instanceof Error ? err.message : String(err)}`);
+        setApiError(`Failed to save status: ${err instanceof Error ? err.message : String(err)}`);
       }
-      return;
-    }
-
-    const today = new Date().toISOString().slice(0, 10);
-    const finalNotes = notes !== undefined ? notes : prevSnapshot?.notes;
-    const optimistic: AppliedEntry = {
-      url: job.url,
-      status,
-      date: prevSnapshot?.date ?? today,
-      ...(finalNotes ? { notes: finalNotes } : {}),
-    };
-    setAppliedById((prev) => ({ ...prev, [job.id]: optimistic }));
-
-    try {
-      const res = await fetch('/api/applied', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(optimistic),
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const saved = (await res.json()) as AppliedEntry;
-      setAppliedById((prev) => ({ ...prev, [job.id]: saved }));
-      setApiError(null);
-    } catch (err) {
-      setAppliedById((prev) => {
-        const next = { ...prev };
-        if (prevSnapshot) next[job.id] = prevSnapshot;
-        else delete next[job.id];
-        return next;
-      });
-      setApiError(`Failed to save status: ${err instanceof Error ? err.message : String(err)}`);
-    }
-  }, []);
+    },
+    [appliedById],
+  );
 
   const sources = useMemo(() => {
     const s = new Set<Source>();
@@ -455,52 +462,18 @@ export function App() {
 
   return (
     <div className="app">
-      <header>
-        <div>
-          <h1>Job hunt</h1>
-          <p className="subtitle">
-            {dataLoading ? (
-              'loading…'
-            ) : (
-              <>
-                {allJobs.length} jobs · {totals['web3+ai']} web3+ai · {totals.web3} web3 ·{' '}
-                {totals.ai} ai · {totals.general} general · {appliedCount} applied
-              </>
-            )}
-          </p>
-        </div>
-        <div className="tabs">
-          <button
-            type="button"
-            className={`tab ${tab === 'jobs' ? 'tab-active' : ''}`}
-            onClick={() => setTab('jobs')}
-          >
-            Jobs
-          </button>
-          <button
-            type="button"
-            className={`tab ${tab === 'profile' ? 'tab-active' : ''}`}
-            onClick={() => setTab('profile')}
-          >
-            Profile
-          </button>
-          <button
-            type="button"
-            className={`tab ${tab === 'settings' ? 'tab-active' : ''}`}
-            onClick={() => setTab('settings')}
-          >
-            Settings
-          </button>
-        </div>
-        {tab === 'jobs' && (
-          <div className="counts">
-            showing <strong>{visible.length}</strong>
-          </div>
-        )}
-      </header>
+      <AppHeader
+        tab={tab}
+        onTabChange={setTab}
+        dataLoading={dataLoading}
+        totalJobs={allJobs.length}
+        totals={totals}
+        appliedCount={appliedCount}
+        visibleCount={visible.length}
+      />
 
       {tab === 'profile' && <Profile />}
-      {tab === 'settings' && <Settings />}
+      {tab === 'settings' && <Settings schedulerCompletedAt={schedulerCompletedAt} />}
       {tab === 'jobs' && (
         <>
           {apiError && (
@@ -512,67 +485,28 @@ export function App() {
             </div>
           )}
 
-          <div className="filters">
-            <input
-              type="search"
-              placeholder="Search title / company / location"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-
-            <select
-              value={category}
-              onChange={(e) => setCategory(e.target.value as Category | 'all')}
-            >
-              {CATEGORY_OPTIONS.map((c) => (
-                <option key={c} value={c}>
-                  {c === 'all' ? 'All categories' : c}
-                </option>
-              ))}
-            </select>
-
-            <select value={source} onChange={(e) => setSource(e.target.value as Source | 'all')}>
-              <option value="all">All sources</option>
-              {sources.map((s) => (
-                <option key={s} value={s}>
-                  {s}
-                </option>
-              ))}
-            </select>
-
-            <label className="checkbox">
-              <input
-                type="checkbox"
-                checked={appliedOnly}
-                onChange={(e) => setAppliedOnly(e.target.checked)}
-              />
-              Applied only
-            </label>
-
-            <label className="checkbox">
-              <input
-                type="checkbox"
-                checked={groupByCompany}
-                onChange={(e) => setGroupByCompany(e.target.checked)}
-              />
-              Group by company
-            </label>
-
-            {(search || category !== 'all' || source !== 'all' || appliedOnly) && (
-              <button
-                type="button"
-                className="reset"
-                onClick={() => {
-                  setSearch('');
-                  setCategory('all');
-                  setSource('all');
-                  setAppliedOnly(false);
-                }}
-              >
-                Reset
-              </button>
-            )}
-          </div>
+          <JobsFilters
+            search={search}
+            category={category}
+            source={source}
+            appliedOnly={appliedOnly}
+            groupByCompany={groupByCompany}
+            compact={compact}
+            sources={sources}
+            categoryOptions={CATEGORY_OPTIONS}
+            onSearchChange={setSearch}
+            onCategoryChange={setCategory}
+            onSourceChange={setSource}
+            onAppliedOnlyChange={setAppliedOnly}
+            onGroupByCompanyChange={setGroupByCompany}
+            onCompactChange={setCompact}
+            onReset={() => {
+              setSearch('');
+              setCategory('all');
+              setSource('all');
+              setAppliedOnly(false);
+            }}
+          />
 
           {visible.length === 0 ? (
             allJobs.length === 0 ? (
@@ -581,34 +515,8 @@ export function App() {
               <p className="empty">No jobs match the current filters.</p>
             )
           ) : (
-            <table>
-              <thead>
-                <tr>
-                  <SortableTh
-                    label="Score"
-                    active={sortKey === 'fitScore'}
-                    dir={sortDir}
-                    onClick={() => toggleSort('fitScore')}
-                  />
-                  <th>Title</th>
-                  <th>Company</th>
-                  <th>Location</th>
-                  <th>Source</th>
-                  <SortableTh
-                    label="Salary"
-                    active={sortKey === 'salaryMax'}
-                    dir={sortDir}
-                    onClick={() => toggleSort('salaryMax')}
-                  />
-                  <SortableTh
-                    label="Posted"
-                    active={sortKey === 'postedAt'}
-                    dir={sortDir}
-                    onClick={() => toggleSort('postedAt')}
-                  />
-                  <th />
-                </tr>
-              </thead>
+            <table className={compact ? 'row-compact' : ''}>
+              <JobsTableHead sortKey={sortKey} sortDir={sortDir} onToggleSort={toggleSort} />
               <tbody>
                 {groups
                   ? groups.map((g) => (
@@ -630,32 +538,34 @@ export function App() {
                         onToggleJob={(id) => setExpanded(expanded === id ? null : id)}
                       />
                     ))
-                  : visible.map((j) => {
-                      const isOpen = expanded === j.id;
-                      const review = aiReviews[j.id];
-                      return (
-                        <FragmentRow
-                          key={j.id}
-                          job={j}
-                          isOpen={isOpen}
-                          review={review}
-                          applied={appliedById[j.id]}
-                          setApplied={setApplied}
-                          triggerAiApply={triggerAiApply}
-                          aiApplyBusyId={aiApplyBusyId}
-                          aiApplyResult={aiApplyResult}
-                          aiApplyError={aiApplyError}
-                          onToggle={() => setExpanded(isOpen ? null : j.id)}
-                        />
-                      );
-                    })}
+                  : visible.map((j) => (
+                      <FragmentRow
+                        key={j.id}
+                        job={j}
+                        isOpen={expanded === j.id}
+                        review={aiReviews[j.id]}
+                        applied={appliedById[j.id]}
+                        setApplied={setApplied}
+                        triggerAiApply={triggerAiApply}
+                        aiApplyBusyId={aiApplyBusyId}
+                        aiApplyResult={aiApplyResult}
+                        aiApplyError={aiApplyError}
+                        onToggle={() => setExpanded(expanded === j.id ? null : j.id)}
+                      />
+                    ))}
               </tbody>
             </table>
           )}
         </>
       )}
-      <FetchProgress onComplete={reloadJobsAndReviews} />
-      <AiApplyProgress onComplete={onAiApplyComplete} />
+      {/* LOW-9: SchedulerProgress lifted from Settings to App root so it
+          stays visible across tab changes and stacks predictably alongside
+          the other two docks. CSS class .dock-stack handles layout. */}
+      <div className="dock-stack">
+        <FetchProgress onComplete={reloadJobsAndReviews} />
+        <AiApplyProgress onComplete={onAiApplyComplete} />
+        <SchedulerProgress onComplete={onSchedulerComplete} />
+      </div>
     </div>
   );
 }
@@ -682,16 +592,6 @@ function FetchCta({ onFetch }: FetchCtaProps) {
       </p>
     </div>
   );
-}
-
-interface AiApplyResult {
-  jobId: string;
-  body: string;
-  path: string;
-}
-interface AiApplyError {
-  jobId: string;
-  error: string;
 }
 
 interface CompanyBlockProps {
@@ -815,32 +715,45 @@ function FragmentRow({
   onToggle,
   indent,
 }: FragmentRowProps) {
-  const rowClass = [applied ? 'applied' : '', isOpen ? 'open' : '', indent ? 'indent' : '']
+  const tier = scoreTier(job.fitScore);
+  const rowClass = [
+    applied ? 'applied' : '',
+    isOpen ? 'open' : '',
+    indent ? 'indent' : '',
+    review ? `has-verdict verdict-stripe-${review.verdict}` : '',
+  ]
     .filter(Boolean)
     .join(' ');
   const isMine = aiApplyBusyId === job.id;
   const otherBusy = aiApplyBusyId !== null && aiApplyBusyId !== job.id;
   const myResult = aiApplyResult && aiApplyResult.jobId === job.id ? aiApplyResult : null;
   const myError = aiApplyError && aiApplyError.jobId === job.id ? aiApplyError : null;
+  // Hover-preview tooltip: show a longer excerpt than the inline preview so
+  // the user can read more without expanding.
+  const titleTooltip = job.bodyPreview
+    ? `${job.title}\n\n${job.bodyPreview.slice(0, 600)}`
+    : job.title;
   return (
     <>
       <tr className={rowClass} onClick={onToggle}>
-        <td className={`score ${scoreTier(job.fitScore)}`}>
+        <td className={`score ${tier}`}>
           <span className="caret" aria-hidden>
             {isOpen ? '▾' : '▸'}
           </span>
-          {job.fitScore}
+          <ScoreBar score={job.fitScore} tier={tier} />
         </td>
-        <td className="title" title={job.title}>
-          <span className="clamp-2">
+        <td className="title" title={titleTooltip}>
+          <span className="title-row">
             {applied && (
               <span className={`badge badge-${applied.status}`} title={applied.notes}>
                 {STATUS_EMOJI[applied.status]} {applied.status}
               </span>
             )}
             {review && <span className={`badge verdict-${review.verdict}`}>{review.verdict}</span>}
-            {job.title}
+            <span className="title-text">{job.title}</span>
+            <SignalChips signals={job._signals} />
           </span>
+          {job.bodyPreview && <p className="body-preview">{job.bodyPreview}</p>}
         </td>
         <td className="company" title={job.company ?? ''}>
           <span className="clamp-2">{job.company ?? '—'}</span>
@@ -899,251 +812,6 @@ function FragmentRow({
   );
 }
 
-interface DetailPanelProps {
-  job: Job;
-  review: AiReview | undefined;
-  applied: AppliedEntry | undefined;
-  setApplied: SetApplied;
-  aiApplyResult: AiApplyResult | null;
-  aiApplyError: AiApplyError | null;
-}
-
-function DetailPanel({
-  job,
-  review,
-  applied,
-  setApplied,
-  aiApplyResult,
-  aiApplyError,
-}: DetailPanelProps) {
-  return (
-    <>
-      <AppliedBar job={job} applied={applied} setApplied={setApplied} />
-      {aiApplyError && (
-        <div className="api-error" role="alert">
-          AI Apply failed: {aiApplyError.error}
-        </div>
-      )}
-      {aiApplyResult && <AiApplyPanel body={aiApplyResult.body} path={aiApplyResult.path} />}
-      <div className="detail">
-        <section>
-          <h3>AI take</h3>
-          {review ? (
-            <ReviewBody review={review} />
-          ) : (
-            <p className="placeholder">
-              No AI review yet — run <code>pnpm run ai-review</code> after the next pipeline run.
-            </p>
-          )}
-        </section>
-        <section>
-          <h3>Score breakdown</h3>
-          {job._signals ? (
-            <SignalsList signals={job._signals} />
-          ) : (
-            <p className="placeholder">
-              No <code>_signals</code> on this job (older entry).
-            </p>
-          )}
-        </section>
-        <section>
-          <h3>Meta</h3>
-          <dl className="meta">
-            <dt>Location</dt>
-            <dd>
-              {job.location ?? '—'} {job.remote ? '· remote' : ''}
-            </dd>
-            <dt>Tags</dt>
-            <dd>{job.tags.length ? job.tags.join(', ') : '—'}</dd>
-            <dt>Posted</dt>
-            <dd>{job.postedAt ? new Date(job.postedAt).toLocaleDateString() : 'unknown'}</dd>
-            <dt>ID</dt>
-            <dd className="mono">{job.id}</dd>
-          </dl>
-        </section>
-      </div>
-    </>
-  );
-}
-
-interface AppliedBarProps {
-  job: Job;
-  applied: AppliedEntry | undefined;
-  setApplied: SetApplied;
-}
-
-function AppliedBar({ job, applied, setApplied }: AppliedBarProps) {
-  const [notesDraft, setNotesDraft] = useState(applied?.notes ?? '');
-  // Reset the notes draft whenever the underlying entry changes (e.g. after
-  // server confirms or status switches via the pills).
-  useEffect(() => {
-    setNotesDraft(applied?.notes ?? '');
-  }, [applied?.notes]);
-
-  const persistNotes = () => {
-    if (!applied) return;
-    const trimmed = notesDraft.trim();
-    if (trimmed === (applied.notes ?? '')) return;
-    void setApplied(job, applied.status, trimmed);
-  };
-
-  return (
-    <div className="applied-bar">
-      <span className="applied-label">
-        {applied ? (
-          <>
-            Currently{' '}
-            <strong>
-              {STATUS_EMOJI[applied.status]} {applied.status}
-            </strong>{' '}
-            since {applied.date}
-          </>
-        ) : (
-          'Not applied'
-        )}
-      </span>
-      <div className="applied-pills">
-        {STATUS_OPTIONS.map((s) => {
-          const active = applied?.status === s;
-          return (
-            <button
-              key={s}
-              type="button"
-              className={`pill ${active ? `pill-active pill-${s}` : ''}`}
-              aria-pressed={active}
-              onClick={() => void setApplied(job, active ? null : s)}
-              title={active ? 'Click to clear' : `Mark as ${s}`}
-            >
-              {active && (
-                <span className="pill-check" aria-hidden>
-                  ✓{' '}
-                </span>
-              )}
-              {STATUS_EMOJI[s]} {s}
-            </button>
-          );
-        })}
-        {applied && (
-          <button
-            type="button"
-            className="applied-clear"
-            onClick={() => void setApplied(job, null)}
-            title="Clear status"
-          >
-            clear
-          </button>
-        )}
-      </div>
-      {applied && (
-        <input
-          type="text"
-          className="applied-notes"
-          placeholder="notes (saved on blur)"
-          value={notesDraft}
-          onChange={(e) => setNotesDraft(e.target.value)}
-          onBlur={persistNotes}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') {
-              e.preventDefault();
-              (e.target as HTMLInputElement).blur();
-            }
-          }}
-        />
-      )}
-    </div>
-  );
-}
-
-function ReviewBody({ review }: { review: AiReview }) {
-  return (
-    <div className="review">
-      <p className="review-summary">{review.summary}</p>
-      {review.reason && (
-        <p className="review-reason">
-          <strong>Verdict:</strong> {review.reason}
-        </p>
-      )}
-      <div className="review-cols">
-        {review.wants.length > 0 && (
-          <div>
-            <h4>Wants</h4>
-            <ul>
-              {review.wants.map((w) => (
-                <li key={w}>{w}</li>
-              ))}
-            </ul>
-          </div>
-        )}
-        {review.offers.length > 0 && (
-          <div>
-            <h4>Offers</h4>
-            <ul>
-              {review.offers.map((o) => (
-                <li key={o}>{o}</li>
-              ))}
-            </ul>
-          </div>
-        )}
-        {review.redFlags.length > 0 && (
-          <div>
-            <h4>Red flags</h4>
-            <ul className="red-flags">
-              {review.redFlags.map((r) => (
-                <li key={r}>{r}</li>
-              ))}
-            </ul>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-const SIGNAL_LABELS: Record<keyof JobSignals, string> = {
-  web3TitleBody: 'web3 (title/body)',
-  web3Stack: 'web3 stack',
-  aiTitleBody: 'AI (title/body)',
-  aiStack: 'AI stack',
-  stackPrimary: 'React/Next/TS',
-  stackRn: 'React Native',
-  stackOther: 'GraphQL/Tailwind/Vite',
-  leadTitle: 'lead title',
-  seniorTitle: 'senior title',
-  frontendTitle: 'frontend title',
-  frontendBody: 'frontend body',
-  locationRemote: 'remote-friendly',
-  freshness7d: 'fresh ≤7d',
-  freshness14d: 'fresh ≤14d',
-  usCentricPenalty: 'US-centric penalty',
-  rawTotal: '',
-  capped: '',
-};
-
-function SignalsList({ signals }: { signals: JobSignals }) {
-  const fired = (Object.keys(signals) as (keyof JobSignals)[])
-    .filter((k) => k !== 'rawTotal' && k !== 'capped')
-    .map((k) => ({ key: k, label: SIGNAL_LABELS[k], value: signals[k] as number }))
-    .filter((s) => s.value !== 0);
-  return (
-    <ul className="signals">
-      {fired.map((s) => (
-        <li key={s.key}>
-          <span className="signal-label">{s.label}</span>
-          <span className={s.value > 0 ? 'signal-pos' : 'signal-neg'}>
-            {s.value > 0 ? '+' : ''}
-            {s.value}
-          </span>
-        </li>
-      ))}
-      <li className="signal-total">
-        <span className="signal-label">raw total</span>
-        <span>{signals.rawTotal}</span>
-      </li>
-      {signals.capped && <li className="signal-total muted">(capped at 100)</li>}
-    </ul>
-  );
-}
-
 interface SortableThProps {
   label: string;
   active: boolean;
@@ -1160,6 +828,44 @@ function SortableTh({ label, active, dir, onClick }: SortableThProps) {
         {arrow}
       </button>
     </th>
+  );
+}
+
+interface JobsTableHeadProps {
+  sortKey: SortKey;
+  sortDir: SortDir;
+  onToggleSort: (k: SortKey) => void;
+}
+
+function JobsTableHead({ sortKey, sortDir, onToggleSort }: JobsTableHeadProps) {
+  return (
+    <thead>
+      <tr>
+        <SortableTh
+          label="Score"
+          active={sortKey === 'fitScore'}
+          dir={sortDir}
+          onClick={() => onToggleSort('fitScore')}
+        />
+        <th>Title</th>
+        <th>Company</th>
+        <th>Location</th>
+        <th>Source</th>
+        <SortableTh
+          label="Salary"
+          active={sortKey === 'salaryMax'}
+          dir={sortDir}
+          onClick={() => onToggleSort('salaryMax')}
+        />
+        <SortableTh
+          label="Posted"
+          active={sortKey === 'postedAt'}
+          dir={sortDir}
+          onClick={() => onToggleSort('postedAt')}
+        />
+        <th />
+      </tr>
+    </thead>
   );
 }
 
@@ -1184,68 +890,4 @@ function sortValue(j: Job, key: SortKey): number {
   if (key === 'fitScore') return j.fitScore;
   if (key === 'salaryMax') return j.salaryMax ?? 0;
   return j.postedAt ? new Date(j.postedAt).getTime() : 0;
-}
-
-interface AiApplyPanelProps {
-  body: string;
-  path: string | null;
-}
-
-// Renders the AI Apply markdown package with a copy-to-clipboard button per
-// `## Section`. The user copy/pastes each section into the actual application
-// form. (Phase 2: replace this with a "Submit via Playwright" flow that
-// auto-fills the live application.)
-function AiApplyPanel({ body, path }: AiApplyPanelProps) {
-  const sections = useMemo(() => splitMarkdownByH2(body), [body]);
-  return (
-    <div className="ai-apply-panel">
-      <header>
-        <strong>✨ AI Apply package</strong>
-        {path && <span className="muted"> · saved to {path}</span>}
-      </header>
-      {sections.length === 0 ? (
-        <pre className="ai-apply-raw">{body}</pre>
-      ) : (
-        sections.map((s) => (
-          <section key={s.heading} className="ai-apply-section">
-            <header>
-              <h4>{s.heading}</h4>
-              <button
-                type="button"
-                className="ai-apply-copy"
-                onClick={() => {
-                  void navigator.clipboard.writeText(s.body.trim());
-                }}
-              >
-                Copy
-              </button>
-            </header>
-            <pre>{s.body.trim()}</pre>
-          </section>
-        ))
-      )}
-    </div>
-  );
-}
-
-interface MarkdownSection {
-  heading: string;
-  body: string;
-}
-
-function splitMarkdownByH2(md: string): MarkdownSection[] {
-  const lines = md.split('\n');
-  const out: MarkdownSection[] = [];
-  let current: MarkdownSection | null = null;
-  for (const line of lines) {
-    const m = line.match(/^##\s+(.+)$/);
-    if (m?.[1]) {
-      if (current) out.push(current);
-      current = { heading: m[1].trim(), body: '' };
-    } else if (current) {
-      current.body += `${line}\n`;
-    }
-  }
-  if (current) out.push(current);
-  return out;
 }

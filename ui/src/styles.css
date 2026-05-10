@@ -1313,14 +1313,48 @@ tbody tr.indent td.score {
   max-height: 240px;
   overflow-y: auto;
 }
-/* When both fetch-jobs AND scheduler dock are mounted, stack scheduler above. */
-.fetch-progress-scheduler {
-  bottom: calc(1rem + 360px);
+/* MED-3: dock-stack container — all bottom-right docks render inside this
+   flex column so they stack naturally instead of using hardcoded
+   `bottom: calc(...)` offsets that push docks off-screen on small
+   viewports. Worker B's App.tsx wraps <FetchProgress />, <AiApplyProgress />
+   and <SchedulerProgress /> in <div class="dock-stack">. */
+.dock-stack {
+  position: fixed;
+  right: 1rem;
+  bottom: 1rem;
+  z-index: 50;
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 0.75rem;
+  max-height: calc(100vh - 2rem);
+  pointer-events: none;
 }
-/* AI Apply dock stacks above scheduler when both are visible. */
+.dock-stack > * {
+  /* biome-ignore lint/complexity/noImportantStyles: required to neutralize .fetch-progress { position: fixed } when nested inside .dock-stack */
+  position: static !important;
+  pointer-events: auto;
+}
 .fetch-progress-aiapply {
-  bottom: calc(1rem + 720px);
   width: 320px;
+}
+@media (max-height: 720px) {
+  .dock-stack {
+    max-height: calc(100vh - 1rem);
+    bottom: 0.5rem;
+  }
+  .dock-stack > * {
+    max-height: 32vh;
+  }
+}
+@media (max-width: 480px) {
+  .dock-stack {
+    left: 0.5rem;
+    right: 0.5rem;
+  }
+  .dock-stack > * {
+    /* biome-ignore lint/complexity/noImportantStyles: required to override component-set width when reparented into .dock-stack on narrow viewports */
+    width: auto !important;
+  }
 }
 .fetch-progress-meta {
   padding: 0.375rem 0.875rem;
@@ -2074,4 +2108,163 @@ tbody tr.indent td.score {
   display: flex;
   justify-content: flex-end;
   gap: 0.5rem;
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   Jobs table — preview, signal chips, score bar, verdict stripe
+   ───────────────────────────────────────────────────────────────── */
+
+/* Title-cell layout: badges + title + chips on one wrapping row, then the
+   body preview underneath. Keeps the existing 2-line clamp behaviour for
+   very long titles via `clamp-2` but replaces the wrapper so chips can sit
+   inline with the title. */
+.title-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.375rem 0.5rem;
+  min-width: 0;
+}
+
+.title-text {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  word-break: break-word;
+  flex: 1 1 auto;
+  min-width: 12rem;
+}
+
+.body-preview {
+  margin: 0.25rem 0 0;
+  color: var(--muted);
+  font-size: 0.8125rem;
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  word-break: break-word;
+}
+
+.signal-chip {
+  display: inline-flex;
+  align-items: center;
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 0.625rem;
+  font-weight: 600;
+  padding: 0.0625rem 0.375rem;
+  border-radius: 999px;
+  background: var(--badge-applied-bg);
+  color: var(--badge-applied-fg);
+  border: 1px solid var(--applied-border);
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  line-height: 1.4;
+}
+
+/* Score bar — replaces the plain numeric score with a visual bar + number.
+   The bar fill colour matches the row's score tier so high-fit jobs pop
+   without the user reading the digit. */
+.score-bar {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4375rem;
+  vertical-align: middle;
+}
+
+.score-bar-track {
+  display: inline-block;
+  width: 56px;
+  height: 6px;
+  background: var(--row-hover);
+  border-radius: 3px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+
+.score-bar-fill {
+  display: block;
+  height: 100%;
+  border-radius: 2px;
+  background: var(--muted);
+  transition: width 0.2s ease;
+}
+
+.score-bar-fill.score-high {
+  background: var(--score-high);
+}
+
+.score-bar-fill.score-mid {
+  background: var(--score-mid);
+}
+
+.score-bar-fill.score-low {
+  background: var(--muted);
+}
+
+.score-bar-num {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  min-width: 1.75rem;
+  text-align: right;
+}
+
+/* AI verdict left-edge stripe. Sits on the score cell so it reads as a
+   spine for the row — same pattern as `tbody tr.applied { border-left }`. */
+tbody tr.has-verdict td.score {
+  border-left: 6px solid transparent;
+  padding-left: 0.5rem;
+}
+
+tbody tr.verdict-stripe-strong-match td.score {
+  border-left-color: var(--score-high);
+}
+
+tbody tr.verdict-stripe-match td.score {
+  border-left-color: var(--accent);
+}
+
+tbody tr.verdict-stripe-weak-match td.score {
+  border-left-color: var(--score-mid);
+}
+
+tbody tr.verdict-stripe-skip td.score {
+  border-left-color: var(--badge-rejected-fg);
+}
+
+/* When both `applied` (3px applied stripe) and a verdict apply, the
+   verdict stripe wins because it carries more information for fit triage.
+   The applied background tint is preserved by the .applied bg rule. */
+
+/* Compact mode — shrink td/th padding to fit more rows on screen. */
+table.row-compact th,
+table.row-compact td {
+  padding: 0.375rem 0.5rem;
+}
+
+table.row-compact .body-preview {
+  -webkit-line-clamp: 1;
+  line-clamp: 1;
+  margin-top: 0.125rem;
+}
+
+table.row-compact .score-bar-track {
+  width: 40px;
+}
+/* MED-1: when a row carries BOTH .applied (background tint + 3px stripe)
+   AND .has-verdict (6px stripe on td.score), the two stripes stack visibly.
+   Suppress the row-level applied stripe so the verdict color owns the spine
+   — the .applied background tint still communicates applied state. */
+tbody tr.applied.has-verdict {
+  border-left: none;
+}
+/* LOW-2: in compact mode, hide signal chips entirely. They wrap to a 2nd
+   line on narrow screens and undermine the density goal. The full breakdown
+   is still one click away in the expanded detail panel. */
+table.row-compact .signal-chip {
+  display: none;
 }
