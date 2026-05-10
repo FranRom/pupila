@@ -4,9 +4,11 @@ Guidance for future Claude Code sessions working in this repo.
 
 ## Overview
 
-`job-hunt` is a personal job aggregator that runs daily on GitHub Actions. It fetches listings from 13 public sources (3 ATS APIs — Ashby, Greenhouse, Lever — plus RSS feeds, JSON job boards, Hacker News, HTML scrapers, an Aave Next.js scraper, and `ashby-private` — a config-driven fetcher for orgs hosted on Ashby with the public posting-API disabled), normalizes them, applies hard exclusion filters, computes a per-job `fitScore`, deduplicates, and writes `data/jobs.json`, an RSS feed at `data/feed.xml`, and an auto-regenerated `JOBS.md` table. The hand-written `README.md` is the project doc and is **not** rewritten by the pipeline. No external services. No DB. Output lives in this repo.
+`job-hunt` is a **config-driven, forkable** daily job aggregator. It fetches listings from 13 public sources (3 ATS APIs — Ashby, Greenhouse, Lever — plus RSS feeds, JSON job boards, Hacker News, HTML scrapers, an Aave Next.js scraper, and `ashby-private` — a config-driven fetcher for orgs hosted on Ashby with the public posting-API disabled), normalizes them, applies hard exclusion filters, computes a per-job `fitScore`, deduplicates, and writes `data/jobs.json`, an RSS feed at `data/feed.xml`, and an auto-regenerated `JOBS.md` table. The hand-written `README.md` is the project doc and is **not** rewritten by the pipeline. No external services. No DB. Output lives in this repo.
 
-The pipeline is tuned for: senior/lead/staff frontend, web3 (EVM + Solana), and AI engineering roles, remote / EMEA / worldwide.
+The repo ships a **neutral template** in `config/profile.json`. After onboarding (CV upload → brief generation), `/api/profile-generate` shells out to the local LLM CLI to fill in the personal keyword lists + weights based on the brief. Re-runnable from Settings → Scoring profile → Regenerate. `config/slugs.json` ships with the full ~50-company tier-S list (all public ATS URLs — non-personal data, edit by hand to add/remove companies).
+
+**First-run UX**: a forker generates their `config/candidate-brief.md` by running `pnpm run setup-brief --file ~/cv.pdf` (or via the UI's Profile tab → drop a PDF/DOCX/MD CV). That CLI shells out to whichever local LLM CLI is installed (`claude`, `codex`, `gemini`, `opencode` — auto-detected, override via `JOB_HUNT_LLM=<provider>`).
 
 ## Stack
 
@@ -21,7 +23,7 @@ The pipeline is tuned for: senior/lead/staff frontend, web3 (EVM + Solana), and 
 
 ```bash
 pnpm install                # also installs the pre-commit hook
-pnpm run dev                # tsx, no build step (this is what CI runs too)
+pnpm run dev                # tsx, no build step (this is what the launchd/cron aggregate agent runs)
 pnpm start                  # built output: requires pnpm run build first
 pnpm run typecheck          # tsc --noEmit on src/, then on src/+tests/ via tsconfig.test.json
 pnpm run lint               # biome check
@@ -33,8 +35,17 @@ pnpm run ai-review          # local-only: shells out to `claude -p` to write dat
 pnpm run ai-review --top=50 # raise the per-run cap (default 20 highest-fitScore unreviewed)
 pnpm run ai-review --force  # re-review entries that already exist
 pnpm run ai-review --ids=a,b # review specific job ids only
+pnpm run setup-brief --file ~/cv.pdf  # generate config/candidate-brief.md from a CV (PDF/DOCX/MD/TXT)
 pnpm run daily              # convenience: pnpm run dev && pnpm run ai-review (morning routine)
+pnpm run clean              # wipe locally-generated artifacts (jobs.json, JOBS.md, feed.xml, archives, logs)
+pnpm run clean -- --all     # also wipe candidate-brief.md + applied.json (full reset)
 ```
+
+**Mandatory CV gate.** `pnpm run dev` checks for `config/candidate-brief.md` at startup and exits 1 with a setup hint if missing. Bypass with `JOB_HUNT_NO_BRIEF_CHECK=1` or `--no-brief-check` for raw-aggregator mode.
+
+**First-run onboarding.** When `config/preferences.json` is missing or has `onboardedAt: null`, opening the UI shows a 3-step wizard (`ui/src/Onboarding.tsx`): pick LLM CLI → drop CV → confirm generated brief. The wizard POSTs `/api/preferences` with the chosen provider + today's date as `onboardedAt`, which becomes a one-shot gate — once stamped, the wizard never re-triggers even if the brief is later removed.
+
+**AI Apply (per-job).** UI rows have an `AI Apply ✨` button next to the existing `Apply ↗` link. Clicking it POSTs `/api/ai-apply` with `{ jobId }`, which runs the chosen LLM CLI on (brief + job posting + CV file) and writes a tailored cover-letter package to `data/applications/<jobId>.md`. The job is auto-marked as applied. The middleware lives in `ui/vite.config.ts` (`aiApplyApiPlugin`); search for `// TODO: Phase 2` to find the spots where browser-driven autosubmit would plug in. The headless LLM CLIs can't drive a browser, so v1 stops at "generate the package, user copy/pastes".
 
 The pipeline writes to `data/jobs.json` (slim — `body` field stripped), `data/feed.xml` (RSS 2.0 of new jobs), `JOBS.md`, optionally `data/archive/<YYYY-MM>.json` on day 1 of the month, and per-source raw dumps in `data/raw/<source>-<YYYY-MM-DD>.json` (gitignored). `README.md` is hand-maintained — never overwrite it from code.
 
@@ -50,11 +61,16 @@ src/
   rss.ts            # shared fast-xml-parser wrapper
   normalize.ts      # one normalize<Source> per source -> Job (uses withSalary() for parsed salary fields)
   salary.ts         # parseSalary(): raw string -> { min, max, currency } (annual integer, ISO code)
-  filters.ts        # hard excludes + scoring + category + _signals (loads config/profile.json)
+  filters.ts        # createFilters(profile) factory + applyFilters default. Hard excludes + scoring + category + _signals.
   applied.ts        # loads config/applied.json, attaches AppliedEntry to Job by URL hash
   dedup.ts          # 2-pass dedup, priority-aware tiebreak
   render.ts         # JOBS.md markdown (applied, ✨ new, 🗑 removed, 🚨 source-health, status/salary in title)
   feed.ts           # RSS 2.0 generator -> data/feed.xml (top 50 ✨ new jobs)
+  setup-brief.ts    # CLI: parse CV (pdf/docx/md/txt) → LLM CLI → write config/candidate-brief.md
+  lib/
+    llm.ts            # detectLlmCli + runLlm — provider-agnostic shell-out (claude/codex/gemini/opencode)
+    cv-parser.ts      # parseCvBuffer + parseCvFile (pdfjs-dist for PDF, mammoth for DOCX, raw text otherwise)
+    brief-template.ts # readBriefBody / writeBriefBody — preserve preamble + markers in candidate-brief.md
   fetchers/
     _shared.ts                                              # fetchMultiSlug orchestration helper
     ashby.ts            greenhouse.ts       lever.ts        # ATS APIs (public, multi-slug)
@@ -65,12 +81,23 @@ src/
     remoteok.ts         remotive.ts         weworkremotely.ts
 
 config/
-  slugs.json        # tier-S Ashby/Greenhouse/Lever slug arrays
-  profile.json      # scoring weights + keyword lists (non-code tuning surface)
-  applied.json      # hand-edited list of jobs you've applied to
+  slugs.json                  # tier-S Ashby/Greenhouse/Lever slug arrays — committed, neutral defaults
+  profile.json                # scoring weights + keyword lists — committed, neutral defaults
+  candidate-brief.md          # GITIGNORED — LLM-generated CV summary (run setup-brief or copy from .example)
+  candidate-brief.example.md  # committed template; copied to candidate-brief.md if user prefers manual setup
+  applied.json                # GITIGNORED — personal application history (UI writes here via /api/applied)
+  applied.example.json        # committed template (empty array)
+  preferences.json            # GITIGNORED — { provider, onboardedAt }; written by the onboarding wizard
+  cv.{pdf,docx,md,txt}        # GITIGNORED — raw CV file kept on disk so AI Apply can re-attach it
+
+scripts/
+  install-launchd.sh # macOS local scheduler — wraps `pnpm run daily` in a launchd agent
+  install-cron.sh    # Linux local scheduler — appends a crontab entry for `pnpm run daily`
 
 tests/
-  filters.test.ts          # 33 cases — hard drops, droppedByRule, scoring, plurals, frontendBody, boilerplate, tiered weighting
+  fixtures/
+    test-profile.json     # frozen tuned profile used by filters.test.ts so scoring assertions don't shift when config/profile.json is genericized
+  filters.test.ts          # 33 cases — hard drops, droppedByRule, scoring, plurals, frontendBody, boilerplate, tiered weighting; uses createFilters(testProfile)
   dedup.test.ts            # 10 cases — id/title collapse, priority, compareJobs salary/postedAt/id chain
   applied.test.ts          # 4 cases  — STATUS_EMOJI map + summarizeApplied grouping/ordering
   salary.test.ts           # 15 cases — K/M suffix, currency detection, hourly→annual, free-text fallback
@@ -97,8 +124,7 @@ tsconfig.test.json  # extends above with rootDir=. so tests/ typecheck without l
 
 .github/
   workflows/
-    jobs.yml        # daily cron + auto-commit (commits jobs.json + archive + JOBS.md)
-    keepalive.yml   # weekly cron to keep schedules alive
+    check.yml       # PR/push: biome + typecheck + tests + build + audit (only remaining workflow)
     check.yml       # PR/push: lint + typecheck + test + audit
   dependabot.yml    # weekly npm + github-actions PRs
 ```
@@ -229,7 +255,7 @@ Wired in `src/index.ts` after dedup+sort: every kept job gets `job.applied = app
 
 **Don't filter applied jobs out of the main list.** The user explicitly asked for them to remain visible.
 
-**Persistence model.** Edits made via the UI go straight to disk (`config/applied.json`), but they only carry across `pnpm run dev` runs because the next pipeline run reads that file. To survive across machines / a fresh checkout / a CI run, the user has to commit `config/applied.json`. The auto-commit pattern in `jobs.yml` does NOT include `config/applied.json` — that's deliberate (the workflow shouldn't touch user-owned config), so this is a manual `git commit` step in the daily routine.
+**Persistence model.** Edits made via the UI go straight to disk (`config/applied.json`). Future `pnpm run dev` runs (whether triggered by you or by the launchd/cron agent) re-read it. There's no auto-commit anymore — the project is local-first. If you want to keep applied edits across machines, commit `config/applied.json` manually (or symlink it in from a private dotfiles repo).
 
 ## Dedup
 
@@ -265,7 +291,7 @@ The read happens **after** filter+dedup+sort but **before** `writeJson('data/job
 
 ## RSS feed
 
-[`src/feed.ts`](./src/feed.ts) emits a hand-rolled RSS 2.0 XML to `data/feed.xml` containing the top 50 `newJobs` by `fitScore`. The XML is hand-built (not via fast-xml-parser) because we control the content shape — `escapeXml` covers the five entity classes. The workflow's auto-commit `file_pattern` includes `data/feed.xml`. To subscribe: point any RSS reader at `https://raw.githubusercontent.com/FranRom/job-hunt/main/data/feed.xml`.
+[`src/feed.ts`](./src/feed.ts) emits a hand-rolled RSS 2.0 XML to `data/feed.xml` containing the top 50 `newJobs` by `fitScore`. The XML is hand-built (not via fast-xml-parser) because we control the content shape — `escapeXml` covers the five entity classes. The feed metadata (title, description, link) is overridable via `JOB_HUNT_FEED_TITLE` / `JOB_HUNT_FEED_DESC` / `JOB_HUNT_FEED_LINK` env vars. To subscribe locally, point your RSS reader at the `file://` path of `data/feed.xml`. (No remote URL anymore — the project is local-first.)
 
 ## Salary parsing
 
@@ -279,17 +305,15 @@ The read happens **after** filter+dedup+sort but **before** `writeJson('data/job
 
 ## GitHub Actions
 
-Three workflows total:
+One workflow only — the project moved to local-first scheduling.
 
-- **`.github/workflows/jobs.yml`** — `0 7 * * *` daily + `workflow_dispatch`. Runs `pnpm run dev` (no build step). Auto-commits `data/jobs.json`, `data/feed.xml`, the `data/archive` directory, and `JOBS.md` if anything changed. `permissions: contents: write`. The auto-commit pattern uses the `data/archive` directory (not a glob) because `data/archive/*.json` errors when no files match — keep `data/archive/.gitkeep` so the directory always exists.
-- **`.github/workflows/check.yml`** — every push to `main` and every PR. Lint, typecheck, test, audit. `permissions: contents: read`.
-- **`.github/workflows/keepalive.yml`** — `0 12 * * 0` weekly. Touches `.keepalive` so GitHub doesn't disable the daily schedule after 60 days of repo inactivity.
+- **`.github/workflows/check.yml`** — every push to `main` and every PR. Six gates: Biome lint, typecheck (3 tsconfigs), Vitest, `tsc` build, Vite UI build, `pnpm audit`. `permissions: contents: read`.
+
+The previously included `jobs.yml` (daily aggregator cron) and `keepalive.yml` (cron-keepalive) workflows were removed. Daily aggregation now runs locally via `scripts/install-launchd.sh` (macOS) or `scripts/install-cron.sh` (Linux), which install two agents: one for `pnpm run dev`, one for `pnpm run ai-review`. See README "Schedule the daily run" for usage.
 
 `.github/dependabot.yml` opens weekly grouped PRs for npm + github-actions.
 
-**Pinning.** All third-party actions in every workflow are referenced by full 40-char commit SHA, not a floating `@v4` / `@v5` tag, with the version in a trailing comment. When updating an action, replace both the SHA and the comment. Dependabot will keep these current via PRs.
-
-To trigger the daily run manually: `gh workflow run jobs.yml`.
+**Pinning.** All third-party actions are referenced by full 40-char commit SHA, not a floating `@v4` / `@v5` tag, with the version in a trailing comment. When updating an action, replace both the SHA and the comment. Dependabot keeps these current via PRs.
 
 ## Tests
 
@@ -311,7 +335,7 @@ When tuning a filter regex or scoring weight (in `config/profile.json` or `filte
 
 ## Local UI (`pnpm run ui`)
 
-A Vite + React 19 dashboard at `ui/` that reads `data/jobs.json` and `data/ai-reviews.json` directly via JSON import. **Local-only — no auth, no hosting, intentionally not exposed beyond `127.0.0.1:5173`** (the user explicitly chose this over public Pages because a public dashboard surfacing their applied-job statuses could be Google-indexed and visible to recruiters). Don't add a `pnpm run ui:deploy` or wire it into a workflow without explicit instruction.
+A Vite + React 19 dashboard at `ui/` that fetches `data/jobs.json` and `data/ai-reviews.json` from `/api/jobs` and `/api/reviews` (Vite middleware in `ui/vite.config.ts`) — those files are gitignored personal artifacts so static imports would force them to exist at build time, which is brittle. **Local-only — no auth, no hosting, intentionally not exposed beyond `127.0.0.1:5173`** (the user explicitly chose this over public Pages because a public dashboard surfacing their applied-job statuses could be Google-indexed and visible to recruiters). Don't add a `pnpm run ui:deploy` or wire it into a workflow without explicit instruction.
 
 Single-component MVP (no router, no state-management lib): filter chips for category/source/applied, search box, sortable columns (score / salaryMax / postedAt), dark-mode via `prefers-color-scheme`. Score cells are tier-colored (green ≥80, gold 50-79, muted <50). Long company/title cells are clamped to 2 lines via `display: -webkit-box` (the clamp is on a `<span>` wrapper inside the `<td>` — applying it directly on the `<td>` breaks table-cell layout).
 
@@ -321,7 +345,7 @@ Single-component MVP (no router, no state-management lib): filter chips for cate
 
 **URL-encoded state.** All filter / sort / group / expand state syncs to `window.location.search` via `history.replaceState` (no back-button spam). Keys: `q` (search), `cat`, `src`, `applied=1`, `sort`, `dir=asc`, `group=0` (only when off, since on is the default), `expanded=<jobId>`, `co=<lowercased-company>`. Defaults are omitted from the URL to keep it short. On load the App reads the URL once via a `useMemo` lazy initializer; afterwards a single `useEffect` writes back any state change. **Don't use `pushState`** — every keystroke would create a history entry.
 
-**Mark-as-applied from the UI.** The expanded detail panel has an "Applied" bar with status pills (📝 applied / 💬 interview / 🎯 offer / ❌ rejected / ⏸ withdrawn) plus a notes input. Clicking a pill toggles the status; clicking the active pill again clears it. Notes save on blur or Enter. All edits go through a small Vite middleware (`appliedApiPlugin` in `ui/vite.config.ts`) exposing `GET / POST / DELETE /api/applied`, which reads/writes `config/applied.json` directly. The UI uses optimistic updates (the pill flips immediately; a failure rolls back and surfaces a banner). On mount, the App fetches `/api/applied` and reconciles with the baked-in `j.applied` field from `jobs.json`, so hand-edits or changes from a prior session show up correctly. The middleware only runs under `pnpm run ui` — a static `pnpm run ui:build` preview won't have it (the UI silently falls back to the baked-in state). `config/applied.json` is the same file `loadAppliedMap` reads in `pnpm run dev`, so subsequent pipeline runs pick up UI edits with no extra plumbing. **The user must `git add config/applied.json && git commit` to keep edits across machines / a fresh checkout / a CI run** — the workflow's auto-commit pattern deliberately doesn't include `config/applied.json`.
+**Mark-as-applied from the UI.** The expanded detail panel has an "Applied" bar with status pills (📝 applied / 💬 interview / 🎯 offer / ❌ rejected / ⏸ withdrawn) plus a notes input. Clicking a pill toggles the status; clicking the active pill again clears it. Notes save on blur or Enter. All edits go through a small Vite middleware (`appliedApiPlugin` in `ui/vite.config.ts`) exposing `GET / POST / DELETE /api/applied`, which reads/writes `config/applied.json` directly. The UI uses optimistic updates (the pill flips immediately; a failure rolls back and surfaces a banner). On mount, the App fetches `/api/applied` and reconciles with the baked-in `j.applied` field from `jobs.json`, so hand-edits or changes from a prior session show up correctly. The middleware only runs under `pnpm run ui` — a static `pnpm run ui:build` preview won't have it (the UI silently falls back to the baked-in state). `config/applied.json` is the same file `loadAppliedMap` reads in `pnpm run dev`, so subsequent pipeline runs pick up UI edits with no extra plumbing. **The user must `git add config/applied.json && git commit` to keep edits across machines / a fresh checkout** — the project is local-first now, so nothing is auto-pushed anywhere.
 
 `ui/src/types.ts` is a deliberate copy of the relevant subset of `src/types.ts` (`Job`, `JobSignals`, `AppliedEntry`, `AiReview`, `AiReviews`). The pipeline strips `body` from the persisted `data/jobs.json`, but **`_signals` is kept** so the UI can render it without re-running scoring. Don't rewrite ui/src/types.ts to import from `src/types.ts` — that pulls in `with { type: 'json' }` config imports that don't resolve in the browser context.
 
@@ -329,14 +353,29 @@ The HTML has `<meta name="robots" content="noindex,nofollow">` as belt-and-suspe
 
 `pnpm run typecheck` runs all three TS configs: `tsconfig.json`, `tsconfig.test.json`, and `ui/tsconfig.json`.
 
+### Settings tab
+
+Third tab next to Jobs / Profile (`ui/src/Settings.tsx`). Six numbered panels (`[01]`..`[06]`) — terminal-grade dashboard aesthetic that matches the rest of the app. All panels backed by Vite middleware in `ui/vite.config.ts`:
+
+1. **LLM CLI** — switch the configured provider (POST `/api/preferences`) and "Test connection" (POST `/api/llm-test`, runs a 6-token prompt with a 30s timeout, shows latency badge: green ≤3s, yellow ≤10s, red >10s). The header shows a chip with the currently active provider.
+2. **Scheduler** — full lifecycle, not just read-only. GET `/api/scheduler-status` runs `launchctl list` (darwin) or `crontab -l` (linux) to detect `dev.${USER}.job-hunt.aggregate` / `.review` and reads log mtimes for "last run X ago". POST `/api/scheduler-install` (body `{ skipReview }`) and POST `/api/scheduler-uninstall` spawn the bundled `scripts/install-launchd.sh` / `install-cron.sh` (auto-detected by platform) — both write user-level state (LaunchAgents plist or crontab), so each is gated by an in-app confirm modal. The `[Run]` button on each `terminal-block` triggers the op; the `<SchedulerProgress />` docked card streams the script's stdout while it runs (shares the FetchProgress visual). On completion the scheduler-status pills automatically refresh. Single in-flight scheduler op enforced server-side.
+3. **Last run** — GET `/api/run-summary` parses `data/jobs.json` for total kept, by-category counts, and per-source kept counts. Sources with `kept === 0` get a 🚨 chip. `generatedAt` derives from `max(job.fetchedAt)` with mtime fallback; `ageHours >= 24` shows a "stale" warning in the section header.
+4. **Disk usage** — GET `/api/disk-usage` walks `data/raw`, `data/applications`, `data/archive` with depth cap 4, returns `{ bytes, files }` per bucket. Each row shows a proportional bar so the relative weight is visible at a glance.
+5. **Maintenance** — three buttons that POST `/api/clean` with `mode: 'default'|'all'|'onboarding'`. Each click opens a styled confirm modal (Esc-dismissable, click-outside-dismissable) describing exactly what gets deleted; on success the panel auto-refreshes scheduler/run-summary/disk. The endpoint serializes runs (409 if one is in flight) and shells out to `pnpm exec tsx scripts/clean.ts [<flag>]` so the same logic powers CLI and UI.
+6. **Environment** — GET `/api/env` returns `{ node, platform, repoRoot, briefPresent, cvPresent, providers, preferredProvider }`. "Refresh all" button re-fetches every panel.
+
+**Long-running ops UX.** Both `/api/fetch-jobs` and `/api/scheduler-install` (+ uninstall) follow the same pattern: POST starts, GET polls, in-memory state with a single concurrent run lock. The UI side renders a docked card in the bottom-right corner via `FetchProgress.tsx` / `SchedulerProgress.tsx` — they share the `.fetch-progress*` CSS so the affordance is visually identical. When both could appear simultaneously, the scheduler dock stacks above the fetch dock via `.fetch-progress-scheduler { bottom: calc(1rem + 360px); }`.
+
+**Shared helpers.** `relativeTime` and `formatBytes` live in `ui/src/format.ts` and are used by App, Settings, FetchProgress, and SchedulerProgress. The previous inline `relativeTime` in `App.tsx` was extracted there — granularity changed slightly (now reports `Nm ago` / `Nh ago` for sub-day diffs instead of "today"), which is a deliberate improvement for the Settings last-run case.
+
 ## AI per-job review (`pnpm run ai-review`)
 
-[`src/ai-review.ts`](./src/ai-review.ts) is a **local-only** companion to the daily pipeline that augments selected jobs with an LLM review. It shells out to `claude -p "<prompt>"` per job, which uses the user's Claude Code subscription (e.g. Max plan) — **not** the Anthropic API, so there are no per-token charges. **Don't try to run this from GitHub Actions.** A workflow runner can't auth as the Max-subscribed user; if you ever want a hosted run you'd need to switch to the Anthropic API SDK with an API key (separate billing).
+[`src/ai-review.ts`](./src/ai-review.ts) is a **local-only** companion to the daily pipeline that augments selected jobs with an LLM review. It shells out via `src/lib/llm.ts` (auto-detects `claude` / `codex` / `gemini` / `opencode` on PATH, override with `JOB_HUNT_LLM=<provider>`). The CLI uses the user's local subscription (e.g. Claude Max) — **not** an API key, so there are no per-token charges. With the new local-first scheduling, the launchd/cron review agent runs this every day at 07:15 by default. If you don't have an LLM CLI installed, run `scripts/install-launchd.sh --no-review` (or the cron equivalent) to skip the review step.
 
 **Inputs:**
-- `data/jobs.json` — the slim list (committed)
+- `data/jobs.json` — the slim list (gitignored; auto-created by `pnpm run dev`)
 - `data/jobs-bodies.json` — sidecar with full bodies (gitignored, regenerated by `pnpm run dev` so the AI step has the body to review)
-- `data/ai-reviews.json` — existing reviews (committed; starts as `{}`)
+- `data/ai-reviews.json` — existing reviews (gitignored; auto-created by `pnpm run ai-review`)
 - `config/candidate-brief.md` — natural-language description of who the candidate is and what they're avoiding. Hand-edited. The prompt embeds it verbatim, so this is the main lever for tuning what "match" / "skip" actually mean.
 
 **Output:** `data/ai-reviews.json`, a `Record<jobId, AiReview>` map. Each `AiReview` carries a one-sentence summary, 3 bullets each for `wants` / `offers` / `redFlags`, a verdict (`strong-match | match | weak-match | skip`), and a one-sentence `reason` explaining the verdict (especially when the LLM disagrees with the rule-based fitScore). The script writes after every successful review so a Ctrl-C or rate-limit kill leaves a partial-but-valid file.

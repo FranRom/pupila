@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { applyFilters } from '../src/filters.js';
+import { createFilters, type FilterProfile } from '../src/filters.js';
 import type { Job } from '../src/types.js';
+import testProfile from './fixtures/test-profile.json' with { type: 'json' };
+
+// Tests run against a stable fixture profile (Fran's tuned values) so
+// scoring assertions don't shift when `config/profile.json` is genericized.
+const { applyFilters } = createFilters(testProfile as FilterProfile);
 
 function makeJob(overrides: Partial<Job> = {}): Job {
   const now = new Date().toISOString();
@@ -54,6 +59,67 @@ describe('applyFilters — hard excludes', () => {
     const r = applyFilters([makeJob({ body: 'Candidates must be located in the United States.' })]);
     expect(r.kept).toHaveLength(0);
     expect(r.droppedHard).toBe(1);
+  });
+
+  it('drops when location field says "Remote, USA"', () => {
+    const r = applyFilters([
+      makeJob({ location: 'Remote, USA', body: 'We do many things and ship products.' }),
+    ]);
+    expect(r.kept).toHaveLength(0);
+    expect(r.droppedHard).toBe(1);
+    expect(r.droppedByRule.hard_us_or_onsite).toBe(1);
+  });
+
+  it('drops when body says "EST timezone required"', () => {
+    const r = applyFilters([
+      makeJob({ body: 'Remote-friendly position. EST timezone required for daily standups.' }),
+    ]);
+    expect(r.kept).toHaveLength(0);
+    expect(r.droppedHard).toBe(1);
+  });
+
+  it('drops "US-only" or "US-based" callouts in body', () => {
+    const r1 = applyFilters([makeJob({ body: 'This is a US-only position with great benefits.' })]);
+    const r2 = applyFilters([makeJob({ body: 'We hire US-based engineers exclusively.' })]);
+    expect(r1.droppedHard + r2.droppedHard).toBe(2);
+  });
+
+  it('drops "North America only" / "remote in US" phrasing', () => {
+    const r1 = applyFilters([makeJob({ body: 'North America only — please apply if eligible.' })]);
+    const r2 = applyFilters([makeJob({ location: 'Remote in US', body: 'We build cool stuff.' })]);
+    expect(r1.droppedHard + r2.droppedHard).toBe(2);
+  });
+
+  it('rescues a US-mentioning posting that ALSO targets EMEA / worldwide', () => {
+    const r = applyFilters([
+      makeJob({
+        title: 'Senior Frontend Engineer',
+        location: 'Remote — worldwide',
+        body: 'We are US-based but hire worldwide. Remote anywhere.',
+      }),
+    ]);
+    expect(r.droppedHard).toBe(0);
+  });
+
+  it('rescues when body explicitly mentions EMEA alongside US', () => {
+    const r = applyFilters([
+      makeJob({
+        title: 'Senior Engineer',
+        body: 'Remote in US, UK, and the rest of EMEA. Any timezone OK.',
+      }),
+    ]);
+    expect(r.droppedHard).toBe(0);
+  });
+
+  it('keeps a Europe-located posting', () => {
+    const r = applyFilters([
+      makeJob({
+        title: 'Senior Frontend Engineer',
+        location: 'Remote — EMEA',
+        body: 'We are a European company hiring across Europe.',
+      }),
+    ]);
+    expect(r.droppedHard).toBe(0);
   });
 
   it('drops customer support engineer (compound non-eng)', () => {

@@ -1,4 +1,5 @@
 {
+  "_comment": "Tier-S company slugs to scrape from each ATS. Slugs are public ATS URLs (jobs.ashbyhq.com/<slug>, boards.greenhouse.io/<slug>, jobs.lever.co/<slug>) — find them by browsing the boards. 404s are silently skipped, so trial-and-error is safe.",
   "ashby": [
     "linear",
     "ramp",

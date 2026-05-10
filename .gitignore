@@ -2,9 +2,35 @@ node_modules/
 dist/
 ui/dist/
 .playwright-mcp/
+
+# Personal / AI-generated artifacts. These reflect your CV, applications,
+# and the LLM's per-job verdicts — they should NOT be committed on a public
+# fork. The repo ships `*.example.*` templates as a starting point; copy
+# them to the canonical paths below or run `pnpm run setup-brief` and the
+# scripted/UI flows will populate the real files locally.
+config/candidate-brief.md
+config/applied.json
+config/preferences.json
+config/cv.pdf
+config/cv.docx
+config/cv.md
+config/cv.txt
+data/jobs.json
+data/ai-reviews.json
+data/feed.xml
+JOBS.md
+data/archive/*
+!data/archive/.gitkeep
+data/applications/*
+!data/applications/.gitkeep
 data/jobs-bodies.json
 data/raw/*
 !data/raw/.gitkeep
+
+# Local launchd / cron schedule logs
+data/launchd-*.log
+data/cron-*.log
+
 .DS_Store
 *.log
 .env

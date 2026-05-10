@@ -17,10 +17,10 @@
 //   pnpm run ai-review --force          # also re-review existing entries
 //   pnpm run ai-review --ids=abc,def    # specific job ids only
 
-import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { readFile, writeFile } from 'node:fs/promises';
 import { parseReviewJson } from './ai-review-parse.js';
+import { runLlm } from './lib/llm.js';
 import type { AiReview, AiReviews, Job } from './types.js';
 
 const JOBS_PATH = 'data/jobs.json';
@@ -102,25 +102,6 @@ VERDICT GUIDANCE
 - skip: real mismatch hidden under matching keywords (wrong specialty, wrong level, on-site only, etc.)`;
 }
 
-function callClaude(prompt: string): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const proc = spawn('claude', ['-p', prompt], { stdio: ['ignore', 'pipe', 'pipe'] });
-    let stdout = '';
-    let stderr = '';
-    proc.stdout.on('data', (d: Buffer) => {
-      stdout += d.toString();
-    });
-    proc.stderr.on('data', (d: Buffer) => {
-      stderr += d.toString();
-    });
-    proc.on('error', (err) => reject(err));
-    proc.on('close', (code) => {
-      if (code !== 0) reject(new Error(`claude exited ${code}: ${stderr.slice(0, 200)}`));
-      else resolve(stdout);
-    });
-  });
-}
-
 async function main(): Promise<void> {
   const args = parseArgs(process.argv.slice(2));
 
@@ -166,7 +147,7 @@ async function main(): Promise<void> {
     return;
   }
 
-  console.log(`Reviewing ${candidates.length} job(s) via local Claude Code...`);
+  console.log(`Reviewing ${candidates.length} job(s) via local LLM CLI...`);
   let reviewed = 0;
   let skipped = 0;
 
@@ -182,12 +163,12 @@ async function main(): Promise<void> {
     process.stdout.write(`  ${tag}... `);
 
     try {
-      const raw = await callClaude(buildPrompt(brief, job, body));
+      const raw = await runLlm(buildPrompt(brief, job, body));
       const parsed = parseReviewJson(raw);
       const review: AiReview = {
         jobId: job.id,
         reviewedAt: new Date().toISOString(),
-        model: 'claude-code',
+        model: process.env.JOB_HUNT_LLM ?? 'claude',
         ...parsed,
       };
       reviews[job.id] = review;

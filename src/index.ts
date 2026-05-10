@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs';
 import { loadAppliedMap } from './applied.js';
 import { compareJobs, dedupe } from './dedup.js';
 import { renderFeed } from './feed.js';
@@ -14,7 +15,7 @@ import { fetchRemoteOk } from './fetchers/remoteok.js';
 import { fetchRemotive } from './fetchers/remotive.js';
 import { fetchWeb3Career } from './fetchers/web3career.js';
 import { fetchWeWorkRemotely } from './fetchers/weworkremotely.js';
-import { applyFilters } from './filters.js';
+import { applyFilters, BOILERPLATE_HEADERS_RE } from './filters.js';
 import {
   normalizeAave,
   normalizeAiJobsNet,
@@ -32,7 +33,33 @@ import {
 } from './normalize.js';
 import { type RenderStats, renderReadme } from './render.js';
 import type { Category, Job, Source } from './types.js';
-import { isoToday, readJsonOrNull, writeFileEnsured, writeJson } from './utils.js';
+import { isoToday, readJsonOrNull, stripHtml, writeFileEnsured, writeJson } from './utils.js';
+
+const BODY_PREVIEW_MAX_CHARS = 280;
+
+/**
+ * Build a short, boilerplate-free preview of the job body for the slim
+ * `data/jobs.json`. The slim file drops the full body to keep it small
+ * (5–20 KB → <1 KB per job) and the UI uses this preview to give the user
+ * a 1–2-sentence read in each row without expanding.
+ */
+function deriveBodyPreview(rawBody: string): string {
+  if (!rawBody) return '';
+  // Strip any leftover HTML, then drop the EEO/privacy/About-us boilerplate
+  // tail, then collapse whitespace so the preview reads as a paragraph.
+  const cleaned = stripHtml(rawBody)
+    .replace(BOILERPLATE_HEADERS_RE, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (cleaned.length <= BODY_PREVIEW_MAX_CHARS) return cleaned;
+  // Truncate at a word boundary to avoid mid-word cuts, then append ellipsis.
+  // lastSpace === -1 means no space in the slice (URL-dense or CJK body).
+  // Fall through to the hard cut — better than returning nothing.
+  const slice = cleaned.slice(0, BODY_PREVIEW_MAX_CHARS);
+  const lastSpace = slice.lastIndexOf(' ');
+  const cut = lastSpace > BODY_PREVIEW_MAX_CHARS - 40 ? slice.slice(0, lastSpace) : slice;
+  return `${cut.trimEnd()}…`;
+}
 
 interface FetcherTaskResult<T> {
   source: Source;
@@ -49,13 +76,47 @@ async function processFetcher<T>(
   fetchedAt: string,
   today: string,
 ): Promise<FetcherTaskResult<T>> {
-  const { items, errors } = await fetcher();
-  const jobs = normalizer(items, fetchedAt);
-  await writeJson(`data/raw/${source}-${today}.json`, items);
-  return { source, fetched: items.length, jobs, raw: items, errors };
+  // The `[start]` / `[done]` / `[error]` lines are parsed by the UI's
+  // /api/fetch-jobs middleware to drive the live worker panel. Don't
+  // change the format without updating the parser in ui/vite.config.ts.
+  console.log(`[start] ${source}`);
+  try {
+    const { items, errors } = await fetcher();
+    const jobs = normalizer(items, fetchedAt);
+    await writeJson(`data/raw/${source}-${today}.json`, items);
+    console.log(`[done] ${source} fetched=${items.length} errors=${errors.length}`);
+    return { source, fetched: items.length, jobs, raw: items, errors };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.log(`[error] ${source} ${msg}`);
+    throw err;
+  }
+}
+
+const BRIEF_PATH = 'config/candidate-brief.md';
+
+function ensureCandidateBrief(): void {
+  if (existsSync(BRIEF_PATH)) return;
+  if (process.env.JOB_HUNT_NO_BRIEF_CHECK === '1') return;
+  if (process.argv.includes('--no-brief-check')) return;
+  console.error(`
+✗ ${BRIEF_PATH} not found.
+
+The aggregator expects you to set up your candidate profile first:
+
+  pnpm run setup-brief --file ~/path/to/cv.pdf
+  # or, drop your CV into the UI's Profile tab:
+  pnpm run ui
+
+To skip this check (raw aggregation only, no AI review):
+  JOB_HUNT_NO_BRIEF_CHECK=1 pnpm run dev
+`);
+  process.exit(1);
 }
 
 async function main(): Promise<void> {
+  ensureCandidateBrief();
+
   const fetchedAt = new Date().toISOString();
   const today = isoToday();
 
@@ -122,7 +183,13 @@ async function main(): Promise<void> {
     if (entry) job.applied = entry;
   }
 
-  const slimJobs = dedupResult.kept.map(({ body: _body, ...rest }) => rest);
+  // Compute a short JD preview from the full body BEFORE stripping it from
+  // the slim payload. The UI renders this under each row title so the user
+  // can scan jobs without expanding every one.
+  const slimJobs = dedupResult.kept.map(({ body, ...rest }) => ({
+    ...rest,
+    bodyPreview: deriveBodyPreview(body),
+  }));
   const month = today.slice(0, 7);
   const isFirstOfMonth = today.endsWith('-01');
 
