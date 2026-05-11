@@ -4,10 +4,10 @@ This repo is a local-first, config-driven job aggregator. Contributions should p
 
 ## Before You Start
 
-- Read [`README.md`](./README.md) for the product flow and [`AGENTS.md`](./AGENTS.md) for the detailed implementation rules.
+- Read [`README.md`](./README.md) for the product flow, [`docs/architecture.md`](./docs/architecture.md) for the deep technical reference, and [`AGENTS.md`](./AGENTS.md) for the operational rules AI coding agents follow.
 - Use Node 22 and pnpm 10.
 - Keep changes small and focused. Do not mix personal profile tuning, generated job output, and code changes unless the PR explicitly needs all of them.
-- The repo has no open-source license. These notes are a contribution workflow, not a redistribution grant.
+- The repo is licensed under the BSD 3-Clause License (see [`LICENSE`](./LICENSE)). Forks and redistribution are welcome; preserve the copyright notice + license text, and don't use the project's name to endorse derived products without permission.
 
 ## Local Setup
 

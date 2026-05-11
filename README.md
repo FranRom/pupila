@@ -1,6 +1,14 @@
 # job-hunt
 
 <p align="center">
+  <a href="https://github.com/FranRom/job-hunt/actions/workflows/check.yml"><img alt="CI" src="https://github.com/FranRom/job-hunt/actions/workflows/check.yml/badge.svg" /></a>
+  <a href="./LICENSE"><img alt="License: BSD 3-Clause" src="https://img.shields.io/badge/license-BSD_3--Clause-blue.svg" /></a>
+  <img alt="Node 22 LTS" src="https://img.shields.io/badge/node-22%20LTS-339933?logo=node.js&logoColor=white" />
+  <img alt="TypeScript 5.9" src="https://img.shields.io/badge/TypeScript-5.9-3178C6?logo=typescript&logoColor=white" />
+  <img alt="pnpm 10" src="https://img.shields.io/badge/pnpm-10-F69220?logo=pnpm&logoColor=white" />
+</p>
+
+<p align="center">
   <img src="./assets/readme-hero.png" alt="Local job matching dashboard with source feeds, scoring, and scheduled file output" width="100%" />
 </p>
 
@@ -21,6 +29,23 @@ The AI features (per-job review, AI Apply package generation, profile generation
 ## Why
 
 Manually checking a dozen job boards every morning is tedious. This repo replaces it with a single auto-generated table, scored by relevance, sorted by fit, with a "✨ New since last run" section at the top so the daily diff is the actionable bit. The AI second-opinion verdict on the top slice helps you skip postings that look right on paper but aren't. Everything runs locally — a launchd / cron agent triggers the daily run, output lives in your working tree.
+
+## Screenshots
+
+<p align="center">
+  <img src="./assets/screenshots/01-jobs-view.png" alt="Local jobs dashboard — sortable table with category filters, group-by-company, and color-coded fit scores" width="100%" />
+  <em>Local dashboard. 689 jobs scored, deduped, and grouped by company. Verdict badges flag the AI's call (`MATCH` / `SKIP`) at a glance; the score-tiered indicator shows green ≥80, gold 50–79, muted &lt;50.</em>
+</p>
+
+<p align="center">
+  <img src="./assets/screenshots/02-ai-review-expanded.png" alt="Expanded job row with AI review (wants / offers / red flags), score breakdown, and metadata" width="100%" />
+  <em>Expanded row: the AI review (summary, wants, offers, red flags) sits next to the rule-based <code>_signals</code> breakdown so you can see exactly which scoring rules fired and where the LLM agrees or pushes back.</em>
+</p>
+
+<p align="center">
+  <img src="./assets/screenshots/03-settings.png" alt="Settings tab showing LLM CLI selection (claude, codex, gemini, opencode) and scheduler agent status" width="100%" />
+  <em>Settings tab: the LLM CLI panel auto-detects which providers are on PATH and lets you switch with one click. The scheduler panel installs and uninstalls the launchd / cron agents in-app — no manual editing of plists or crontabs.</em>
+</p>
 
 ## Stack
 
