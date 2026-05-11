@@ -7,9 +7,9 @@ tags: javascript, dom, css, performance, reflow, layout-thrashing
 
 ## Avoid Layout Thrashing
 
-Avoid interleaving style writes with layout reads. When you read a layout property (like `offsetWidth`, `getBoundingClientRect()`, or `getComputedStyle()`) between style changes, the browser is forced to trigger a synchronous reflow.
+Don't interleave style writes with layout reads. Read a layout property (`offsetWidth`, `getBoundingClientRect()`, `getComputedStyle()`) between style changes → browser forced to sync reflow.
 
-**This is OK (browser batches style changes):**
+**OK (browser batches style changes):**
 ```typescript
 function updateElementStyles(element: HTMLElement) {
   // Each line invalidates style, but browser batches the recalculation
@@ -20,7 +20,7 @@ function updateElementStyles(element: HTMLElement) {
 }
 ```
 
-**Incorrect (interleaved reads and writes force reflows):**
+**Incorrect (interleaved reads/writes force reflows):**
 ```typescript
 function layoutThrashing(element: HTMLElement) {
   element.style.width = '100px'
@@ -58,7 +58,7 @@ function avoidThrashing(element: HTMLElement) {
 }
 ```
 
-**Better: use CSS classes**
+**Better: CSS classes**
 ```css
 .highlighted-box {
   width: 100px;
@@ -102,6 +102,6 @@ function Box({ isHighlighted }: { isHighlighted: boolean }) {
 }
 ```
 
-Prefer CSS classes over inline styles when possible. CSS files are cached by the browser, and classes provide better separation of concerns and are easier to maintain.
+Prefer CSS classes over inline styles. CSS files cache in browser; classes = better separation + easier maintenance.
 
-See [this gist](https://gist.github.com/paulirish/5d52fb081b3570c81e3a) and [CSS Triggers](https://csstriggers.com/) for more information on layout-forcing operations.
+See [this gist](https://gist.github.com/paulirish/5d52fb081b3570c81e3a) + [CSS Triggers](https://csstriggers.com/) for layout-forcing ops.

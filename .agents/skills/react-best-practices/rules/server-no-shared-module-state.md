@@ -7,9 +7,9 @@ tags: server, rsc, ssr, concurrency, security, state
 
 ## Avoid Shared Module State for Request Data
 
-For React Server Components and client components rendered during SSR, avoid using mutable module-level variables to share request-scoped data. Server renders can run concurrently in the same process. If one render writes to shared module state and another render reads it, you can get race conditions, cross-request contamination, and security bugs where one user's data appears in another user's response.
+For RSC + client components rendered during SSR, don't use mutable module-level vars for request-scoped data. Server renders can run concurrently in same process. One render writes to shared module state, another reads → race conditions, cross-request contamination, security bugs (user A's data appears in user B's response).
 
-Treat module scope on the server as process-wide shared memory, not request-local state.
+Treat module scope on server as process-wide shared memory, NOT request-local state.
 
 **Incorrect (request data leaks across concurrent renders):**
 
@@ -26,9 +26,9 @@ async function Dashboard() {
 }
 ```
 
-If two requests overlap, request A can set `currentUser`, then request B overwrites it before request A finishes rendering `Dashboard`.
+Two overlapping requests: request A sets `currentUser`, request B overwrites before A finishes rendering `Dashboard`.
 
-**Correct (keep request data local to the render tree):**
+**Correct (keep request data local to render tree):**
 
 ```tsx
 export default async function Page() {
@@ -43,8 +43,8 @@ function Dashboard({ user }: { user: User | null }) {
 
 Safe exceptions:
 
-- Immutable static assets or config loaded once at module scope
-- Shared caches intentionally designed for cross-request reuse and keyed correctly
-- Process-wide singletons that do not store request- or user-specific mutable data
+- Immutable static assets / config loaded once at module scope
+- Shared caches designed for cross-request reuse + keyed correctly
+- Process-wide singletons not storing request/user-specific mutable data
 
-For static assets and config, see [Hoist Static I/O to Module Level](./server-hoist-static-io.md).
+For static assets + config, see [Hoist Static I/O to Module Level](./server-hoist-static-io.md).

@@ -54,6 +54,8 @@ spy.mockRestore()
 
 ## Module Mocking
 
+`vi.mock` is hoisted to top of file — runs before any imports execute.
+
 ```ts
 // vi.mock is hoisted to top of file
 vi.mock('./api', () => ({
@@ -114,7 +116,7 @@ vi.mock('./api/client')
 
 ## Dynamic Mocking (vi.doMock)
 
-Not hoisted - use for dynamic imports:
+`vi.doMock` NOT hoisted — call site execution. Use for dynamic imports:
 
 ```ts
 test('dynamic mock', async () => {
@@ -252,11 +254,11 @@ test('hoisted mock', () => {
 
 ## Key Points
 
-- `vi.mock` is hoisted - called before imports
-- Use `vi.doMock` for dynamic, non-hoisted mocking
-- Always restore mocks to avoid test pollution
-- Use `{ spy: true }` to keep implementation but track calls
-- `vi.hoisted` lets you reference variables in mock factories
+- `vi.mock` hoisted — called before imports
+- `vi.doMock` for dynamic, non-hoisted mocking
+- Always restore mocks — avoid test pollution
+- `{ spy: true }` keeps implementation + tracks calls
+- `vi.hoisted` references variables in mock factories
 
 <!-- 
 Source references:

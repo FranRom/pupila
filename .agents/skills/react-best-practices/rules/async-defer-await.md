@@ -7,7 +7,7 @@ tags: async, await, conditional, optimization
 
 ## Defer Await Until Needed
 
-Move `await` operations into the branches where they're actually used to avoid blocking code paths that don't need them.
+Move `await` into branches where it's used. Don't block paths that don't need it.
 
 **Incorrect (blocks both branches):**
 
@@ -25,7 +25,7 @@ async function handleRequest(userId: string, skipProcessing: boolean) {
 }
 ```
 
-**Correct (only blocks when needed):**
+**Correct (blocks only when needed):**
 
 ```typescript
 async function handleRequest(userId: string, skipProcessing: boolean) {
@@ -77,6 +77,6 @@ async function updateResource(resourceId: string, userId: string) {
 }
 ```
 
-This optimization is especially valuable when the skipped branch is frequently taken, or when the deferred operation is expensive.
+Valuable when skipped branch hits often or deferred op is expensive.
 
-For `await getFlag()` combined with a cheap synchronous guard (`flag && someCondition`), see [Check Cheap Conditions Before Async Flags](./async-cheap-condition-before-await.md).
+For `await getFlag()` + cheap sync guard (`flag && someCondition`), see [Check Cheap Conditions Before Async Flags](./async-cheap-condition-before-await.md).

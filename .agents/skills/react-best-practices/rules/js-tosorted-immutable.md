@@ -7,9 +7,9 @@ tags: javascript, arrays, immutability, react, state, mutation
 
 ## Use toSorted() Instead of sort() for Immutability
 
-`.sort()` mutates the array in place, which can cause bugs with React state and props. Use `.toSorted()` to create a new sorted array without mutation.
+`.sort()` mutates in place → bugs with React state/props. Use `.toSorted()` for new sorted array.
 
-**Incorrect (mutates original array):**
+**Incorrect (mutates original):**
 
 ```typescript
 function UserList({ users }: { users: User[] }) {
@@ -22,7 +22,7 @@ function UserList({ users }: { users: User[] }) {
 }
 ```
 
-**Correct (creates new array):**
+**Correct (new array):**
 
 ```typescript
 function UserList({ users }: { users: User[] }) {
@@ -35,14 +35,14 @@ function UserList({ users }: { users: User[] }) {
 }
 ```
 
-**Why this matters in React:**
+**Why it matters in React:**
 
-1. Props/state mutations break React's immutability model - React expects props and state to be treated as read-only
-2. Causes stale closure bugs - Mutating arrays inside closures (callbacks, effects) can lead to unexpected behavior
+1. Props/state mutations break React's immutability model — React treats them as read-only
+2. Stale closure bugs — mutating arrays inside closures (callbacks, effects) → unexpected behavior
 
-**Browser support (fallback for older browsers):**
+**Browser support (fallback for older):**
 
-`.toSorted()` is available in all modern browsers (Chrome 110+, Safari 16+, Firefox 115+, Node.js 20+). For older environments, use spread operator:
+`.toSorted()` in all modern browsers (Chrome 110+, Safari 16+, Firefox 115+, Node.js 20+). Older envs → spread:
 
 ```typescript
 // Fallback for older browsers

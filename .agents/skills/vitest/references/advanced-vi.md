@@ -5,7 +5,7 @@ description: vi helper for mocking, timers, utilities
 
 # Vi Utilities
 
-The `vi` helper provides mocking and utility functions.
+`vi` helper = mocking + utility functions.
 
 ```ts
 import { vi } from 'vitest'
@@ -54,6 +54,8 @@ vi.spyOn(obj, 'prop', 'get').mockReturnValue('value')
 
 ## Module Mocking
 
+`vi.mock` hoisted to file top — runs before imports.
+
 ```ts
 // Hoisted to top of file
 vi.mock('./module', () => ({
@@ -77,6 +79,8 @@ const mocked = await vi.importMock('./module')
 ```
 
 ## Dynamic Mocking
+
+`vi.doMock` NOT hoisted — call-site execution. Use with dynamic imports.
 
 ```ts
 // Not hoisted - use with dynamic imports
@@ -180,7 +184,7 @@ const element = await vi.waitUntil(
 
 ## Mock Object
 
-Mock all methods of an object:
+Mocks all methods:
 
 ```ts
 const original = {
@@ -219,8 +223,6 @@ vi.restoreAllMocks() // Restore originals (spies)
 
 ## vi.mocked Type Helper
 
-TypeScript helper for mocked values:
-
 ```ts
 import { myFn } from './module'
 vi.mock('./module')
@@ -237,10 +239,10 @@ vi.mocked(fn, { partial: true }).mockResolvedValue({ ok: true })
 
 ## Key Points
 
-- `vi.mock` is hoisted - use `vi.doMock` for dynamic mocking
-- `vi.hoisted` lets you reference variables in mock factories
-- Use `vi.spyOn` to spy on existing methods
-- Fake timers require explicit setup and teardown
+- `vi.mock` hoisted — use `vi.doMock` for dynamic mocking
+- `vi.hoisted` references variables in mock factories
+- `vi.spyOn` spies on existing methods
+- Fake timers need explicit setup + teardown
 - `vi.waitFor` retries until assertion passes
 
 <!-- 

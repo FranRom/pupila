@@ -50,7 +50,7 @@ vitest --changed origin/main
 
 ## Related Files
 
-Run tests that import specific files:
+Run tests importing specific files:
 
 ```bash
 vitest related src/utils.ts src/api.ts --run
@@ -75,7 +75,7 @@ describe.only('only this suite', () => {
 })
 ```
 
-In CI, `.only` throws error unless configured:
+In CI, `.only` throws unless configured:
 
 ```ts
 defineConfig({
@@ -151,11 +151,11 @@ defineConfig({
 
 ## Watch Mode Filtering
 
-In watch mode, press:
-- `p` - Filter by filename pattern
-- `t` - Filter by test name pattern
-- `a` - Run all tests
-- `f` - Run only failed tests
+Press in watch mode:
+- `p` — filter by filename pattern
+- `t` — filter by test name pattern
+- `a` — run all tests
+- `f` — run only failed tests
 
 ## Projects Filtering
 
@@ -197,11 +197,11 @@ vitest list --json          # JSON output
 
 ## Key Points
 
-- Use `-t` for test name pattern filtering
+- `-t` for test name pattern filtering
 - `--changed` runs only tests affected by changes
 - `--related` runs tests importing specific files
-- Tags provide semantic test grouping
-- Use `.only` for debugging, but configure CI to reject it
+- Tags = semantic test grouping
+- `.only` for debugging — configure CI to reject
 - Watch mode has interactive filtering
 
 <!-- 

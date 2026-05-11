@@ -5,7 +5,7 @@ description: Test TypeScript types with expectTypeOf and assertType
 
 # Type Testing
 
-Test TypeScript types without runtime execution.
+Test TS types — no runtime execution.
 
 ## Setup
 
@@ -154,7 +154,7 @@ expectTypeOf<string>().not.toBeNullable()
 
 ## assertType
 
-Assert a value matches a type (no assertion at runtime):
+Assert value matches type (no runtime assertion):
 
 ```ts
 import { assertType } from 'vitest'
@@ -176,7 +176,7 @@ test('returns user', () => {
 
 ## Using @ts-expect-error
 
-Test that code produces type error:
+Test code produces type error:
 
 ```ts
 test('rejects wrong types', () => {
@@ -202,7 +202,7 @@ vitest --typecheck.only
 
 ## Mixed Test Files
 
-Combine runtime and type tests:
+Combine runtime + type tests:
 
 ```ts
 // user.test.ts
@@ -223,12 +223,12 @@ describe('createUser', () => {
 
 ## Key Points
 
-- Use `.test-d.ts` for type-only tests
-- `expectTypeOf` for type assertions
-- `toMatchTypeOf` for subset matching
-- `toEqualTypeOf` for exact type matching
-- Use `@ts-expect-error` to test type errors
-- Run with `vitest typecheck` or `--typecheck`
+- `.test-d.ts` = type-only tests
+- `expectTypeOf` = type assertions
+- `toMatchTypeOf` = subset match
+- `toEqualTypeOf` = exact match
+- `@ts-expect-error` tests type errors
+- Run via `vitest typecheck` or `--typecheck`
 
 <!-- 
 Source references:

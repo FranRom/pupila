@@ -7,7 +7,7 @@ tags: javascript, arrays, performance, sorting, algorithms
 
 ## Use Loop for Min/Max Instead of Sort
 
-Finding the smallest or largest element only requires a single pass through the array. Sorting is wasteful and slower.
+Finding smallest/largest = single pass. Sort = wasteful + slower.
 
 **Incorrect (O(n log n) - sort to find latest):**
 
@@ -24,9 +24,9 @@ function getLatestProject(projects: Project[]) {
 }
 ```
 
-Sorts the entire array just to find the maximum value.
+Sorts whole array just to find max.
 
-**Incorrect (O(n log n) - sort for oldest and newest):**
+**Incorrect (O(n log n) - sort for oldest + newest):**
 
 ```typescript
 function getOldestAndNewest(projects: Project[]) {
@@ -35,7 +35,7 @@ function getOldestAndNewest(projects: Project[]) {
 }
 ```
 
-Still sorts unnecessarily when only min/max are needed.
+Still sorts when only min/max needed.
 
 **Correct (O(n) - single loop):**
 
@@ -69,9 +69,9 @@ function getOldestAndNewest(projects: Project[]) {
 }
 ```
 
-Single pass through the array, no copying, no sorting.
+Single pass, no copy, no sort.
 
-**Alternative (Math.min/Math.max for small arrays):**
+**Alt (Math.min/Math.max for small arrays):**
 
 ```typescript
 const numbers = [5, 2, 8, 1, 9]
@@ -79,4 +79,4 @@ const min = Math.min(...numbers)
 const max = Math.max(...numbers)
 ```
 
-This works for small arrays, but can be slower or just throw an error for very large arrays due to spread operator limitations. Maximal array length is approximately 124000 in Chrome 143 and 638000 in Safari 18; exact numbers may vary - see [the fiddle](https://jsfiddle.net/qw1jabsx/4/). Use the loop approach for reliability.
+Works for small arrays — slower or throws on very large due to spread limits. Max array length ~124000 in Chrome 143, ~638000 in Safari 18 — varies, see [the fiddle](https://jsfiddle.net/qw1jabsx/4/). Use loop for reliability.

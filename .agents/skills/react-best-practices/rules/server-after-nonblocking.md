@@ -7,7 +7,7 @@ tags: server, async, logging, analytics, side-effects
 
 ## Use after() for Non-Blocking Operations
 
-Use Next.js's `after()` to schedule work that should execute after a response is sent. This prevents logging, analytics, and other side effects from blocking the response.
+Next.js's `after()` schedules work post-response. Stops logging, analytics, side effects from blocking response.
 
 **Incorrect (blocks response):**
 
@@ -55,19 +55,19 @@ export async function POST(request: Request) {
 }
 ```
 
-The response is sent immediately while logging happens in the background.
+Response sent immediately, logging runs in background.
 
 **Common use cases:**
 
 - Analytics tracking
 - Audit logging
-- Sending notifications
+- Send notifications
 - Cache invalidation
 - Cleanup tasks
 
-**Important notes:**
+**Important:**
 
-- `after()` runs even if the response fails or redirects
-- Works in Server Actions, Route Handlers, and Server Components
+- `after()` runs even if response fails or redirects
+- Works in Server Actions, Route Handlers, Server Components
 
 Reference: [https://nextjs.org/docs/app/api-reference/functions/after](https://nextjs.org/docs/app/api-reference/functions/after)

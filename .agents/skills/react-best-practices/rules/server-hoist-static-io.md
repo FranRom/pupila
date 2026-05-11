@@ -9,9 +9,9 @@ tags: server, io, performance, next.js, route-handlers, og-image
 
 **Impact: HIGH (avoids repeated file/network I/O per request)**
 
-When loading static assets (fonts, logos, images, config files) in route handlers or server functions, hoist the I/O operation to module level. Module-level code runs once when the module is first imported, not on every request. This eliminates redundant file system reads or network fetches that would otherwise run on every invocation.
+Loading static assets (fonts, logos, images, config) in route handlers/server functions → hoist I/O to module level. Module-level code runs once at first import, not on every request. Kills redundant FS reads/network fetches.
 
-**Incorrect (reads font file on every request):**
+**Incorrect (reads font file every request):**
 
 ```typescript
 // app/api/og/route.tsx
@@ -37,7 +37,7 @@ export async function GET(request: Request) {
 }
 ```
 
-**Correct (loads once at module initialization):**
+**Correct (loads once at module init):**
 
 ```typescript
 // app/api/og/route.tsx
@@ -94,7 +94,7 @@ export async function GET(request: Request) {
 }
 ```
 
-**Incorrect (reads config on every call):**
+**Incorrect (reads config every call):**
 
 ```typescript
 import fs from 'node:fs/promises'
@@ -109,7 +109,7 @@ export async function processRequest(data: Data) {
 }
 ```
 
-**Correct (hoists config and template to module level):**
+**Correct (hoists config + template to module level):**
 
 ```typescript
 import fs from 'node:fs/promises'
@@ -129,21 +129,21 @@ export async function processRequest(data: Data) {
 }
 ```
 
-When to use this pattern:
+When to use:
 
 - Loading fonts for OG image generation
-- Loading static logos, icons, or watermarks
-- Reading configuration files that don't change at runtime
-- Loading email templates or other static templates
-- Any static asset that's the same across all requests
+- Static logos, icons, watermarks
+- Reading config files that don't change at runtime
+- Email templates, other static templates
+- Any static asset same across requests
 
-When not to use this pattern:
+When NOT to use:
 
-- Assets that vary per request or user
-- Files that may change during runtime (use caching with TTL instead)
-- Large files that would consume too much memory if kept loaded
+- Assets that vary per request/user
+- Files that may change at runtime (use cache with TTL)
+- Large files that'd consume too much memory if kept loaded
 - Sensitive data that shouldn't persist in memory
 
-With Vercel's [Fluid Compute](https://vercel.com/docs/fluid-compute), module-level caching is especially effective because multiple concurrent requests share the same function instance. The static assets stay loaded in memory across requests without cold start penalties.
+With Vercel's [Fluid Compute](https://vercel.com/docs/fluid-compute), module-level caching extra effective — concurrent requests share function instance. Static assets stay in memory across requests, no cold start penalty.
 
-In traditional serverless, each cold start re-executes module-level code, but subsequent warm invocations reuse the loaded assets until the instance is recycled.
+Traditional serverless: each cold start re-executes module-level code; warm invocations reuse loaded assets until instance recycled.

@@ -16,11 +16,11 @@ export default defineConfig({
 })
 ```
 
-Vite auto-resolves `vite.config.ts` from project root. Supports ES modules syntax regardless of `package.json` type.
+Vite auto-resolves `vite.config.ts` from project root. ESM syntax regardless of `package.json` type.
 
 ## Conditional Config
 
-Export a function to access command and mode:
+Export function to access command + mode:
 
 ```ts
 export default defineConfig(({ command, mode, isSsrBuild, isPreview }) => {
@@ -32,8 +32,8 @@ export default defineConfig(({ command, mode, isSsrBuild, isPreview }) => {
 })
 ```
 
-- `command`: `'serve'` during dev, `'build'` for production
-- `mode`: `'development'` or `'production'` (or custom via `--mode`)
+- `command`: `'serve'` dev, `'build'` prod
+- `mode`: `'development'` | `'production'` (custom via `--mode`)
 
 ## Async Config
 
@@ -44,15 +44,15 @@ export default defineConfig(async ({ command, mode }) => {
 })
 ```
 
-## Using Environment Variables in Config
+## Environment Variables in Config
 
-`.env` files are loaded **after** config resolution. Use `loadEnv` to access them in config:
+`.env` loads **after** config resolution. Use `loadEnv`:
 
 ```ts
 import { defineConfig, loadEnv } from 'vite'
 
 export default defineConfig(({ mode }) => {
-  // Load env files from cwd, include all vars (empty prefix)
+  // Load env from cwd, all vars (empty prefix)
   const env = loadEnv(mode, process.cwd(), '')
   
   return {
@@ -92,7 +92,7 @@ export default defineConfig({
 })
 ```
 
-Values must be JSON-serializable or single identifiers. Non-strings auto-wrapped with `JSON.stringify`.
+Values: JSON-serializable or single identifiers. Non-strings auto-wrapped via `JSON.stringify`.
 
 ### plugins
 
@@ -104,7 +104,7 @@ export default defineConfig({
 })
 ```
 
-Plugins array is flattened; falsy values ignored.
+Plugins array flattened; falsy values ignored.
 
 ### server.proxy
 
@@ -136,7 +136,7 @@ export default defineConfig({
 
 ## TypeScript Intellisense
 
-For plain JS config files:
+Plain JS config:
 
 ```js
 /** @type {import('vite').UserConfig} */
@@ -145,7 +145,7 @@ export default {
 }
 ```
 
-Or use `satisfies`:
+Or `satisfies`:
 
 ```ts
 import type { UserConfig } from 'vite'

@@ -9,11 +9,11 @@ tags: server, server-actions, authentication, security, authorization
 
 **Impact: CRITICAL (prevents unauthorized access to server mutations)**
 
-Server Actions (functions with `"use server"`) are exposed as public endpoints, just like API routes. Always verify authentication and authorization **inside** each Server Action—do not rely solely on middleware, layout guards, or page-level checks, as Server Actions can be invoked directly.
+Server Actions (`"use server"`) = public endpoints, like API routes. Always verify auth + authz **inside** each Server Action — don't rely solely on middleware, layout guards, or page-level checks. Server Actions can be invoked directly.
 
-Next.js documentation explicitly states: "Treat Server Actions with the same security considerations as public-facing API endpoints, and verify if the user is allowed to perform a mutation."
+Next.js docs: "Treat Server Actions with the same security considerations as public-facing API endpoints, and verify if the user is allowed to perform a mutation."
 
-**Incorrect (no authentication check):**
+**Incorrect (no auth check):**
 
 ```typescript
 'use server'
@@ -25,7 +25,7 @@ export async function deleteUser(userId: string) {
 }
 ```
 
-**Correct (authentication inside the action):**
+**Correct (auth inside action):**
 
 ```typescript
 'use server'

@@ -7,7 +7,7 @@ tags: async, parallelization, dependencies, better-all
 
 ## Dependency-Based Parallelization
 
-For operations with partial dependencies, use `better-all` to maximize parallelism. It automatically starts each task at the earliest possible moment.
+For ops with partial deps, use `better-all` to maximize parallelism. Auto-starts each task at earliest possible moment.
 
 **Incorrect (profile waits for config unnecessarily):**
 
@@ -19,7 +19,7 @@ const [user, config] = await Promise.all([
 const profile = await fetchProfile(user.id)
 ```
 
-**Correct (config and profile run in parallel):**
+**Correct (config + profile parallel):**
 
 ```typescript
 import { all } from 'better-all'
@@ -33,9 +33,9 @@ const { user, config, profile } = await all({
 })
 ```
 
-**Alternative without extra dependencies:**
+**Alt without extra deps:**
 
-We can also create all the promises first, and do `Promise.all()` at the end.
+Create all promises first, `Promise.all()` at end.
 
 ```typescript
 const userPromise = fetchUser()

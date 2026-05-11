@@ -9,11 +9,11 @@ tags: rerender, components, remount, performance
 
 **Impact: HIGH (prevents remount on every render)**
 
-Defining a component inside another component creates a new component type on every render. React sees a different component each time and fully remounts it, destroying all state and DOM.
+Component defined inside another → new component type every render. React sees different component each time → fully remounts, destroying state + DOM.
 
-A common reason developers do this is to access parent variables without passing props. Always pass props instead.
+Common reason: accessing parent variables without props. Always pass props.
 
-**Incorrect (remounts on every render):**
+**Incorrect (remounts every render):**
 
 ```tsx
 function UserProfile({ user, theme }) {
@@ -42,9 +42,9 @@ function UserProfile({ user, theme }) {
 }
 ```
 
-Every time `UserProfile` renders, `Avatar` and `Stats` are new component types. React unmounts the old instances and mounts new ones, losing any internal state, running effects again, and recreating DOM nodes.
+Every `UserProfile` render → `Avatar` + `Stats` are new types. React unmounts old, mounts new — loses internal state, reruns effects, recreates DOM.
 
-**Correct (pass props instead):**
+**Correct (pass props):**
 
 ```tsx
 function Avatar({ src, theme }: { src: string; theme: string }) {
@@ -79,4 +79,4 @@ function UserProfile({ user, theme }) {
 - Input fields lose focus on every keystroke
 - Animations restart unexpectedly
 - `useEffect` cleanup/setup runs on every parent render
-- Scroll position resets inside the component
+- Scroll position resets inside component

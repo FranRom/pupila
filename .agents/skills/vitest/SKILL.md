@@ -7,18 +7,18 @@ metadata:
   source: Generated from https://github.com/vitest-dev/vitest, scripts located at https://github.com/antfu/skills
 ---
 
-Vitest is a next-generation testing framework powered by Vite. It provides a Jest-compatible API with native ESM, TypeScript, and JSX support out of the box. Vitest shares the same config, transformers, resolvers, and plugins with your Vite app.
+Vitest = next-gen test framework powered by Vite. Jest-compatible API. Native ESM, TypeScript, JSX. Shares Vite config, transformers, resolvers, plugins.
 
 **Key Features:**
-- Vite-native: Uses Vite's transformation pipeline for fast HMR-like test updates
-- Jest-compatible: Drop-in replacement for most Jest test suites
-- Smart watch mode: Only reruns affected tests based on module graph
-- Native ESM, TypeScript, JSX support without configuration
-- Multi-threaded workers for parallel test execution
-- Built-in coverage via V8 or Istanbul
-- Snapshot testing, mocking, and spy utilities
+- Vite-native: Vite pipeline, fast HMR-like test updates
+- Jest-compatible: drop-in for most Jest suites
+- Smart watch: reruns affected tests via module graph
+- Native ESM, TypeScript, JSX. No config.
+- Multi-threaded parallel execution
+- Coverage via V8 or Istanbul
+- Snapshots, mocks, spies
 
-> The skill is based on Vitest 3.x, generated at 2026-01-28.
+> Skill based on Vitest 3.x, generated 2026-01-28.
 
 ## Core
 

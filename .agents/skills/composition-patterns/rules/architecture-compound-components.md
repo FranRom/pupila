@@ -7,11 +7,9 @@ tags: composition, compound-components, architecture
 
 ## Use Compound Components
 
-Structure complex components as compound components with a shared context. Each
-subcomponent accesses shared state via context, not props. Consumers compose the
-pieces they need.
+Complex components = compound components + shared context. Subcomponents read state via context, not props. Consumers compose pieces.
 
-**Incorrect (monolithic component with render props):**
+**Incorrect (monolith + render props):**
 
 ```tsx
 function Composer({
@@ -41,7 +39,7 @@ function Composer({
 }
 ```
 
-**Correct (compound components with shared context):**
+**Correct (compound components, shared context):**
 
 ```tsx
 const ComposerContext = createContext<ComposerContextValue | null>(null)
@@ -109,4 +107,4 @@ const Composer = {
 </Composer.Provider>
 ```
 
-Consumers explicitly compose exactly what they need. No hidden conditionals. And the state, actions and meta are dependency-injected by a parent provider, allowing multiple usages of the same component structure.
+Consumers compose what they need. No hidden conditionals. State, actions, meta injected by parent provider — reuse structure many ways.

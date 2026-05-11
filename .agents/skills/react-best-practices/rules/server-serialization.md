@@ -7,7 +7,7 @@ tags: server, rsc, serialization, props
 
 ## Minimize Serialization at RSC Boundaries
 
-The React Server/Client boundary serializes all object properties into strings and embeds them in the HTML response and subsequent RSC requests. This serialized data directly impacts page weight and load time, so **size matters a lot**. Only pass fields that the client actually uses.
+React Server/Client boundary serializes all object props to strings → embeds in HTML response + RSC requests. Serialized data directly hits page weight + load time. **Size matters a lot.** Only pass fields client actually uses.
 
 **Incorrect (serializes all 50 fields):**
 

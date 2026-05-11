@@ -7,10 +7,10 @@ description: Configure environments like jsdom, happy-dom for browser APIs
 
 ## Available Environments
 
-- `node` (default) - Node.js environment
-- `jsdom` - Browser-like with DOM APIs
-- `happy-dom` - Faster alternative to jsdom
-- `edge-runtime` - Vercel Edge Runtime
+- `node` (default) — Node.js
+- `jsdom` — browser-like, DOM APIs
+- `happy-dom` — faster jsdom alternative
+- `edge-runtime` — Vercel Edge Runtime
 
 ## Configuration
 
@@ -42,7 +42,7 @@ npm i -D happy-dom
 
 ## Per-File Environment
 
-Use magic comment at top of file:
+Magic comment at file top:
 
 ```ts
 // @vitest-environment jsdom
@@ -57,7 +57,7 @@ test('DOM test', () => {
 
 ## jsdom Environment
 
-Full browser environment simulation:
+Full browser sim:
 
 ```ts
 // @vitest-environment jsdom
@@ -96,7 +96,7 @@ defineConfig({
 
 ## happy-dom Environment
 
-Faster but fewer APIs:
+Faster, fewer APIs:
 
 ```ts
 // @vitest-environment happy-dom
@@ -109,8 +109,6 @@ test('basic DOM', () => {
 ```
 
 ## Multiple Environments per Project
-
-Use projects for different environments:
 
 ```ts
 defineConfig({
@@ -137,8 +135,6 @@ defineConfig({
 
 ## Custom Environment
 
-Create custom environment package:
-
 ```ts
 // vitest-environment-custom/index.ts
 import type { Environment } from 'vitest/runtime'
@@ -160,8 +156,6 @@ export default <Environment>{
 }
 ```
 
-Use with:
-
 ```ts
 defineConfig({
   test: {
@@ -171,8 +165,6 @@ defineConfig({
 ```
 
 ## Environment with VM
-
-For full isolation:
 
 ```ts
 export default <Environment>{
@@ -199,7 +191,7 @@ export default <Environment>{
 
 ## Browser Mode (Separate from Environments)
 
-For real browser testing, use Vitest Browser Mode:
+Real browser testing via Vitest Browser Mode:
 
 ```ts
 defineConfig({
@@ -214,8 +206,6 @@ defineConfig({
 ```
 
 ## CSS and Assets
-
-In jsdom/happy-dom, configure CSS handling:
 
 ```ts
 defineConfig({
@@ -235,8 +225,6 @@ defineConfig({
 
 ## Fixing External Dependencies
 
-If external deps fail with CSS/asset errors:
-
 ```ts
 defineConfig({
   test: {
@@ -251,12 +239,12 @@ defineConfig({
 
 ## Key Points
 
-- Default is `node` - no browser APIs
-- Use `jsdom` for full browser simulation
-- Use `happy-dom` for faster tests with basic DOM
-- Per-file environment via `// @vitest-environment` comment
-- Use projects for multiple environment configurations
-- Browser Mode is for real browser testing, not environment
+- Default `node` — no browser APIs
+- `jsdom` = full browser sim
+- `happy-dom` = faster, basic DOM
+- Per-file env via `// @vitest-environment`
+- Projects for multiple env configs
+- Browser Mode = real browser, not environment
 
 <!-- 
 Source references:

@@ -1,13 +1,13 @@
 ---
 title: Rule Title Here
 impact: MEDIUM
-impactDescription: brief description of impact
+impactDescription: brief impact description
 tags: composition, components
 ---
 
 ## Rule Title Here
 
-Brief explanation of the rule and why it matters.
+Why rule matters. Brief.
 
 **Incorrect:**
 

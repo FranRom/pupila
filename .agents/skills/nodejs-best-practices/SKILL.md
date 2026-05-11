@@ -8,21 +8,21 @@ date_added: "2026-02-27"
 
 # Node.js Best Practices
 
-> Principles and decision-making for Node.js development in 2025.
-> **Learn to THINK, not memorize code patterns.**
+> Principles + decision-making, Node.js 2025.
+> **THINK, don't memorize.**
 
 ## When to Use
-Use this skill when making Node.js architecture decisions, choosing frameworks, designing async patterns, or applying security and deployment best practices.
+Node.js architecture decisions, framework choice, async design, security, deployment.
 
 ---
 
-## ⚠️ How to Use This Skill
+## How to Use
 
-This skill teaches **decision-making principles**, not fixed code to copy.
+Teaches **decision-making**, not copy-paste code.
 
-- ASK user for preferences when unclear
-- Choose framework/pattern based on CONTEXT
-- Don't default to same solution every time
+- ASK user prefs when unclear
+- Pick framework/pattern by CONTEXT
+- Don't default same solution every time
 
 ---
 
@@ -59,15 +59,17 @@ What are you building?
 | **TypeScript** | Native | Excellent | Good |
 | **Learning curve** | Low | Medium | Low |
 
-### Selection Questions to Ask:
-1. What's the deployment target?
-2. Is cold start time critical?
-3. Does team have existing experience?
-4. Is there legacy code to maintain?
+**Why these matter:** Hono wins edge/serverless via zero deps + tiny runtime → fastest cold starts. Fastify wins perf via schema-based serialization → 2-3x Express throughput. Express wins on ecosystem maturity + middleware count. NestJS wins for teams needing DI/decorators/structure. Next.js/tRPC win when frontend colocated.
+
+### Selection Questions:
+1. Deployment target?
+2. Cold start critical?
+3. Team experience?
+4. Legacy code to maintain?
 
 ---
 
-## 2. Runtime Considerations (2025)
+## 2. Runtime (2025)
 
 ### Native TypeScript
 
@@ -78,7 +80,7 @@ Node.js 22+: --experimental-strip-types
 └── Consider for: scripts, simple APIs
 ```
 
-### Module System Decision
+### Module System
 
 ```
 ESM (import/export)
@@ -93,7 +95,7 @@ CommonJS (require)
 └── Use for: existing codebases, some edge cases
 ```
 
-### Runtime Selection
+### Runtime Pick
 
 | Runtime | Best For |
 |---------|----------|
@@ -101,11 +103,13 @@ CommonJS (require)
 | **Bun** | Performance, built-in bundler |
 | **Deno** | Security-first, built-in TypeScript |
 
+**Why:** Node = mature/biggest ecosystem. Bun = speed + bundler builtin. Deno = secure-by-default permissions + TS native.
+
 ---
 
-## 3. Architecture Principles
+## 3. Architecture
 
-### Layered Structure Concept
+### Layered Structure
 
 ```
 Request Flow:
@@ -126,21 +130,21 @@ Request Flow:
     └── ORM interactions
 ```
 
-### Why This Matters:
-- **Testability**: Mock layers independently
-- **Flexibility**: Swap database without touching business logic
-- **Clarity**: Each layer has single responsibility
+### Why:
+- **Testability**: mock layers independently
+- **Flexibility**: swap DB without touching logic
+- **Clarity**: single responsibility per layer
 
-### When to Simplify:
-- Small scripts → Single file OK
-- Prototypes → Less structure acceptable
-- Always ask: "Will this grow?"
+### Simplify when:
+- Small scripts → single file OK
+- Prototypes → less structure OK
+- Ask: "will this grow?"
 
 ---
 
-## 4. Error Handling Principles
+## 4. Error Handling
 
-### Centralized Error Handling
+### Centralized
 
 ```
 Pattern:
@@ -150,23 +154,13 @@ Pattern:
 └── Format consistent response
 ```
 
-### Error Response Philosophy
+### Response Philosophy
 
-```
-Client gets:
-├── Appropriate HTTP status
-├── Error code for programmatic handling
-├── User-friendly message
-└── NO internal details (security!)
+Client response MUST include: HTTP status, error code (programmatic handling), user-friendly message. NEVER expose internal details, stack traces, DB errors, file paths, or library internals — these leak attack surface (security-critical).
 
-Logs get:
-├── Full stack trace
-├── Request context
-├── User ID (if applicable)
-└── Timestamp
-```
+Logs MUST capture: full stack trace, request context, user ID if available, timestamp.
 
-### Status Code Selection
+### Status Codes
 
 | Situation | Status | When |
 |-----------|--------|------|
@@ -180,9 +174,9 @@ Logs get:
 
 ---
 
-## 5. Async Patterns Principles
+## 5. Async Patterns
 
-### When to Use Each
+### Pick
 
 | Pattern | Use When |
 |---------|----------|
@@ -191,7 +185,7 @@ Logs get:
 | `Promise.allSettled` | Parallel where some can fail |
 | `Promise.race` | Timeout or first response wins |
 
-### Event Loop Awareness
+### Event Loop
 
 ```
 I/O-bound (async helps):
@@ -207,15 +201,15 @@ CPU-bound (async doesn't help):
 └── → Use worker threads or offload
 ```
 
-### Avoiding Event Loop Blocking
+### Don't Block Loop
 
-- Never use sync methods in production (fs.readFileSync, etc.)
-- Offload CPU-intensive work
-- Use streaming for large data
+- Never sync methods in prod (`fs.readFileSync` etc.)
+- Offload CPU work
+- Stream large data
 
 ---
 
-## 6. Validation Principles
+## 6. Validation
 
 ### Validate at Boundaries
 
@@ -227,7 +221,7 @@ Where to validate:
 └── Environment variables (startup)
 ```
 
-### Validation Library Selection
+### Library Pick
 
 | Library | Best For |
 |---------|----------|
@@ -236,30 +230,30 @@ Where to validate:
 | **ArkType** | Performance critical |
 | **Yup** | Existing React Form usage |
 
-### Validation Philosophy
+### Philosophy
 
-- Fail fast: Validate early
-- Be specific: Clear error messages
-- Don't trust: Even "internal" data
+- Fail fast: validate early
+- Specific: clear error messages
+- Trust nothing: even "internal" data
 
 ---
 
-## 7. Security Principles
+## 7. Security
 
-### Security Checklist (Not Code)
+### Checklist
 
-- [ ] **Input validation**: All inputs validated
-- [ ] **Parameterized queries**: No string concatenation for SQL
+- [ ] **Input validation**: all inputs validated
+- [ ] **Parameterized queries**: no string concatenation for SQL
 - [ ] **Password hashing**: bcrypt or argon2
-- [ ] **JWT verification**: Always verify signature and expiry
-- [ ] **Rate limiting**: Protect from abuse
+- [ ] **JWT verification**: always verify signature AND expiry
+- [ ] **Rate limiting**: protect from abuse
 - [ ] **Security headers**: Helmet.js or equivalent
-- [ ] **HTTPS**: Everywhere in production
-- [ ] **CORS**: Properly configured
-- [ ] **Secrets**: Environment variables only
-- [ ] **Dependencies**: Regularly audited
+- [ ] **HTTPS**: everywhere in production
+- [ ] **CORS**: properly configured (explicit origin allowlist, never `*` with credentials)
+- [ ] **Secrets**: environment variables ONLY — never hardcode API keys, DB creds, JWT secrets, tokens; never commit `.env`; rotate any exposed secret immediately
+- [ ] **Dependencies**: regularly audited (`npm audit`, Dependabot)
 
-### Security Mindset
+### Mindset
 
 ```
 Trust nothing:
@@ -273,9 +267,9 @@ Trust nothing:
 
 ---
 
-## 8. Testing Principles
+## 8. Testing
 
-### Test Strategy Selection
+### Strategy
 
 | Type | Purpose | Tools |
 |------|---------|-------|
@@ -283,14 +277,14 @@ Trust nothing:
 | **Integration** | API endpoints | Supertest |
 | **E2E** | Full flows | Playwright |
 
-### What to Test (Priorities)
+### Priorities
 
-1. **Critical paths**: Auth, payments, core business
-2. **Edge cases**: Empty inputs, boundaries
-3. **Error handling**: What happens when things fail?
-4. **Not worth testing**: Framework code, trivial getters
+1. **Critical paths**: auth, payments, core business
+2. **Edge cases**: empty inputs, boundaries
+3. **Error handling**: failure modes
+4. **Skip**: framework code, trivial getters
 
-### Built-in Test Runner (Node.js 22+)
+### Built-in Runner (Node.js 22+)
 
 ```
 node --test src/**/*.test.ts
@@ -301,23 +295,23 @@ node --test src/**/*.test.ts
 
 ---
 
-## 9. Anti-Patterns to Avoid
+## 9. Anti-Patterns
 
-### ❌ DON'T:
-- Use Express for new edge projects (use Hono)
-- Use sync methods in production code
-- Put business logic in controllers
+### DON'T:
+- Express for new edge projects (use Hono)
+- Sync methods in prod code
+- Business logic in controllers
 - Skip input validation
 - Hardcode secrets
-- Trust external data without validation
-- Block event loop with CPU work
+- Trust external data unvalidated
+- Block event loop w/ CPU work
 
-### ✅ DO:
-- Choose framework based on context
-- Ask user for preferences when unclear
-- Use layered architecture for growing projects
+### DO:
+- Pick framework by context
+- Ask user prefs when unclear
+- Layered architecture for growing projects
 - Validate all inputs
-- Use environment variables for secrets
+- Env vars for secrets
 - Profile before optimizing
 
 ---
@@ -326,18 +320,18 @@ node --test src/**/*.test.ts
 
 Before implementing:
 
-- [ ] **Asked user about stack preference?**
-- [ ] **Chosen framework for THIS context?** (not just default)
-- [ ] **Considered deployment target?**
-- [ ] **Planned error handling strategy?**
-- [ ] **Identified validation points?**
-- [ ] **Considered security requirements?**
+- [ ] Asked user about stack pref?
+- [ ] Picked framework for THIS context? (not default)
+- [ ] Considered deploy target?
+- [ ] Planned error handling?
+- [ ] Identified validation points?
+- [ ] Considered security?
 
 ---
 
-> **Remember**: Node.js best practices are about decision-making, not memorizing patterns. Every project deserves fresh consideration based on its requirements.
+> **Remember**: best practices = decision-making, not memorizing. Every project deserves fresh consideration.
 
 ## Limitations
-- Use this skill only when the task clearly matches the scope described above.
-- Do not treat the output as a substitute for environment-specific validation, testing, or expert review.
-- Stop and ask for clarification if required inputs, permissions, safety boundaries, or success criteria are missing.
+- Use only when task matches scope.
+- Not substitute for env-specific validation, testing, or expert review.
+- Stop + ask if inputs, permissions, safety boundaries, or success criteria missing.

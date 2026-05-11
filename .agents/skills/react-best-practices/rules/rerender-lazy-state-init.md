@@ -7,7 +7,7 @@ tags: react, hooks, useState, performance, initialization
 
 ## Use Lazy State Initialization
 
-Pass a function to `useState` for expensive initial values. Without the function form, the initializer runs on every render even though the value is only used once.
+Pass function to `useState` for expensive initial values. Without function form, initializer runs on every render even though value used once.
 
 **Incorrect (runs on every render):**
 
@@ -31,7 +31,7 @@ function UserProfile() {
 }
 ```
 
-**Correct (runs only once):**
+**Correct (runs once):**
 
 ```tsx
 function FilteredList({ items }: { items: Item[] }) {
@@ -53,6 +53,6 @@ function UserProfile() {
 }
 ```
 
-Use lazy initialization when computing initial values from localStorage/sessionStorage, building data structures (indexes, maps), reading from the DOM, or performing heavy transformations.
+Use lazy init for: localStorage/sessionStorage reads, data structure builds (indexes, maps), DOM reads, heavy transforms.
 
-For simple primitives (`useState(0)`), direct references (`useState(props.value)`), or cheap literals (`useState({})`), the function form is unnecessary.
+For simple primitives (`useState(0)`), direct refs (`useState(props.value)`), cheap literals (`useState({})`) → function form unnecessary.

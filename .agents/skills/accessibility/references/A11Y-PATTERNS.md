@@ -1,12 +1,12 @@
 # Accessibility Code Patterns
 
-Practical, copy-paste-ready patterns for common accessibility requirements. Each pattern is self-contained and linked from the main [SKILL.md](../SKILL.md).
+Copy-paste-ready patterns for common a11y needs. Each self-contained, linked from main [SKILL.md](../SKILL.md).
 
 ---
 
 ## Modal focus trap
 
-Trap keyboard focus inside a modal dialog so Tab/Shift+Tab cycle through its focusable elements and Escape closes it.
+Trap keyboard focus inside modal so Tab/Shift+Tab cycle through focusable elements. Escape closes.
 
 ```javascript
 function openModal(modal) {
@@ -35,13 +35,13 @@ function openModal(modal) {
 }
 ```
 
-The native `<dialog>` element handles focus trapping automatically—prefer it when browser support allows.
+Native `<dialog>` traps focus auto — prefer when browser support allows.
 
 ---
 
 ## Skip link
 
-Allows keyboard users to bypass repetitive navigation and jump straight to main content.
+Lets keyboard users bypass repetitive nav, jump to main content.
 
 ```html
 <body>
@@ -73,7 +73,7 @@ Allows keyboard users to bypass repetitive navigation and jump straight to main 
 
 ## Error handling
 
-Announce errors to screen readers and focus the first invalid field on submit.
+Announce errors to screen readers. Focus first invalid field on submit.
 
 ```html
 <form novalidate>
@@ -108,7 +108,7 @@ form.addEventListener('submit', (e) => {
 
 ## Form labels
 
-Every input needs an associated label—either explicit (`for`/`id`) or implicit (wrapping `<label>`).
+Every input needs associated label — explicit (`for`/`id`) or implicit (wrap `<label>`).
 
 ```html
 <!-- ❌ No label association -->
@@ -138,7 +138,7 @@ Every input needs an associated label—either explicit (`for`/`id`) or implicit
 
 ## Dragging movements
 
-Any action triggered by dragging must offer a single-pointer alternative (WCAG 2.5.7).
+Drag actions need single-pointer alternative (WCAG 2.5.7).
 
 ```html
 <!-- ❌ Drag-only reorder -->
@@ -162,13 +162,13 @@ Any action triggered by dragging must offer a single-pointer alternative (WCAG 2
 </ul>
 ```
 
-Also applies to sliders, map panning, colour pickers, and similar drag-based widgets—always provide an equivalent click/tap or keyboard path.
+Applies to sliders, map panning, colour pickers, similar drag widgets — always provide click/tap or keyboard path.
 
 ---
 
 ## ARIA tabs
 
-Tabs require `role="tablist"`, `role="tab"`, and `role="tabpanel"` with proper `aria-selected`, `aria-controls`, and keyboard support.
+Tabs need `role="tablist"`, `role="tab"`, `role="tabpanel"` plus `aria-selected`, `aria-controls`, keyboard support.
 
 ```html
 <div role="tablist" aria-label="Product information">
@@ -185,13 +185,13 @@ Tabs require `role="tablist"`, `role="tab"`, and `role="tabpanel"` with proper `
 </div>
 ```
 
-Arrow keys should move focus between tabs; the active tab receives `tabindex="0"` while inactive tabs use `tabindex="-1"`.
+Arrow keys move focus between tabs. Active tab gets `tabindex="0"`. Inactive tabs use `tabindex="-1"`.
 
 ---
 
 ## Live regions and notifications
 
-Use `aria-live` to announce dynamic content changes to screen readers without moving focus.
+Use `aria-live` to announce dynamic changes to screen readers without moving focus.
 
 ```html
 <!-- Status updates (polite — waits for pause in speech) -->
@@ -215,13 +215,13 @@ function showNotification(message, type = 'polite') {
 }
 ```
 
-Clear the container before writing to ensure the same message triggers a new announcement.
+Clear container before writing — same message triggers fresh announcement.
 
 ---
 
 ## Screen reader commands
 
-Quick reference for the most common screen reader shortcuts.
+Common screen reader shortcuts.
 
 | Action | VoiceOver (Mac) | NVDA (Windows) |
 |--------|-----------------|----------------|

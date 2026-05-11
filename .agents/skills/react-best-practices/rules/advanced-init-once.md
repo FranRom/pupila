@@ -7,7 +7,7 @@ tags: initialization, useEffect, app-startup, side-effects
 
 ## Initialize App Once, Not Per Mount
 
-Do not put app-wide initialization that must run once per app load inside `useEffect([])` of a component. Components can remount and effects will re-run. Use a module-level guard or top-level init in the entry module instead.
+Don't put app-wide once-per-load init inside `useEffect([])`. Components remount; effects re-run. Use module-level guard or top-level init in entry module.
 
 **Incorrect (runs twice in dev, re-runs on remount):**
 

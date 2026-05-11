@@ -9,16 +9,16 @@ tags: rendering, preload, preconnect, prefetch, resource-hints
 
 **Impact: HIGH (reduces load time for critical resources)**
 
-React DOM provides APIs to hint the browser about resources it will need. These are especially useful in server components to start loading resources before the client even receives the HTML.
+React DOM has APIs to hint browser about needed resources. Useful in server components — start loading before client receives HTML.
 
-- **`prefetchDNS(href)`**: Resolve DNS for a domain you expect to connect to
-- **`preconnect(href)`**: Establish connection (DNS + TCP + TLS) to a server
-- **`preload(href, options)`**: Fetch a resource (stylesheet, font, script, image) you'll use soon
-- **`preloadModule(href)`**: Fetch an ES module you'll use soon
-- **`preinit(href, options)`**: Fetch and evaluate a stylesheet or script
-- **`preinitModule(href)`**: Fetch and evaluate an ES module
+- **`prefetchDNS(href)`**: resolve DNS for domain you'll connect to
+- **`preconnect(href)`**: connection (DNS + TCP + TLS) to server
+- **`preload(href, options)`**: fetch resource (stylesheet, font, script, image) you'll use soon
+- **`preloadModule(href)`**: fetch ES module you'll use soon
+- **`preinit(href, options)`**: fetch + eval stylesheet/script
+- **`preinitModule(href)`**: fetch + eval ES module
 
-**Example (preconnect to third-party APIs):**
+**Example (preconnect to 3rd-party APIs):**
 
 ```tsx
 import { preconnect, prefetchDNS } from 'react-dom'
@@ -31,7 +31,7 @@ export default function App() {
 }
 ```
 
-**Example (preload critical fonts and styles):**
+**Example (preload critical fonts + styles):**
 
 ```tsx
 import { preload, preinit } from 'react-dom'
@@ -75,10 +75,10 @@ function Navigation() {
 
 | API | Use case |
 |-----|----------|
-| `prefetchDNS` | Third-party domains you'll connect to later |
-| `preconnect` | APIs or CDNs you'll fetch from immediately |
-| `preload` | Critical resources needed for current page |
-| `preloadModule` | JS modules for likely next navigation |
+| `prefetchDNS` | 3rd-party domains for later connection |
+| `preconnect` | APIs/CDNs you'll fetch immediately |
+| `preload` | Critical resources for current page |
+| `preloadModule` | JS modules for likely next nav |
 | `preinit` | Stylesheets/scripts that must execute early |
 | `preinitModule` | ES modules that must execute early |
 

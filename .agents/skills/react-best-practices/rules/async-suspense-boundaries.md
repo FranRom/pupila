@@ -7,9 +7,9 @@ tags: async, suspense, streaming, layout-shift
 
 ## Strategic Suspense Boundaries
 
-Instead of awaiting data in async components before returning JSX, use Suspense boundaries to show the wrapper UI faster while data loads.
+Instead of awaiting data in async components before returning JSX, use Suspense boundaries — wrapper UI shows faster while data loads.
 
-**Incorrect (wrapper blocked by data fetching):**
+**Incorrect (wrapper blocked by fetch):**
 
 ```tsx
 async function Page() {
@@ -28,9 +28,9 @@ async function Page() {
 }
 ```
 
-The entire layout waits for data even though only the middle section needs it.
+Whole layout waits for data, but only middle section needs it.
 
-**Correct (wrapper shows immediately, data streams in):**
+**Correct (wrapper renders immediately, data streams in):**
 
 ```tsx
 function Page() {
@@ -54,9 +54,9 @@ async function DataDisplay() {
 }
 ```
 
-Sidebar, Header, and Footer render immediately. Only DataDisplay waits for data.
+Sidebar, Header, Footer render now. Only DataDisplay waits.
 
-**Alternative (share promise across components):**
+**Alt (share promise across components):**
 
 ```tsx
 function Page() {
@@ -87,13 +87,13 @@ function DataSummary({ dataPromise }: { dataPromise: Promise<Data> }) {
 }
 ```
 
-Both components share the same promise, so only one fetch occurs. Layout renders immediately while both components wait together.
+Both share same promise → one fetch. Layout renders now, both components wait together.
 
-**When NOT to use this pattern:**
+**When NOT to use:**
 
-- Critical data needed for layout decisions (affects positioning)
-- SEO-critical content above the fold
-- Small, fast queries where suspense overhead isn't worth it
-- When you want to avoid layout shift (loading → content jump)
+- Critical data for layout decisions (positioning)
+- SEO-critical above-fold content
+- Small fast queries where Suspense overhead isn't worth it
+- Avoiding layout shift (loading → content jump)
 
-**Trade-off:** Faster initial paint vs potential layout shift. Choose based on your UX priorities.
+**Trade-off:** faster initial paint vs potential layout shift. Pick per UX priority.

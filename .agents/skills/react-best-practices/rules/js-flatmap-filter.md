@@ -9,7 +9,7 @@ tags: javascript, arrays, flatMap, filter, performance
 
 **Impact: LOW-MEDIUM (eliminates intermediate array)**
 
-Chaining `.map().filter(Boolean)` creates an intermediate array and iterates twice. Use `.flatMap()` to transform and filter in a single pass.
+`.map().filter(Boolean)` = intermediate array + 2 iterations. `.flatMap()` transforms + filters in one pass.
 
 **Incorrect (2 iterations, intermediate array):**
 
@@ -19,7 +19,7 @@ const userNames = users
   .filter(Boolean)
 ```
 
-**Correct (1 iteration, no intermediate array):**
+**Correct (1 iteration, no intermediate):**
 
 ```typescript
 const userNames = users.flatMap(user =>
@@ -55,6 +55,6 @@ const numbers = strings.flatMap(s => {
 ```
 
 **When to use:**
-- Transforming items while filtering some out
+- Transform items + filter some out
 - Conditional mapping where some inputs produce no output
-- Parsing/validating where invalid inputs should be skipped
+- Parsing/validating where invalid inputs should skip

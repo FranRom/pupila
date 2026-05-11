@@ -5,9 +5,9 @@ description: Multi-project configuration for monorepos and different test types
 
 # Projects
 
-Run different test configurations in the same Vitest process.
+Run different test configs in same Vitest process.
 
-## Basic Projects Setup
+## Basic Setup
 
 ```ts
 // vitest.config.ts
@@ -68,8 +68,6 @@ export default defineConfig({
 ```
 
 ## Different Environments
-
-Run same tests in different environments:
 
 ```ts
 defineConfig({
@@ -161,8 +159,6 @@ defineConfig({
 
 ## Project-Specific Dependencies
 
-Each project can have different dependencies inlined:
-
 ```ts
 defineConfig({
   test: {
@@ -197,8 +193,6 @@ vitest --project.ignore browser
 ```
 
 ## Providing Values to Projects
-
-Share values from config to tests:
 
 ```ts
 // vitest.config.ts
@@ -250,7 +244,7 @@ test('uses injected url', ({ apiUrl }) => {
 
 ## Project Isolation
 
-Each project runs in its own thread pool by default:
+Each project = own thread pool default:
 
 ```ts
 defineConfig({
@@ -288,11 +282,11 @@ defineConfig({
 ## Key Points
 
 - Projects run in same Vitest process
-- Each project can have different environment, config
-- Use glob patterns for monorepo packages
-- Run specific projects with `--project` flag
-- Use `provide` to inject config values into tests
-- Projects inherit from root config unless overridden
+- Each project: different environment, config
+- Glob patterns for monorepo packages
+- `--project` flag runs specific projects
+- `provide` injects config values into tests
+- Projects inherit root config unless overridden
 
 <!-- 
 Source references:

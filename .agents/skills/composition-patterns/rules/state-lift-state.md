@@ -7,9 +7,7 @@ tags: composition, state, context, providers
 
 ## Lift State into Provider Components
 
-Move state management into dedicated provider components. This allows sibling
-components outside the main UI to access and modify state without prop drilling
-or awkward refs.
+Move state mgmt into dedicated providers. Siblings outside main UI can read/modify state — no prop drilling, no awkward refs.
 
 **Incorrect (state trapped inside component):**
 
@@ -26,7 +24,7 @@ function ForwardMessageComposer() {
   )
 }
 
-// Problem: How does this button access composer state?
+// Problem: How does button read composer state?
 function ForwardMessageDialog() {
   return (
     <Dialog>
@@ -34,14 +32,14 @@ function ForwardMessageDialog() {
       <MessagePreview /> {/* Needs composer state */}
       <DialogActions>
         <CancelButton />
-        <ForwardButton /> {/* Needs to call submit */}
+        <ForwardButton /> {/* Needs submit */}
       </DialogActions>
     </Dialog>
   )
 }
 ```
 
-**Incorrect (useEffect to sync state up):**
+**Incorrect (useEffect syncing state up):**
 
 ```tsx
 function ForwardMessageDialog() {
@@ -100,10 +98,10 @@ function ForwardMessageDialog() {
     <ForwardMessageProvider>
       <Dialog>
         <ForwardMessageComposer />
-        <MessagePreview /> {/* Custom components can access state and actions */}
+        <MessagePreview /> {/* Custom components read state + actions */}
         <DialogActions>
           <CancelButton />
-          <ForwardButton /> {/* Custom components can access state and actions */}
+          <ForwardButton /> {/* Custom components read state + actions */}
         </DialogActions>
       </Dialog>
     </ForwardMessageProvider>
@@ -116,10 +114,6 @@ function ForwardButton() {
 }
 ```
 
-The ForwardButton lives outside the Composer.Frame but still has access to the
-submit action because it's within the provider. Even though it's a one-off
-component, it can still access the composer's state and actions from outside the
-UI itself.
+ForwardButton lives outside Composer.Frame, still reads submit — it's inside provider. One-off component, still reads composer state + actions from outside UI.
 
-**Key insight:** Components that need shared state don't have to be visually
-nested inside each other—they just need to be within the same provider.
+**Key insight:** Components needing shared state don't need to be visually nested. Just inside same provider.

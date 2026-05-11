@@ -7,7 +7,7 @@ tags: bundle, dynamic-import, code-splitting, next-dynamic
 
 ## Dynamic Imports for Heavy Components
 
-Use `next/dynamic` to lazy-load large components not needed on initial render.
+Use `next/dynamic` to lazy-load big components not needed at initial render.
 
 **Incorrect (Monaco bundles with main chunk ~300KB):**
 
