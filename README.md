@@ -47,7 +47,7 @@ Or click "Fork" on GitHub, then `git clone <your-fork>`.
 
 The brief at `config/candidate-brief.md` is the natural-language description of who you are, what you want, and what to avoid. **This step is mandatory** — `pnpm run dev` will refuse to start until the file exists. (Bypass with `JOB_HUNT_NO_BRIEF_CHECK=1` if you genuinely want raw aggregation with no AI review.)
 
-**The file is gitignored** — it contains CV-derived personal information and should never be committed. The repo ships [`config/candidate-brief.example.md`](./config/candidate-brief.example.md) as a committed template; setup-brief writes to the gitignored canonical path.
+**The file is gitignored** — it contains CV-derived personal information and should never be committed. setup-brief and the onboarding wizard write to the gitignored canonical path.
 
 The friendliest path is the **first-run onboarding wizard**: run `pnpm run ui` on a clean repo and the UI walks you through (1) picking your LLM CLI, (2) dropping your CV, (3) confirming the auto-generated brief. After "Looks good", `config/preferences.json` is stamped with `onboardedAt`, the wizard never re-triggers, and you land on the Jobs view.
 
@@ -135,9 +135,9 @@ These files are **gitignored** and never committed, so a public fork can't leak 
 
 | File | What it is | First-run source |
 |---|---|---|
-| `config/candidate-brief.md` | LLM-generated CV summary | Onboarding wizard / `pnpm run setup-brief` (or copy `config/candidate-brief.example.md`) |
+| `config/candidate-brief.md` | LLM-generated CV summary | Onboarding wizard / `pnpm run setup-brief` |
 | `config/cv.{pdf,docx,md,txt}` | Original CV file | Saved by the onboarding wizard / `setup-brief` so AI Apply can re-attach it |
-| `config/applied.json` | Your application history | UI Profile → status pills (or copy `config/applied.example.json`) |
+| `config/applied.json` | Your application history | UI Profile → status pills |
 | `config/preferences.json` | Your chosen LLM CLI + onboarding-complete stamp | Onboarding wizard |
 | `data/jobs.json` | Daily aggregator output, tuned to your profile | Auto-created by `pnpm run dev` |
 | `data/ai-reviews.json` | Per-job LLM verdicts | Auto-created by `pnpm run ai-review` |
