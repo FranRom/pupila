@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { streamNdjson } from '../../src/lib/stream-ndjson.js';
-import { StreamingPanel, type StreamingStatus } from './StreamingPanel.tsx';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useLlmStream } from './lib/use-llm-stream.ts';
+import { StreamingPanel } from './StreamingPanel.tsx';
 
 // First-run wizard. Three steps:
 //   1. Pick the LLM CLI provider (probes /api/llm-detect for ✓/✗).
@@ -69,33 +69,13 @@ export function Onboarding({ onComplete }: OnboardingProps) {
   const [briefDraft, setBriefDraft] = useState<string>('');
   const [generatedBrief, setGeneratedBrief] = useState<string>('');
 
-  // Streaming state for the two LLM phases. Each phase owns its own slot
-  // because they fire at different wizard steps and never coexist.
-  const [cvStream, setCvStream] = useState('');
-  const [cvStreamStatus, setCvStreamStatus] = useState<StreamingStatus>('idle');
-  const [cvStreamStage, setCvStreamStage] = useState<string | null>(null);
-  const [cvElapsedMs, setCvElapsedMs] = useState(0);
-  const cvStartRef = useRef<number | null>(null);
-
-  const [tuneStream, setTuneStream] = useState('');
-  const [tuneStreamStatus, setTuneStreamStatus] = useState<StreamingStatus>('idle');
-  const [tuneElapsedMs, setTuneElapsedMs] = useState(0);
-  const tuneStartRef = useRef<number | null>(null);
-
-  // Elapsed-time ticker — bumps every 250ms while either stream is running.
-  // Lighter than a per-state-update setInterval per phase.
-  useEffect(() => {
-    if (cvStreamStatus !== 'running' && tuneStreamStatus !== 'running') return;
-    const id = window.setInterval(() => {
-      if (cvStreamStatus === 'running' && cvStartRef.current !== null) {
-        setCvElapsedMs(Date.now() - cvStartRef.current);
-      }
-      if (tuneStreamStatus === 'running' && tuneStartRef.current !== null) {
-        setTuneElapsedMs(Date.now() - tuneStartRef.current);
-      }
-    }, 250);
-    return () => window.clearInterval(id);
-  }, [cvStreamStatus, tuneStreamStatus]);
+  // One hook per LLM phase: CV summarization + profile tuning. Each one
+  // owns its own stream/status/stage/elapsed/error state internally.
+  const cv = useLlmStream<{ body?: string }>({ url: '/api/cv' });
+  const tune = useLlmStream<{
+    weightsChanged?: string[];
+    keywordsChanged?: string[];
+  }>({ url: '/api/profile-generate' });
 
   // Load installed-CLI status on mount.
   useEffect(() => {
@@ -124,45 +104,34 @@ export function Onboarding({ onComplete }: OnboardingProps) {
     return PROVIDERS.some((p) => available[p]);
   }, [available]);
 
-  const uploadCv = useCallback(async (file: File) => {
-    const format = detectFormatFromName(file.name);
-    if (!format) {
-      setError(`Unsupported file: ${file.name}. Use .pdf, .docx, .md, or .txt.`);
-      return;
-    }
-    setBusy(true);
-    setError(null);
-    setCvStream('');
-    setCvStreamStage(null);
-    setCvElapsedMs(0);
-    cvStartRef.current = Date.now();
-    setCvStreamStatus('running');
-    try {
-      const data =
-        format === 'pdf' || format === 'docx' ? await fileToBase64(file) : await file.text();
-      const done = await streamNdjson<{ body?: string }>('/api/cv', { format, data }, (event) => {
-        if (event.type === 'chunk') {
-          // Cap the visible stream so a very chatty CLI doesn't grow the
-          // DOM string unboundedly. The final cleaned body comes from the
-          // `done` event, not this concatenation.
-          setCvStream((s) => (s + event.data).slice(-12_000));
-        } else if (event.type === 'start' || event.type === 'stage') {
-          setCvStreamStage(event.stage);
+  const uploadCv = useCallback(
+    async (file: File) => {
+      const format = detectFormatFromName(file.name);
+      if (!format) {
+        setError(`Unsupported file: ${file.name}. Use .pdf, .docx, .md, or .txt.`);
+        return;
+      }
+      setBusy(true);
+      setError(null);
+      try {
+        const data =
+          format === 'pdf' || format === 'docx' ? await fileToBase64(file) : await file.text();
+        const done = await cv.start({ format, data });
+        if (!done?.body) {
+          // hook already set its own error+status; mirror it into the
+          // wizard-level error banner so the user sees a single message.
+          if (cv.error) setError(`CV summarization failed: ${cv.error}`);
+          return;
         }
-      });
-      if (!done.body) throw new Error('LLM finished without a brief body');
-      setGeneratedBrief(done.body);
-      setBriefDraft(done.body);
-      setCvStreamStatus('done');
-      setStep('preview');
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      setError(`CV summarization failed: ${message}`);
-      setCvStreamStatus('error');
-    } finally {
-      setBusy(false);
-    }
-  }, []);
+        setGeneratedBrief(done.body);
+        setBriefDraft(done.body);
+        setStep('preview');
+      } finally {
+        setBusy(false);
+      }
+    },
+    [cv],
+  );
 
   const finish = useCallback(async () => {
     setBusy(true);
@@ -194,34 +163,18 @@ export function Onboarding({ onComplete }: OnboardingProps) {
       // Errors here don't block the handoff — Settings → Scoring profile
       // has a manual retry button.
       setTuning(true);
-      setTuneStream('');
-      setTuneElapsedMs(0);
-      tuneStartRef.current = Date.now();
-      setTuneStreamStatus('running');
-      try {
-        await streamNdjson(
-          '/api/profile-generate',
-          { provider: provider === 'auto' ? null : provider },
-          (event) => {
-            if (event.type === 'chunk') {
-              setTuneStream((s) => (s + event.data).slice(-12_000));
-            }
-          },
-        );
-        setTuneStreamStatus('done');
-      } catch (profileErr) {
-        console.warn('[onboarding] profile generation failed; continuing anyway:', profileErr);
-        setTuneStreamStatus('error');
-      } finally {
-        setTuning(false);
+      const tuneDone = await tune.start({ provider: provider === 'auto' ? null : provider });
+      if (!tuneDone && tune.error) {
+        console.warn('[onboarding] profile generation failed; continuing anyway:', tune.error);
       }
+      setTuning(false);
       onComplete();
     } catch (err) {
       setError(`Could not finish onboarding: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
       setBusy(false);
     }
-  }, [briefDraft, generatedBrief, provider, onComplete]);
+  }, [briefDraft, generatedBrief, provider, onComplete, tune]);
 
   return (
     <div className="onboarding">
@@ -326,17 +279,17 @@ export function Onboarding({ onComplete }: OnboardingProps) {
           <CvDropZone busy={busy} onFile={uploadCv} />
           <StreamingPanel
             title={
-              cvStreamStage === 'parsing-cv'
+              cv.stage === 'parsing-cv'
                 ? 'Reading your CV…'
-                : cvStreamStage === 'calling-llm'
+                : cv.stage === 'calling-llm'
                   ? 'Generating brief…'
                   : 'Working…'
             }
-            stream={cvStream}
-            status={cvStreamStatus}
-            elapsedMs={cvElapsedMs}
+            stream={cv.stream}
+            status={cv.status}
+            elapsedMs={cv.elapsedMs}
             provider={provider === 'auto' ? null : provider}
-            error={cvStreamStatus === 'error' ? error : null}
+            error={cv.status === 'error' ? error : null}
           />
           <div className="onboarding-actions">
             <button type="button" disabled={busy} onClick={() => setStep('provider')}>
@@ -361,9 +314,9 @@ export function Onboarding({ onComplete }: OnboardingProps) {
           />
           <StreamingPanel
             title="Tuning scoring profile from your brief…"
-            stream={tuneStream}
-            status={tuneStreamStatus}
-            elapsedMs={tuneElapsedMs}
+            stream={tune.stream}
+            status={tune.status}
+            elapsedMs={tune.elapsedMs}
             provider={provider === 'auto' ? null : provider}
           />
           <div className="onboarding-actions">

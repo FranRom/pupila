@@ -4,6 +4,7 @@ import { readBriefBody, writeBriefBody } from '../../src/lib/brief-template.js';
 import { type CvFormat, parseCvBuffer } from '../../src/lib/cv-parser.js';
 import { runLlm } from '../../src/lib/llm.js';
 import { stripFences } from '../../src/lib/profile-generator.js';
+import { streamableResponse } from '../../src/lib/streamable-response.js';
 import { CV_BASENAME } from './_paths.ts';
 import { CV_MAX_CHARS, readBody, VALID_CV_FORMATS } from './_shared.ts';
 
@@ -78,13 +79,8 @@ export function briefApiPlugin(): Plugin {
           res.end();
           return;
         }
-        // Content negotiation: clients pass `Accept: application/x-ndjson`
-        // to receive streamed LLM tokens. Everything else gets the original
-        // synchronous JSON response so Profile re-upload and any future
-        // caller doesn't have to know about NDJSON.
-        const wantsStream = (req.headers.accept ?? '').includes('application/x-ndjson');
 
-        // Phase 1: validate input synchronously. Bad input always gets a
+        // Phase 1: synchronous input validation. Bad input always gets a
         // normal JSON 4xx regardless of Accept — streaming hasn't started
         // yet so we can still set a status code.
         let format: CvFormat;
@@ -120,86 +116,40 @@ export function briefApiPlugin(): Plugin {
           return;
         }
 
-        // Phase 2 — common LLM path. The two branches diverge only in how
-        // they report progress: NDJSON streams events, JSON buffers and
-        // returns a single response at the end.
-        if (wantsStream) {
-          // TODO: wire up `req.on('close')` to abort the in-flight LLM run.
-          // For now a disconnected client just causes res.write to throw,
-          // which we swallow; the LLM finishes anyway.
-          res.setHeader('Content-Type', 'application/x-ndjson');
-          res.setHeader('Cache-Control', 'no-cache');
-          // Vite's dev middleware sits behind a proxy in some setups; disable
-          // upstream buffering so the browser sees tokens as they're emitted.
-          res.setHeader('X-Accel-Buffering', 'no');
-          const send = (event: Record<string, unknown>): void => {
-            try {
-              res.write(`${JSON.stringify(event)}\n`);
-            } catch {
-              // client disconnected — silently drop
-            }
-          };
-
-          try {
-            send({ type: 'start', stage: 'parsing-cv' });
-            const cvFilePath = `${CV_BASENAME}.${format}`;
-            await writeFile(cvFilePath, buf);
-            const cvText = await parseCvBuffer(buf, format);
-            if (!cvText.trim()) {
-              send({ type: 'error', error: 'parsed CV is empty' });
-              res.end();
-              return;
-            }
-            send({ type: 'stage', stage: 'calling-llm' });
-            const raw = await runLlm(buildCvSummaryPrompt(cvText), undefined, (chunk) => {
-              send({ type: 'chunk', data: chunk });
-            });
-            const cleaned = stripFences(raw);
-            if (!cleaned) {
-              send({ type: 'error', error: 'LLM returned empty output' });
-              res.end();
-              return;
-            }
-            await writeBriefBody(cleaned);
-            send({ type: 'done', body: cleaned });
-            res.end();
-          } catch (err) {
-            console.error('[cv api]', err);
-            send({ type: 'error', error: err instanceof Error ? err.message : String(err) });
-            res.end();
-          }
-          return;
-        }
-
-        // Default JSON path (Profile re-upload, scripts, anything that
-        // doesn't ask for NDJSON). Functionally identical to the original
-        // pre-streaming implementation.
+        // Phase 2: dual-mode LLM call. `responder.send()` emits NDJSON
+        // events when Accept asks for streaming; it's a no-op in JSON mode.
+        // `responder.finish()` either emits the terminal `done` event or
+        // sends the full JSON response. Either way the success path looks
+        // the same to this handler.
+        // TODO: handle req.on('close') to abort the in-flight LLM run.
+        const responder = streamableResponse(req, res);
         try {
+          responder.send({ type: 'start', stage: 'parsing-cv' });
           const cvFilePath = `${CV_BASENAME}.${format}`;
           await writeFile(cvFilePath, buf);
           const cvText = await parseCvBuffer(buf, format);
           if (!cvText.trim()) {
-            res.statusCode = 400;
-            res.setHeader('Content-Type', 'application/json');
-            res.end(JSON.stringify({ error: 'parsed CV is empty' }));
+            responder.fail('parsed CV is empty', 400);
             return;
           }
-          const raw = await runLlm(buildCvSummaryPrompt(cvText));
+          responder.send({ type: 'stage', stage: 'calling-llm' });
+          const raw = await runLlm(
+            buildCvSummaryPrompt(cvText),
+            undefined,
+            responder.isStreaming
+              ? (chunk) => responder.send({ type: 'chunk', data: chunk })
+              : undefined,
+          );
           const cleaned = stripFences(raw);
           if (!cleaned) {
-            res.statusCode = 502;
-            res.setHeader('Content-Type', 'application/json');
-            res.end(JSON.stringify({ error: 'LLM returned empty output' }));
+            responder.fail('LLM returned empty output', 502);
             return;
           }
           await writeBriefBody(cleaned);
-          res.setHeader('Content-Type', 'application/json');
-          res.end(JSON.stringify({ ok: true, body: cleaned }));
+          responder.finish({ body: cleaned });
         } catch (err) {
           console.error('[cv api]', err);
-          res.statusCode = 500;
-          res.setHeader('Content-Type', 'application/json');
-          res.end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }));
+          responder.fail(err instanceof Error ? err.message : String(err), 500);
         }
       });
     },

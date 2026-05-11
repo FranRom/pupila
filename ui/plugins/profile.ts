@@ -7,6 +7,7 @@ import {
   mergeProfile,
   type ProfileShape,
 } from '../../src/lib/profile-generator.js';
+import { streamableResponse } from '../../src/lib/streamable-response.js';
 import { PROFILE_PATH } from './_paths.ts';
 import { readBody, readJsonOrDefault } from './_shared.ts';
 
@@ -61,14 +62,11 @@ export function profileApiPlugin(): Plugin {
           res.end(JSON.stringify({ error: 'profile generation is already running' }));
           return;
         }
-        // Clients pass `Accept: application/x-ndjson` to opt into streaming.
-        // Settings keeps the old JSON shape; onboarding asks for NDJSON.
-        const wantsStream = (req.headers.accept ?? '').includes('application/x-ndjson');
         inFlight = true;
 
         // Phase 1: synchronous JSON validation for everything we can check
-        // before the LLM runs. 412/500 stay JSON in both branches because
-        // they happen before any streaming headers are committed.
+        // before the LLM runs. 412/500 stay JSON because they fire before
+        // any streaming headers are committed.
         let provider: LlmProvider | undefined;
         let briefBody: string;
         let base: ProfileShape;
@@ -112,91 +110,35 @@ export function profileApiPlugin(): Plugin {
           return;
         }
 
-        // Phase 2 — common LLM path. Streaming branch (NDJSON) and default
-        // branch (JSON) share the same logic; only the progress reporting
-        // differs.
-        if (wantsStream) {
-          // TODO: wire up `req.on('close')` to abort the in-flight LLM.
-          res.setHeader('Content-Type', 'application/x-ndjson');
-          res.setHeader('Cache-Control', 'no-cache');
-          res.setHeader('X-Accel-Buffering', 'no');
-          const send = (event: Record<string, unknown>): void => {
-            try {
-              res.write(`${JSON.stringify(event)}\n`);
-            } catch {
-              // client disconnected — silently drop
-            }
-          };
-
-          try {
-            send({ type: 'start', stage: 'calling-llm' });
-            let delta: Awaited<ReturnType<typeof generateProfileFromBrief>>;
-            try {
-              delta = await generateProfileFromBrief(briefBody, provider, (chunk) => {
-                send({ type: 'chunk', data: chunk });
-              });
-            } catch (err) {
-              send({
-                type: 'error',
-                error: `LLM CLI failed: ${err instanceof Error ? err.message : String(err)}`,
-              });
-              res.end();
-              return;
-            }
-
-            const { profile, weightsChanged, keywordsChanged } = mergeProfile(base, delta);
-            await writeFile(PROFILE_PATH, `${JSON.stringify(profile, null, 2)}\n`, 'utf8');
-
-            send({
-              type: 'done',
-              weightsChanged,
-              keywordsChanged,
-              provider: provider ?? 'auto',
-            });
-            res.end();
-          } catch (err) {
-            console.error('[profile-generate api]', err);
-            send({ type: 'error', error: err instanceof Error ? err.message : String(err) });
-            res.end();
-          } finally {
-            inFlight = false;
-          }
-          return;
-        }
-
-        // Default JSON path (Settings → Regenerate). Same logic, single
-        // response at the end. Behavior identical to the pre-streaming
-        // version.
+        // Phase 2: dual-mode LLM call via the streamable-response helper.
+        // Streaming mode emits start/chunk/done NDJSON events; JSON mode
+        // buffers everything and emits a single 200 at the end.
+        // TODO: handle req.on('close') to abort the in-flight LLM.
+        const responder = streamableResponse(req, res);
         try {
+          responder.send({ type: 'start', stage: 'calling-llm' });
           let delta: Awaited<ReturnType<typeof generateProfileFromBrief>>;
           try {
-            delta = await generateProfileFromBrief(briefBody, provider);
+            delta = await generateProfileFromBrief(
+              briefBody,
+              provider,
+              responder.isStreaming
+                ? (chunk) => responder.send({ type: 'chunk', data: chunk })
+                : undefined,
+            );
           } catch (err) {
-            res.statusCode = 502;
-            res.setHeader('Content-Type', 'application/json');
-            res.end(
-              JSON.stringify({
-                error: `LLM CLI failed: ${err instanceof Error ? err.message : String(err)}`,
-              }),
+            responder.fail(
+              `LLM CLI failed: ${err instanceof Error ? err.message : String(err)}`,
+              502,
             );
             return;
           }
           const { profile, weightsChanged, keywordsChanged } = mergeProfile(base, delta);
           await writeFile(PROFILE_PATH, `${JSON.stringify(profile, null, 2)}\n`, 'utf8');
-          res.setHeader('Content-Type', 'application/json');
-          res.end(
-            JSON.stringify({
-              ok: true,
-              weightsChanged,
-              keywordsChanged,
-              provider: provider ?? 'auto',
-            }),
-          );
+          responder.finish({ weightsChanged, keywordsChanged, provider: provider ?? 'auto' });
         } catch (err) {
           console.error('[profile-generate api]', err);
-          res.statusCode = 500;
-          res.setHeader('Content-Type', 'application/json');
-          res.end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }));
+          responder.fail(err instanceof Error ? err.message : String(err), 500);
         } finally {
           inFlight = false;
         }
