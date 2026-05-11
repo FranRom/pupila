@@ -31,6 +31,7 @@ pnpm test                   # vitest run
 pnpm run test:watch         # vitest watch
 pnpm run ui                 # local-only Vite dev server on http://127.0.0.1:5173
 pnpm run ai-review          # writes data/ai-reviews.json (flags: --top=N, --force, --ids=a,b)
+pnpm run apply-worker       # standalone Tik Tjob queue consumer (separate terminal)
 pnpm run setup-brief --file ~/cv.pdf  # generate config/candidate-brief.md from a CV
 pnpm run daily              # = dev && ai-review (morning routine)
 pnpm run clean [-- --all]   # wipe locally-generated artifacts (--all also wipes brief + applied)
@@ -40,7 +41,19 @@ pnpm run clean [-- --all]   # wipe locally-generated artifacts (--all also wipes
 
 **First-run onboarding.** When `config/preferences.json` is missing or has `onboardedAt: null`, opening the UI shows a 3-step wizard (`ui/src/Onboarding.tsx`): pick LLM CLI → drop CV → confirm brief. POSTs `/api/preferences` with provider + today's date as `onboardedAt` — once stamped, the wizard never re-triggers even if the brief is later removed.
 
-**AI Apply (per-job).** UI rows have an `AI Apply ✨` button next to `Apply ↗`. POSTs `/api/ai-apply` with `{ jobId }` — runs the LLM CLI on (brief + posting + CV) and writes a tailored package to `data/applications/<jobId>.md`. Auto-marks as applied. Middleware: `aiApplyApiPlugin` in `ui/vite.config.ts`. Search for `// TODO: Phase 2` for browser-driven autosubmit hooks. Headless LLM CLIs can't drive a browser, so v1 stops at "generate the package, user copy/pastes".
+**AI Apply (per-job).** UI rows have an `AI Apply ✨` button next to `Apply ↗`. POSTs `/api/ai-apply` with `{ jobId }` — runs the LLM CLI on (brief + posting + CV) and writes a tailored package to `data/applications/<jobId>.md`. Auto-marks as applied. Middleware: `aiApplyApiPlugin` in `ui/vite.config.ts`. The endpoint is a thin wrapper around `runAiApplyForJob` in `src/lib/ai-apply.ts` (same core used by the apply-worker — see below).
+
+**Tik Tjob (swipe-to-apply).** A third tab in the UI. Right-swipe enqueues an AI Apply task; left-swipe records a persistent skip in `data/swipe-skips.json` so the card doesn't re-appear. Queued jobs are drained serially by a separate process — start it once per session with `pnpm run apply-worker` in another terminal. The Settings → panel [08] APPLY QUEUE shows worker liveness + per-row status + cancel. Architecture:
+
+- `data/apply-queue.json` (gitignored, `{ version: 1, rows: QueueRow[] }`) — single source of truth, written by both Vite middleware (enqueue/cancel) and the worker (claim/done/failed). Concurrent R-M-W guarded by **proper-lockfile** (the project's second runtime dep) wrapped in `withQueueLock` (`src/lib/apply-queue.ts`).
+- Queue row state machine: `queued → running → done|failed|cancelled`, plus `queued → cancelled` direct. UI cancel writes 'cancelled' to the row; the worker's sub-poll (`isCancelled` every 500ms while a job runs) translates that to an `AbortController.abort()`, which the LLM spawn handler escalates SIGTERM → 5s → SIGKILL. Partial output on cancel lands at `data/applications/<jobId>.cancelled.md` (separate filename — never masquerades as a finished package). No applied entry is written on cancel.
+- `recoverOrphanedRunning()` runs on worker startup and re-flags pre-existing `running` rows as `failed` with reason `orphaned: worker crashed mid-run` (no automatic retry — user may have a partial cancelled file).
+- Single-instance worker: PID file at `data/apply-worker.pid` (gitignored). On startup the worker `process.kill(pid, 0)`-checks the existing PID and exits if another instance is alive. Graceful SIGINT/SIGTERM clears the file; a second identical signal force-exits and leaves the file for the next startup to clean.
+- Queue-row statuses are a SEPARATE domain from `ApplicationStatus` (applied/interview/offer/rejected/withdrawn). Don't merge them — `config/applied.json` and `data/apply-queue.json` are different files with different validators (`VALID_STATUSES` in `ui/plugins/_shared.ts` for the former, `VALID_QUEUE_STATUSES` in `src/lib/apply-queue.ts` for the latter).
+- Defense-in-depth: every queue mutation entry point (POST `/enqueue`, DELETE `/:jobId`, POST `/:jobId/skip`) and `runAiApplyForJob` itself validate `jobId` against `/^[a-f0-9]{40}$/` (sha1 hex). Prevents path traversal via `data/applications/<jobId>.md` writes. Helper exported as `isValidJobId` from `src/lib/apply-queue.ts`.
+- Endpoints (all in `ui/plugins/applyQueue.ts` under prefix `/api/apply-queue`): `GET /` → `{ rows, worker: { alive, pid, pidPath } }`; `POST /enqueue` `{ jobId }`; `DELETE /:jobId` (cancel); `POST /:jobId/skip`; `GET /skips` → `{ skips: string[] }`. Job body for the swipe card comes from `GET /api/job-body/:jobId` (sidecar `data/jobs-bodies.json` with `data/jobs.json` fallback).
+- Worker polling: 1500ms interval, interruptible via signalPromise (graceful shutdown takes <1.5s).
+- The Jobs-tab QueueBadge (`ui/src/jobs/QueueBadge.tsx`) renders `⏳ queued` / `⚙️ applying` next to title; terminal statuses render nothing (the existing applied marker covers `done`). Queue is polled at App root every 2.5s ONLY while the user is on the swipe or settings tab — the Jobs tab badge can go briefly stale (acceptable: cosmetic only, not load-bearing).
 
 The pipeline writes `data/jobs.json` (slim — `body` stripped), `data/feed.xml`, `JOBS.md`, optionally `data/archive/<YYYY-MM>.json` on day 1 of the month, and per-source raw dumps in `data/raw/<source>-<YYYY-MM-DD>.json` (gitignored). **`README.md` is hand-maintained — never overwrite it from code.**
 
@@ -52,6 +65,9 @@ Pre-commit runs `lint && typecheck`. Bypass with `SKIP_SIMPLE_GIT_HOOKS=1 git co
 src/
   index.ts          # orchestrator
   types.ts          # Job, Source, Category, ApplicationStatus, AppliedEntry, FetcherResult, Raw* shapes
+  lib/apply-queue.ts # Tik Tjob queue mutators (enqueue/claim/markDone/cancel/recover) + proper-lockfile wrapper, VALID_QUEUE_STATUSES, isValidJobId
+  lib/swipe-skips.ts # data/swipe-skips.json reader+writer (add/has/list)
+  lib/ai-apply.ts    # extracted AI Apply core (prompt + spawn + write) — shared by /api/ai-apply and scripts/apply-worker.ts
   utils.ts          # fetchWithTimeout (1-retry), isSafeUrl, sha1, stripHtml, readJsonOrNull, ...
   rss.ts            # shared fast-xml-parser wrapper
   normalize.ts      # one normalize<Source> per source -> Job (uses withSalary())
@@ -88,6 +104,7 @@ config/
 scripts/
   install-launchd.sh # macOS local scheduler — wraps `pnpm run daily`
   install-cron.sh    # Linux local scheduler — appends a crontab entry
+  apply-worker.ts    # standalone Node poll-loop worker for the Tik Tjob queue
 
 tests/
   fixtures/test-profile.json  # frozen tuned profile for filters.test.ts
@@ -312,7 +329,7 @@ HTML has `<meta name="robots" content="noindex,nofollow">` as belt-and-suspender
 
 ### Settings tab
 
-Third tab next to Jobs/Profile (`ui/src/Settings.tsx`). Six numbered panels (`[01]`..`[06]`) — terminal-grade aesthetic. All backed by Vite middleware in `ui/vite.config.ts`:
+Settings is now the FOURTH tab (Jobs / Tik Tjob / Profile / Settings — `ui/src/Settings.tsx`). Seven numbered panels (`[01]`..`[08]`, last is `[08] APPLY QUEUE`) — terminal-grade aesthetic. All backed by Vite middleware in `ui/vite.config.ts`:
 
 1. **LLM CLI** — switch provider (POST `/api/preferences`) + "Test connection" (POST `/api/llm-test`, 6-token prompt, 30s timeout, latency badge: green ≤3s/yellow ≤10s/red >10s).
 2. **Scheduler** — full lifecycle. GET `/api/scheduler-status` (`launchctl list` on darwin, `crontab -l` on linux) detects `dev.${USER}.job-hunt.aggregate`/`.review` + log mtimes for "last run X ago". POST `/api/scheduler-install` (body `{ skipReview }`) and `/api/scheduler-uninstall` shell out to bundled scripts. Both gated by in-app confirm modal. `<SchedulerProgress />` streams stdout; on completion pills auto-refresh. Single in-flight op enforced server-side.
@@ -320,6 +337,7 @@ Third tab next to Jobs/Profile (`ui/src/Settings.tsx`). Six numbered panels (`[0
 4. **Disk usage** — GET `/api/disk-usage` walks `data/raw`, `data/applications`, `data/archive` (depth cap 4), returns `{ bytes, files }` per bucket. Proportional bars.
 5. **Maintenance** — three buttons POSTing `/api/clean` with `mode: 'default'|'all'|'onboarding'`. Each opens a styled confirm modal (Esc + click-outside dismissable). On success, panel auto-refreshes scheduler/run-summary/disk. Endpoint serializes runs (409 on conflict) and shells out to `pnpm exec tsx scripts/clean.ts` so CLI and UI share logic.
 6. **Environment** — GET `/api/env` returns `{ node, platform, repoRoot, briefPresent, cvPresent, providers, preferredProvider }`. "Refresh all" re-fetches every panel.
+7. **Apply queue [08]** — GET `/api/apply-queue` returns `{ rows, worker: { alive, pid, pidPath } }`. Renders worker-liveness banner with copy-paste `pnpm run apply-worker` snippet when the PID-check fails, counts row, filter chips (all/active/done/failed), per-row cancel button. Cancel sends DELETE `/api/apply-queue/:jobId`; 200 on ok, 404 on not-found, 409 on terminal. Polled by App root every 2.5s while swipe or settings tab is visible (no poll on Jobs or Profile tabs).
 
 **Long-running ops UX.** `/api/fetch-jobs` and `/api/scheduler-install` (+uninstall) both follow: POST starts → GET polls → in-memory state with single concurrent-run lock. UI renders a docked card via `FetchProgress.tsx` / `SchedulerProgress.tsx` (shared `.fetch-progress*` CSS). When both could appear simultaneously, scheduler dock stacks above via `.fetch-progress-scheduler { bottom: calc(1rem + 360px); }`.
 
