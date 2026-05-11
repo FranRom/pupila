@@ -15,18 +15,18 @@ importers:
         specifier: ^1.8.0
         version: 1.12.0
       pdfjs-dist:
-        specifier: ^4.10.38
-        version: 4.10.38
-      proper-lockfile:
         specifier: ^5.7.284
         version: 5.7.284
+      proper-lockfile:
+        specifier: ^4.1.2
+        version: 4.1.2
     devDependencies:
       '@biomejs/biome':
         specifier: ^2.4.14
         version: 2.4.15
       '@types/node':
         specifier: ^22.10.0
-        version: 22.19.17
+        version: 22.19.18
       '@types/proper-lockfile':
         specifier: ^4.1.4
         version: 4.1.4
@@ -44,7 +44,7 @@ importers:
         version: 19.2.6
       react-dom:
         specifier: ^19.2.5
-        version: 19.2.6(react@19.2.6)
+        version: 19.2.5(react@19.2.6)
       simple-git-hooks:
         specifier: ^2.13.1
         version: 2.13.1
@@ -762,7 +762,7 @@ packages:
   react-dom@19.2.5:
     resolution: {integrity: sha512-J5bAZz+DXMMwW/wV3xzKke59Af6CHY7G4uYLN1OvBcKEsWOs4pQExj86BBKamxl/Ik5bx9whOrvBlSDfWzgSag==}
     peerDependencies:
-      react: ^19.2.6
+      react: ^19.2.5
 
   react@19.2.6:
     resolution: {integrity: sha512-sfWGGfavi0xr8Pg0sVsyHMAOziVYKgPLNrS7ig+ivMNb3wbCBw3KxtflsGBAwD3gYQlE/AEZsTLgToRrSCjb0Q==}
@@ -778,8 +778,8 @@ packages:
     resolution: {integrity: sha512-9LkiTwjUh6rT555DtE9rTX+BKByPfrMzEAtnlEtdEwr3Nkffwiihqe2bWADg+OQRjt9gl6ICdmB/ZFDCGAtSow==}
     engines: {node: '>= 4'}
 
-  rolldown@1.0.0-rc.17:
-    resolution: {integrity: sha512-ZrT53oAKrtA4+YtBWPQbtPOxIbVDbxT0orcYERKd63VJTF13zPcgXTvD4843L8pcsI7M6MErt8QtON6lrB9tyA==}
+  rolldown@1.0.0:
+    resolution: {integrity: sha512-yD986aXDESFGS95spT1LAv0jssywP4npMEjmMHyN2/5+eE8qQJUype2AaKkRiLgBgyD0LFlubwAht7VmY8rGoA==}
     engines: {node: ^20.19.0 || >=22.12.0}
     hasBin: true
 
@@ -1234,7 +1234,7 @@ snapshots:
 
   '@types/retry@0.12.5': {}
 
-  '@vitejs/plugin-react@6.0.1(vite@8.0.10(@types/node@22.19.17)(esbuild@0.27.7)(tsx@4.21.0))':
+  '@vitejs/plugin-react@6.0.1(vite@8.0.12(@types/node@22.19.18)(esbuild@0.27.7)(tsx@4.21.0))':
     dependencies:
       '@rolldown/pluginutils': 1.0.0-rc.7
       vite: 8.0.12(@types/node@22.19.18)(esbuild@0.27.7)(tsx@4.21.0)
@@ -1495,7 +1495,7 @@ snapshots:
       retry: 0.12.0
       signal-exit: 3.0.7
 
-  react-dom@19.2.5(react@19.2.5):
+  react-dom@19.2.5(react@19.2.6):
     dependencies:
       react: 19.2.6
       scheduler: 0.27.0
@@ -1516,7 +1516,7 @@ snapshots:
 
   retry@0.12.0: {}
 
-  rolldown@1.0.0-rc.17:
+  rolldown@1.0.0:
     dependencies:
       '@oxc-project/types': 0.129.0
       '@rolldown/pluginutils': 1.0.0

@@ -73,6 +73,10 @@ export function Settings({
   const [cleaning, setCleaning] = useState<CleanMode | null>(null);
   const [cleanResult, setCleanResult] = useState<CleanResult | null>(null);
   const [profile, setProfile] = useState<ScoringProfile | null>(null);
+  // Distinguishes the initial null (fetch in flight) from "fetch resolved
+  // but profile.json is missing on disk" — the second case needs a clear
+  // CTA, not a loading skeleton.
+  const [profileLoaded, setProfileLoaded] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [regenBusy, setRegenBusy] = useState(false);
   const [regenResult, setRegenResult] = useState<ProfileGenerateResult | null>(null);
@@ -110,6 +114,7 @@ export function Settings({
     setEnvInfo(e);
     setProfile(prof?.profile ?? null);
     setGenerating(prof?.generating ?? false);
+    setProfileLoaded(prof !== null);
   }, []);
 
   useEffect(() => {
@@ -372,6 +377,7 @@ export function Settings({
 
       <ScoringProfilePanel
         profile={profile}
+        profileLoaded={profileLoaded}
         generating={generating}
         envInfo={envInfo}
         regenBusy={regenBusy}

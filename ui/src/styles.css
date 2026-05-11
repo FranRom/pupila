@@ -1483,6 +1483,11 @@ tbody tr.indent td.score {
   color: var(--badge-interview-fg);
   border-color: var(--badge-interview-fg);
 }
+.settings-meta-pill-err {
+  background: var(--badge-rejected-bg);
+  color: var(--badge-rejected-fg);
+  border-color: var(--badge-rejected-fg);
+}
 
 /* Action buttons */
 .settings-actions {
