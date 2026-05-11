@@ -2268,3 +2268,528 @@ tbody tr.applied.has-verdict {
 table.row-compact .signal-chip {
   display: none;
 }
+
+/* ============================================================
+   Tik Tjob — swipe deck + apply queue panel
+   ============================================================ */
+
+/* Extra tokens for the swipe deck. The rest reuse existing vars. */
+:root {
+  --shadow-card: 0 6px 24px rgba(0, 0, 0, 0.08);
+  --swipe-skip: var(--badge-rejected-fg);
+  --swipe-apply: var(--score-high);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --shadow-card: 0 6px 24px rgba(0, 0, 0, 0.45);
+  }
+}
+
+/* Swipe deck container — phone-card width, centered. */
+.swipe-deck {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  max-width: 480px;
+  margin: 1.5rem auto 0;
+  padding: 0.5rem 0.75rem 1.5rem;
+}
+
+/* The card itself — gesture-driven transform pivots from its anchor. */
+.swipe-card {
+  position: relative;
+  width: 100%;
+  min-height: 420px;
+  padding: 1.25rem;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: var(--shadow-card);
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  transition:
+    transform 0.22s ease,
+    opacity 0.22s ease;
+  will-change: transform, opacity;
+}
+
+/* While a gesture is in progress, kill the transition so the transform
+   follows the pointer exactly. */
+.swipe-card.is-swiping {
+  transition: none;
+}
+
+.swipe-card.swipe-leaving-right {
+  transform: translateX(800px) rotate(25deg);
+  opacity: 0;
+}
+
+.swipe-card.swipe-leaving-left {
+  transform: translateX(-800px) rotate(-25deg);
+  opacity: 0;
+}
+
+.swipe-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.swipe-card-company {
+  font-weight: 700;
+  font-size: 0.9375rem;
+  color: var(--fg);
+  word-break: break-word;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.swipe-card-title {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 700;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  word-break: break-word;
+}
+
+.swipe-card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem 0.75rem;
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+.swipe-card-meta > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.swipe-card-body {
+  max-height: 12em;
+  overflow-y: auto;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: var(--fg);
+  padding-right: 0.25rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.swipe-card-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+}
+
+/* Tag chips on the swipe card — same family as `.signal-chip` but neutral. */
+.swipe-card-tag {
+  display: inline-flex;
+  align-items: center;
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 0.625rem;
+  font-weight: 600;
+  padding: 0.0625rem 0.4375rem;
+  border-radius: 999px;
+  background: var(--bg);
+  color: var(--muted);
+  border: 1px solid var(--border);
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  line-height: 1.5;
+}
+
+/* Fit-score donut — small SVG indicator in the top-right of the card. */
+.fit-donut {
+  position: relative;
+  width: 48px;
+  height: 48px;
+  flex-shrink: 0;
+}
+
+.fit-donut svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  transform: rotate(-90deg);
+}
+
+.fit-donut-bg {
+  fill: none;
+  stroke: var(--row-hover);
+  stroke-width: 5;
+}
+
+.fit-donut-fg {
+  fill: none;
+  stroke: var(--muted);
+  stroke-width: 5;
+  stroke-linecap: round;
+  transition: stroke-dashoffset 0.3s ease;
+}
+
+.fit-donut-fg.score-high {
+  stroke: var(--score-high);
+}
+.fit-donut-fg.score-mid {
+  stroke: var(--score-mid);
+}
+.fit-donut-fg.score-low {
+  stroke: var(--muted);
+}
+
+.fit-donut-label {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--fg);
+}
+
+/* Controls under the card — two big icon buttons + a small "Why?" link. */
+.swipe-controls {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 1.25rem;
+  margin-top: 0.5rem;
+}
+
+.swipe-btn {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  border: 2px solid var(--border);
+  background: var(--bg);
+  color: var(--fg);
+  font-size: 1.5rem;
+  line-height: 1;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition:
+    border-color 0.15s,
+    color 0.15s,
+    transform 0.1s,
+    background 0.15s;
+}
+
+.swipe-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+.swipe-btn:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.swipe-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.swipe-btn-skip {
+  border-color: var(--swipe-skip);
+  color: var(--swipe-skip);
+}
+.swipe-btn-skip:hover:not(:disabled) {
+  background: var(--swipe-skip);
+  color: white;
+}
+
+.swipe-btn-apply {
+  border-color: var(--swipe-apply);
+  color: var(--swipe-apply);
+}
+.swipe-btn-apply:hover:not(:disabled) {
+  background: var(--swipe-apply);
+  color: white;
+}
+
+.swipe-why {
+  border: none;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  font-size: 0.8125rem;
+  cursor: pointer;
+  padding: 0.25rem 0.5rem;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.swipe-why:hover {
+  color: var(--fg);
+}
+.swipe-why:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ─── Apply queue panel ──────────────────────────────────────────
+   Reuses the .settings-section card aesthetic for visual continuity
+   with the numbered Settings panels. */
+.apply-queue-panel {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 1.25rem 1.5rem 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.875rem;
+  max-width: 920px;
+  margin: 1.5rem auto;
+}
+
+.apply-queue-panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  padding-bottom: 0.875rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.apply-queue-panel-header h2 {
+  margin: 0;
+  font-size: 1.05rem;
+  letter-spacing: -0.01em;
+}
+
+.apply-queue-panel-subtitle {
+  margin: 0.125rem 0 0;
+  color: var(--muted);
+  font-size: 0.8125rem;
+}
+
+.apply-queue-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.apply-queue-row {
+  display: grid;
+  grid-template-columns: minmax(120px, auto) minmax(0, 1fr) auto auto auto;
+  align-items: center;
+  gap: 0.875rem;
+  padding: 0.5rem 0.75rem;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 0.8125rem;
+}
+
+.apply-queue-row + .apply-queue-row {
+  margin-top: 0;
+}
+
+.apply-queue-jobid {
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 0.75rem;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.apply-queue-attempts {
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+.apply-queue-time {
+  color: var(--muted);
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+
+.apply-queue-error {
+  grid-column: 1 / -1;
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 0.7rem;
+  color: var(--badge-rejected-fg);
+  background: var(--badge-rejected-bg);
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  word-break: break-word;
+}
+
+.apply-queue-cancel {
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+  color: var(--muted);
+  padding: 0.25rem 0.625rem;
+  border-radius: 4px;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.75rem;
+}
+.apply-queue-cancel:hover:not(:disabled) {
+  color: var(--badge-rejected-fg);
+  border-color: var(--badge-rejected-fg);
+}
+.apply-queue-cancel:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Status pill — coloured by queue status. */
+.apply-queue-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3125rem;
+  padding: 0.125rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  text-transform: lowercase;
+  letter-spacing: 0.02em;
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+
+.qstatus-queued {
+  background: var(--badge-withdrawn-bg);
+  color: var(--badge-withdrawn-fg);
+  border-color: var(--border);
+}
+
+.qstatus-running {
+  background: var(--badge-applied-bg);
+  color: var(--badge-applied-fg);
+  border-color: var(--applied-border);
+  animation: queue-pulse 1.4s ease-in-out infinite;
+}
+
+.qstatus-done {
+  background: var(--badge-offer-bg);
+  color: var(--badge-offer-fg);
+  border-color: var(--badge-offer-fg);
+}
+
+.qstatus-failed {
+  background: var(--badge-rejected-bg);
+  color: var(--badge-rejected-fg);
+  border-color: var(--badge-rejected-fg);
+}
+
+.qstatus-cancelled {
+  background: var(--badge-withdrawn-bg);
+  color: var(--badge-withdrawn-fg);
+  border-color: var(--border);
+  text-decoration: line-through;
+  text-decoration-color: var(--muted);
+}
+
+.apply-queue-empty {
+  text-align: center;
+  color: var(--muted);
+  padding: 1.5rem 1rem;
+  font-size: 0.8125rem;
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+}
+
+/* Banner shown when the apply-worker daemon is not running. Yellow-ish
+   warning panel with a copy-paste runnable command inside. Mirrors the
+   `.warn` + `.terminal-block` patterns already in this file. */
+.apply-queue-worker-banner {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.75rem 0.875rem;
+  background: var(--badge-interview-bg);
+  color: var(--badge-interview-fg);
+  border: 1px solid var(--badge-interview-fg);
+  border-radius: 8px;
+  font-size: 0.8125rem;
+  line-height: 1.4;
+}
+
+.apply-queue-worker-banner code {
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 0.75rem;
+  background: var(--bg);
+  color: var(--fg);
+  padding: 0.125rem 0.4375rem;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+}
+
+.apply-queue-worker-banner-cmd {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+/* ─── Jobs-tab queue badge ──────────────────────────────────────
+   Tiny inline pill that appears next to a job title in the Jobs table
+   when a non-terminal queue row exists. */
+.job-queue-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  vertical-align: middle;
+  white-space: nowrap;
+  line-height: 1.2;
+}
+
+.job-queue-badge.queued {
+  background: var(--badge-withdrawn-bg);
+  color: var(--badge-withdrawn-fg);
+  border-color: var(--border);
+}
+
+.job-queue-badge.running {
+  background: var(--badge-applied-bg);
+  color: var(--badge-applied-fg);
+  border-color: var(--applied-border);
+  animation: queue-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes queue-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.55;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .qstatus-running,
+  .job-queue-badge.running {
+    animation: none;
+  }
+  .swipe-card,
+  .swipe-btn,
+  .fit-donut-fg {
+    transition: none;
+  }
+}

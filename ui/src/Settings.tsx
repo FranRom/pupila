@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { ApplyQueuePanel } from './settings/ApplyQueuePanel.tsx';
 import { ConfirmModal } from './settings/ConfirmModal.tsx';
 import { DiskUsagePanel } from './settings/DiskUsagePanel.tsx';
 import { EnvironmentPanel } from './settings/EnvironmentPanel.tsx';
@@ -23,6 +24,7 @@ import {
   type SchedulerStatus,
   type ScoringProfile,
 } from './settings/types.ts';
+import type { ApplyQueueResponse } from './types.ts';
 
 // Settings tab. Seven numbered panels — terminal-grade dashboard aesthetic
 // matching the rest of the app.
@@ -42,9 +44,17 @@ import {
 
 interface SettingsProps {
   schedulerCompletedAt: number;
+  applyQueue: ApplyQueueResponse | null;
+  onCancelQueueRow: (jobId: string) => Promise<void>;
+  onRefreshQueue: () => Promise<void>;
 }
 
-export function Settings({ schedulerCompletedAt }: SettingsProps) {
+export function Settings({
+  schedulerCompletedAt,
+  applyQueue,
+  onCancelQueueRow,
+  onRefreshQueue,
+}: SettingsProps) {
   const [prefs, setPrefs] = useState<PreferencesResponse | null>(null);
   const [provider, setProvider] = useState<ProviderChoice>('auto');
   const [scheduler, setScheduler] = useState<SchedulerStatus | null>(null);
@@ -376,6 +386,12 @@ export function Settings({ schedulerCompletedAt }: SettingsProps) {
       <DiskUsagePanel disk={disk} />
 
       <MaintenancePanel cleaning={cleaning} cleanResult={cleanResult} onAskClean={askToClean} />
+
+      <ApplyQueuePanel
+        data={applyQueue}
+        onCancel={onCancelQueueRow}
+        onRefresh={() => void onRefreshQueue()}
+      />
 
       <EnvironmentPanel envInfo={envInfo} onRefreshAll={() => void loadAll()} />
 

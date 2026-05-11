@@ -1,6 +1,6 @@
 import type { Category } from '../types.ts';
 
-type Tab = 'jobs' | 'profile' | 'settings';
+type Tab = 'jobs' | 'swipe' | 'profile' | 'settings';
 
 interface AppHeaderProps {
   tab: Tab;
@@ -43,6 +43,13 @@ export function AppHeader({
           onClick={() => onTabChange('jobs')}
         >
           Jobs
+        </button>
+        <button
+          type="button"
+          className={`tab ${tab === 'swipe' ? 'tab-active' : ''}`}
+          onClick={() => onTabChange('swipe')}
+        >
+          Tik Tjob
         </button>
         <button
           type="button"

@@ -10,7 +10,7 @@ import {
   markCancelled,
   type QueueRow,
 } from '../../src/lib/apply-queue.js';
-import { addSwipeSkip, loadSwipeSkips } from '../../src/lib/swipe-skips.js';
+import { addSwipeSkip, listSwipeSkipIds, loadSwipeSkips } from '../../src/lib/swipe-skips.js';
 import {
   APPLY_QUEUE_PATH,
   APPLY_WORKER_PID_PATH,
@@ -160,6 +160,12 @@ export function applyQueueApiPlugin(): Plugin {
 
           if (method === 'POST' && url === '/enqueue') {
             await handleEnqueue(req, res);
+            return;
+          }
+
+          if (method === 'GET' && url === '/skips') {
+            const ids = await listSwipeSkipIds(SWIPE_SKIPS_PATH);
+            sendJson(res, 200, { skips: Array.from(ids) });
             return;
           }
 
