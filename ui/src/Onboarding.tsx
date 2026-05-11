@@ -1,4 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { streamNdjson } from '../../src/lib/stream-ndjson.js';
+import { StreamingPanel, type StreamingStatus } from './StreamingPanel.tsx';
 
 // First-run wizard. Three steps:
 //   1. Pick the LLM CLI provider (probes /api/llm-detect for ✓/✗).
@@ -67,6 +69,34 @@ export function Onboarding({ onComplete }: OnboardingProps) {
   const [briefDraft, setBriefDraft] = useState<string>('');
   const [generatedBrief, setGeneratedBrief] = useState<string>('');
 
+  // Streaming state for the two LLM phases. Each phase owns its own slot
+  // because they fire at different wizard steps and never coexist.
+  const [cvStream, setCvStream] = useState('');
+  const [cvStreamStatus, setCvStreamStatus] = useState<StreamingStatus>('idle');
+  const [cvStreamStage, setCvStreamStage] = useState<string | null>(null);
+  const [cvElapsedMs, setCvElapsedMs] = useState(0);
+  const cvStartRef = useRef<number | null>(null);
+
+  const [tuneStream, setTuneStream] = useState('');
+  const [tuneStreamStatus, setTuneStreamStatus] = useState<StreamingStatus>('idle');
+  const [tuneElapsedMs, setTuneElapsedMs] = useState(0);
+  const tuneStartRef = useRef<number | null>(null);
+
+  // Elapsed-time ticker — bumps every 250ms while either stream is running.
+  // Lighter than a per-state-update setInterval per phase.
+  useEffect(() => {
+    if (cvStreamStatus !== 'running' && tuneStreamStatus !== 'running') return;
+    const id = window.setInterval(() => {
+      if (cvStreamStatus === 'running' && cvStartRef.current !== null) {
+        setCvElapsedMs(Date.now() - cvStartRef.current);
+      }
+      if (tuneStreamStatus === 'running' && tuneStartRef.current !== null) {
+        setTuneElapsedMs(Date.now() - tuneStartRef.current);
+      }
+    }, 250);
+    return () => window.clearInterval(id);
+  }, [cvStreamStatus, tuneStreamStatus]);
+
   // Load installed-CLI status on mount.
   useEffect(() => {
     let cancelled = false;
@@ -102,24 +132,33 @@ export function Onboarding({ onComplete }: OnboardingProps) {
     }
     setBusy(true);
     setError(null);
+    setCvStream('');
+    setCvStreamStage(null);
+    setCvElapsedMs(0);
+    cvStartRef.current = Date.now();
+    setCvStreamStatus('running');
     try {
       const data =
         format === 'pdf' || format === 'docx' ? await fileToBase64(file) : await file.text();
-      const res = await fetch('/api/cv', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ format, data }),
+      const done = await streamNdjson<{ body?: string }>('/api/cv', { format, data }, (event) => {
+        if (event.type === 'chunk') {
+          // Cap the visible stream so a very chatty CLI doesn't grow the
+          // DOM string unboundedly. The final cleaned body comes from the
+          // `done` event, not this concatenation.
+          setCvStream((s) => (s + event.data).slice(-12_000));
+        } else if (event.type === 'start' || event.type === 'stage') {
+          setCvStreamStage(event.stage);
+        }
       });
-      if (!res.ok) {
-        const errBody = (await res.json().catch(() => ({}))) as { error?: string };
-        throw new Error(errBody.error ?? `HTTP ${res.status}`);
-      }
-      const out = (await res.json()) as { ok: boolean; body: string };
-      setGeneratedBrief(out.body);
-      setBriefDraft(out.body);
+      if (!done.body) throw new Error('LLM finished without a brief body');
+      setGeneratedBrief(done.body);
+      setBriefDraft(done.body);
+      setCvStreamStatus('done');
       setStep('preview');
     } catch (err) {
-      setError(`CV summarization failed: ${err instanceof Error ? err.message : String(err)}`);
+      const message = err instanceof Error ? err.message : String(err);
+      setError(`CV summarization failed: ${message}`);
+      setCvStreamStatus('error');
     } finally {
       setBusy(false);
     }
@@ -155,21 +194,24 @@ export function Onboarding({ onComplete }: OnboardingProps) {
       // Errors here don't block the handoff — Settings → Scoring profile
       // has a manual retry button.
       setTuning(true);
+      setTuneStream('');
+      setTuneElapsedMs(0);
+      tuneStartRef.current = Date.now();
+      setTuneStreamStatus('running');
       try {
-        const profileRes = await fetch('/api/profile-generate', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ provider: provider === 'auto' ? null : provider }),
-        });
-        if (!profileRes.ok) {
-          const errBody = (await profileRes.json().catch(() => ({}))) as { error?: string };
-          console.warn(
-            '[onboarding] profile generation failed; continuing anyway:',
-            errBody.error ?? `HTTP ${profileRes.status}`,
-          );
-        }
+        await streamNdjson(
+          '/api/profile-generate',
+          { provider: provider === 'auto' ? null : provider },
+          (event) => {
+            if (event.type === 'chunk') {
+              setTuneStream((s) => (s + event.data).slice(-12_000));
+            }
+          },
+        );
+        setTuneStreamStatus('done');
       } catch (profileErr) {
-        console.warn('[onboarding] profile generation threw; continuing anyway:', profileErr);
+        console.warn('[onboarding] profile generation failed; continuing anyway:', profileErr);
+        setTuneStreamStatus('error');
       } finally {
         setTuning(false);
       }
@@ -282,6 +324,20 @@ export function Onboarding({ onComplete }: OnboardingProps) {
             (gitignored) so AI Apply can re-attach it later.
           </p>
           <CvDropZone busy={busy} onFile={uploadCv} />
+          <StreamingPanel
+            title={
+              cvStreamStage === 'parsing-cv'
+                ? 'Reading your CV…'
+                : cvStreamStage === 'calling-llm'
+                  ? 'Generating brief…'
+                  : 'Working…'
+            }
+            stream={cvStream}
+            status={cvStreamStatus}
+            elapsedMs={cvElapsedMs}
+            provider={provider === 'auto' ? null : provider}
+            error={cvStreamStatus === 'error' ? error : null}
+          />
           <div className="onboarding-actions">
             <button type="button" disabled={busy} onClick={() => setStep('provider')}>
               ← Back
@@ -303,11 +359,19 @@ export function Onboarding({ onComplete }: OnboardingProps) {
             rows={14}
             disabled={busy}
           />
+          <StreamingPanel
+            title="Tuning scoring profile from your brief…"
+            stream={tuneStream}
+            status={tuneStreamStatus}
+            elapsedMs={tuneElapsedMs}
+            provider={provider === 'auto' ? null : provider}
+          />
           <div className="onboarding-actions">
             <button type="button" disabled={busy} onClick={() => setStep('cv')}>
               ← Re-upload CV
             </button>
             <button type="button" disabled={busy} onClick={() => void finish()}>
+              {busy && <span className="button-spinner" aria-hidden />}
               {tuning
                 ? 'Tuning scoring profile from your brief…'
                 : busy
@@ -394,7 +458,10 @@ function CvDropZone({ busy, onFile }: CvDropZoneProps) {
               e.target.value = '';
             }}
           />
-          <span className="onboarding-button">{busy ? 'Working…' : 'Choose file'}</span>
+          <span className="onboarding-button">
+            {busy && <span className="button-spinner" aria-hidden />}
+            {busy ? 'Working…' : 'Choose file'}
+          </span>
         </label>
       </div>
     </section>

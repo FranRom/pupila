@@ -232,12 +232,13 @@ export function parsePersonalizationDelta(raw: string): PersonalizationDelta {
 export async function generateProfileFromBrief(
   briefMarkdown: string,
   provider?: LlmProvider,
+  onChunk?: (chunk: string) => void,
 ): Promise<PersonalizationDelta> {
   if (!briefMarkdown.trim()) {
     throw new Error('Cannot generate profile: candidate brief is empty.');
   }
   const prompt = buildProfilePrompt(briefMarkdown);
-  const raw = await runLlm(prompt, provider);
+  const raw = await runLlm(prompt, provider, onChunk);
   return parsePersonalizationDelta(raw);
 }
 

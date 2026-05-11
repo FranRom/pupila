@@ -1036,6 +1036,106 @@ tbody tr.indent td.score {
   font-size: 0.875rem;
 }
 
+/* Inline button spinner — reusable on any disabled "working" button. */
+.button-spinner {
+  display: inline-block;
+  width: 0.9em;
+  height: 0.9em;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: button-spin 0.8s linear infinite;
+  vertical-align: -0.15em;
+  margin-right: 0.4em;
+}
+@keyframes button-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Streaming log panel — mounted inline inside an onboarding wizard step
+   while an LLM call is in flight. Visually echoes the fetch-progress dock
+   so the language of "background work is happening" stays consistent. */
+.streaming-panel {
+  margin: 0.75rem 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  font-size: 0.8125rem;
+  overflow: hidden;
+}
+.streaming-panel-running {
+  border-color: var(--accent);
+}
+.streaming-panel-done {
+  border-color: var(--score-high);
+}
+.streaming-panel-error {
+  border-color: var(--badge-rejected-fg);
+}
+.streaming-panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-elevated);
+}
+.streaming-panel-title {
+  display: inline-flex;
+  align-items: center;
+  font-weight: 600;
+  font-size: 0.8125rem;
+}
+.streaming-panel-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+}
+.streaming-panel-meta code {
+  font-size: 0.75rem;
+  padding: 0.05rem 0.35rem;
+  border-radius: 4px;
+  background: var(--row-hover);
+}
+.streaming-panel-log {
+  margin: 0;
+  padding: 0.625rem 0.75rem;
+  max-height: 220px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 0.75rem;
+  line-height: 1.45;
+  color: var(--fg);
+  background: var(--bg);
+}
+.streaming-panel-error {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  background: var(--badge-rejected-bg, rgba(220, 80, 80, 0.08));
+  color: var(--badge-rejected-fg);
+  border-top: 1px solid var(--border);
+  font-size: 0.75rem;
+}
+.streaming-panel-error .onboarding-button {
+  padding: 0.25rem 0.6rem;
+  font-size: 0.75rem;
+}
+@media (prefers-reduced-motion: reduce) {
+  .button-spinner {
+    animation: none;
+  }
+}
+
 /* ASCII hero shown at the top of the onboarding wizard. */
 .ascii-hero {
   display: block;

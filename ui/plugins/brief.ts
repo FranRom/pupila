@@ -73,16 +73,27 @@ export function briefApiPlugin(): Plugin {
       });
 
       server.middlewares.use('/api/cv', async (req, res) => {
+        if (req.method !== 'POST') {
+          res.statusCode = 405;
+          res.end();
+          return;
+        }
+        // Content negotiation: clients pass `Accept: application/x-ndjson`
+        // to receive streamed LLM tokens. Everything else gets the original
+        // synchronous JSON response so Profile re-upload and any future
+        // caller doesn't have to know about NDJSON.
+        const wantsStream = (req.headers.accept ?? '').includes('application/x-ndjson');
+
+        // Phase 1: validate input synchronously. Bad input always gets a
+        // normal JSON 4xx regardless of Accept — streaming hasn't started
+        // yet so we can still set a status code.
+        let format: CvFormat;
+        let buf: Buffer;
         try {
-          if (req.method !== 'POST') {
-            res.statusCode = 405;
-            res.end();
-            return;
-          }
           const body = (await readBody(req)) as CvPostBody;
-          const format = typeof body.format === 'string' ? (body.format as CvFormat) : null;
+          const rawFormat = typeof body.format === 'string' ? (body.format as CvFormat) : null;
           const data = typeof body.data === 'string' ? body.data : '';
-          if (!format || !VALID_CV_FORMATS.has(format)) {
+          if (!rawFormat || !VALID_CV_FORMATS.has(rawFormat)) {
             res.statusCode = 400;
             res.setHeader('Content-Type', 'application/json');
             res.end(JSON.stringify({ error: 'invalid format (pdf/docx/md/txt)' }));
@@ -94,16 +105,76 @@ export function briefApiPlugin(): Plugin {
             res.end(JSON.stringify({ error: 'empty data' }));
             return;
           }
+          format = rawFormat;
           // Binary formats arrive base64-encoded; text formats arrive as
           // utf-8 strings sent via JSON. Either way, normalize to a Buffer.
-          const buf =
+          buf =
             format === 'pdf' || format === 'docx'
               ? Buffer.from(data, 'base64')
               : Buffer.from(data, 'utf-8');
-          // Persist the raw CV alongside the parsed brief so AI Apply can
-          // re-attach it later. Different extensions live side-by-side
-          // (e.g. config/cv.pdf + config/cv.md if the user re-uploads as
-          // a different format) — the most recent upload wins.
+        } catch (err) {
+          console.error('[cv api] input parse failed', err);
+          res.statusCode = 400;
+          res.setHeader('Content-Type', 'application/json');
+          res.end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }));
+          return;
+        }
+
+        // Phase 2 — common LLM path. The two branches diverge only in how
+        // they report progress: NDJSON streams events, JSON buffers and
+        // returns a single response at the end.
+        if (wantsStream) {
+          // TODO: wire up `req.on('close')` to abort the in-flight LLM run.
+          // For now a disconnected client just causes res.write to throw,
+          // which we swallow; the LLM finishes anyway.
+          res.setHeader('Content-Type', 'application/x-ndjson');
+          res.setHeader('Cache-Control', 'no-cache');
+          // Vite's dev middleware sits behind a proxy in some setups; disable
+          // upstream buffering so the browser sees tokens as they're emitted.
+          res.setHeader('X-Accel-Buffering', 'no');
+          const send = (event: Record<string, unknown>): void => {
+            try {
+              res.write(`${JSON.stringify(event)}\n`);
+            } catch {
+              // client disconnected — silently drop
+            }
+          };
+
+          try {
+            send({ type: 'start', stage: 'parsing-cv' });
+            const cvFilePath = `${CV_BASENAME}.${format}`;
+            await writeFile(cvFilePath, buf);
+            const cvText = await parseCvBuffer(buf, format);
+            if (!cvText.trim()) {
+              send({ type: 'error', error: 'parsed CV is empty' });
+              res.end();
+              return;
+            }
+            send({ type: 'stage', stage: 'calling-llm' });
+            const raw = await runLlm(buildCvSummaryPrompt(cvText), undefined, (chunk) => {
+              send({ type: 'chunk', data: chunk });
+            });
+            const cleaned = stripFences(raw);
+            if (!cleaned) {
+              send({ type: 'error', error: 'LLM returned empty output' });
+              res.end();
+              return;
+            }
+            await writeBriefBody(cleaned);
+            send({ type: 'done', body: cleaned });
+            res.end();
+          } catch (err) {
+            console.error('[cv api]', err);
+            send({ type: 'error', error: err instanceof Error ? err.message : String(err) });
+            res.end();
+          }
+          return;
+        }
+
+        // Default JSON path (Profile re-upload, scripts, anything that
+        // doesn't ask for NDJSON). Functionally identical to the original
+        // pre-streaming implementation.
+        try {
           const cvFilePath = `${CV_BASENAME}.${format}`;
           await writeFile(cvFilePath, buf);
           const cvText = await parseCvBuffer(buf, format);
