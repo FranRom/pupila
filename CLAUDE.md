@@ -15,9 +15,9 @@ The repo ships a **neutral template** in `config/profile.json`. After onboarding
 - Node 22 LTS, ESM, TypeScript 5.9 (NodeNext)
 - Biome 2.4 (lint + format, single config in `biome.json`)
 - pnpm 10
-- Vitest 3 (tests in `tests/`, 120 cases)
+- Vitest 3 (tests in `tests/`, 192 cases)
 - simple-git-hooks (pre-commit `lint && typecheck`)
-- Single runtime dep: `fast-xml-parser`. Native `fetch` only.
+- Runtime deps: `fast-xml-parser` (RSS), `mammoth` + `pdfjs-dist` (CV parsing), `proper-lockfile` (apply-queue R-M-W lock). Native `fetch` only — no HTTP client lib.
 
 ## Run locally
 
@@ -329,7 +329,7 @@ HTML has `<meta name="robots" content="noindex,nofollow">` as belt-and-suspender
 
 ### Settings tab
 
-Settings is now the FOURTH tab (Jobs / Tik Tjob / Profile / Settings — `ui/src/Settings.tsx`). Seven numbered panels (`[01]`..`[08]`, last is `[08] APPLY QUEUE`) — terminal-grade aesthetic. All backed by Vite middleware in `ui/vite.config.ts`:
+Settings is now the FOURTH tab (Jobs / Tik Tjob / Profile / Settings — `ui/src/Settings.tsx`). Eight numbered panels (`[01]`..`[08]`, last is `[08] APPLY QUEUE`) — terminal-grade aesthetic. All backed by Vite middleware in `ui/vite.config.ts`:
 
 1. **LLM CLI** — switch provider (POST `/api/preferences`) + "Test connection" (POST `/api/llm-test`, 6-token prompt, 30s timeout, latency badge: green ≤3s/yellow ≤10s/red >10s).
 2. **Scheduler** — full lifecycle. GET `/api/scheduler-status` (`launchctl list` on darwin, `crontab -l` on linux) detects `dev.${USER}.job-hunt.aggregate`/`.review` + log mtimes for "last run X ago". POST `/api/scheduler-install` (body `{ skipReview }`) and `/api/scheduler-uninstall` shell out to bundled scripts. Both gated by in-app confirm modal. `<SchedulerProgress />` streams stdout; on completion pills auto-refresh. Single in-flight op enforced server-side.

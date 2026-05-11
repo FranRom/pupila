@@ -88,7 +88,11 @@ export function SwipeDeck({
 
   const [currentIndex, setCurrentIndex] = useState(0);
   const [bodyCache, setBodyCache] = useState<Record<string, string>>({});
-  const [bodyLoading, setBodyLoading] = useState<Set<string>>(() => new Set());
+  // Ref instead of state: bodyLoading is only used as an in-flight guard inside
+  // loadBody — never rendered. Using state caused a stale-closure edge where
+  // both the current-card and next-card preloads, scheduled in the same effect
+  // tick, read the pre-update Set and both fired fetches for the same id.
+  const bodyLoadingRef = useRef<Set<string>>(new Set());
   const [leaving, setLeaving] = useState<'left' | 'right' | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -107,16 +111,14 @@ export function SwipeDeck({
   // only purpose is to react to an index change.)
 
   // Body fetching: load the current + next card. Cache empty string on
-  // 404/error so we don't refetch repeatedly.
+  // 404/error so we don't refetch repeatedly. The in-flight guard reads from
+  // a ref (bodyLoadingRef) so concurrent preload+current calls in the same
+  // effect tick see the up-to-date Set.
   const loadBody = useCallback(
     async (jobId: string) => {
       if (bodyCache[jobId] !== undefined) return;
-      if (bodyLoading.has(jobId)) return;
-      setBodyLoading((prev) => {
-        const next = new Set(prev);
-        next.add(jobId);
-        return next;
-      });
+      if (bodyLoadingRef.current.has(jobId)) return;
+      bodyLoadingRef.current.add(jobId);
       try {
         const res = await fetch(`/api/job-body/${encodeURIComponent(jobId)}`);
         if (res.status === 404) {
@@ -129,15 +131,10 @@ export function SwipeDeck({
         // Network or parse error — degrade to bodyPreview path.
         setBodyCache((prev) => ({ ...prev, [jobId]: '' }));
       } finally {
-        setBodyLoading((prev) => {
-          if (!prev.has(jobId)) return prev;
-          const next = new Set(prev);
-          next.delete(jobId);
-          return next;
-        });
+        bodyLoadingRef.current.delete(jobId);
       }
     },
-    [bodyCache, bodyLoading],
+    [bodyCache],
   );
 
   useEffect(() => {
@@ -160,13 +157,12 @@ export function SwipeDeck({
       inFlightRef.current = true;
       setBusy(true);
       setError(null);
-      setLeaving(action === 'apply' ? 'right' : 'left');
 
-      // Wait for the CSS exit animation to play out, then make the API call.
-      // We do this before advancing so a failed apply can restore the card
-      // without it visually "snapping back" from off-screen.
-      await new Promise<void>((resolve) => setTimeout(resolve, EXIT_ANIMATION_MS));
-
+      // Confirm with the API BEFORE starting the CSS exit animation. Previously
+      // setLeaving fired immediately and a 4xx made the card snap back from
+      // off-screen, which looked like a glitch. Now: fetch first, then animate
+      // only on success. The `busy` state already disables the swipe controls
+      // so the user knows something is happening.
       try {
         if (action === 'apply') {
           const res = await fetch('/api/apply-queue/enqueue', {
@@ -175,7 +171,6 @@ export function SwipeDeck({
             body: JSON.stringify({ jobId: job.id }),
           });
           if (!res.ok) {
-            // 409 (already queued) is common — friendly message.
             const txt = await res.text().catch(() => '');
             if (res.status === 409) {
               throw new Error('Already in the queue.');
@@ -184,9 +179,11 @@ export function SwipeDeck({
               `Couldn't enqueue (HTTP ${res.status})${txt ? ` — ${txt.slice(0, 160)}` : ''}`,
             );
           }
-          // Parse but tolerate empty bodies.
           await safeJson<{ ok: true; row?: QueueRow }>(res).catch(() => undefined);
           onQueueRefresh();
+          // Confirmed — play exit animation, then advance.
+          setLeaving('right');
+          await new Promise<void>((resolve) => setTimeout(resolve, EXIT_ANIMATION_MS));
           setLeaving(null);
           setShowWhy(false);
           setCurrentIndex((i) => i + 1);
@@ -196,28 +193,23 @@ export function SwipeDeck({
             headers: { 'Content-Type': 'application/json' },
           });
           if (!res.ok) {
-            // Skips are local-only data — surface the error but still advance.
+            // Skips are local-only — surface the error but still advance.
             // Trapping the user on a card they want to skip is the wrong UX.
             const txt = await res.text().catch(() => '');
             setError(`Skip failed (HTTP ${res.status})${txt ? ` — ${txt.slice(0, 160)}` : ''}`);
           } else {
             onQueueRefresh();
           }
+          setLeaving('left');
+          await new Promise<void>((resolve) => setTimeout(resolve, EXIT_ANIMATION_MS));
           setLeaving(null);
           setShowWhy(false);
           setCurrentIndex((i) => i + 1);
         }
       } catch (e: unknown) {
-        if (action === 'apply') {
-          // Don't advance — let the user retry or skip.
-          setError(describeError(e));
-          setLeaving(null);
-        } else {
-          setError(describeError(e));
-          setLeaving(null);
-          setShowWhy(false);
-          setCurrentIndex((i) => i + 1);
-        }
+        // Apply path failed BEFORE we started the animation — just show the
+        // error inline, card stays put, user can retry or skip.
+        setError(describeError(e));
       } finally {
         inFlightRef.current = false;
         setBusy(false);
