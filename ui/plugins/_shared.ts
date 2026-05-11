@@ -2,7 +2,7 @@ import { readFile, stat, writeFile } from 'node:fs/promises';
 import type { Connect } from 'vite';
 import type { CvFormat } from '../../src/lib/cv-parser.js';
 import { type LlmProvider, SUPPORTED_PROVIDERS } from '../../src/lib/llm.js';
-import { APPLIED_EXAMPLE_PATH, APPLIED_PATH, CV_BASENAME, PREFERENCES_PATH } from './_paths.ts';
+import { APPLIED_PATH, CV_BASENAME, PREFERENCES_PATH } from './_paths.ts';
 
 export type { LlmProvider };
 
@@ -64,19 +64,14 @@ export function todayIso(): string {
 }
 
 export async function readApplied(): Promise<AppliedEntry[]> {
-  // Try the live (gitignored) file first; fall back to the committed
-  // template so a fresh clone shows the example structure.
-  for (const candidate of [APPLIED_PATH, APPLIED_EXAMPLE_PATH]) {
-    try {
-      const raw = await readFile(candidate, 'utf8');
-      const parsed = JSON.parse(raw) as unknown;
-      return Array.isArray(parsed) ? (parsed as AppliedEntry[]) : [];
-    } catch (err) {
-      if ((err as NodeJS.ErrnoException).code === 'ENOENT') continue;
-      throw err;
-    }
+  try {
+    const raw = await readFile(APPLIED_PATH, 'utf8');
+    const parsed = JSON.parse(raw) as unknown;
+    return Array.isArray(parsed) ? (parsed as AppliedEntry[]) : [];
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') return [];
+    throw err;
   }
-  return [];
 }
 
 export async function writeApplied(entries: AppliedEntry[]): Promise<void> {
