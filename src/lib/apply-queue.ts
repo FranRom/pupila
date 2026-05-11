@@ -32,6 +32,15 @@ export interface QueueFile {
 const DEFAULT_PATH = 'data/apply-queue.json';
 const EMPTY_QUEUE: QueueFile = { version: 1, rows: [] };
 
+// JobIds in this project are SHA1 hex (40 lowercase hex chars), produced by
+// `sha1Hex(normalizeUrl(...))` in src/utils.ts. Validating at every API entry
+// point prevents path-traversal via crafted jobIds (e.g. `../config/applied`)
+// that would later get joined into data/applications/<jobId>.md.
+const JOB_ID_RE = /^[a-f0-9]{40}$/;
+export function isValidJobId(value: unknown): value is string {
+  return typeof value === 'string' && JOB_ID_RE.test(value);
+}
+
 const TERMINAL_STATUSES: ReadonlySet<QueueRowStatus> = new Set([
   'done',
   'failed',

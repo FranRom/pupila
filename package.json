@@ -17,6 +17,7 @@
     "clean": "tsx scripts/clean.ts",
     "clean:onboarding": "tsx scripts/clean.ts --onboarding",
     "daily": "pnpm run dev && pnpm run ai-review",
+    "apply-worker": "tsx scripts/apply-worker.ts",
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.test.json && tsc --noEmit -p ui/tsconfig.json",
     "lint": "biome check",
     "lint:fix": "biome check --write",

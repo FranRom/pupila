@@ -3,12 +3,14 @@ import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
 import { aiApplyApiPlugin } from './plugins/aiApply.ts';
 import { appliedApiPlugin } from './plugins/applied.ts';
+import { applyQueueApiPlugin } from './plugins/applyQueue.ts';
 import { briefApiPlugin } from './plugins/brief.ts';
 import { cleanApiPlugin } from './plugins/clean.ts';
 import { dataApiPlugin } from './plugins/data.ts';
 import { diskUsageApiPlugin } from './plugins/diskUsage.ts';
 import { envApiPlugin } from './plugins/env.ts';
 import { fetchJobsApiPlugin } from './plugins/fetchJobs.ts';
+import { jobBodyApiPlugin } from './plugins/jobBody.ts';
 import { llmDetectApiPlugin } from './plugins/llmDetect.ts';
 import { llmTestApiPlugin } from './plugins/llmTest.ts';
 import { preferencesApiPlugin } from './plugins/preferences.ts';
@@ -31,6 +33,8 @@ export default defineConfig({
     preferencesApiPlugin(),
     llmDetectApiPlugin(),
     aiApplyApiPlugin(),
+    applyQueueApiPlugin(),
+    jobBodyApiPlugin(),
     fetchJobsApiPlugin(),
     profileApiPlugin(),
     schedulerStatusApiPlugin(),

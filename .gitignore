@@ -26,6 +26,9 @@ data/applications/*
 data/jobs-bodies.json
 data/raw/*
 !data/raw/.gitkeep
+data/apply-queue.json
+data/apply-worker.pid
+data/swipe-skips.json
 
 # Local launchd / cron schedule logs
 data/launchd-*.log
