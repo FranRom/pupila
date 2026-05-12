@@ -9,11 +9,11 @@ metadata:
 
 # SEO optimization
 
-Search engine optimization based on Lighthouse SEO audits and Google Search guidelines. Focus on technical SEO, on-page optimization, and structured data.
+SEO per Lighthouse audits + Google Search docs. Technical SEO, on-page, structured data.
 
 ## SEO fundamentals
 
-Search ranking factors (approximate influence):
+Ranking factors (approx influence):
 
 | Factor | Influence | This Skill |
 |--------|-----------|------------|
@@ -94,11 +94,11 @@ Sitemap: https://example.com/sitemap.xml
 </urlset>
 ```
 
-**Sitemap best practices:**
-- Maximum 50,000 URLs or 50MB per sitemap
-- Use sitemap index for larger sites
-- Include only canonical, indexable URLs
-- Update `lastmod` when content changes
+**Sitemap rules:**
+- Max 50,000 URLs or 50MB per sitemap
+- Sitemap index for bigger sites
+- Canonical, indexable URLs only
+- Update `lastmod` on content change
 - Submit to Google Search Console
 
 ### URL structure
@@ -113,13 +113,13 @@ https://example.com/p?id=12345
 https://example.com/products/item/category/subcategory/blue-widget-2024-sale-discount
 ```
 
-**URL guidelines:**
-- Use hyphens, not underscores
-- Lowercase only
-- Keep short (< 75 characters)
-- Include target keywords naturally
-- Avoid parameters when possible
-- Use HTTPS always
+**URL rules:**
+- Hyphens, not underscores
+- Lowercase
+- Short (< 75 chars)
+- Keywords natural
+- Avoid params
+- HTTPS always
 
 ### HTTPS & security
 
@@ -131,7 +131,7 @@ https://example.com/products/item/category/subcategory/blue-widget-2024-sale-dis
 <img src="http://example.com/image.jpg">
 ```
 
-**Security headers for SEO trust signals:**
+**Security headers (SEO trust):**
 ```
 Strict-Transport-Security: max-age=31536000; includeSubDomains
 X-Content-Type-Options: nosniff
@@ -153,12 +153,12 @@ X-Frame-Options: DENY
 <title>Blue Widgets for Sale | Premium Quality | Example Store</title>
 ```
 
-**Title tag guidelines:**
-- 50-60 characters (Google truncates ~60)
-- Primary keyword near the beginning
-- Unique for every page
-- Brand name at end (unless homepage)
-- Action-oriented when appropriate
+**Title rules:**
+- 50-60 chars (Google truncates ~60)
+- Primary keyword early
+- Unique per page
+- Brand at end (not homepage)
+- Action-oriented when fit
 
 ### Meta descriptions
 
@@ -170,12 +170,12 @@ X-Frame-Options: DENY
 <meta name="description" content="Shop premium blue widgets with free shipping. 30-day returns. Rated 4.9/5 by 10,000+ customers. Order today and save 20%.">
 ```
 
-**Meta description guidelines:**
-- 150-160 characters
-- Include primary keyword naturally
-- Compelling call-to-action
-- Unique for every page
-- Matches page content
+**Meta description rules:**
+- 150-160 chars
+- Primary keyword natural
+- CTA
+- Unique per page
+- Match page content
 
 ### Heading structure
 
@@ -194,10 +194,10 @@ X-Frame-Options: DENY
   <h2>Pricing</h2>
 ```
 
-**Heading guidelines:**
-- Single `<h1>` per page (the main topic)
-- Logical hierarchy (don't skip levels)
-- Include keywords naturally
+**Heading rules:**
+- Single `<h1>` per page
+- Logical hierarchy, no skipping
+- Keywords natural
 - Descriptive, not generic
 
 ### Image SEO
@@ -214,12 +214,12 @@ X-Frame-Options: DENY
      loading="lazy">
 ```
 
-**Image guidelines:**
-- Descriptive filenames with keywords
-- Alt text describes the image content
-- Compressed and properly sized
-- WebP/AVIF with fallbacks
-- Lazy load below-fold images
+**Image rules:**
+- Descriptive filenames + keywords
+- Alt text describes content
+- Compressed, sized right
+- WebP/AVIF + fallbacks
+- Lazy load below-fold
 
 ### Internal linking
 
@@ -233,12 +233,12 @@ X-Frame-Options: DENY
 <a href="/guides/widget-maintenance">Learn how to maintain your widgets</a>
 ```
 
-**Linking guidelines:**
-- Descriptive anchor text with keywords
-- Link to relevant internal pages
-- Reasonable number of links per page
-- Fix broken links promptly
-- Use breadcrumbs for hierarchy
+**Linking rules:**
+- Descriptive anchor + keywords
+- Link relevant internal pages
+- Sane link count per page
+- Fix broken links fast
+- Breadcrumbs for hierarchy
 
 ---
 
@@ -388,7 +388,7 @@ X-Frame-Options: DENY
 
 ### Validation
 
-Test structured data at:
+Test at:
 - [Google Rich Results Test](https://search.google.com/test/rich-results)
 - [Schema.org Validator](https://validator.schema.org/)
 
@@ -466,10 +466,10 @@ body {
 ## SEO audit checklist
 
 ### Critical
-- [ ] HTTPS enabled
-- [ ] robots.txt allows crawling
-- [ ] No `noindex` on important pages
-- [ ] Title tags present and unique
+- [ ] HTTPS on
+- [ ] robots.txt allows crawl
+- [ ] No `noindex` on key pages
+- [ ] Title tags present + unique
 - [ ] Single `<h1>` per page
 
 ### High priority
@@ -477,20 +477,20 @@ body {
 - [ ] Sitemap submitted
 - [ ] Canonical URLs set
 - [ ] Mobile-responsive
-- [ ] Core Web Vitals passing
+- [ ] Core Web Vitals pass
 
 ### Medium priority
-- [ ] Structured data implemented
-- [ ] Internal linking strategy
+- [ ] Structured data done
+- [ ] Internal linking plan
 - [ ] Image alt text
 - [ ] Descriptive URLs
-- [ ] Breadcrumb navigation
+- [ ] Breadcrumb nav
 
 ### Ongoing
-- [ ] Fix crawl errors in Search Console
-- [ ] Update sitemap when content changes
-- [ ] Monitor ranking changes
-- [ ] Check for broken links
+- [ ] Fix Search Console crawl errors
+- [ ] Update sitemap on content change
+- [ ] Track ranking shifts
+- [ ] Check broken links
 - [ ] Review Search Console insights
 
 ---
@@ -499,8 +499,8 @@ body {
 
 | Tool | Use |
 |------|-----|
-| Google Search Console | Monitor indexing, fix issues |
-| Google PageSpeed Insights | Performance + Core Web Vitals |
+| Google Search Console | Indexing, fixes |
+| Google PageSpeed Insights | Perf + Core Web Vitals |
 | Rich Results Test | Validate structured data |
 | Lighthouse | Full SEO audit |
 | Screaming Frog | Crawl analysis |

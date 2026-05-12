@@ -5,17 +5,17 @@ description: Vite 6+ Environment API for multiple runtime environments
 
 # Environment API (Vite 6+)
 
-The Environment API formalizes multiple runtime environments beyond the traditional client/SSR split.
+Environment API formalizes multiple runtime environments beyond traditional client/SSR split.
 
 ## Concept
 
-Before Vite 6: Two implicit environments (`client` and `ssr`).
+Before Vite 6: two implicit environments (`client`, `ssr`).
 
-Vite 6+: Configure as many environments as needed (browser, node server, edge server, etc.).
+Vite 6+: configure as many environments as needed (browser, node server, edge server, etc.).
 
 ## Basic Configuration
 
-For SPA/MPA, nothing changes—options apply to the implicit `client` environment:
+SPA/MPA: nothing changes — options apply to implicit `client` environment:
 
 ```ts
 export default defineConfig({
@@ -41,7 +41,7 @@ export default defineConfig({
 })
 ```
 
-Environments inherit top-level config. Some options (like `optimizeDeps`) only apply to `client` by default.
+Environments inherit top-level config. Some options (e.g. `optimizeDeps`) apply only to `client` by default — explicitly set per environment to override.
 
 ## Environment Options
 
@@ -56,9 +56,11 @@ interface EnvironmentOptions {
 }
 ```
 
+`consumer` distinguishes client vs server environments — controls default behavior for `optimizeDeps`, asset handling, etc.
+
 ## Custom Environment Instances
 
-Runtime providers can define custom environments:
+Runtime providers define custom environments:
 
 ```ts
 import { customEnvironment } from 'vite-environment-provider'
@@ -72,7 +74,7 @@ export default defineConfig({
 })
 ```
 
-Example: Cloudflare's Vite plugin runs code in `workerd` runtime during development.
+Example: Cloudflare Vite plugin runs code in `workerd` runtime during dev.
 
 ## Backward Compatibility
 
@@ -82,13 +84,13 @@ Example: Cloudflare's Vite plugin runs code in `workerd` runtime during developm
 
 ## When to Use
 
-- **End users**: Usually don't need to configure—frameworks handle it
-- **Plugin authors**: Use for environment-aware transformations
-- **Framework authors**: Create custom environments for their runtime needs
+- **End users**: usually don't configure — frameworks handle it
+- **Plugin authors**: environment-aware transformations
+- **Framework authors**: custom environments for runtime needs
 
 ## Plugin Environment Access
 
-Plugins can access environment in hooks:
+Plugins access environment in hooks:
 
 ```ts
 {

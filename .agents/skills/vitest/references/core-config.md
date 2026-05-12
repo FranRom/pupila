@@ -5,7 +5,7 @@ description: Configure Vitest with vite.config.ts or vitest.config.ts
 
 # Configuration
 
-Vitest reads configuration from `vitest.config.ts` or `vite.config.ts`. It shares the same config format as Vite.
+Vitest reads `vitest.config.ts` or `vite.config.ts`. Same config format as Vite.
 
 ## Basic Setup
 
@@ -22,7 +22,7 @@ export default defineConfig({
 
 ## Using with Existing Vite Config
 
-Add Vitest types reference and use the `test` property:
+Add Vitest types reference, use `test` property:
 
 ```ts
 // vite.config.ts
@@ -39,7 +39,7 @@ export default defineConfig({
 
 ## Merging Configs
 
-If you have separate config files, use `mergeConfig`:
+Separate config files — use `mergeConfig`:
 
 ```ts
 // vitest.config.ts
@@ -133,7 +133,7 @@ export default defineConfig(({ mode }) => ({
 
 ## Projects (Monorepos)
 
-Run different configurations in the same Vitest process:
+Run different configs in same Vitest process:
 
 ```ts
 defineConfig({
@@ -161,11 +161,11 @@ defineConfig({
 
 ## Key Points
 
-- Vitest uses Vite's transformation pipeline - same `resolve.alias`, plugins work
+- Vitest uses Vite pipeline — same `resolve.alias`, plugins work
 - `vitest.config.ts` takes priority over `vite.config.ts`
-- Use `--config` flag to specify a custom config path
-- `process.env.VITEST` is set to `true` when running tests
-- Test config uses `test` property, rest is Vite config
+- `--config` flag specifies custom config path
+- `process.env.VITEST` = `true` when running tests
+- Test config = `test` property, rest = Vite config
 
 <!-- 
 Source references:

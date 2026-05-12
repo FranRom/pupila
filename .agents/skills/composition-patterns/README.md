@@ -1,60 +1,53 @@
 # React Composition Patterns
 
-A structured repository for React composition patterns that scale. These
-patterns help avoid boolean prop proliferation by using compound components,
-lifting state, and composing internals.
+Repo of React composition patterns. Skip boolean prop bloat via compound components, lifted state, composed internals.
 
 ## Structure
 
-- `rules/` - Individual rule files (one per rule)
-  - `_sections.md` - Section metadata (titles, impacts, descriptions)
-  - `_template.md` - Template for creating new rules
-  - `area-description.md` - Individual rule files
-- `metadata.json` - Document metadata (version, organization, abstract)
-- **`AGENTS.md`** - Compiled output (generated)
+- `rules/` — one file per rule
+  - `_sections.md` — section metadata (titles, impacts, descriptions)
+  - `_template.md` — template for new rules
+  - `area-description.md` — rule files
+- `metadata.json` — doc metadata (version, org, abstract)
+- **`AGENTS.md`** — compiled output (generated)
 
 ## Rules
 
 ### Component Architecture (CRITICAL)
 
-- `architecture-avoid-boolean-props.md` - Don't add boolean props to customize
-  behavior
-- `architecture-compound-components.md` - Structure as compound components with
-  shared context
+- `architecture-avoid-boolean-props.md` — no boolean props for behavior
+- `architecture-compound-components.md` — compound components, shared context
 
 ### State Management (HIGH)
 
-- `state-lift-state.md` - Lift state into provider components
-- `state-context-interface.md` - Define clear context interfaces
-  (state/actions/meta)
-- `state-decouple-implementation.md` - Decouple state management from UI
+- `state-lift-state.md` — lift state to providers
+- `state-context-interface.md` — clear context interfaces (state/actions/meta)
+- `state-decouple-implementation.md` — decouple state from UI
 
 ### Implementation Patterns (MEDIUM)
 
-- `patterns-children-over-render-props.md` - Prefer children over renderX props
-- `patterns-explicit-variants.md` - Create explicit component variants
+- `patterns-children-over-render-props.md` — children > renderX
+- `patterns-explicit-variants.md` — explicit variants
 
 ## Core Principles
 
-1. **Composition over configuration** — Instead of adding props, let consumers
-   compose
-2. **Lift your state** — State in providers, not trapped in components
-3. **Compose your internals** — Subcomponents access context, not props
-4. **Explicit variants** — Create ThreadComposer, EditComposer, not Composer
-   with isThread
+1. **Composition over configuration** — consumers compose, don't add props
+2. **Lift your state** — state in providers, not stuck in components
+3. **Compose your internals** — subcomponents read context, not props
+4. **Explicit variants** — ThreadComposer, EditComposer; not Composer with isThread
 
 ## Creating a New Rule
 
 1. Copy `rules/_template.md` to `rules/area-description.md`
-2. Choose the appropriate area prefix:
-   - `architecture-` for Component Architecture
-   - `state-` for State Management
-   - `patterns-` for Implementation Patterns
-3. Fill in the frontmatter and content
-4. Ensure you have clear examples with explanations
+2. Pick area prefix:
+   - `architecture-` — Component Architecture
+   - `state-` — State Management
+   - `patterns-` — Implementation Patterns
+3. Fill frontmatter + content
+4. Clear examples + explanations
 
 ## Impact Levels
 
-- `CRITICAL` - Foundational patterns, prevents unmaintainable code
-- `HIGH` - Significant maintainability improvements
-- `MEDIUM` - Good practices for cleaner code
+- `CRITICAL` — foundational, blocks unmaintainable code
+- `HIGH` — big maintainability win
+- `MEDIUM` — cleaner code

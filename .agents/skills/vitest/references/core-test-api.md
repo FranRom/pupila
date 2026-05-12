@@ -152,7 +152,7 @@ test.each`
 
 ### test.for
 
-Preferred over `.each` - doesn't spread arrays:
+Preferred over `.each` — doesn't spread arrays:
 
 ```ts
 test.for([
@@ -166,7 +166,7 @@ test.for([
 
 ## Test Context
 
-First argument provides context utilities:
+First arg = context utilities:
 
 ```ts
 test('with context', ({ expect, skip, task }) => {
@@ -222,10 +222,10 @@ test('database test', { tags: ['db', 'slow'] }, async () => {})
 
 ## Key Points
 
-- Tests with no body are marked as `todo`
+- Tests with no body marked `todo`
 - `test.only` throws in CI unless `allowOnly: true`
-- Use context's `expect` for concurrent tests and snapshots
-- Function name is used as test name if passed as first arg
+- Context's `expect` for concurrent tests + snapshots
+- Function name = test name if passed as first arg
 
 <!-- 
 Source references:

@@ -7,7 +7,7 @@ description: Test context, custom fixtures with test.extend
 
 ## Built-in Context
 
-Every test receives context as first argument:
+Every test gets context as first arg:
 
 ```ts
 test('context', ({ task, expect, skip }) => {
@@ -19,15 +19,15 @@ test('context', ({ task, expect, skip }) => {
 
 ### Context Properties
 
-- `task` - Test metadata (name, file, etc.)
-- `expect` - Expect bound to this test (important for concurrent tests)
-- `skip(condition?, message?)` - Skip the test
-- `onTestFinished(fn)` - Cleanup after test
-- `onTestFailed(fn)` - Run on failure only
+- `task` — test metadata (name, file, etc.)
+- `expect` — bound to this test (vital for concurrent tests)
+- `skip(condition?, message?)` — skip test
+- `onTestFinished(fn)` — cleanup after test
+- `onTestFailed(fn)` — on failure only
 
 ## Custom Fixtures with test.extend
 
-Create reusable test utilities:
+Reusable test utilities:
 
 ```ts
 import { test as base } from 'vitest'
@@ -67,7 +67,7 @@ test('query user', async ({ db, user }) => {
 
 ## Fixture Initialization
 
-Fixtures only initialize when accessed:
+Fixtures only initialize on access:
 
 ```ts
 const test = base.extend({
@@ -102,7 +102,7 @@ const test = base.extend({
 
 ### File Scope
 
-Initialize once per file:
+Init once per file:
 
 ```ts
 const test = base.extend({
@@ -119,7 +119,7 @@ const test = base.extend({
 
 ### Worker Scope
 
-Initialize once per worker:
+Init once per worker:
 
 ```ts
 const test = base.extend({
@@ -225,12 +225,12 @@ export const test = dbTest.extend<{ admin: User }>({
 
 ## Key Points
 
-- Use `{ }` destructuring to access fixtures
-- Fixtures are lazy - only initialize when accessed
-- Return cleanup function from fixtures
-- Use `{ auto: true }` for setup fixtures
-- Use `{ scope: 'file' }` for expensive shared resources
-- Fixtures compose - extend from extended tests
+- `{ }` destructuring to access fixtures
+- Fixtures lazy — init on access
+- Return cleanup from fixtures
+- `{ auto: true }` for setup fixtures
+- `{ scope: 'file' }` for expensive shared resources
+- Fixtures compose — extend from extended tests
 
 <!-- 
 Source references:

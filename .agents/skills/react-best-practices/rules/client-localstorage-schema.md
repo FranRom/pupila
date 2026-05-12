@@ -7,7 +7,7 @@ tags: client, localStorage, storage, versioning, data-minimization
 
 ## Version and Minimize localStorage Data
 
-Add version prefix to keys and store only needed fields. Prevents schema conflicts and accidental storage of sensitive data.
+Add version prefix to keys, store only needed fields. Prevents schema conflicts + accidental sensitive-data storage.
 
 **Incorrect:**
 
@@ -66,6 +66,6 @@ function cachePrefs(user: FullUser) {
 }
 ```
 
-**Always wrap in try-catch:** `getItem()` and `setItem()` throw in incognito/private browsing (Safari, Firefox), when quota exceeded, or when disabled.
+**Always wrap in try-catch:** `getItem()` / `setItem()` throw in incognito (Safari, Firefox), on quota exceeded, or when disabled.
 
-**Benefits:** Schema evolution via versioning, reduced storage size, prevents storing tokens/PII/internal flags.
+**Benefits:** schema evolution via versioning, smaller storage, no token/PII/internal-flag leakage.

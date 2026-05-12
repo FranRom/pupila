@@ -7,7 +7,7 @@ description: Vite library mode, multi-page apps, JavaScript API, and SSR guidanc
 
 ## Library Mode
 
-Build a library for distribution:
+Build library for distribution:
 
 ```ts
 // vite.config.ts
@@ -50,8 +50,8 @@ build: {
 
 ### Output Formats
 
-- Single entry: `es` and `umd`
-- Multiple entries: `es` and `cjs`
+- Single entry: `es` + `umd`
+- Multiple entries: `es` + `cjs`
 
 ### Package.json Setup
 
@@ -89,16 +89,16 @@ export default defineConfig({
 
 ## SSR Development
 
-**Note:** Vite's SSR support is **low-level** and designed mostly for meta-framework authors, not application developers. If you need SSR for your app, use a Vite-based meta-framework instead:
+**Note:** Vite SSR is **low-level**, designed mostly for meta-framework authors, not app developers. App SSR? Use Vite-based meta-framework:
 
-- **Nuxt** (Vue) - https://nuxt.com
-- **SvelteKit** (Svelte) - https://svelte.dev/docs/kit
-- **SolidStart** (Solid) - https://start.solidjs.com
-- **TanStack Start** (React) - https://tanstack.com/start
+- **Nuxt** (Vue) — https://nuxt.com
+- **SvelteKit** (Svelte) — https://svelte.dev/docs/kit
+- **SolidStart** (Solid) — https://start.solidjs.com
+- **TanStack Start** (React) — https://tanstack.com/start
 
-These frameworks build on top of Vite's SSR primitives so you don't have to wire them up yourself.
+Frameworks build on Vite SSR primitives, no manual wiring.
 
-**Need a server?** Consider [Nitro](https://nitro.build) -- think of it as "Vite for servers." Nitro provides a portable, framework-agnostic server layer with file-based API routing, auto-imports, and deployment presets for dozens of platforms (Node.js, Deno, Bun, Cloudflare Workers, Vercel, Netlify, etc.). It integrates naturally with Vite and is what powers Nuxt's server engine. See the [Nitro docs](https://nitro.build) for more details.
+**Need a server?** [Nitro](https://nitro.build) — "Vite for servers." Portable framework-agnostic server layer, file-based API routing, auto-imports, deployment presets (Node.js, Deno, Bun, Cloudflare Workers, Vercel, Netlify, etc.). Integrates with Vite, powers Nuxt server engine. See [Nitro docs](https://nitro.build).
 
 ## JavaScript API
 
@@ -153,7 +153,7 @@ const config = await resolveConfig({}, 'build')
 import { loadEnv } from 'vite'
 
 const env = loadEnv('development', process.cwd(), '')
-// Loads all env vars (empty prefix = no filtering)
+// All env vars (empty prefix = no filter)
 ```
 
 <!--

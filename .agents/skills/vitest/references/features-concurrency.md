@@ -7,7 +7,7 @@ description: Concurrent tests, parallel execution, and sharding
 
 ## File Parallelism
 
-By default, Vitest runs test files in parallel across workers:
+Vitest runs test files in parallel across workers by default:
 
 ```ts
 defineConfig({
@@ -27,7 +27,7 @@ defineConfig({
 
 ## Concurrent Tests
 
-Run tests within a file in parallel:
+Run tests within file in parallel:
 
 ```ts
 // Individual concurrent tests
@@ -178,7 +178,11 @@ describe.shuffle('random order', () => {
 
 ## Pool Options
 
+Pool choice affects isolation + perf semantics.
+
 ### Threads (Default)
+
+Worker threads share process. Fast, lower isolation:
 
 ```ts
 defineConfig({
@@ -197,7 +201,7 @@ defineConfig({
 
 ### Forks
 
-Better isolation, slower:
+Child processes — better isolation, slower:
 
 ```ts
 defineConfig({
@@ -215,7 +219,7 @@ defineConfig({
 
 ### VM Threads
 
-Full VM isolation per file:
+Full VM isolation per file — strongest isolation, highest overhead:
 
 ```ts
 defineConfig({
@@ -236,12 +240,12 @@ vitest --bail      # Stop on first failure (same as --bail 1)
 
 ## Key Points
 
-- Files run in parallel by default
-- Use `.concurrent` for parallel tests within file
-- Always use context's `expect` in concurrent tests
+- Files run parallel by default
+- `.concurrent` = parallel tests within file
+- Always context's `expect` in concurrent tests
 - Sharding splits tests across CI machines
-- Use `--merge-reports` to combine sharded results
-- Shuffle tests to find hidden dependencies
+- `--merge-reports` combines sharded results
+- Shuffle finds hidden dependencies
 
 <!-- 
 Source references:

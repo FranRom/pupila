@@ -7,9 +7,9 @@ tags: async, await, feature-flags, short-circuit, conditional
 
 ## Check Cheap Conditions Before Async Flags
 
-When a branch uses `await` for a flag or remote value and also requires a **cheap synchronous** condition (local props, request metadata, already-loaded state), evaluate the cheap condition **first**. Otherwise you pay for the async call even when the compound condition can never be true.
+Branch uses `await` for flag/remote value AND needs a **cheap sync** condition (local props, request metadata, loaded state) — eval cheap one **first**. Otherwise you pay the async call even when compound can't be true.
 
-This is a specialization of [Defer Await Until Needed](./async-defer-await.md) for `flag && cheapCondition` style checks.
+Specialization of [Defer Await Until Needed](./async-defer-await.md) for `flag && cheapCondition` checks.
 
 **Incorrect:**
 
@@ -32,6 +32,6 @@ if (someCondition) {
 }
 ```
 
-This matters when `getFlag` hits the network, a feature-flag service, or `React.cache` / DB work: skipping it when `someCondition` is false removes that cost on the cold path.
+Matters when `getFlag` hits network, feature-flag service, `React.cache` / DB: skipping when `someCondition` false removes cold-path cost.
 
-Keep the original order if `someCondition` is expensive, depends on the flag, or you must run side effects in a fixed order.
+Keep original order if `someCondition` expensive, depends on flag, or side effects must run in fixed order.

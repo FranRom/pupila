@@ -7,7 +7,7 @@ tags: client, event-listeners, scrolling, performance, touch, wheel
 
 ## Use Passive Event Listeners for Scrolling Performance
 
-Add `{ passive: true }` to touch and wheel event listeners to enable immediate scrolling. Browsers normally wait for listeners to finish to check if `preventDefault()` is called, causing scroll delay.
+Add `{ passive: true }` to touch/wheel listeners → immediate scrolling. Browsers wait for listeners to finish to check `preventDefault()` → scroll delay.
 
 **Incorrect:**
 
@@ -43,6 +43,6 @@ useEffect(() => {
 }, [])
 ```
 
-**Use passive when:** tracking/analytics, logging, any listener that doesn't call `preventDefault()`.
+**Use passive when:** tracking/analytics, logging, any listener not calling `preventDefault()`.
 
-**Don't use passive when:** implementing custom swipe gestures, custom zoom controls, or any listener that needs `preventDefault()`.
+**Don't use passive when:** custom swipe gestures, custom zoom, anything needing `preventDefault()`.

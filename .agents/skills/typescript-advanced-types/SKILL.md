@@ -5,24 +5,24 @@ description: Master TypeScript's advanced type system including generics, condit
 
 # TypeScript Advanced Types
 
-Comprehensive guidance for mastering TypeScript's advanced type system including generics, conditional types, mapped types, template literal types, and utility types for building robust, type-safe applications.
+Guidance for TS advanced types: generics, conditional types, mapped types, template literal types, utility types. Build type-safe apps.
 
 ## When to Use This Skill
 
-- Building type-safe libraries or frameworks
-- Creating reusable generic components
-- Implementing complex type inference logic
-- Designing type-safe API clients
-- Building form validation systems
-- Creating strongly-typed configuration objects
-- Implementing type-safe state management
-- Migrating JavaScript codebases to TypeScript
+- Type-safe libraries/frameworks
+- Reusable generic components
+- Complex type inference logic
+- Type-safe API clients
+- Form validation systems
+- Strongly-typed config objects
+- Type-safe state management
+- JS → TS migration
 
 ## Core Concepts
 
 ### 1. Generics
 
-**Purpose:** Create reusable, type-flexible components while maintaining type safety.
+**Purpose:** Reusable, type-flexible components. Keep type safety.
 
 **Basic Generic Function:**
 
@@ -67,7 +67,7 @@ const merged = merge({ name: "John" }, { age: 30 });
 
 ### 2. Conditional Types
 
-**Purpose:** Create types that depend on conditions, enabling sophisticated type logic.
+**Purpose:** Types depend on conditions. Enables type logic.
 
 **Basic Conditional Type:**
 
@@ -92,6 +92,8 @@ type User = ReturnType<typeof getUser>;
 ```
 
 **Distributive Conditional Types:**
+
+When a naked type parameter in a conditional type receives a union, the conditional distributes over each member of the union, then results re-union.
 
 ```typescript
 type ToArray<T> = T extends any ? T[] : never;
@@ -121,7 +123,7 @@ type T2 = TypeName<() => void>; // "function"
 
 ### 3. Mapped Types
 
-**Purpose:** Transform existing types by iterating over their properties.
+**Purpose:** Transform types by iterating properties.
 
 **Basic Mapped Type:**
 
@@ -186,7 +188,7 @@ type OnlyNumbers = PickByType<Mixed, number>;
 
 ### 4. Template Literal Types
 
-**Purpose:** Create string-based types with pattern matching and transformation.
+**Purpose:** String-based types. Pattern matching + transformation.
 
 **Basic Template Literal:**
 
@@ -666,16 +668,16 @@ function processValue(value: unknown) {
 
 ## Best Practices
 
-1. **Use `unknown` over `any`**: Enforce type checking
-2. **Prefer `interface` for object shapes**: Better error messages
-3. **Use `type` for unions and complex types**: More flexible
-4. **Leverage type inference**: Let TypeScript infer when possible
-5. **Create helper types**: Build reusable type utilities
+1. **Use `unknown` over `any`**: Force type checking
+2. **Prefer `interface` for object shapes**: Better errors
+3. **Use `type` for unions/complex types**: More flexible
+4. **Leverage inference**: Let TS infer when possible
+5. **Create helper types**: Reusable utilities
 6. **Use const assertions**: Preserve literal types
-7. **Avoid type assertions**: Use type guards instead
-8. **Document complex types**: Add JSDoc comments
-9. **Use strict mode**: Enable all strict compiler options
-10. **Test your types**: Use type tests to verify type behavior
+7. **Avoid type assertions**: Use type guards
+8. **Document complex types**: JSDoc comments
+9. **Use strict mode**: Enable all strict opts
+10. **Test your types**: Type tests verify behavior
 
 ## Type Testing
 
@@ -700,18 +702,18 @@ type ShouldError = ExpectError<AssertEqual<string, number>>;
 
 ## Common Pitfalls
 
-1. **Over-using `any`**: Defeats the purpose of TypeScript
-2. **Ignoring strict null checks**: Can lead to runtime errors
-3. **Too complex types**: Can slow down compilation
-4. **Not using discriminated unions**: Misses type narrowing opportunities
-5. **Forgetting readonly modifiers**: Allows unintended mutations
-6. **Circular type references**: Can cause compiler errors
-7. **Not handling edge cases**: Like empty arrays or null values
+1. **Over-using `any`**: Defeats TS purpose
+2. **Ignoring strict null checks**: Runtime errors
+3. **Too complex types**: Slow compilation
+4. **Skipping discriminated unions**: Miss narrowing
+5. **Forgetting readonly**: Unintended mutations
+6. **Circular type refs**: Compiler errors
+7. **Edge cases unhandled**: Empty arrays, null
 
 ## Performance Considerations
 
 - Avoid deeply nested conditional types
 - Use simple types when possible
 - Cache complex type computations
-- Limit recursion depth in recursive types
-- Use build tools to skip type checking in production
+- Limit recursion depth
+- Skip type checking in production builds

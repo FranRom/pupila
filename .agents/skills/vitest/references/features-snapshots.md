@@ -5,7 +5,7 @@ description: Snapshot testing with file, inline, and file snapshots
 
 # Snapshot Testing
 
-Snapshot tests capture output and compare against stored references.
+Capture output, compare against stored references.
 
 ## Basic Snapshot
 
@@ -18,7 +18,7 @@ test('snapshot', () => {
 })
 ```
 
-First run creates `.snap` file:
+First run creates `.snap` file at `__snapshots__/<test-file>.snap`:
 
 ```js
 // __snapshots__/test.spec.ts.snap
@@ -67,7 +67,7 @@ test('render html', async () => {
 
 ## Snapshot Hints
 
-Add descriptive hints:
+Descriptive hints:
 
 ```ts
 test('multiple snapshots', () => {
@@ -114,6 +114,8 @@ test('inline error', () => {
 
 ## Updating Snapshots
 
+`--update-snapshots` (alias `-u`, `--update`) rewrites all snapshot files + inline snapshots to match current output.
+
 ```bash
 # Update all snapshots
 vitest -u
@@ -124,7 +126,7 @@ vitest --update
 
 ## Custom Serializers
 
-Add custom snapshot formatting:
+Custom snapshot formatting:
 
 ```ts
 expect.addSnapshotSerializer({
@@ -179,7 +181,7 @@ test.concurrent('concurrent 2', async ({ expect }) => {
 
 Default: `__snapshots__/<test-file>.snap`
 
-Customize:
+Customize via `resolveSnapshotPath`:
 
 ```ts
 defineConfig({
@@ -195,10 +197,10 @@ defineConfig({
 
 - Commit snapshot files to version control
 - Review snapshot changes in code review
-- Use hints for multiple snapshots in one test
-- Use `toMatchFileSnapshot` for large outputs (HTML, JSON)
+- Hints for multiple snapshots in one test
+- `toMatchFileSnapshot` for large outputs (HTML, JSON)
 - Inline snapshots auto-update in test file
-- Use context's `expect` for concurrent tests
+- Context's `expect` for concurrent tests
 
 <!-- 
 Source references:

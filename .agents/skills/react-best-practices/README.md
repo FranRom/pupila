@@ -1,21 +1,21 @@
 # React Best Practices
 
-A structured repository for creating and maintaining React Best Practices optimized for agents and LLMs.
+Structured repo for React Best Practices optimized for agents/LLMs.
 
 ## Structure
 
-- `rules/` - Individual rule files (one per rule)
+- `rules/` - Rule files (one per rule)
   - `_sections.md` - Section metadata (titles, impacts, descriptions)
-  - `_template.md` - Template for creating new rules
-  - `area-description.md` - Individual rule files
-- `src/` - Build scripts and utilities
-- `metadata.json` - Document metadata (version, organization, abstract)
+  - `_template.md` - Template for new rules
+  - `area-description.md` - Rule files
+- `src/` - Build scripts
+- `metadata.json` - Doc metadata
 - __`AGENTS.md`__ - Compiled output (generated)
-- __`test-cases.json`__ - Test cases for LLM evaluation (generated)
+- __`test-cases.json`__ - LLM eval test cases (generated)
 
 ## Getting Started
 
-1. Install dependencies:
+1. Install deps:
    ```bash
    pnpm install
    ```
@@ -38,22 +38,20 @@ A structured repository for creating and maintaining React Best Practices optimi
 ## Creating a New Rule
 
 1. Copy `rules/_template.md` to `rules/area-description.md`
-2. Choose the appropriate area prefix:
-   - `async-` for Eliminating Waterfalls (Section 1)
-   - `bundle-` for Bundle Size Optimization (Section 2)
-   - `server-` for Server-Side Performance (Section 3)
-   - `client-` for Client-Side Data Fetching (Section 4)
-   - `rerender-` for Re-render Optimization (Section 5)
-   - `rendering-` for Rendering Performance (Section 6)
-   - `js-` for JavaScript Performance (Section 7)
-   - `advanced-` for Advanced Patterns (Section 8)
-3. Fill in the frontmatter and content
-4. Ensure you have clear examples with explanations
-5. Run `pnpm build` to regenerate AGENTS.md and test-cases.json
+2. Pick area prefix:
+   - `async-` Eliminating Waterfalls (Section 1)
+   - `bundle-` Bundle Size Optimization (Section 2)
+   - `server-` Server-Side Performance (Section 3)
+   - `client-` Client-Side Data Fetching (Section 4)
+   - `rerender-` Re-render Optimization (Section 5)
+   - `rendering-` Rendering Performance (Section 6)
+   - `js-` JavaScript Performance (Section 7)
+   - `advanced-` Advanced Patterns (Section 8)
+3. Fill frontmatter + content
+4. Clear examples with explanations
+5. Run `pnpm build` to regen AGENTS.md + test-cases.json
 
 ## Rule File Structure
-
-Each rule file should follow this structure:
 
 ```markdown
 ---
@@ -65,59 +63,59 @@ tags: tag1, tag2, tag3
 
 ## Rule Title Here
 
-Brief explanation of the rule and why it matters.
+Brief explanation + why it matters.
 
-**Incorrect (description of what's wrong):**
-
-```typescript
-// Bad code example
-```
-
-**Correct (description of what's right):**
+**Incorrect (what's wrong):**
 
 ```typescript
-// Good code example
+// Bad code
 ```
 
-Optional explanatory text after examples.
+**Correct (what's right):**
+
+```typescript
+// Good code
+```
+
+Optional explanation after.
 
 Reference: [Link](https://example.com)
 
-## File Naming Convention
+## File Naming
 
-- Files starting with `_` are special (excluded from build)
+- `_`-prefixed files: special (build-excluded)
 - Rule files: `area-description.md` (e.g., `async-parallel.md`)
-- Section is automatically inferred from filename prefix
-- Rules are sorted alphabetically by title within each section
-- IDs (e.g., 1.1, 1.2) are auto-generated during build
+- Section auto-inferred from prefix
+- Rules sort alphabetically by title within section
+- IDs (1.1, 1.2) auto-generated at build
 
 ## Impact Levels
 
-- `CRITICAL` - Highest priority, major performance gains
-- `HIGH` - Significant performance improvements
+- `CRITICAL` - Highest priority, major perf gains
+- `HIGH` - Significant perf gains
 - `MEDIUM-HIGH` - Moderate-high gains
-- `MEDIUM` - Moderate performance improvements
+- `MEDIUM` - Moderate perf gains
 - `LOW-MEDIUM` - Low-medium gains
-- `LOW` - Incremental improvements
+- `LOW` - Incremental gains
 
 ## Scripts
 
-- `pnpm build` - Compile rules into AGENTS.md
-- `pnpm validate` - Validate all rule files
-- `pnpm extract-tests` - Extract test cases for LLM evaluation
-- `pnpm dev` - Build and validate
+- `pnpm build` - Compile rules → AGENTS.md
+- `pnpm validate` - Validate rule files
+- `pnpm extract-tests` - Extract LLM eval test cases
+- `pnpm dev` - Build + validate
 
 ## Contributing
 
-When adding or modifying rules:
+Adding/modifying rules:
 
-1. Use the correct filename prefix for your section
-2. Follow the `_template.md` structure
-3. Include clear bad/good examples with explanations
-4. Add appropriate tags
-5. Run `pnpm build` to regenerate AGENTS.md and test-cases.json
-6. Rules are automatically sorted by title - no need to manage numbers!
+1. Correct filename prefix
+2. Follow `_template.md` structure
+3. Clear bad/good examples
+4. Tags
+5. `pnpm build` to regen
+6. Auto-sorted by title — no manual numbering
 
 ## Acknowledgments
 
-Originally created by [@shuding](https://x.com/shuding) at [Vercel](https://vercel.com).
+Originally by [@shuding](https://x.com/shuding) at [Vercel](https://vercel.com).

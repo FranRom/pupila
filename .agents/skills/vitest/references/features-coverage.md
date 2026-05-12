@@ -63,7 +63,7 @@ npm i -D @vitest/coverage-v8
 ```
 
 - Faster, no pre-instrumentation
-- Uses V8's native coverage
+- V8 native coverage
 - Recommended for most projects
 
 ### Istanbul
@@ -74,7 +74,7 @@ npm i -D @vitest/coverage-istanbul
 
 - Pre-instruments code
 - Works in any JS runtime
-- More overhead but widely compatible
+- More overhead, widely compatible
 
 ## Reporters
 
@@ -94,7 +94,7 @@ coverage: {
 
 ## Thresholds
 
-Fail tests if coverage is below threshold:
+Fail tests below threshold:
 
 ```ts
 coverage: {
@@ -157,7 +157,7 @@ Note: `@preserve` keeps comments through esbuild.
 
 ## Vitest UI Coverage
 
-Enable HTML coverage in Vitest UI:
+HTML coverage in Vitest UI:
 
 ```ts
 coverage: {
@@ -166,7 +166,7 @@ coverage: {
 }
 ```
 
-Run with `vitest --ui` to view coverage visually.
+Run `vitest --ui` to view visually.
 
 ## CI Integration
 
@@ -195,11 +195,11 @@ vitest --merge-reports --coverage --reporter=json
 
 ## Key Points
 
-- V8 is faster, Istanbul is more compatible
-- Use `--coverage` flag or `coverage.enabled: true`
-- Include `all: true` to see uncovered files
-- Set thresholds to enforce minimum coverage
-- Use `@preserve` comment to keep ignore hints
+- V8 faster, Istanbul more compatible
+- `--coverage` flag or `coverage.enabled: true`
+- `all: true` shows uncovered files
+- Thresholds enforce minimum coverage
+- `@preserve` keeps ignore hints
 
 <!-- 
 Source references:

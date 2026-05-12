@@ -5,7 +5,7 @@ description: Assertions with matchers, asymmetric matchers, and custom matchers
 
 # Expect API
 
-Vitest uses Chai assertions with Jest-compatible API.
+Vitest uses Chai assertions + Jest-compatible API.
 
 ## Basic Assertions
 
@@ -207,11 +207,11 @@ expect(() => throw new Error('fail')).toThrowErrorMatchingSnapshot()
 
 ## Key Points
 
-- Use `toBe` for primitives, `toEqual` for objects/arrays
-- `toStrictEqual` checks undefined properties and array sparseness
+- `toBe` for primitives, `toEqual` for objects/arrays
+- `toStrictEqual` checks undefined properties + array sparseness
 - Always `await` async assertions (`resolves`, `rejects`, `poll`)
 - Use context's `expect` in concurrent tests for correct tracking
-- `toThrow` requires wrapping sync code in a function
+- `toThrow` needs sync code wrapped in function
 
 <!-- 
 Source references:

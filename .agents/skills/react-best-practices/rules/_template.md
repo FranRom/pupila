@@ -1,7 +1,7 @@
 ---
 title: Rule Title Here
 impact: MEDIUM
-impactDescription: Optional description of impact (e.g., "20-50% improvement")
+impactDescription: Optional impact description (e.g., "20-50% improvement")
 tags: tag1, tag2
 ---
 
@@ -9,20 +9,20 @@ tags: tag1, tag2
 
 **Impact: MEDIUM (optional impact description)**
 
-Brief explanation of the rule and why it matters. This should be clear and concise, explaining the performance implications.
+Brief explanation + why it matters. Clear, concise, perf implications.
 
-**Incorrect (description of what's wrong):**
+**Incorrect (what's wrong):**
 
 ```typescript
-// Bad code example here
+// Bad code
 const bad = example()
 ```
 
-**Correct (description of what's right):**
+**Correct (what's right):**
 
 ```typescript
-// Good code example here
+// Good code
 const good = example()
 ```
 
-Reference: [Link to documentation or resource](https://example.com)
+Reference: [Link](https://example.com)

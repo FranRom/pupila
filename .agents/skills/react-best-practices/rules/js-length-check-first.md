@@ -7,9 +7,9 @@ tags: javascript, arrays, performance, optimization, comparison
 
 ## Early Length Check for Array Comparisons
 
-When comparing arrays with expensive operations (sorting, deep equality, serialization), check lengths first. If lengths differ, the arrays cannot be equal.
+Comparing arrays with expensive ops (sort, deep eq, serialize) → check lengths first. Lengths differ → arrays can't be equal.
 
-In real-world applications, this optimization is especially valuable when the comparison runs in hot paths (event handlers, render loops).
+Valuable in hot paths (event handlers, render loops).
 
 **Incorrect (always runs expensive comparison):**
 
@@ -20,7 +20,7 @@ function hasChanges(current: string[], original: string[]) {
 }
 ```
 
-Two O(n log n) sorts run even when `current.length` is 5 and `original.length` is 100. There is also overhead of joining the arrays and comparing the strings.
+Two O(n log n) sorts run even when `current.length` is 5 and `original.length` is 100. Plus join + string compare overhead.
 
 **Correct (O(1) length check first):**
 
@@ -42,8 +42,8 @@ function hasChanges(current: string[], original: string[]) {
 }
 ```
 
-This new approach is more efficient because:
-- It avoids the overhead of sorting and joining the arrays when lengths differ
-- It avoids consuming memory for the joined strings (especially important for large arrays)
-- It avoids mutating the original arrays
-- It returns early when a difference is found
+Better because:
+- No sort/join overhead when lengths differ
+- No memory for joined strings (matters for big arrays)
+- No mutation of originals
+- Returns on first diff

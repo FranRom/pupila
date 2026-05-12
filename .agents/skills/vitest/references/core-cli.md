@@ -9,7 +9,7 @@ description: Command line interface commands and options
 
 ### `vitest`
 
-Start Vitest in watch mode (dev) or run mode (CI):
+Start Vitest. Watch mode (dev) or run mode (CI):
 
 ```bash
 vitest                    # Watch mode in dev, run mode in CI
@@ -19,7 +19,7 @@ vitest basic/foo.test.ts:10  # Run specific test by file and line number
 
 ### `vitest run`
 
-Run tests once without watch mode:
+Run tests once, no watch:
 
 ```bash
 vitest run
@@ -28,7 +28,7 @@ vitest run --coverage
 
 ### `vitest watch`
 
-Explicitly start watch mode:
+Force watch mode:
 
 ```bash
 vitest watch
@@ -36,7 +36,7 @@ vitest watch
 
 ### `vitest related`
 
-Run tests that import specific files (useful with lint-staged):
+Run tests importing specific files (useful with lint-staged):
 
 ```bash
 vitest related src/index.ts src/utils.ts --run
@@ -44,7 +44,7 @@ vitest related src/index.ts src/utils.ts --run
 
 ### `vitest bench`
 
-Run only benchmark tests:
+Run benchmark tests only:
 
 ```bash
 vitest bench
@@ -52,7 +52,7 @@ vitest bench
 
 ### `vitest list`
 
-List all matching tests without running them:
+List matching tests — no run:
 
 ```bash
 vitest list                    # List test names
@@ -62,7 +62,7 @@ vitest list --filesOnly        # List only test files
 
 ### `vitest init`
 
-Initialize project setup:
+Init project:
 
 ```bash
 vitest init browser            # Set up browser testing
@@ -127,7 +127,7 @@ vitest init browser            # Set up browser testing
 
 ## Sharding for CI
 
-Split tests across multiple machines:
+Split tests across machines:
 
 ```bash
 # Machine 1
@@ -145,20 +145,20 @@ vitest --merge-reports --reporter=junit
 
 ## Watch Mode Keyboard Shortcuts
 
-In watch mode, press:
-- `a` - Run all tests
-- `f` - Run only failed tests
-- `u` - Update snapshots
-- `p` - Filter by filename pattern
-- `t` - Filter by test name pattern
-- `q` - Quit
+Press in watch mode:
+- `a` — Run all tests
+- `f` — Run only failed tests
+- `u` — Update snapshots
+- `p` — Filter by filename pattern
+- `t` — Filter by test name pattern
+- `q` — Quit
 
 ## Key Points
 
-- Watch mode is default in dev, run mode in CI (when `process.env.CI` is set)
-- Use `--run` flag to ensure single run (important for lint-staged)
+- Watch mode default in dev, run mode in CI (`process.env.CI` set)
+- `--run` flag ensures single run (important for lint-staged)
 - Both camelCase (`--testTimeout`) and kebab-case (`--test-timeout`) work
-- Boolean options can be negated with `--no-` prefix
+- Boolean options negate with `--no-` prefix
 
 <!-- 
 Source references:

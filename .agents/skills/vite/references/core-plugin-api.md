@@ -5,7 +5,7 @@ description: Vite plugin authoring with Vite-specific hooks
 
 # Vite Plugin API
 
-Vite plugins extend Rolldown's plugin interface with Vite-specific hooks.
+Vite plugins extend Rolldown plugin interface + Vite-specific hooks.
 
 ## Basic Structure
 
@@ -22,7 +22,7 @@ function myPlugin(): Plugin {
 
 ### config
 
-Modify config before resolution:
+`config` — modify config before resolution:
 
 ```ts
 const plugin = () => ({
@@ -37,7 +37,7 @@ const plugin = () => ({
 
 ### configResolved
 
-Access final resolved config:
+`configResolved` — access final resolved config:
 
 ```ts
 const plugin = () => {
@@ -56,7 +56,7 @@ const plugin = () => {
 
 ### configureServer
 
-Add custom middleware to dev server:
+`configureServer` — add custom middleware to dev server:
 
 ```ts
 const plugin = () => ({
@@ -70,7 +70,7 @@ const plugin = () => ({
 })
 ```
 
-Return function to run **after** internal middlewares:
+Return function — runs **after** internal middlewares:
 
 ```ts
 configureServer(server) {
@@ -84,7 +84,7 @@ configureServer(server) {
 
 ### transformIndexHtml
 
-Transform HTML entry files:
+`transformIndexHtml` — transform HTML entry files:
 
 ```ts
 const plugin = () => ({
@@ -107,7 +107,7 @@ transformIndexHtml() {
 
 ### handleHotUpdate
 
-Custom HMR handling:
+`handleHotUpdate` — custom HMR handling:
 
 ```ts
 handleHotUpdate({ server, modules, timestamp }) {
@@ -118,7 +118,7 @@ handleHotUpdate({ server, modules, timestamp }) {
 
 ## Virtual Modules
 
-Serve virtual content without files on disk:
+Serve virtual content, no files on disk:
 
 ```ts
 const plugin = () => {
@@ -145,11 +145,11 @@ Usage:
 import { msg } from 'virtual:my-module'
 ```
 
-Convention: prefix user-facing path with `virtual:`, prefix resolved id with `\0`.
+Convention: prefix user-facing path `virtual:`, prefix resolved id `\0`.
 
 ## Plugin Ordering
 
-Use `enforce` to control execution order:
+`enforce` controls execution order:
 
 ```ts
 {
@@ -183,11 +183,11 @@ Order: Alias → `enforce: 'pre'` → Core → User (no enforce) → Build → `
 
 ## Universal Hooks (from Rolldown)
 
-These work in both dev and build:
+Work in dev + build:
 
-- `resolveId(id, importer)` - Resolve import paths
-- `load(id)` - Load module content
-- `transform(code, id)` - Transform module code
+- `resolveId(id, importer)` — resolve import paths
+- `load(id)` — load module content
+- `transform(code, id)` — transform module code
 
 ```ts
 transform(code, id) {

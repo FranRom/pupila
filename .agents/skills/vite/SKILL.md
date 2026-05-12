@@ -9,14 +9,14 @@ metadata:
 
 # Vite
 
-> Based on Vite 8 beta (Rolldown-powered). Vite 8 uses Rolldown bundler and Oxc transformer.
+> Based on Vite 8 beta (Rolldown-powered). Vite 8 uses Rolldown bundler + Oxc transformer.
 
-Vite is a next-generation frontend build tool with fast dev server (native ESM + HMR) and optimized production builds.
+Next-gen frontend build tool. Fast dev server (native ESM + HMR), optimized prod builds.
 
 ## Preferences
 
-- Use TypeScript: prefer `vite.config.ts`
-- Always use ESM, avoid CommonJS
+- TypeScript: prefer `vite.config.ts`
+- ESM only, no CommonJS
 
 ## Core
 
@@ -65,8 +65,8 @@ export default defineConfig({
 
 ### Official Plugins
 
-- `@vitejs/plugin-vue` - Vue 3 SFC support
-- `@vitejs/plugin-vue-jsx` - Vue 3 JSX
-- `@vitejs/plugin-react` - React with Oxc/Babel
-- `@vitejs/plugin-react-swc` - React with SWC
-- `@vitejs/plugin-legacy` - Legacy browser support
+- `@vitejs/plugin-vue` — Vue 3 SFC
+- `@vitejs/plugin-vue-jsx` — Vue 3 JSX
+- `@vitejs/plugin-react` — React, Oxc/Babel
+- `@vitejs/plugin-react-swc` — React, SWC
+- `@vitejs/plugin-legacy` — legacy browsers

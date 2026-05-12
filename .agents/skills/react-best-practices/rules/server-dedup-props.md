@@ -9,7 +9,7 @@ tags: server, rsc, serialization, props, client-components
 
 **Impact: LOW (reduces network payload by avoiding duplicate serialization)**
 
-RSC→client serialization deduplicates by object reference, not value. Same reference = serialized once; new reference = serialized again. Do transformations (`.toSorted()`, `.filter()`, `.map()`) in client, not server.
+RSC→client serialization deduplicates by object reference, not value. Same reference = serialized once; new reference = serialized again. Do transforms (`.toSorted()`, `.filter()`, `.map()`) in client, not server.
 
 **Incorrect (duplicates array):**
 
@@ -29,12 +29,12 @@ RSC→client serialization deduplicates by object reference, not value. Same ref
 const sorted = useMemo(() => [...usernames].sort(), [usernames])
 ```
 
-**Nested deduplication behavior:**
+**Nested dedup behavior:**
 
-Deduplication works recursively. Impact varies by data type:
+Dedup works recursively. Impact varies by data type:
 
-- `string[]`, `number[]`, `boolean[]`: **HIGH impact** - array + all primitives fully duplicated
-- `object[]`: **LOW impact** - array duplicated, but nested objects deduplicated by reference
+- `string[]`, `number[]`, `boolean[]`: **HIGH impact** — array + all primitives fully duplicated
+- `object[]`: **LOW impact** — array duplicated, nested objects deduplicated by reference
 
 ```tsx
 // string[] - duplicates everything
@@ -44,7 +44,7 @@ usernames={['a','b']} sorted={usernames.toSorted()} // sends 4 strings
 users={[{id:1},{id:2}]} sorted={users.toSorted()} // sends 2 arrays + 2 unique objects (not 4)
 ```
 
-**Operations breaking deduplication (create new references):**
+**Ops breaking dedup (new refs):**
 
 - Arrays: `.toSorted()`, `.filter()`, `.map()`, `.slice()`, `[...arr]`
 - Objects: `{...obj}`, `Object.assign()`, `structuredClone()`, `JSON.parse(JSON.stringify())`
@@ -62,4 +62,4 @@ users={[{id:1},{id:2}]} sorted={users.toSorted()} // sends 2 arrays + 2 unique o
 // Do filtering/destructuring in client
 ```
 
-**Exception:** Pass derived data when transformation is expensive or client doesn't need original.
+**Exception:** pass derived data when transform expensive or client doesn't need original.

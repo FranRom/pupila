@@ -7,15 +7,13 @@ tags: composition, state, architecture
 
 ## Decouple State Management from UI
 
-The provider component should be the only place that knows how state is managed.
-UI components consume the context interface—they don't know if state comes from
-useState, Zustand, or a server sync.
+Provider = only place that knows how state is managed. UI reads context interface — doesn't know if state comes from useState, Zustand, or server sync.
 
-**Incorrect (UI coupled to state implementation):**
+**Incorrect (UI coupled to state impl):**
 
 ```tsx
 function ChannelComposer({ channelId }: { channelId: string }) {
-  // UI component knows about global state implementation
+  // UI knows about global state impl
   const state = useGlobalChannelState(channelId)
   const { submit, updateInput } = useChannelSync(channelId)
 
@@ -31,10 +29,10 @@ function ChannelComposer({ channelId }: { channelId: string }) {
 }
 ```
 
-**Correct (state management isolated in provider):**
+**Correct (state mgmt isolated in provider):**
 
 ```tsx
-// Provider handles all state management details
+// Provider owns all state mgmt
 function ChannelProvider({
   channelId,
   children,
@@ -56,7 +54,7 @@ function ChannelProvider({
   )
 }
 
-// UI component only knows about the context interface
+// UI knows only context interface
 function ChannelComposer() {
   return (
     <Composer.Frame>
@@ -109,5 +107,4 @@ function ChannelProvider({ channelId, children }) {
 }
 ```
 
-The same `Composer.Input` component works with both providers because it only
-depends on the context interface, not the implementation.
+Same `Composer.Input` works with both providers — depends on context interface, not impl.

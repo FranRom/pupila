@@ -7,7 +7,7 @@ tags: bundle, conditional-loading, lazy-loading
 
 ## Conditional Module Loading
 
-Load large data or modules only when a feature is activated.
+Load large data/modules only when feature activates.
 
 **Example (lazy-load animation frames):**
 
@@ -28,4 +28,4 @@ function AnimationPlayer({ enabled, setEnabled }: { enabled: boolean; setEnabled
 }
 ```
 
-The `typeof window !== 'undefined'` check prevents bundling this module for SSR, optimizing server bundle size and build speed.
+`typeof window !== 'undefined'` prevents bundling this module for SSR — smaller server bundle, faster builds.

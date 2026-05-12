@@ -7,7 +7,7 @@ tags: rendering, css, content-visibility, long-lists
 
 ## CSS content-visibility for Long Lists
 
-Apply `content-visibility: auto` to defer off-screen rendering.
+`content-visibility: auto` defers off-screen rendering.
 
 **CSS:**
 
@@ -35,4 +35,4 @@ function MessageList({ messages }: { messages: Message[] }) {
 }
 ```
 
-For 1000 messages, browser skips layout/paint for ~990 off-screen items (10× faster initial render).
+1000 messages → browser skips layout/paint for ~990 off-screen (10× faster initial render).

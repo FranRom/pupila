@@ -5,7 +5,7 @@ description: describe/suite for grouping tests into logical blocks
 
 # Describe API
 
-Group related tests into suites for organization and shared setup.
+Group related tests into suites — organization + shared setup.
 
 ## Basic Usage
 
@@ -171,7 +171,7 @@ describe('Database', () => {
 
 ## Modifier Combinations
 
-All modifiers can be chained:
+Modifiers chain:
 
 ```ts
 describe.skip.concurrent('skipped concurrent', () => {})
@@ -181,10 +181,10 @@ describe.concurrent.skip('equivalent', () => {})
 
 ## Key Points
 
-- Top-level tests belong to an implicit file suite
-- Nested suites inherit parent's options (timeout, retry, etc.)
-- Hooks are scoped to their suite and nested suites
-- Use `describe.concurrent` with context's `expect` for snapshots
+- Top-level tests belong to implicit file suite
+- Nested suites inherit parent options (timeout, retry, etc.)
+- Hooks scoped to suite + nested suites
+- `describe.concurrent` requires context's `expect` for snapshots
 - Shuffle order depends on `sequence.seed` config
 
 <!-- 

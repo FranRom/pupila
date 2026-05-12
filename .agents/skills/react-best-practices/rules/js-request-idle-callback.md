@@ -9,7 +9,7 @@ tags: javascript, performance, idle, scheduling, analytics
 
 **Impact: MEDIUM (keeps UI responsive during background tasks)**
 
-Use `requestIdleCallback()` to schedule non-critical work during browser idle periods. This keeps the main thread free for user interactions and animations, reducing jank and improving perceived performance.
+`requestIdleCallback()` schedules non-critical work during browser idle. Frees main thread for interactions + animations → less jank, better perceived perf.
 
 **Incorrect (blocks main thread during user interaction):**
 
@@ -25,7 +25,7 @@ function handleSearch(query: string) {
 }
 ```
 
-**Correct (defers non-critical work to idle time):**
+**Correct (defers non-critical work to idle):**
 
 ```typescript
 function handleSearch(query: string) {
@@ -80,7 +80,7 @@ function processLargeDataset(items: Item[]) {
 }
 ```
 
-**With fallback for unsupported browsers:**
+**Fallback for unsupported browsers:**
 
 ```typescript
 const scheduleIdleWork = window.requestIdleCallback ?? ((cb: () => void) => setTimeout(cb, 1))
@@ -90,16 +90,16 @@ scheduleIdleWork(() => {
 })
 ```
 
-**When to use:**
+**Use for:**
 
-- Analytics and telemetry
-- Saving state to localStorage/IndexedDB
-- Prefetching resources for likely next actions
-- Processing non-urgent data transformations
-- Lazy initialization of non-critical features
+- Analytics + telemetry
+- Save state to `localStorage`/`IndexedDB`
+- Prefetch resources for likely next actions
+- Non-urgent data transforms
+- Lazy init of non-critical features
 
-**When NOT to use:**
+**Don't use for:**
 
-- User-initiated actions that need immediate feedback
-- Rendering updates the user is waiting for
-- Time-sensitive operations
+- User-initiated actions needing immediate feedback
+- Render updates user is waiting for
+- Time-sensitive ops

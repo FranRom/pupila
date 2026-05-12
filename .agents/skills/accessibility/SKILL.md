@@ -9,24 +9,24 @@ metadata:
 
 # Accessibility (a11y)
 
-Comprehensive accessibility guidelines based on WCAG 2.2 and Lighthouse accessibility audits. Goal: make content usable by everyone, including people with disabilities.
+WCAG 2.2 + Lighthouse a11y audit guidelines. Goal: content usable by everyone, including disabled users.
 
 ## WCAG Principles: POUR
 
 | Principle | Description |
 |-----------|-------------|
-| **P**erceivable | Content can be perceived through different senses |
-| **O**perable | Interface can be operated by all users |
-| **U**nderstandable | Content and interface are understandable |
-| **R**obust | Content works with assistive technologies |
+| **P**erceivable | Perceive content via different senses |
+| **O**perable | All users can operate interface |
+| **U**nderstandable | Content + interface understandable |
+| **R**obust | Works with assistive tech |
 
 ## Conformance levels
 
 | Level | Requirement | Target |
 |-------|-------------|--------|
-| **A** | Minimum accessibility | Must pass |
-| **AA** | Standard compliance | Should pass (legal requirement in many jurisdictions) |
-| **AAA** | Enhanced accessibility | Nice to have |
+| **A** | Minimum a11y | Must pass |
+| **AA** | Standard | Should pass (legal req many jurisdictions) |
+| **AAA** | Enhanced | Nice to have |
 
 ---
 
@@ -34,7 +34,7 @@ Comprehensive accessibility guidelines based on WCAG 2.2 and Lighthouse accessib
 
 ### Text alternatives (1.1)
 
-**Images require alt text:**
+**Images need alt text:**
 ```html
 <!-- ❌ Missing alt -->
 <img src="chart.png">
@@ -89,11 +89,11 @@ Comprehensive accessibility guidelines based on WCAG 2.2 and Lighthouse accessib
 
 ### Color contrast (1.4.3, 1.4.6)
 
-| Text Size | AA minimum | AAA enhanced |
-|-----------|------------|--------------|
+| Text Size | AA min | AAA enhanced |
+|-----------|--------|--------------|
 | Normal text (< 18px / < 14px bold) | 4.5:1 | 7:1 |
 | Large text (≥ 18px / ≥ 14px bold) | 3:1 | 4.5:1 |
-| UI components & graphics | 3:1 | 3:1 |
+| UI components + graphics | 3:1 | 3:1 |
 
 ```css
 /* ❌ Low contrast (2.5:1) */
@@ -115,9 +115,9 @@ Comprehensive accessibility guidelines based on WCAG 2.2 and Lighthouse accessib
 }
 ```
 
-**Don't rely on color alone:**
+**No color alone:**
 ```html
-<!-- ❌ Only color indicates error -->
+<!-- ❌ Only color shows error -->
 <input class="error-border">
 <style>.error-border { border-color: red; }</style>
 
@@ -172,7 +172,7 @@ element.addEventListener('keydown', (e) => {
 });
 ```
 
-**No keyboard traps.** Users must be able to Tab into and out of every component. Use the [modal focus trap pattern](references/A11Y-PATTERNS.md#modal-focus-trap) for dialogs—the native `<dialog>` element handles this automatically.
+**No keyboard traps.** Users must Tab in/out of every component. Use [modal focus trap pattern](references/A11Y-PATTERNS.md#modal-focus-trap) for dialogs — native `<dialog>` handles auto.
 
 ### Focus visible (2.4.7)
 
@@ -198,7 +198,7 @@ button:focus-visible {
 
 ### Focus not obscured (2.4.11) — new in 2.2
 
-When an element receives keyboard focus, it must not be entirely hidden by other author-created content such as sticky headers, footers, or overlapping panels. At Level AAA (2.4.12), no part of the focused element may be hidden.
+Focused element must not be entirely hidden by author-created content (sticky headers, footers, overlapping panels). At AAA (2.4.12), no part of focused element may be hidden.
 
 ```css
 /* ✅ Account for sticky headers when scrolling to focused elements */
@@ -215,11 +215,11 @@ When an element receives keyboard focus, it must not be entirely hidden by other
 
 ### Skip links (2.4.1)
 
-Provide a skip link so keyboard users can bypass repetitive navigation. See the [skip link pattern](references/A11Y-PATTERNS.md#skip-link) for full markup and styles.
+Skip link lets keyboard users bypass repetitive nav. See [skip link pattern](references/A11Y-PATTERNS.md#skip-link) for markup + styles.
 
 ### Target size (2.5.8) — new in 2.2
 
-Interactive targets must be at least **24 × 24 CSS pixels** (AA). Exceptions: inline text links, elements where the browser controls the size, and targets where a 24px circle centered on the bounding box does not overlap another target.
+Interactive targets must be ≥ **24 × 24 CSS pixels** (AA). Exceptions: inline text links, browser-controlled sizes, targets where 24px circle centered on bounding box doesn't overlap another target.
 
 ```css
 /* ✅ Minimum target size */
@@ -243,7 +243,7 @@ input[type="radio"] + label {
 
 ### Dragging movements (2.5.7) — new in 2.2
 
-Any action that requires dragging must have a single-pointer alternative (e.g., buttons, inputs). See the [dragging movements pattern](references/A11Y-PATTERNS.md#dragging-movements) for a sortable-list example.
+Drag actions need single-pointer alternative (buttons, inputs). See [dragging movements pattern](references/A11Y-PATTERNS.md#dragging-movements) for sortable-list example.
 
 ### Timing (2.2)
 
@@ -310,19 +310,19 @@ function showSessionWarning() {
 
 ### Consistent help (3.2.6) — new in 2.2
 
-If a help mechanism (contact info, chat widget, FAQ link, self-help option) is repeated across multiple pages, it must appear in the **same relative order** each time. Users who rely on consistent placement shouldn't have to hunt for help on every page.
+If help mechanism (contact info, chat widget, FAQ link, self-help) repeats across pages, must appear in **same relative order** each time. Users relying on consistent placement shouldn't hunt for help per page.
 
 ### Form labels (3.3.2)
 
-Every input needs a programmatically associated label. See the [form labels pattern](references/A11Y-PATTERNS.md#form-labels) for explicit, implicit, and instructional examples.
+Every input needs programmatically associated label. See [form labels pattern](references/A11Y-PATTERNS.md#form-labels) for explicit, implicit, instructional examples.
 
 ### Error handling (3.3.1, 3.3.3)
 
-Announce errors to screen readers with `role="alert"` or `aria-live`, set `aria-invalid="true"` on invalid fields, and focus the first error on submit. See the [error handling pattern](references/A11Y-PATTERNS.md#error-handling) for full markup and JS.
+Announce errors to screen readers via `role="alert"` or `aria-live`. Set `aria-invalid="true"` on invalid fields. Focus first error on submit. See [error handling pattern](references/A11Y-PATTERNS.md#error-handling) for markup + JS.
 
 ### Redundant entry (3.3.7) — new in 2.2
 
-Don't force users to re-enter information they already provided in the same session. Auto-populate from earlier steps, or let users select from previously entered values. Exceptions: security re-confirmation and content that has expired.
+Don't force re-entry of info already provided same session. Auto-populate from earlier steps, or let users pick previously entered values. Exceptions: security re-confirmation, expired content.
 
 ```html
 <!-- ✅ Auto-fill shipping address from billing -->
@@ -338,10 +338,10 @@ Don't force users to re-enter information they already provided in the same sess
 
 ### Accessible authentication (3.3.8) — new in 2.2
 
-Login flows must not rely on cognitive function tests (e.g., remembering a password, solving a puzzle) unless at least one of:
-- A copy-paste or autofill mechanism is available
-- An alternative method exists (e.g., passkey, SSO, email link)
-- The test uses object recognition or personal content (AA only; AAA removes this exception)
+Login must not rely on cognitive function tests (remembering password, solving puzzle) unless ≥ one of:
+- Copy-paste or autofill available
+- Alternative method exists (passkey, SSO, email link)
+- Test uses object recognition or personal content (AA only; AAA removes this exception)
 
 ```html
 <!-- ✅ Allow paste in password fields -->
@@ -373,11 +373,11 @@ Login flows must not rely on cognitive function tests (e.g., remembering a passw
 <label><input type="checkbox"> Option</label>
 ```
 
-**When ARIA is needed,** use the correct roles and states. See the [ARIA tabs pattern](references/A11Y-PATTERNS.md#aria-tabs) for a complete tablist example.
+**When ARIA needed,** use correct roles + states. See [ARIA tabs pattern](references/A11Y-PATTERNS.md#aria-tabs) for complete tablist example.
 
 ### Live regions (4.1.3)
 
-Use `aria-live` regions to announce dynamic content changes without moving focus. See the [live regions pattern](references/A11Y-PATTERNS.md#live-regions-and-notifications) for markup and a `showNotification()` helper.
+Use `aria-live` regions to announce dynamic content changes without moving focus. See [live regions pattern](references/A11Y-PATTERNS.md#live-regions-and-notifications) for markup + `showNotification()` helper.
 
 ---
 
@@ -395,21 +395,21 @@ axe https://example.com
 
 ### Manual testing
 
-- [ ] **Keyboard navigation:** Tab through entire page, use Enter/Space to activate
-- [ ] **Screen reader:** Test with VoiceOver (Mac), NVDA (Windows), or TalkBack (Android)
-- [ ] **Zoom:** Content usable at 200% zoom
-- [ ] **High contrast:** Test with Windows High Contrast Mode
-- [ ] **Reduced motion:** Test with `prefers-reduced-motion: reduce`
-- [ ] **Focus order:** Logical and follows visual order
-- [ ] **Target size:** Interactive elements meet 24×24px minimum
+- [ ] **Keyboard nav:** Tab through page, Enter/Space to activate
+- [ ] **Screen reader:** Test VoiceOver (Mac), NVDA (Windows), TalkBack (Android)
+- [ ] **Zoom:** Usable at 200% zoom
+- [ ] **High contrast:** Test Windows High Contrast Mode
+- [ ] **Reduced motion:** Test `prefers-reduced-motion: reduce`
+- [ ] **Focus order:** Logical, follows visual order
+- [ ] **Target size:** Interactive elements meet 24×24px min
 
-See the [screen reader commands reference](references/A11Y-PATTERNS.md#screen-reader-commands) for VoiceOver and NVDA shortcuts.
+See [screen reader commands reference](references/A11Y-PATTERNS.md#screen-reader-commands) for VoiceOver + NVDA shortcuts.
 
 ---
 
 ## Common issues by impact
 
-### Critical (fix immediately)
+### Critical (fix now)
 1. Missing form labels
 2. Missing image alt text
 3. Insufficient color contrast

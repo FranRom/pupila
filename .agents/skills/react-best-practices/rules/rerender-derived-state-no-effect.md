@@ -7,9 +7,9 @@ tags: rerender, derived-state, useEffect, state
 
 ## Calculate Derived State During Rendering
 
-If a value can be computed from current props/state, do not store it in state or update it in an effect. Derive it during render to avoid extra renders and state drift. Do not set state in effects solely in response to prop changes; prefer derived values or keyed resets instead.
+Value computable from current props/state → don't store in state or update in effect. Derive during render → avoids extra renders + state drift. Don't set state in effects solely in response to prop changes; prefer derived values or keyed resets.
 
-**Incorrect (redundant state and effect):**
+**Incorrect (redundant state + effect):**
 
 ```tsx
 function Form() {

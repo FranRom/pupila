@@ -7,7 +7,7 @@ tags: rerender, searchParams, localStorage, optimization
 
 ## Defer State Reads to Usage Point
 
-Don't subscribe to dynamic state (searchParams, localStorage) if you only read it inside callbacks.
+Don't subscribe to dynamic state (searchParams, localStorage) if only read inside callbacks.
 
 **Incorrect (subscribes to all searchParams changes):**
 

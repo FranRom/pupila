@@ -7,7 +7,7 @@ tags: rerender, useMemo, useEffect, dependencies, optimization
 
 ## Split Combined Hook Computations
 
-When a hook contains multiple independent tasks with different dependencies, split them into separate hooks. A combined hook reruns all tasks when any dependency changes, even if some tasks don't use the changed value.
+Hook with multiple independent tasks + different deps → split into separate hooks. Combined hook reruns all tasks when any dep changes, even if some tasks don't use changed value.
 
 **Incorrect (changing `sortOrder` recomputes filtering):**
 
@@ -21,7 +21,7 @@ const sortedProducts = useMemo(() => {
 }, [products, category, sortOrder])
 ```
 
-**Correct (filtering only recomputes when products or category change):**
+**Correct (filter only recomputes when products/category change):**
 
 ```tsx
 const filteredProducts = useMemo(
@@ -38,9 +38,9 @@ const sortedProducts = useMemo(
 )
 ```
 
-This pattern also applies to `useEffect` when combining unrelated side effects:
+Same pattern for `useEffect` combining unrelated side effects:
 
-**Incorrect (both effects run when either dependency changes):**
+**Incorrect (both effects run when either dep changes):**
 
 ```tsx
 useEffect(() => {
@@ -61,4 +61,4 @@ useEffect(() => {
 }, [pageTitle])
 ```
 
-**Note:** If your project has [React Compiler](https://react.dev/learn/react-compiler) enabled, it automatically optimizes dependency tracking and may handle some of these cases for you.
+**Note:** [React Compiler](https://react.dev/learn/react-compiler) auto-optimizes dep tracking, may handle some of these.

@@ -7,7 +7,7 @@ tags: bundle, third-party, analytics, defer
 
 ## Defer Non-Critical Third-Party Libraries
 
-Analytics, logging, and error tracking don't block user interaction. Load them after hydration.
+Analytics, logging, error tracking don't block user interaction. Load post-hydration.
 
 **Incorrect (blocks initial bundle):**
 
@@ -26,7 +26,7 @@ export default function RootLayout({ children }) {
 }
 ```
 
-**Correct (loads after hydration):**
+**Correct (loads post-hydration):**
 
 ```tsx
 import dynamic from 'next/dynamic'

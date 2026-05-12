@@ -7,7 +7,7 @@ tags: rerender, useEffect, dependencies, optimization
 
 ## Narrow Effect Dependencies
 
-Specify primitive dependencies instead of objects to minimize effect re-runs.
+Use primitive deps instead of objects — minimizes effect re-runs.
 
 **Incorrect (re-runs on any user field change):**
 

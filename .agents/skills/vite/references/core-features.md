@@ -7,7 +7,7 @@ description: Vite-specific import patterns and runtime features
 
 ## Glob Import
 
-Import multiple modules matching a pattern:
+Import multiple modules by pattern:
 
 ```ts
 const modules = import.meta.glob('./dir/*.ts')
@@ -24,14 +24,14 @@ for (const path in modules) {
 
 ```ts
 const modules = import.meta.glob('./dir/*.ts', { eager: true })
-// Modules loaded immediately, no dynamic import
+// Loaded immediately, no dynamic import
 ```
 
 ### Named Imports
 
 ```ts
 const modules = import.meta.glob('./dir/*.ts', { import: 'setup' })
-// Only imports the 'setup' export from each module
+// Only 'setup' export per module
 
 const defaults = import.meta.glob('./dir/*.ts', { import: 'default', eager: true })
 ```
@@ -61,7 +61,7 @@ const svgUrls = import.meta.glob('./icons/*.svg', { query: '?url', import: 'defa
 
 ```ts
 import imgUrl from './img.png'
-// Returns resolved URL: '/src/img.png' (dev) or '/assets/img.2d8efhg.png' (build)
+// Resolved URL: '/src/img.png' (dev) | '/assets/img.2d8efhg.png' (build)
 ```
 
 ### Explicit URL
@@ -93,7 +93,7 @@ const worker = new Worker()
 import InlineWorker from './worker.ts?worker&inline'
 ```
 
-Preferred pattern using constructor:
+Preferred: constructor pattern:
 
 ```ts
 const worker = new Worker(new URL('./worker.ts', import.meta.url), {
@@ -159,17 +159,17 @@ interface ImportMeta {
 
 ## CSS Modules
 
-Any `.module.css` file treated as CSS module:
+Any `.module.css` treated as CSS module:
 
 ```ts
 import styles from './component.module.css'
 element.className = styles.button
 ```
 
-With camelCase conversion:
+camelCase conversion:
 
 ```ts
-// .my-class -> myClass (if css.modules.localsConvention configured)
+// .my-class -> myClass (if css.modules.localsConvention set)
 import { myClass } from './component.module.css'
 ```
 
@@ -177,7 +177,7 @@ import { myClass } from './component.module.css'
 
 ```ts
 import pkg from './package.json'
-import { version } from './package.json'  // Named import with tree-shaking
+import { version } from './package.json'  // Named import, tree-shaken
 ```
 
 ## HMR API
@@ -189,7 +189,7 @@ if (import.meta.hot) {
   })
   
   import.meta.hot.dispose((data) => {
-    // Cleanup before module is replaced
+    // Cleanup before module replaced
   })
   
   import.meta.hot.invalidate()  // Force full reload

@@ -55,7 +55,7 @@ beforeEach(async () => {
 
 ## Scoped Hooks
 
-Hooks apply to current suite and nested suites:
+Hooks apply to current suite + nested suites:
 
 ```ts
 describe('outer', () => {
@@ -115,7 +115,7 @@ aroundAll(async (runSuite) => {
 
 ### Multiple Around Hooks
 
-Nested like onion layers:
+Nested onion-layer:
 
 ```ts
 aroundEach(async (runTest) => {
@@ -177,7 +177,7 @@ test('query orders', () => {
 
 ## Concurrent Test Hooks
 
-For concurrent tests, use context's hooks:
+Concurrent tests — use context hooks:
 
 ```ts
 test.concurrent('concurrent', ({ onTestFinished }) => {
@@ -188,7 +188,7 @@ test.concurrent('concurrent', ({ onTestFinished }) => {
 
 ## Extended Test Hooks
 
-With `test.extend`, hooks are type-aware:
+`test.extend` — type-aware hooks:
 
 ```ts
 const test = base.extend<{ db: Database }>({
@@ -218,7 +218,7 @@ Default order (stack):
 4. `afterEach` (reverse order)
 5. `afterAll` (reverse order)
 
-Configure with `sequence.hooks`:
+Configure via `sequence.hooks`:
 
 ```ts
 defineConfig({
@@ -232,11 +232,11 @@ defineConfig({
 
 ## Key Points
 
-- Hooks are not called during type checking
-- Return cleanup function from `before*` to avoid `after*` duplication
+- Hooks not called during type checking
+- Return cleanup from `before*` to avoid `after*` duplication
 - `aroundEach`/`aroundAll` must call `runTest()`/`runSuite()`
-- `onTestFinished` always runs, even if test fails
-- Use context hooks for concurrent tests
+- `onTestFinished` always runs, even on failure
+- Context hooks for concurrent tests
 
 <!-- 
 Source references:

@@ -7,11 +7,9 @@ tags: composition, props, architecture
 
 ## Avoid Boolean Prop Proliferation
 
-Don't add boolean props like `isThread`, `isEditing`, `isDMThread` to customize
-component behavior. Each boolean doubles possible states and creates
-unmaintainable conditional logic. Use composition instead.
+Skip booleans like `isThread`, `isEditing`, `isDMThread` for behavior. Each boolean doubles states. Unmaintainable conditionals. Compose instead.
 
-**Incorrect (boolean props create exponential complexity):**
+**Incorrect (boolean props = exponential complexity):**
 
 ```tsx
 function Composer({
@@ -45,7 +43,7 @@ function Composer({
 }
 ```
 
-**Correct (composition eliminates conditionals):**
+**Correct (composition kills conditionals):**
 
 ```tsx
 // Channel composer
@@ -96,5 +94,4 @@ function EditComposer() {
 }
 ```
 
-Each variant is explicit about what it renders. We can share internals without
-sharing a single monolithic parent.
+Each variant explicit. Share internals, skip monolithic parent.

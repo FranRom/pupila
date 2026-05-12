@@ -7,7 +7,7 @@ tags: rendering, transitions, useTransition, loading, state
 
 ## Use useTransition Over Manual Loading States
 
-Use `useTransition` instead of manual `useState` for loading states. This provides built-in `isPending` state and automatically manages transitions.
+Use `useTransition` instead of manual `useState` for loading. Built-in `isPending` + auto-managed transitions.
 
 **Incorrect (manual loading state):**
 
@@ -35,7 +35,7 @@ function SearchResults() {
 }
 ```
 
-**Correct (useTransition with built-in pending state):**
+**Correct (`useTransition` with built-in pending):**
 
 ```tsx
 import { useTransition, useState } from 'react'
@@ -67,9 +67,9 @@ function SearchResults() {
 
 **Benefits:**
 
-- **Automatic pending state**: No need to manually manage `setIsLoading(true/false)`
-- **Error resilience**: Pending state correctly resets even if the transition throws
-- **Better responsiveness**: Keeps the UI responsive during updates
-- **Interrupt handling**: New transitions automatically cancel pending ones
+- **Auto pending state**: no manual `setIsLoading(true/false)`
+- **Error resilience**: pending state resets even on throw
+- **Better responsiveness**: UI stays responsive during updates
+- **Interrupt handling**: new transitions auto-cancel pending ones
 
 Reference: [useTransition](https://react.dev/reference/react/useTransition)

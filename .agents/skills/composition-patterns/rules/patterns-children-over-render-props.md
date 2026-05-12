@@ -7,9 +7,7 @@ tags: composition, children, render-props
 
 ## Prefer Children Over Render Props
 
-Use `children` for composition instead of `renderX` props. Children are more
-readable, compose naturally, and don't require understanding callback
-signatures.
+Use `children`, not `renderX` props. Children read better, compose naturally, no callback signatures to grok.
 
 **Incorrect (render props):**
 
@@ -33,7 +31,7 @@ function Composer({
   )
 }
 
-// Usage is awkward and inflexible
+// Awkward, inflexible usage
 return (
   <Composer
     renderHeader={() => <CustomHeader />}
@@ -48,7 +46,7 @@ return (
 )
 ```
 
-**Correct (compound components with children):**
+**Correct (compound components, children):**
 
 ```tsx
 function ComposerFrame({ children }: { children: React.ReactNode }) {
@@ -59,7 +57,7 @@ function ComposerFooter({ children }: { children: React.ReactNode }) {
   return <footer className='flex'>{children}</footer>
 }
 
-// Usage is flexible
+// Flexible usage
 return (
   <Composer.Frame>
     <CustomHeader />
@@ -73,15 +71,14 @@ return (
 )
 ```
 
-**When render props are appropriate:**
+**When render props fit:**
 
 ```tsx
-// Render props work well when you need to pass data back
+// Render props OK when parent passes data back
 <List
   data={items}
   renderItem={({ item, index }) => <Item item={item} index={index} />}
 />
 ```
 
-Use render props when the parent needs to provide data or state to the child.
-Use children when composing static structure.
+Render props: parent passes data/state to child. Children: static structure.

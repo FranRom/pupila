@@ -5,7 +5,7 @@ description: Vite 8 Rolldown bundler and Oxc transformer migration
 
 # Rolldown Migration (Vite 8)
 
-Vite 8 replaces esbuild+Rollup with Rolldown, a unified Rust-based bundler.
+Vite 8 replaces esbuild+Rollup with Rolldown, unified Rust-based bundler.
 
 ## What Changed
 
@@ -20,8 +20,8 @@ Vite 8 replaces esbuild+Rollup with Rolldown, a unified Rust-based bundler.
 ## Performance Impact
 
 - 10-30x faster than Rollup for production builds
-- Matches esbuild's dev performance
-- Unified behavior between dev and build
+- Matches esbuild dev performance
+- Unified behavior across dev + build
 
 ## Config Migration
 
@@ -99,9 +99,9 @@ export default defineConfig({
 
 ## Plugin Compatibility
 
-Most Vite plugins work unchanged. Rolldown supports Rollup's plugin API.
+Most Vite plugins work unchanged. Rolldown supports Rollup plugin API.
 
-If a plugin only works during build:
+Plugin only works during build:
 
 ```ts
 {
@@ -113,7 +113,7 @@ If a plugin only works during build:
 
 ## New Capabilities
 
-Rolldown unlocks features not possible before:
+Rolldown unlocks features previously impossible:
 
 - Full bundle mode (experimental)
 - Module-level persistent cache
@@ -122,7 +122,7 @@ Rolldown unlocks features not possible before:
 
 ## Gradual Migration
 
-For large projects, migrate via `rolldown-vite` first:
+Large projects: migrate via `rolldown-vite` first:
 
 ```bash
 # Step 1: Test with rolldown-vite
@@ -137,7 +137,7 @@ pnpm add -D vite@8
 
 ## Overriding Vite in Frameworks
 
-When framework depends on older Vite:
+Framework depends on older Vite:
 
 ```json
 {

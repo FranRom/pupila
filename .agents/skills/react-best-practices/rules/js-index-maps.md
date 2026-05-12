@@ -7,7 +7,7 @@ tags: javascript, map, indexing, optimization, performance
 
 ## Build Index Maps for Repeated Lookups
 
-Multiple `.find()` calls by the same key should use a Map.
+Multiple `.find()` calls by same key → use Map.
 
 **Incorrect (O(n) per lookup):**
 
@@ -33,5 +33,5 @@ function processOrders(orders: Order[], users: User[]) {
 }
 ```
 
-Build map once (O(n)), then all lookups are O(1).
-For 1000 orders × 1000 users: 1M ops → 2K ops.
+Build map once (O(n)) → all lookups O(1).
+1000 orders × 1000 users: 1M ops → 2K ops.
