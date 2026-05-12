@@ -14,7 +14,7 @@ Guidance for future Claude Code sessions working in this repo.
 
 - Node 22 LTS, ESM, TypeScript 5.9 (NodeNext)
 - Biome 2.4 (lint + format, single config in `biome.json`)
-- pnpm 10
+- pnpm 11 (defaults to `minimumReleaseAge: 1d` and `strictDepBuilds: true` — supply-chain hardening)
 - Vitest 3 (tests in `tests/`, 192 cases)
 - simple-git-hooks (pre-commit `lint && typecheck`)
 - Runtime deps: `fast-xml-parser` (RSS), `mammoth` + `pdfjs-dist` (CV parsing), `proper-lockfile` (apply-queue R-M-W lock). Native `fetch` only — no HTTP client lib.
