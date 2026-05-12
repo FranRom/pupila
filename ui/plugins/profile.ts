@@ -7,6 +7,7 @@ import {
   mergeProfile,
   type ProfileShape,
 } from '../../src/lib/profile-generator.js';
+import { streamableResponse } from '../../src/lib/streamable-response.js';
 import { PROFILE_PATH } from './_paths.ts';
 import { readBody, readJsonOrDefault } from './_shared.ts';
 
@@ -62,16 +63,24 @@ export function profileApiPlugin(): Plugin {
           return;
         }
         inFlight = true;
+
+        // Phase 1: synchronous JSON validation for everything we can check
+        // before the LLM runs. 412/500 stay JSON because they fire before
+        // any streaming headers are committed.
+        let provider: LlmProvider | undefined;
+        let briefBody: string;
+        let base: ProfileShape;
         try {
           const body = (await readBody(req)) as ProfileGenerateBody;
           const rawProvider = typeof body.provider === 'string' ? body.provider : null;
-          const provider =
+          provider =
             rawProvider && SUPPORTED_PROVIDERS.includes(rawProvider as LlmProvider)
               ? (rawProvider as LlmProvider)
               : undefined;
 
-          const briefBody = await readBriefBody();
-          if (!briefBody?.trim()) {
+          const maybeBrief = await readBriefBody();
+          if (!maybeBrief?.trim()) {
+            inFlight = false;
             res.statusCode = 412;
             res.setHeader('Content-Type', 'application/json');
             res.end(
@@ -81,46 +90,55 @@ export function profileApiPlugin(): Plugin {
             );
             return;
           }
+          briefBody = maybeBrief;
 
-          const base = await readJsonOrDefault<ProfileShape | null>(PROFILE_PATH, null);
-          if (!base || typeof base !== 'object') {
+          const maybeBase = await readJsonOrDefault<ProfileShape | null>(PROFILE_PATH, null);
+          if (!maybeBase || typeof maybeBase !== 'object') {
+            inFlight = false;
             res.statusCode = 500;
             res.setHeader('Content-Type', 'application/json');
             res.end(JSON.stringify({ error: 'config/profile.json is missing or unparseable.' }));
             return;
           }
+          base = maybeBase;
+        } catch (err) {
+          inFlight = false;
+          console.error('[profile-generate api] input parse failed', err);
+          res.statusCode = 400;
+          res.setHeader('Content-Type', 'application/json');
+          res.end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }));
+          return;
+        }
 
+        // Phase 2: dual-mode LLM call via the streamable-response helper.
+        // Streaming mode emits start/chunk/done NDJSON events; JSON mode
+        // buffers everything and emits a single 200 at the end.
+        // TODO: handle req.on('close') to abort the in-flight LLM.
+        const responder = streamableResponse(req, res);
+        try {
+          responder.send({ type: 'start', stage: 'calling-llm' });
           let delta: Awaited<ReturnType<typeof generateProfileFromBrief>>;
           try {
-            delta = await generateProfileFromBrief(briefBody, provider);
+            delta = await generateProfileFromBrief(
+              briefBody,
+              provider,
+              responder.isStreaming
+                ? (chunk) => responder.send({ type: 'chunk', data: chunk })
+                : undefined,
+            );
           } catch (err) {
-            res.statusCode = 502;
-            res.setHeader('Content-Type', 'application/json');
-            res.end(
-              JSON.stringify({
-                error: `LLM CLI failed: ${err instanceof Error ? err.message : String(err)}`,
-              }),
+            responder.fail(
+              `LLM CLI failed: ${err instanceof Error ? err.message : String(err)}`,
+              502,
             );
             return;
           }
-
           const { profile, weightsChanged, keywordsChanged } = mergeProfile(base, delta);
           await writeFile(PROFILE_PATH, `${JSON.stringify(profile, null, 2)}\n`, 'utf8');
-
-          res.setHeader('Content-Type', 'application/json');
-          res.end(
-            JSON.stringify({
-              ok: true,
-              weightsChanged,
-              keywordsChanged,
-              provider: provider ?? 'auto',
-            }),
-          );
+          responder.finish({ weightsChanged, keywordsChanged, provider: provider ?? 'auto' });
         } catch (err) {
           console.error('[profile-generate api]', err);
-          res.statusCode = 500;
-          res.setHeader('Content-Type', 'application/json');
-          res.end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }));
+          responder.fail(err instanceof Error ? err.message : String(err), 500);
         } finally {
           inFlight = false;
         }

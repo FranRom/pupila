@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useLlmStream } from './lib/use-llm-stream.ts';
+import { StreamingPanel } from './StreamingPanel.tsx';
 
 // First-run wizard. Three steps:
 //   1. Pick the LLM CLI provider (probes /api/llm-detect for ✓/✗).
@@ -67,6 +69,14 @@ export function Onboarding({ onComplete }: OnboardingProps) {
   const [briefDraft, setBriefDraft] = useState<string>('');
   const [generatedBrief, setGeneratedBrief] = useState<string>('');
 
+  // One hook per LLM phase: CV summarization + profile tuning. Each one
+  // owns its own stream/status/stage/elapsed/error state internally.
+  const cv = useLlmStream<{ body?: string }>({ url: '/api/cv' });
+  const tune = useLlmStream<{
+    weightsChanged?: string[];
+    keywordsChanged?: string[];
+  }>({ url: '/api/profile-generate' });
+
   // Load installed-CLI status on mount.
   useEffect(() => {
     let cancelled = false;
@@ -94,36 +104,34 @@ export function Onboarding({ onComplete }: OnboardingProps) {
     return PROVIDERS.some((p) => available[p]);
   }, [available]);
 
-  const uploadCv = useCallback(async (file: File) => {
-    const format = detectFormatFromName(file.name);
-    if (!format) {
-      setError(`Unsupported file: ${file.name}. Use .pdf, .docx, .md, or .txt.`);
-      return;
-    }
-    setBusy(true);
-    setError(null);
-    try {
-      const data =
-        format === 'pdf' || format === 'docx' ? await fileToBase64(file) : await file.text();
-      const res = await fetch('/api/cv', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ format, data }),
-      });
-      if (!res.ok) {
-        const errBody = (await res.json().catch(() => ({}))) as { error?: string };
-        throw new Error(errBody.error ?? `HTTP ${res.status}`);
+  const uploadCv = useCallback(
+    async (file: File) => {
+      const format = detectFormatFromName(file.name);
+      if (!format) {
+        setError(`Unsupported file: ${file.name}. Use .pdf, .docx, .md, or .txt.`);
+        return;
       }
-      const out = (await res.json()) as { ok: boolean; body: string };
-      setGeneratedBrief(out.body);
-      setBriefDraft(out.body);
-      setStep('preview');
-    } catch (err) {
-      setError(`CV summarization failed: ${err instanceof Error ? err.message : String(err)}`);
-    } finally {
-      setBusy(false);
-    }
-  }, []);
+      setBusy(true);
+      setError(null);
+      try {
+        const data =
+          format === 'pdf' || format === 'docx' ? await fileToBase64(file) : await file.text();
+        const done = await cv.start({ format, data });
+        if (!done?.body) {
+          // hook already set its own error+status; mirror it into the
+          // wizard-level error banner so the user sees a single message.
+          if (cv.error) setError(`CV summarization failed: ${cv.error}`);
+          return;
+        }
+        setGeneratedBrief(done.body);
+        setBriefDraft(done.body);
+        setStep('preview');
+      } finally {
+        setBusy(false);
+      }
+    },
+    [cv],
+  );
 
   const finish = useCallback(async () => {
     setBusy(true);
@@ -155,31 +163,18 @@ export function Onboarding({ onComplete }: OnboardingProps) {
       // Errors here don't block the handoff — Settings → Scoring profile
       // has a manual retry button.
       setTuning(true);
-      try {
-        const profileRes = await fetch('/api/profile-generate', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ provider: provider === 'auto' ? null : provider }),
-        });
-        if (!profileRes.ok) {
-          const errBody = (await profileRes.json().catch(() => ({}))) as { error?: string };
-          console.warn(
-            '[onboarding] profile generation failed; continuing anyway:',
-            errBody.error ?? `HTTP ${profileRes.status}`,
-          );
-        }
-      } catch (profileErr) {
-        console.warn('[onboarding] profile generation threw; continuing anyway:', profileErr);
-      } finally {
-        setTuning(false);
+      const tuneDone = await tune.start({ provider: provider === 'auto' ? null : provider });
+      if (!tuneDone && tune.error) {
+        console.warn('[onboarding] profile generation failed; continuing anyway:', tune.error);
       }
+      setTuning(false);
       onComplete();
     } catch (err) {
       setError(`Could not finish onboarding: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
       setBusy(false);
     }
-  }, [briefDraft, generatedBrief, provider, onComplete]);
+  }, [briefDraft, generatedBrief, provider, onComplete, tune]);
 
   return (
     <div className="onboarding">
@@ -282,6 +277,20 @@ export function Onboarding({ onComplete }: OnboardingProps) {
             (gitignored) so AI Apply can re-attach it later.
           </p>
           <CvDropZone busy={busy} onFile={uploadCv} />
+          <StreamingPanel
+            title={
+              cv.stage === 'parsing-cv'
+                ? 'Reading your CV…'
+                : cv.stage === 'calling-llm'
+                  ? 'Generating brief…'
+                  : 'Working…'
+            }
+            stream={cv.stream}
+            status={cv.status}
+            elapsedMs={cv.elapsedMs}
+            provider={provider === 'auto' ? null : provider}
+            error={cv.status === 'error' ? error : null}
+          />
           <div className="onboarding-actions">
             <button type="button" disabled={busy} onClick={() => setStep('provider')}>
               ← Back
@@ -303,11 +312,19 @@ export function Onboarding({ onComplete }: OnboardingProps) {
             rows={14}
             disabled={busy}
           />
+          <StreamingPanel
+            title="Tuning scoring profile from your brief…"
+            stream={tune.stream}
+            status={tune.status}
+            elapsedMs={tune.elapsedMs}
+            provider={provider === 'auto' ? null : provider}
+          />
           <div className="onboarding-actions">
             <button type="button" disabled={busy} onClick={() => setStep('cv')}>
               ← Re-upload CV
             </button>
             <button type="button" disabled={busy} onClick={() => void finish()}>
+              {busy && <span className="button-spinner" aria-hidden />}
               {tuning
                 ? 'Tuning scoring profile from your brief…'
                 : busy
@@ -394,7 +411,10 @@ function CvDropZone({ busy, onFile }: CvDropZoneProps) {
               e.target.value = '';
             }}
           />
-          <span className="onboarding-button">{busy ? 'Working…' : 'Choose file'}</span>
+          <span className="onboarding-button">
+            {busy && <span className="button-spinner" aria-hidden />}
+            {busy ? 'Working…' : 'Choose file'}
+          </span>
         </label>
       </div>
     </section>

@@ -4,6 +4,7 @@ import { readBriefBody, writeBriefBody } from '../../src/lib/brief-template.js';
 import { type CvFormat, parseCvBuffer } from '../../src/lib/cv-parser.js';
 import { runLlm } from '../../src/lib/llm.js';
 import { stripFences } from '../../src/lib/profile-generator.js';
+import { streamableResponse } from '../../src/lib/streamable-response.js';
 import { CV_BASENAME } from './_paths.ts';
 import { CV_MAX_CHARS, readBody, VALID_CV_FORMATS } from './_shared.ts';
 
@@ -73,16 +74,22 @@ export function briefApiPlugin(): Plugin {
       });
 
       server.middlewares.use('/api/cv', async (req, res) => {
+        if (req.method !== 'POST') {
+          res.statusCode = 405;
+          res.end();
+          return;
+        }
+
+        // Phase 1: synchronous input validation. Bad input always gets a
+        // normal JSON 4xx regardless of Accept — streaming hasn't started
+        // yet so we can still set a status code.
+        let format: CvFormat;
+        let buf: Buffer;
         try {
-          if (req.method !== 'POST') {
-            res.statusCode = 405;
-            res.end();
-            return;
-          }
           const body = (await readBody(req)) as CvPostBody;
-          const format = typeof body.format === 'string' ? (body.format as CvFormat) : null;
+          const rawFormat = typeof body.format === 'string' ? (body.format as CvFormat) : null;
           const data = typeof body.data === 'string' ? body.data : '';
-          if (!format || !VALID_CV_FORMATS.has(format)) {
+          if (!rawFormat || !VALID_CV_FORMATS.has(rawFormat)) {
             res.statusCode = 400;
             res.setHeader('Content-Type', 'application/json');
             res.end(JSON.stringify({ error: 'invalid format (pdf/docx/md/txt)' }));
@@ -94,41 +101,55 @@ export function briefApiPlugin(): Plugin {
             res.end(JSON.stringify({ error: 'empty data' }));
             return;
           }
+          format = rawFormat;
           // Binary formats arrive base64-encoded; text formats arrive as
           // utf-8 strings sent via JSON. Either way, normalize to a Buffer.
-          const buf =
+          buf =
             format === 'pdf' || format === 'docx'
               ? Buffer.from(data, 'base64')
               : Buffer.from(data, 'utf-8');
-          // Persist the raw CV alongside the parsed brief so AI Apply can
-          // re-attach it later. Different extensions live side-by-side
-          // (e.g. config/cv.pdf + config/cv.md if the user re-uploads as
-          // a different format) — the most recent upload wins.
+        } catch (err) {
+          console.error('[cv api] input parse failed', err);
+          res.statusCode = 400;
+          res.setHeader('Content-Type', 'application/json');
+          res.end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }));
+          return;
+        }
+
+        // Phase 2: dual-mode LLM call. `responder.send()` emits NDJSON
+        // events when Accept asks for streaming; it's a no-op in JSON mode.
+        // `responder.finish()` either emits the terminal `done` event or
+        // sends the full JSON response. Either way the success path looks
+        // the same to this handler.
+        // TODO: handle req.on('close') to abort the in-flight LLM run.
+        const responder = streamableResponse(req, res);
+        try {
+          responder.send({ type: 'start', stage: 'parsing-cv' });
           const cvFilePath = `${CV_BASENAME}.${format}`;
           await writeFile(cvFilePath, buf);
           const cvText = await parseCvBuffer(buf, format);
           if (!cvText.trim()) {
-            res.statusCode = 400;
-            res.setHeader('Content-Type', 'application/json');
-            res.end(JSON.stringify({ error: 'parsed CV is empty' }));
+            responder.fail('parsed CV is empty', 400);
             return;
           }
-          const raw = await runLlm(buildCvSummaryPrompt(cvText));
+          responder.send({ type: 'stage', stage: 'calling-llm' });
+          const raw = await runLlm(
+            buildCvSummaryPrompt(cvText),
+            undefined,
+            responder.isStreaming
+              ? (chunk) => responder.send({ type: 'chunk', data: chunk })
+              : undefined,
+          );
           const cleaned = stripFences(raw);
           if (!cleaned) {
-            res.statusCode = 502;
-            res.setHeader('Content-Type', 'application/json');
-            res.end(JSON.stringify({ error: 'LLM returned empty output' }));
+            responder.fail('LLM returned empty output', 502);
             return;
           }
           await writeBriefBody(cleaned);
-          res.setHeader('Content-Type', 'application/json');
-          res.end(JSON.stringify({ ok: true, body: cleaned }));
+          responder.finish({ body: cleaned });
         } catch (err) {
           console.error('[cv api]', err);
-          res.statusCode = 500;
-          res.setHeader('Content-Type', 'application/json');
-          res.end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }));
+          responder.fail(err instanceof Error ? err.message : String(err), 500);
         }
       });
     },
