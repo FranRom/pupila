@@ -16,6 +16,7 @@ import { fetchRemotive } from './fetchers/remotive.js';
 import { fetchWeb3Career } from './fetchers/web3career.js';
 import { fetchWeWorkRemotely } from './fetchers/weworkremotely.js';
 import { BOILERPLATE_HEADERS_RE, createFilters, loadProfile } from './filters.js';
+import { bootstrapProfileIfMissing } from './lib/profile-bootstrap.js';
 import {
   normalizeAave,
   normalizeAiJobsNet,
@@ -115,27 +116,18 @@ To skip this check (raw aggregation only, no AI review):
   process.exit(1);
 }
 
-function ensureProfile(): void {
-  if (existsSync(PROFILE_PATH)) return;
-  console.error(`
-✗ ${PROFILE_PATH} not found.
-
-The aggregator needs a personalized scoring profile (filter weights +
-keyword lists) before it can rank jobs. Generate it from your candidate
-brief:
-
-  pnpm run ui
-  # → Settings → Scoring profile → Regenerate from brief
-
-The profile is gitignored on purpose — it encodes your sector
-preferences, stack, and what specialties you avoid.
-`);
-  process.exit(1);
+async function ensureProfile(): Promise<void> {
+  const result = await bootstrapProfileIfMissing();
+  if (result.bootstrapped) {
+    console.log(
+      `✓ Bootstrapped ${result.profilePath} from ${result.defaultPath} (personal weights neutral — open the UI's Settings → Scoring profile → Regenerate from brief to personalize).`,
+    );
+  }
 }
 
 async function main(): Promise<void> {
   ensureCandidateBrief();
-  ensureProfile();
+  await ensureProfile();
 
   const profile = await loadProfile(PROFILE_PATH);
   const { applyFilters } = createFilters(profile);
