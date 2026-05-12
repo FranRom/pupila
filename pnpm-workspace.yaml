@@ -1,3 +1,6 @@
+# Not a monorepo declaration — this is pnpm v11's settings file
+# (replaces package.json#pnpm). allowBuilds = supply-chain hardening:
+# any new dep with a postinstall script must be explicitly approved here.
 allowBuilds:
   esbuild: true
   simple-git-hooks: true
