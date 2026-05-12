@@ -4,13 +4,14 @@ ui/dist/
 .playwright-mcp/
 
 # Personal / AI-generated artifacts. These reflect your CV, applications,
-# and the LLM's per-job verdicts — they should NOT be committed on a public
-# fork. The repo ships `*.example.*` templates as a starting point; copy
-# them to the canonical paths below or run `pnpm run setup-brief` and the
-# scripted/UI flows will populate the real files locally.
+# scoring preferences, and the LLM's per-job verdicts — they should NOT be
+# committed on a public fork. The aggregator and the UI surface a clear
+# "missing — generate it" gate when these files don't exist; there is no
+# `*.example.*` template to copy.
 config/candidate-brief.md
 config/applied.json
 config/preferences.json
+config/profile.json
 config/cv.pdf
 config/cv.docx
 config/cv.md
@@ -26,6 +27,9 @@ data/applications/*
 data/jobs-bodies.json
 data/raw/*
 !data/raw/.gitkeep
+data/apply-queue.json
+data/apply-worker.pid
+data/swipe-skips.json
 
 # Local launchd / cron schedule logs
 data/launchd-*.log

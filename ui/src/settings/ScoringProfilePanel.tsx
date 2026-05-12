@@ -12,6 +12,7 @@ import type { EnvInfo, ProfileGenerateResult, ScoringProfile } from './types.ts'
 
 interface ScoringProfilePanelProps {
   profile: ScoringProfile | null;
+  profileLoaded: boolean;
   generating: boolean;
   envInfo: EnvInfo | null;
   regenBusy: boolean;
@@ -23,6 +24,7 @@ interface ScoringProfilePanelProps {
 
 export function ScoringProfilePanel({
   profile,
+  profileLoaded,
   generating,
   envInfo,
   regenBusy,
@@ -31,14 +33,36 @@ export function ScoringProfilePanel({
   onAskRegenerate,
   onToggleRaw,
 }: ScoringProfilePanelProps) {
+  const missing = profileLoaded && !profile && !generating;
   return (
     <Section
       index="03"
       title="Scoring profile"
       subtitle="config/profile.json — auto-generated from your brief. Drives which roles surface."
-      meta={<ProfileStatusChip profile={profile} generating={generating} />}
+      meta={
+        <ProfileStatusChip
+          profile={profile}
+          profileLoaded={profileLoaded}
+          generating={generating}
+        />
+      }
     >
-      {!profile ? <SkeletonRows count={4} /> : <ProfileSummary profile={profile} />}
+      {missing ? (
+        <div className="settings-empty">
+          <p>
+            <strong>No scoring profile yet.</strong> <code>config/profile.json</code> is gitignored
+            and must be generated locally from your candidate brief.
+          </p>
+          <p className="muted">
+            The aggregator (<code>pnpm run dev</code>) will refuse to run until this is generated.
+            Click <em>Regenerate from brief</em> below — takes 10–20 seconds.
+          </p>
+        </div>
+      ) : !profile ? (
+        <SkeletonRows count={4} />
+      ) : (
+        <ProfileSummary profile={profile} />
+      )}
       <div className="settings-actions">
         <button
           type="button"
@@ -81,12 +105,16 @@ export function ScoringProfilePanel({
 
 interface ProfileStatusChipProps {
   profile: ScoringProfile | null;
+  profileLoaded: boolean;
   generating: boolean;
 }
 
-function ProfileStatusChip({ profile, generating }: ProfileStatusChipProps) {
+function ProfileStatusChip({ profile, profileLoaded, generating }: ProfileStatusChipProps) {
   if (generating) {
     return <span className="settings-meta-pill settings-meta-pill-warn">generating…</span>;
+  }
+  if (profileLoaded && !profile) {
+    return <span className="settings-meta-pill settings-meta-pill-err">missing</span>;
   }
   if (!profile) return null;
   const weights = profile.weights ?? {};

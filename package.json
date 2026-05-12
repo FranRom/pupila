@@ -17,6 +17,7 @@
     "clean": "tsx scripts/clean.ts",
     "clean:onboarding": "tsx scripts/clean.ts --onboarding",
     "daily": "pnpm run dev && pnpm run ai-review",
+    "apply-worker": "tsx scripts/apply-worker.ts",
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.test.json && tsc --noEmit -p ui/tsconfig.json",
     "lint": "biome check",
     "lint:fix": "biome check --write",
@@ -33,11 +34,13 @@
   "dependencies": {
     "fast-xml-parser": "^5.7.3",
     "mammoth": "^1.8.0",
-    "pdfjs-dist": "^5.7.284"
+    "pdfjs-dist": "^5.7.284",
+    "proper-lockfile": "^4.1.2"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.4.14",
     "@types/node": "^22.10.0",
+    "@types/proper-lockfile": "^4.1.4",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.1",

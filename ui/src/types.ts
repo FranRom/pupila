@@ -86,3 +86,70 @@ export interface Job {
   applied?: AppliedEntry;
   _signals?: JobSignals;
 }
+
+/* ──────────────────────────────────────────────────────────────────
+   Apply queue — UI mirror of the backend queue types.
+   The backend (server-side) owns the canonical shape; this is the
+   UI-side boundary copy, same pattern as Job/JobSignals above.
+   Do NOT import from src/* here.
+   ────────────────────────────────────────────────────────────────── */
+
+export type QueueRowStatus = 'queued' | 'running' | 'done' | 'failed' | 'cancelled';
+
+export interface QueueRow {
+  jobId: string;
+  status: QueueRowStatus;
+  enqueuedAt: string;
+  startedAt?: string;
+  finishedAt?: string;
+  cancelledAt?: string;
+  attempts: number;
+  error?: string;
+  applicationPath?: string;
+}
+
+export interface WorkerLiveness {
+  alive: boolean;
+  pid: number | null;
+  pidPath: string;
+}
+
+export interface ApplyQueueResponse {
+  rows: QueueRow[];
+  worker: WorkerLiveness;
+}
+
+/** Shape of GET /api/job-body/:jobId. */
+export interface JobBodyResponse {
+  jobId: string;
+  body: string;
+  source: 'sidecar' | 'jobs.json';
+}
+
+/**
+ * Per-jobId queue status surfaced into the Jobs tab badge column. Lets
+ * the Jobs table show "⏳ applying" without re-fetching the queue on every
+ * row. App.tsx will build this map once per queue poll.
+ */
+export type QueueStatusMap = Record<string, QueueRowStatus>;
+
+/**
+ * Status emoji + visible label for queue rows. Separate from STATUS_EMOJI
+ * in the jobs domain (ApplicationStatus) — different concept, different
+ * lifecycle.
+ */
+export const QUEUE_STATUS_EMOJI: Record<QueueRowStatus, string> = {
+  queued: '⏳',
+  running: '⚙️',
+  done: '✅',
+  failed: '⚠️',
+  cancelled: '🚫',
+};
+
+export const QUEUE_STATUS_LABEL: Record<QueueRowStatus, string> = {
+  queued: 'queued',
+  running: 'applying',
+  done: 'done',
+  failed: 'failed',
+  cancelled: 'cancelled',
+};

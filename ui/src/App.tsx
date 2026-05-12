@@ -5,6 +5,7 @@ import { relativeTime } from './format.ts';
 import { AppHeader } from './jobs/AppHeader.tsx';
 import { DetailPanel } from './jobs/DetailPanel.tsx';
 import { JobsFilters } from './jobs/JobsFilters.tsx';
+import { QueueBadge } from './jobs/QueueBadge.tsx';
 import { ScoreBar } from './jobs/ScoreBar.tsx';
 import { SignalChips } from './jobs/SignalChips.tsx';
 import {
@@ -18,17 +19,21 @@ import { Onboarding } from './Onboarding.tsx';
 import { Profile } from './Profile.tsx';
 import { SchedulerProgress } from './SchedulerProgress.tsx';
 import { Settings } from './Settings.tsx';
+import { SwipeDeck } from './swipe/SwipeDeck.tsx';
 import type {
   AiReview,
   AiReviews,
   ApplicationStatus,
   AppliedEntry,
+  ApplyQueueResponse,
   Category,
   Job,
+  QueueRowStatus,
+  QueueStatusMap,
   Source,
 } from './types.ts';
 
-type Tab = 'jobs' | 'profile' | 'settings';
+type Tab = 'jobs' | 'swipe' | 'profile' | 'settings';
 
 interface PreferencesResponse {
   provider: string | null;
@@ -87,7 +92,14 @@ function readUrl(): {
     compact: p.get('compact') === '1',
     expanded: p.get('expanded'),
     expandedCompany: p.get('co'),
-    tab: tab === 'profile' ? 'profile' : tab === 'settings' ? 'settings' : 'jobs',
+    tab:
+      tab === 'profile'
+        ? 'profile'
+        : tab === 'settings'
+          ? 'settings'
+          : tab === 'swipe'
+            ? 'swipe'
+            : 'jobs',
   };
 }
 
@@ -125,6 +137,38 @@ export function App() {
   // LOW-9: SchedulerProgress dock now lives at App root. Settings reads
   // schedulerCompletedAt to know when to refresh its status panel.
   const [schedulerCompletedAt, setSchedulerCompletedAt] = useState(0);
+  // Apply-queue state. Polled at App root so both the Tik Tjob deck and the
+  // Settings panel see the same snapshot. Skipped when the relevant tabs
+  // aren't visible to keep the dev server quiet.
+  const [applyQueue, setApplyQueue] = useState<ApplyQueueResponse | null>(null);
+  const [swipeSkipIds, setSwipeSkipIds] = useState<Set<string>>(new Set());
+
+  const refreshApplyQueue = useCallback(async () => {
+    try {
+      const [qr, sr] = await Promise.all([
+        fetch('/api/apply-queue'),
+        fetch('/api/apply-queue/skips'),
+      ]);
+      if (qr.ok) setApplyQueue((await qr.json()) as ApplyQueueResponse);
+      if (sr.ok) {
+        const body = (await sr.json()) as { skips: string[] };
+        setSwipeSkipIds(new Set(body.skips));
+      }
+    } catch {
+      // network blip — keep the previous snapshot
+    }
+  }, []);
+
+  const cancelQueueRow = useCallback(
+    async (jobId: string): Promise<void> => {
+      try {
+        await fetch(`/api/apply-queue/${encodeURIComponent(jobId)}`, { method: 'DELETE' });
+      } finally {
+        await refreshApplyQueue();
+      }
+    },
+    [refreshApplyQueue],
+  );
 
   // Re-fetch jobs + AI reviews + applied entries (e.g. after the fetch-jobs
   // run completes, or after onboarding finishes). Reconciles applied
@@ -257,6 +301,24 @@ export function App() {
       cancelled = true;
     };
   }, [reloadJobsAndReviews]);
+
+  // Poll the apply-queue while the swipe deck or Settings tab is mounted.
+  // The two tabs are the only places the data is rendered, so other tabs
+  // skip the refresh to keep the dev server quiet.
+  useEffect(() => {
+    if (tab !== 'swipe' && tab !== 'settings') return;
+    let cancelled = false;
+    const tick = async () => {
+      if (cancelled) return;
+      await refreshApplyQueue();
+    };
+    void tick();
+    const id = window.setInterval(() => void tick(), 2500);
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+    };
+  }, [tab, refreshApplyQueue]);
 
   // Sync state → URL via replaceState so the back button doesn't get spammed.
   useEffect(() => {
@@ -426,6 +488,33 @@ export function App() {
 
   const appliedCount = useMemo(() => Object.keys(appliedById).length, [appliedById]);
 
+  // Derive the queue-status-by-jobId map and the set of jobIds with
+  // non-terminal queue rows. Both the Jobs-tab badge and the SwipeDeck
+  // filter use these.
+  const queueStatusMap = useMemo<QueueStatusMap>(() => {
+    const map: QueueStatusMap = {};
+    if (!applyQueue) return map;
+    for (const row of applyQueue.rows) {
+      // Most recent row wins per jobId (queue can carry historical rows
+      // when a job has been re-enqueued after a previous done/failed run).
+      map[row.jobId] = row.status;
+    }
+    return map;
+  }, [applyQueue]);
+
+  const activeQueueJobIds = useMemo<Set<string>>(() => {
+    const ids = new Set<string>();
+    for (const [jobId, status] of Object.entries(queueStatusMap)) {
+      if (status === 'queued' || status === 'running') ids.add(jobId);
+    }
+    return ids;
+  }, [queueStatusMap]);
+
+  const appliedJobIds = useMemo<Set<string>>(
+    () => new Set(Object.keys(appliedById)),
+    [appliedById],
+  );
+
   function toggleSort(key: SortKey) {
     if (sortKey === key) setSortDir(sortDir === 'desc' ? 'asc' : 'desc');
     else {
@@ -473,7 +562,23 @@ export function App() {
       />
 
       {tab === 'profile' && <Profile />}
-      {tab === 'settings' && <Settings schedulerCompletedAt={schedulerCompletedAt} />}
+      {tab === 'settings' && (
+        <Settings
+          schedulerCompletedAt={schedulerCompletedAt}
+          applyQueue={applyQueue}
+          onCancelQueueRow={cancelQueueRow}
+          onRefreshQueue={refreshApplyQueue}
+        />
+      )}
+      {tab === 'swipe' && (
+        <SwipeDeck
+          allJobs={allJobs}
+          appliedJobIds={appliedJobIds}
+          queueRowJobIds={activeQueueJobIds}
+          skippedJobIds={swipeSkipIds}
+          onQueueRefresh={refreshApplyQueue}
+        />
+      )}
       {tab === 'jobs' && (
         <>
           {apiError && (
@@ -527,6 +632,7 @@ export function App() {
                         expanded={expanded}
                         appliedById={appliedById}
                         aiReviews={aiReviews}
+                        queueStatusMap={queueStatusMap}
                         setApplied={setApplied}
                         triggerAiApply={triggerAiApply}
                         aiApplyBusyId={aiApplyBusyId}
@@ -545,6 +651,7 @@ export function App() {
                         isOpen={expanded === j.id}
                         review={aiReviews[j.id]}
                         applied={appliedById[j.id]}
+                        queueStatus={queueStatusMap[j.id] ?? null}
                         setApplied={setApplied}
                         triggerAiApply={triggerAiApply}
                         aiApplyBusyId={aiApplyBusyId}
@@ -600,6 +707,7 @@ interface CompanyBlockProps {
   expanded: string | null;
   appliedById: AppliedMap;
   aiReviews: AiReviews;
+  queueStatusMap: QueueStatusMap;
   setApplied: SetApplied;
   triggerAiApply: (job: Job) => void;
   aiApplyBusyId: string | null;
@@ -615,6 +723,7 @@ function CompanyBlock({
   expanded,
   appliedById,
   aiReviews,
+  queueStatusMap,
   setApplied,
   triggerAiApply,
   aiApplyBusyId,
@@ -634,6 +743,7 @@ function CompanyBlock({
         isOpen={jobOpen}
         review={aiReviews[job.id]}
         applied={appliedById[job.id]}
+        queueStatus={queueStatusMap[job.id] ?? null}
         setApplied={setApplied}
         triggerAiApply={triggerAiApply}
         aiApplyBusyId={aiApplyBusyId}
@@ -674,6 +784,7 @@ function CompanyBlock({
               isOpen={jobOpen}
               review={aiReviews[j.id]}
               applied={appliedById[j.id]}
+              queueStatus={queueStatusMap[j.id] ?? null}
               setApplied={setApplied}
               triggerAiApply={triggerAiApply}
               aiApplyBusyId={aiApplyBusyId}
@@ -693,6 +804,7 @@ interface FragmentRowProps {
   isOpen: boolean;
   review: AiReview | undefined;
   applied: AppliedEntry | undefined;
+  queueStatus: QueueRowStatus | null;
   setApplied: SetApplied;
   triggerAiApply: (job: Job) => void;
   aiApplyBusyId: string | null;
@@ -707,6 +819,7 @@ function FragmentRow({
   isOpen,
   review,
   applied,
+  queueStatus,
   setApplied,
   triggerAiApply,
   aiApplyBusyId,
@@ -750,6 +863,7 @@ function FragmentRow({
               </span>
             )}
             {review && <span className={`badge verdict-${review.verdict}`}>{review.verdict}</span>}
+            <QueueBadge status={queueStatus} />
             <span className="title-text">{job.title}</span>
             <SignalChips signals={job._signals} />
           </span>

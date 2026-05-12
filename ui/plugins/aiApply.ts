@@ -1,20 +1,13 @@
-import { readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import type { Plugin } from 'vite';
-import { readBriefBody } from '../../src/lib/brief-template.js';
-import { parseCvBuffer } from '../../src/lib/cv-parser.js';
-import { runLlm } from '../../src/lib/llm.js';
-import { APPLICATIONS_DIR, JOBS_PATH, REPO_ROOT } from './_paths.ts';
 import {
   type AppliedEntry,
-  CV_MAX_CHARS,
-  findCvPath,
-  readApplied,
-  readBody,
-  readJsonOrDefault,
-  readPreferences,
-  writeApplied,
-} from './_shared.ts';
+  type RunAiApplyResult,
+  runAiApplyForJob,
+} from '../../src/lib/ai-apply.js';
+import { readBriefBody } from '../../src/lib/brief-template.js';
+import { JOBS_PATH, REPO_ROOT } from './_paths.ts';
+import { findCvPath, readBody, readJsonOrDefault, readPreferences } from './_shared.ts';
 
 interface AiApplyPostBody {
   jobId?: unknown;
@@ -45,9 +38,9 @@ interface JobShape {
 //   6. Stop short of submit; return control to the user for review.
 // AI Apply lives in two stages now. POST /api/ai-apply validates inputs
 // (job exists, brief present, CV present), writes an initial state slot,
-// kicks off `runLlm` in the background with an `onChunk` callback that
-// streams stdout into `state.output`, and returns 202 immediately. The UI
-// then polls GET /api/ai-apply-progress for live state. On completion the
+// kicks off `runAiApplyForJob` in the background with an `onChunk` callback
+// that streams stdout into `state.output`, and returns 202 immediately. The
+// UI then polls GET /api/ai-apply-progress for live state. On completion the
 // markdown file gets written and config/applied.json is updated.
 //
 // Single in-flight (the LLM CLI is heavy + the streaming dock can only
@@ -87,55 +80,36 @@ function emptyAiApplyState(): AiApplyState {
   };
 }
 
-function buildAiApplyPrompt(args: {
-  brief: string;
-  job: JobShape;
-  cvText: string;
-  cvFilename: string | null;
-}): string {
-  const { brief, job, cvText, cvFilename } = args;
-  return `You are helping a candidate apply to a specific job. Generate a tailored application package the candidate can copy/paste into the actual application form.
-
-CANDIDATE BRIEF
-${brief.trim()}
-
-CV (full text)
-${cvText.slice(0, Math.min(CV_MAX_CHARS, 9000))}
-${cvFilename ? `\n(The full file is on disk at ${cvFilename}.)` : ''}
-
-JOB
-Title: ${job.title}
-Company: ${job.company ?? 'unknown'}
-Location: ${job.location ?? 'not specified'}
-URL: ${job.url}
-Rule-based fit score: ${job.fitScore}/100
-
-JOB DESCRIPTION
-${(job.body ?? '').slice(0, 6000)}
-
-OUTPUT
-Return STRICT MARKDOWN with these exact H2 sections, in this order, no preamble, no fences:
-
-## Cover letter
-A 3-4 paragraph cover letter, written in first person, naturally incorporating 2-3 specific things from the candidate's CV that match this role. No filler. No "I am writing to apply for...". Open with a strong, role-specific hook.
-
-## Highlights
-A bulleted list (4-6 items) of the candidate's strongest matches against the JD, each one a short sentence with a concrete number/project where possible. These are talking points the candidate can use in the form's "why are you a good fit" question.
-
-## Common-question answers
-For each of these typical application questions, give a 2-3 sentence answer the candidate can copy:
-
-- Why this company?
-- Why this role?
-- What's your ideal team size and dynamic?
-- Earliest start date?
-- Salary expectations? (Use a range derived from the candidate's brief if present, otherwise say "open to discussion based on full comp package".)
-
-## Apply checklist
-A short bulleted action list specific to this posting:
-- Files needed (CV: yes; portfolio link if relevant)
-- Form fields to expect
-- Anything in the JD that needs a custom answer beyond what's above`;
+function applyResultToState(result: RunAiApplyResult, state: AiApplyState): void {
+  if (result.ok) {
+    state.path = result.applicationPath;
+    state.applied = result.appliedEntry;
+    state.output = result.cleanedOutput.slice(-AI_APPLY_OUTPUT_CAP);
+    state.status = 'done';
+    state.finishedAt = new Date().toISOString();
+    return;
+  }
+  switch (result.reason) {
+    case 'empty-output':
+      state.status = 'error';
+      state.error = 'LLM returned empty output';
+      state.finishedAt = new Date().toISOString();
+      break;
+    case 'cancelled':
+      // Cannot happen in the endpoint path (no AbortSignal is passed), but
+      // handled defensively to avoid unhandled branches.
+      state.status = 'error';
+      state.error = 'cancelled';
+      state.finishedAt = new Date().toISOString();
+      break;
+    case 'precondition':
+      // Also cannot happen here — we pre-flight these before calling the
+      // core; this branch is purely defensive.
+      state.status = 'error';
+      state.error = result.message;
+      state.finishedAt = new Date().toISOString();
+      break;
+  }
 }
 
 export function aiApplyApiPlugin(): Plugin {
@@ -189,6 +163,9 @@ export function aiApplyApiPlugin(): Plugin {
             return;
           }
 
+          // Pre-flight: validate all preconditions and return 4xx immediately
+          // before seeding state or kicking off the background task. This
+          // preserves the existing HTTP contract that the UI relies on.
           const jobs = await readJsonOrDefault<JobShape[]>(JOBS_PATH, []);
           const job = jobs.find((j) => j.id === jobId);
           if (!job) {
@@ -225,28 +202,11 @@ export function aiApplyApiPlugin(): Plugin {
             );
             return;
           }
-          const cvBuf = await readFile(cv.path);
-          const cvText = await parseCvBuffer(cvBuf, cv.format);
 
           const prefs = await readPreferences();
           const provider = prefs.provider && prefs.provider !== 'auto' ? prefs.provider : undefined;
 
-          const prompt = buildAiApplyPrompt({
-            brief: briefBody,
-            job: {
-              id: job.id,
-              title: job.title,
-              company: job.company,
-              url: job.url,
-              location: job.location,
-              body: job.body,
-              fitScore: job.fitScore,
-            },
-            cvText,
-            cvFilename: cv.path,
-          });
-
-          // All inputs validated — seed the state slot, kick off the LLM in
+          // All inputs validated — seed the state slot, kick off the core in
           // the background (lock already claimed at the top), return 202.
           // path.relative only returns '' when both paths are identical, which
           // can't happen here (cv.path is a file, REPO_ROOT is a directory).
@@ -269,42 +229,20 @@ export function aiApplyApiPlugin(): Plugin {
           // Background — never awaited inside the request handler.
           (async () => {
             try {
-              const raw = await runLlm(prompt, provider, (chunk: string) => {
-                // Append + cap to AI_APPLY_OUTPUT_CAP chars to keep the
-                // poll response bounded.
-                state.output = (state.output + chunk).slice(-AI_APPLY_OUTPUT_CAP);
+              const result = await runAiApplyForJob({
+                jobId,
+                provider,
+                repoRoot: REPO_ROOT,
+                onChunk: (chunk: string) => {
+                  // Append + cap to AI_APPLY_OUTPUT_CAP chars to keep the
+                  // poll response bounded.
+                  state.output = (state.output + chunk).slice(-AI_APPLY_OUTPUT_CAP);
+                },
+                // No AbortSignal for the Jobs-tab endpoint — the existing UI
+                // has no cancel button. Only the future queue worker passes a
+                // signal.
               });
-              const cleaned = raw.trim();
-              if (!cleaned) {
-                state.status = 'error';
-                state.error = 'LLM returned empty output';
-                state.finishedAt = new Date().toISOString();
-                return;
-              }
-              const fs = await import('node:fs/promises');
-              await fs.mkdir(APPLICATIONS_DIR, { recursive: true });
-              const applicationPath = path.join(APPLICATIONS_DIR, `${jobId}.md`);
-              const header = `<!-- Auto-generated by /api/ai-apply for job ${jobId} on ${new Date().toISOString()} -->\n# ${job.title} — ${job.company ?? 'unknown'}\n\n[${job.url}](${job.url})\n\n`;
-              await writeFile(applicationPath, `${header}${cleaned}\n`, 'utf8');
-
-              const entries = await readApplied();
-              const idx = entries.findIndex((e) => e?.url === job.url);
-              const today = new Date().toISOString().slice(0, 10);
-              const appliedEntry: AppliedEntry = {
-                url: job.url,
-                status: 'applied',
-                date: today,
-                notes: `Application package: data/applications/${jobId}.md`,
-              };
-              if (idx >= 0) entries[idx] = appliedEntry;
-              else entries.push(appliedEntry);
-              await writeApplied(entries);
-
-              state.path = `data/applications/${jobId}.md`;
-              state.applied = appliedEntry;
-              state.output = cleaned.slice(-AI_APPLY_OUTPUT_CAP);
-              state.status = 'done';
-              state.finishedAt = new Date().toISOString();
+              applyResultToState(result, state);
             } catch (err) {
               state.status = 'error';
               state.error = `LLM CLI failed: ${err instanceof Error ? err.message : String(err)}`;

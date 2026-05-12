@@ -1,8 +1,52 @@
-import profileJson from '../config/profile.json' with { type: 'json' };
+import { readFile } from 'node:fs/promises';
 import type { Category, Job, JobSignals } from './types.js';
 import { isSafeUrl, withinDays } from './utils.js';
 
-export type FilterProfile = typeof profileJson;
+// Profile is loaded at runtime (not statically imported) so that:
+//   (a) config/profile.json can be gitignored — it's personal data
+//       (sector preferences, stack, what specialties to avoid),
+//   (b) missing profile produces a clear actionable error at startup
+//       rather than a build-time module resolution failure.
+// Universal scoring rules (junior excludes, US-only filter, etc.) still
+// live in the JSON alongside the personal slices — the file is a single
+// source of truth even though it's not committed.
+export interface FilterScoring {
+  minScoreToKeep: number;
+  maxScore: number;
+  scoringBodyMaxChars: number;
+}
+
+export interface FilterWeights {
+  web3TitleBody: number;
+  web3Stack: number;
+  aiTitleBody: number;
+  aiStack: number;
+  stackPrimary: number;
+  stackRn: number;
+  stackOther: number;
+  frontendTitle: number;
+  frontendBody: number;
+  leadTitle: number;
+  seniorTitle: number;
+  locationRemote: number;
+  freshness7d: number;
+  freshness14d: number;
+  usCentricPenalty: number;
+}
+
+export interface FilterProfile {
+  scoring: FilterScoring;
+  weights: FilterWeights;
+  // Keywords map allows `_comment_*` string keys alongside arrays — the
+  // accessor in createFilters casts through unknown and only reads arrays.
+  keywords: Record<string, readonly string[] | string | undefined>;
+}
+
+/** Loads and parses config/profile.json. Throws ENOENT if missing — callers should gate. */
+export async function loadProfile(path = 'config/profile.json'): Promise<FilterProfile> {
+  const raw = await readFile(path, 'utf8');
+  return JSON.parse(raw) as FilterProfile;
+}
 
 // Match-nothing regex for empty keyword lists. `(?!)` is a negative lookahead
 // of the empty string, which is impossible — so .test() always returns false
@@ -224,6 +268,3 @@ export function createFilters(profile: FilterProfile): FilterApi {
 
   return { applyFilters };
 }
-
-const defaultFilter = createFilters(profileJson);
-export const applyFilters = defaultFilter.applyFilters;

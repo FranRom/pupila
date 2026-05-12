@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { ApplyQueuePanel } from './settings/ApplyQueuePanel.tsx';
 import { ConfirmModal } from './settings/ConfirmModal.tsx';
 import { DiskUsagePanel } from './settings/DiskUsagePanel.tsx';
 import { EnvironmentPanel } from './settings/EnvironmentPanel.tsx';
@@ -23,6 +24,7 @@ import {
   type SchedulerStatus,
   type ScoringProfile,
 } from './settings/types.ts';
+import type { ApplyQueueResponse } from './types.ts';
 
 // Settings tab. Seven numbered panels — terminal-grade dashboard aesthetic
 // matching the rest of the app.
@@ -42,9 +44,17 @@ import {
 
 interface SettingsProps {
   schedulerCompletedAt: number;
+  applyQueue: ApplyQueueResponse | null;
+  onCancelQueueRow: (jobId: string) => Promise<void>;
+  onRefreshQueue: () => Promise<void>;
 }
 
-export function Settings({ schedulerCompletedAt }: SettingsProps) {
+export function Settings({
+  schedulerCompletedAt,
+  applyQueue,
+  onCancelQueueRow,
+  onRefreshQueue,
+}: SettingsProps) {
   const [prefs, setPrefs] = useState<PreferencesResponse | null>(null);
   const [provider, setProvider] = useState<ProviderChoice>('auto');
   const [scheduler, setScheduler] = useState<SchedulerStatus | null>(null);
@@ -63,6 +73,10 @@ export function Settings({ schedulerCompletedAt }: SettingsProps) {
   const [cleaning, setCleaning] = useState<CleanMode | null>(null);
   const [cleanResult, setCleanResult] = useState<CleanResult | null>(null);
   const [profile, setProfile] = useState<ScoringProfile | null>(null);
+  // Distinguishes the initial null (fetch in flight) from "fetch resolved
+  // but profile.json is missing on disk" — the second case needs a clear
+  // CTA, not a loading skeleton.
+  const [profileLoaded, setProfileLoaded] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [regenBusy, setRegenBusy] = useState(false);
   const [regenResult, setRegenResult] = useState<ProfileGenerateResult | null>(null);
@@ -100,6 +114,7 @@ export function Settings({ schedulerCompletedAt }: SettingsProps) {
     setEnvInfo(e);
     setProfile(prof?.profile ?? null);
     setGenerating(prof?.generating ?? false);
+    setProfileLoaded(prof !== null);
   }, []);
 
   useEffect(() => {
@@ -362,6 +377,7 @@ export function Settings({ schedulerCompletedAt }: SettingsProps) {
 
       <ScoringProfilePanel
         profile={profile}
+        profileLoaded={profileLoaded}
         generating={generating}
         envInfo={envInfo}
         regenBusy={regenBusy}
@@ -376,6 +392,12 @@ export function Settings({ schedulerCompletedAt }: SettingsProps) {
       <DiskUsagePanel disk={disk} />
 
       <MaintenancePanel cleaning={cleaning} cleanResult={cleanResult} onAskClean={askToClean} />
+
+      <ApplyQueuePanel
+        data={applyQueue}
+        onCancel={onCancelQueueRow}
+        onRefresh={() => void onRefreshQueue()}
+      />
 
       <EnvironmentPanel envInfo={envInfo} onRefreshAll={() => void loadAll()} />
 
