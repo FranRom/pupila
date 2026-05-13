@@ -13,6 +13,7 @@ export const JOBS_PATH = path.join(REPO_ROOT, 'data', 'jobs.json');
 export const REVIEWS_PATH = path.join(REPO_ROOT, 'data', 'ai-reviews.json');
 export const PREFERENCES_PATH = path.join(REPO_ROOT, 'config', 'preferences.json');
 export const PROFILE_PATH = path.join(REPO_ROOT, 'config', 'profile.json');
+export const PROFILE_DEFAULT_PATH = path.join(REPO_ROOT, 'config', 'profile.default.json');
 export const APPLICATIONS_DIR = path.join(REPO_ROOT, 'data', 'applications');
 export const APPLY_QUEUE_PATH = path.join(REPO_ROOT, 'data', 'apply-queue.json');
 export const APPLY_WORKER_PID_PATH = path.join(REPO_ROOT, 'data', 'apply-worker.pid');

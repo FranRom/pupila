@@ -6,7 +6,7 @@ Guidance for future Claude Code sessions working in this repo.
 
 `job-hunt` is a **config-driven, forkable** daily job aggregator. It fetches listings from 13 public sources (3 ATS APIs — Ashby, Greenhouse, Lever — plus RSS, JSON boards, Hacker News, HTML scrapers, an Aave Next.js scraper, and `ashby-private` for orgs whose public posting-API is disabled), normalizes them, applies hard exclusion filters, computes a per-job `fitScore`, deduplicates, and writes `data/jobs.json`, an RSS feed at `data/feed.xml`, and an auto-regenerated `JOBS.md`. The hand-written `README.md` is **not** rewritten by the pipeline. No external services. No DB.
 
-`config/profile.json` is **gitignored** — it encodes personal scoring preferences (sectors, stack, specialties to avoid) generated from the candidate brief. There is NO example template; `pnpm run dev` fails fast with a clear message if missing, and the Settings → Scoring profile panel shows an explicit "missing — regenerate" state. After onboarding (CV upload → brief generation), `/api/profile-generate` shells out to the local LLM CLI to fill in personal keyword lists + weights. Re-runnable from Settings → Scoring profile → Regenerate. `config/slugs.json` (separate file, committed) ships the full ~50-company tier-S list.
+`config/profile.json` is **gitignored** — it encodes personal scoring preferences (sectors, stack, specialties to avoid) generated from the candidate brief. The first time `pnpm run dev` or `pnpm run ui` runs, the file is auto-bootstrapped from the committed `config/profile.default.json` (universal scaffolding + zeroed personal weights + empty personal keyword arrays). After onboarding (CV upload → brief generation), `/api/profile-generate` shells out to the local LLM CLI and overlays personal keyword lists + weights on top. Re-runnable from Settings → Scoring profile → Regenerate. `config/slugs.json` (separate file, committed) ships the full ~50-company tier-S list.
 
 **First-run UX**: a forker generates `config/candidate-brief.md` via `pnpm run setup-brief --file ~/cv.pdf` (or via the UI's Profile tab → drop a PDF/DOCX/MD CV). The CLI shells out to whichever local LLM CLI is installed (`claude`, `codex`, `gemini`, `opencode` — auto-detected, override via `JOB_HUNT_LLM=<provider>`).
 
@@ -38,6 +38,8 @@ pnpm run clean [-- --all]   # wipe locally-generated artifacts (--all also wipes
 ```
 
 **Mandatory CV gate.** `pnpm run dev` checks for `config/candidate-brief.md` at startup and exits 1 if missing. Bypass with `JOB_HUNT_NO_BRIEF_CHECK=1` or `--no-brief-check`.
+
+**Profile auto-bootstrap.** Both `pnpm run dev` (via `ensureProfile()` in `src/index.ts`) and `pnpm run ui` (via the `profileApiPlugin` `configureServer` hook) call `bootstrapProfileIfMissing()` on startup, which `copyFile(... , COPYFILE_EXCL)`s `config/profile.default.json` → `config/profile.json` when the latter is missing. EEXIST is the steady-state no-op, so a personalized profile is never clobbered. The same call is repeated defensively inside `/api/profile-generate` in case the file gets removed mid-session.
 
 **First-run onboarding.** When `config/preferences.json` is missing or has `onboardedAt: null`, opening the UI shows a 3-step wizard (`ui/src/Onboarding.tsx`): pick LLM CLI → drop CV → confirm brief. POSTs `/api/preferences` with provider + today's date as `onboardedAt` — once stamped, the wizard never re-triggers even if the brief is later removed.
 
@@ -93,6 +95,7 @@ src/
 
 config/
   slugs.json                  # tier-S Ashby/Greenhouse/Lever slug arrays (committed)
+  profile.default.json        # committed — neutral baseline auto-copied to profile.json on first run
   profile.json                # GITIGNORED — personal scoring weights + keyword lists, generated from brief
   candidate-brief.md          # GITIGNORED — LLM-generated CV summary
   candidate-brief.example.md  # committed template
@@ -176,7 +179,7 @@ If a target isn't on any of the three big ATSes, it might be on Ashby's hosted-b
 
 ## Filter rules
 
-All in `src/filters.ts`. **Weights and keyword lists load from `config/profile.json` at runtime via `loadProfile()`** (NOT a static import — the file is gitignored and missing on fresh clones; `src/index.ts` gates with `ensureProfile()` before calling `createFilters(profile)`). `compileKw()` joins each list with `|` and wraps in `\b...\b/i`. Adjusting weights/keywords is non-code.
+All in `src/filters.ts`. **Weights and keyword lists load from `config/profile.json` at runtime via `loadProfile()`** (NOT a static import — the file is gitignored; on a fresh clone or after deletion, `src/index.ts`'s `ensureProfile()` auto-bootstraps it from `config/profile.default.json` before calling `createFilters(profile)`). `compileKw()` joins each list with `|` and wraps in `\b...\b/i`. Adjusting weights/keywords is non-code.
 
 The hard-drop chain is a named-rule list (`HARD_RULES`). `applyFilters` runs `Array.find` over the rules, increments `droppedHard`, and tallies the rule name in `droppedByRule`. Breakdown surfaces in JOBS.md (e.g. `(missing_senior_req=812, ...)`). To add a rule: append a `{ name, test }` entry — no other plumbing.
 

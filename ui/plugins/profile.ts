@@ -2,13 +2,14 @@ import { writeFile } from 'node:fs/promises';
 import type { Plugin } from 'vite';
 import { readBriefBody } from '../../src/lib/brief-template.js';
 import { type LlmProvider, SUPPORTED_PROVIDERS } from '../../src/lib/llm.js';
+import { bootstrapProfileIfMissing } from '../../src/lib/profile-bootstrap.js';
 import {
   generateProfileFromBrief,
   mergeProfile,
   type ProfileShape,
 } from '../../src/lib/profile-generator.js';
 import { streamableResponse } from '../../src/lib/streamable-response.js';
-import { PROFILE_PATH } from './_paths.ts';
+import { PROFILE_DEFAULT_PATH, PROFILE_PATH } from './_paths.ts';
 import { readBody, readJsonOrDefault } from './_shared.ts';
 
 // ── Profile generator API ──────────────────────────────────────────────────
@@ -28,7 +29,25 @@ export function profileApiPlugin(): Plugin {
   let inFlight = false;
   return {
     name: 'job-hunt-profile-api',
-    configureServer(server) {
+    async configureServer(server) {
+      // Bootstrap config/profile.json from config/profile.default.json the
+      // first time `pnpm run ui` runs against a fresh clone (or after the
+      // user has deleted the file). COPYFILE_EXCL means this is a no-op if
+      // a personalized profile already exists.
+      try {
+        const result = await bootstrapProfileIfMissing({
+          defaultPath: PROFILE_DEFAULT_PATH,
+          profilePath: PROFILE_PATH,
+        });
+        if (result.bootstrapped) {
+          console.log(
+            `[profile] bootstrapped ${result.profilePath} from ${result.defaultPath} — open Settings → Scoring profile → Regenerate to personalize.`,
+          );
+        }
+      } catch (err) {
+        console.error('[profile] bootstrap failed:', err);
+      }
+
       server.middlewares.use('/api/profile', async (req, res) => {
         if (req.method !== 'GET') {
           res.statusCode = 405;
@@ -92,6 +111,13 @@ export function profileApiPlugin(): Plugin {
           }
           briefBody = maybeBrief;
 
+          // Defense-in-depth: if profile.json was removed after server
+          // startup (rare — typically the configureServer hook above already
+          // bootstrapped it), re-seed it from the default before reading.
+          await bootstrapProfileIfMissing({
+            defaultPath: PROFILE_DEFAULT_PATH,
+            profilePath: PROFILE_PATH,
+          });
           const maybeBase = await readJsonOrDefault<ProfileShape | null>(PROFILE_PATH, null);
           if (!maybeBase || typeof maybeBase !== 'object') {
             inFlight = false;
