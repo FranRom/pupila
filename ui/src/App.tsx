@@ -130,6 +130,10 @@ export function App() {
   const [allJobs, setAllJobs] = useState<Job[]>([]);
   const [aiReviews, setAiReviews] = useState<AiReviews>({});
   const [dataLoading, setDataLoading] = useState(true);
+  const [fetchInFlight, setFetchInFlight] = useState(false);
+  // null = not loaded yet (don't surface banner); false = scheduler not
+  // installed (the banner's "install daily scheduler" CTA makes sense).
+  const [schedulerInstalled, setSchedulerInstalled] = useState<boolean | null>(null);
   // Onboarding state. `null` while we're still fetching /api/preferences;
   // `false` once we've confirmed the user has finished onboarding (or
   // they bypass via the Profile tab); `true` triggers the wizard.
@@ -301,6 +305,51 @@ export function App() {
       cancelled = true;
     };
   }, [reloadJobsAndReviews]);
+
+  // Load scheduler install state on mount and whenever an install/uninstall
+  // op completes (Settings tab sets `schedulerCompletedAt`). Drives the
+  // "Install daily scheduler" CTA in the staleness banner.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: schedulerCompletedAt is the trigger for re-fetching — it intentionally isn't read inside.
+  useEffect(() => {
+    let cancelled = false;
+    fetch('/api/scheduler-status')
+      .then((r) => (r.ok ? (r.json() as Promise<{ installed?: { aggregate?: boolean } }>) : null))
+      .then((data) => {
+        if (cancelled) return;
+        setSchedulerInstalled(Boolean(data?.installed?.aggregate));
+      })
+      .catch(() => {
+        if (!cancelled) setSchedulerInstalled(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [schedulerCompletedAt]);
+
+  // Lifted from FetchProgress: track whether a fetch run is in flight so the
+  // header "Refetch" button can disable itself without a second poller.
+  const onFetchStatusChange = useCallback((status: 'idle' | 'running' | 'done' | 'error') => {
+    setFetchInFlight(status === 'running');
+  }, []);
+
+  // Latest fetchedAt across all jobs + derived staleness flag. Drives the
+  // banner: shown when >24h since the latest fetch AND scheduler isn't
+  // installed (the banner CTA is to install it).
+  const { latestFetchedAt, isStale } = useMemo(() => {
+    let maxIso: string | null = null;
+    let maxMs = 0;
+    for (const j of allJobs) {
+      const t = Date.parse(j.fetchedAt ?? '');
+      if (Number.isFinite(t) && t > maxMs) {
+        maxMs = t;
+        maxIso = j.fetchedAt ?? null;
+      }
+    }
+    return {
+      latestFetchedAt: maxIso,
+      isStale: maxMs > 0 && Date.now() - maxMs > 24 * 60 * 60 * 1000,
+    };
+  }, [allJobs]);
 
   // Poll the apply-queue while the swipe deck or Settings tab is mounted.
   // The two tabs are the only places the data is rendered, so other tabs
@@ -611,7 +660,18 @@ export function App() {
               setSource('all');
               setAppliedOnly(false);
             }}
+            onRefetch={triggerFetch}
+            isFetching={fetchInFlight}
           />
+
+          {isStale && schedulerInstalled === false && (
+            <StalenessBanner
+              fetchedAt={latestFetchedAt}
+              isFetching={fetchInFlight}
+              onRefetch={triggerFetch}
+              onOpenScheduler={() => setTab('settings')}
+            />
+          )}
 
           {visible.length === 0 ? (
             allJobs.length === 0 ? (
@@ -669,9 +729,51 @@ export function App() {
           stays visible across tab changes and stacks predictably alongside
           the other two docks. CSS class .dock-stack handles layout. */}
       <div className="dock-stack">
-        <FetchProgress onComplete={reloadJobsAndReviews} />
+        <FetchProgress onComplete={reloadJobsAndReviews} onStatusChange={onFetchStatusChange} />
         <AiApplyProgress onComplete={onAiApplyComplete} />
         <SchedulerProgress onComplete={onSchedulerComplete} />
+      </div>
+    </div>
+  );
+}
+
+interface StalenessBannerProps {
+  fetchedAt: string | null;
+  isFetching: boolean;
+  onRefetch: () => void;
+  onOpenScheduler: () => void;
+}
+
+function StalenessBanner({
+  fetchedAt,
+  isFetching,
+  onRefetch,
+  onOpenScheduler,
+}: StalenessBannerProps) {
+  return (
+    <div className="staleness-banner" role="status">
+      <span className="staleness-banner-icon" aria-hidden>
+        ⏳
+      </span>
+      <div className="staleness-banner-body">
+        <strong>Your job data is stale.</strong>{' '}
+        <span className="muted">
+          Last fetched {fetchedAt ? relativeTime(fetchedAt) : 'over 24h ago'}. The daily scheduler
+          isn't installed yet — without it, jobs only refresh when you trigger a fetch manually.
+        </span>
+      </div>
+      <div className="staleness-banner-actions">
+        <button
+          type="button"
+          className="staleness-banner-primary"
+          onClick={onRefetch}
+          disabled={isFetching}
+        >
+          {isFetching ? '⟳ Fetching…' : '⟳ Refetch now'}
+        </button>
+        <button type="button" className="staleness-banner-secondary" onClick={onOpenScheduler}>
+          Install daily scheduler →
+        </button>
       </div>
     </div>
   );

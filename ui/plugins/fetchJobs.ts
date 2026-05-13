@@ -9,7 +9,13 @@ import { REPO_ROOT } from './_paths.ts';
 //
 // Single concurrent run only. POST returns 409 if a run is already in flight.
 type RunStatus = 'idle' | 'running' | 'done' | 'error';
-type SourceState = 'pending' | 'running' | 'done' | 'error';
+// 'partial' = the fetcher returned items AND surfaced one or more errors —
+// typically a tier-S slug that 404'd while the rest of the source delivered
+// jobs. Treated as a terminal state distinct from 'error' so the UI can show
+// the actual fetched count instead of a misleading red "✗". Stale slugs are
+// intentional per CLAUDE.md (kept as a watchlist for upstream restoration),
+// so the surfacing here matters.
+type SourceState = 'pending' | 'running' | 'done' | 'partial' | 'error';
 const KNOWN_SOURCES: readonly string[] = [
   'remoteok',
   'remotive',
@@ -75,11 +81,11 @@ export function fetchJobsApiPlugin(): Plugin {
     if (doneMatch?.[1]) {
       const fetched = Number(doneMatch[2]);
       const errors = Number(doneMatch[3]);
-      setSource(doneMatch[1], {
-        state: errors > 0 ? 'error' : 'done',
-        fetched,
-        errors,
-      });
+      // errors=0          → done    (full success)
+      // errors>0, items>0 → partial (some slugs broken, others delivered)
+      // errors>0, items=0 → error   (nothing came through)
+      const state: SourceState = errors === 0 ? 'done' : fetched > 0 ? 'partial' : 'error';
+      setSource(doneMatch[1], { state, fetched, errors });
       return;
     }
     const errMatch = line.match(/^\[error\]\s+(\S+)\s+(.*)/);

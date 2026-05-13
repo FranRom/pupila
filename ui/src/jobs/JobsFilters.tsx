@@ -16,6 +16,8 @@ interface JobsFiltersProps {
   onGroupByCompanyChange: (v: boolean) => void;
   onCompactChange: (v: boolean) => void;
   onReset: () => void;
+  onRefetch: () => void;
+  isFetching: boolean;
 }
 
 export function JobsFilters({
@@ -34,6 +36,8 @@ export function JobsFilters({
   onGroupByCompanyChange,
   onCompactChange,
   onReset,
+  onRefetch,
+  isFetching,
 }: JobsFiltersProps) {
   const hasActiveFilters = Boolean(search) || category !== 'all' || source !== 'all' || appliedOnly;
   return (
@@ -97,6 +101,16 @@ export function JobsFilters({
           Reset
         </button>
       )}
+
+      <button
+        type="button"
+        className="filters-refetch"
+        onClick={onRefetch}
+        disabled={isFetching}
+        title={isFetching ? 'A fetch run is already in flight' : 'Refetch jobs from all sources'}
+      >
+        {isFetching ? '⟳ Fetching…' : '⟳ Refetch'}
+      </button>
     </div>
   );
 }

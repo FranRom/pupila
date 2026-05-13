@@ -9,7 +9,10 @@ import { useEffect, useRef, useState } from 'react';
 // and the polling code lives entirely in this component.
 
 type RunStatus = 'idle' | 'running' | 'done' | 'error';
-type SourceState = 'pending' | 'running' | 'done' | 'error';
+// 'partial' = fetched > 0 AND errors > 0 (e.g. stale tier-S slugs that 404'd
+// while the rest of the source delivered jobs). Rendered amber with the
+// real fetched count; distinct from 'error' (red, zero items came through).
+type SourceState = 'pending' | 'running' | 'done' | 'partial' | 'error';
 
 interface SourceEntry {
   name: string;
@@ -30,6 +33,12 @@ interface FetchJobsState {
 
 interface FetchProgressProps {
   onComplete: () => void;
+  /**
+   * Fires on every poll with the current run status. Used by `App` to drive
+   * the "Refetch" button's disabled state without adding a second poller —
+   * FetchProgress is already mounted at root and ticking every 1–5s.
+   */
+  onStatusChange?: (status: RunStatus) => void;
 }
 
 // LOW-7: dual-cadence polling — cheap when idle, snappy during runs.
@@ -41,10 +50,11 @@ function stateLabel(s: SourceState): string {
   if (s === 'pending') return '·';
   if (s === 'running') return '…';
   if (s === 'done') return '✓';
+  if (s === 'partial') return '⚠';
   return '✗';
 }
 
-export function FetchProgress({ onComplete }: FetchProgressProps) {
+export function FetchProgress({ onComplete, onStatusChange }: FetchProgressProps) {
   const [state, setState] = useState<FetchJobsState | null>(null);
   const [hidden, setHidden] = useState(true);
   const completedRef = useRef(false);
@@ -64,6 +74,7 @@ export function FetchProgress({ onComplete }: FetchProgressProps) {
         const next = (await res.json()) as FetchJobsState;
         if (cancelled) return;
         setState(next);
+        onStatusChange?.(next.status);
 
         // Show whenever a run is active, regardless of who started it.
         if (next.status === 'running') {
@@ -102,7 +113,7 @@ export function FetchProgress({ onComplete }: FetchProgressProps) {
         intervalRef.current = null;
       }
     };
-  }, [onComplete, state?.status]);
+  }, [onComplete, onStatusChange, state?.status]);
 
   // Clean up the dismiss timer on unmount only — it's separate from the
   // poll interval so it doesn't get torn down on every cadence flip.
@@ -115,7 +126,10 @@ export function FetchProgress({ onComplete }: FetchProgressProps) {
   if (hidden || !state || state.status === 'idle') return null;
 
   const total = state.sources.length;
-  const doneCount = state.sources.filter((s) => s.state === 'done' || s.state === 'error').length;
+  // Any terminal state counts toward "N/M complete" — 'partial' isn't still
+  // running, it's just "done with caveats".
+  const TERMINAL: readonly SourceState[] = ['done', 'partial', 'error'];
+  const doneCount = state.sources.filter((s) => TERMINAL.includes(s.state)).length;
   const totalFetched = state.sources.reduce((acc, s) => acc + (s.fetched ?? 0), 0);
 
   return (
@@ -141,16 +155,29 @@ export function FetchProgress({ onComplete }: FetchProgressProps) {
       </header>
 
       <ul className="fetch-progress-list">
-        {state.sources.map((s) => (
-          <li key={s.name} className={`fetch-progress-row fetch-progress-${s.state}`}>
-            <span className="fetch-progress-name">{s.name}</span>
-            <span className="fetch-progress-state">
-              {s.state === 'done' && typeof s.fetched === 'number'
-                ? `${stateLabel(s.state)} ${s.fetched}`
-                : stateLabel(s.state)}
-            </span>
-          </li>
-        ))}
+        {state.sources.map((s) => {
+          const showCount =
+            (s.state === 'done' || s.state === 'partial') && typeof s.fetched === 'number';
+          const showStaleSuffix = s.state === 'partial' && typeof s.errors === 'number';
+          const tooltip = showStaleSuffix
+            ? `${s.fetched} fetched · ${s.errors} slug${s.errors === 1 ? '' : 's'} unavailable (stale or 404'd)`
+            : undefined;
+          return (
+            <li
+              key={s.name}
+              className={`fetch-progress-row fetch-progress-${s.state}`}
+              title={tooltip}
+            >
+              <span className="fetch-progress-name">{s.name}</span>
+              <span className="fetch-progress-state">
+                {showCount ? `${stateLabel(s.state)} ${s.fetched}` : stateLabel(s.state)}
+                {showStaleSuffix && (
+                  <span className="fetch-progress-stale-suffix"> · {s.errors} stale</span>
+                )}
+              </span>
+            </li>
+          );
+        })}
       </ul>
 
       {state.lastError && (
