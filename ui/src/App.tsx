@@ -166,7 +166,9 @@ export function App() {
   const cancelQueueRow = useCallback(
     async (jobId: string): Promise<void> => {
       try {
-        await fetch(`/api/apply-queue/${encodeURIComponent(jobId)}`, { method: 'DELETE' });
+        await fetch(`/api/apply-queue/${encodeURIComponent(jobId)}`, {
+          method: 'DELETE',
+        });
       } finally {
         await refreshApplyQueue();
       }
@@ -222,7 +224,9 @@ export function App() {
           body: JSON.stringify({ jobId: job.id }),
         });
         if (!res.ok && res.status !== 202) {
-          const errBody = (await res.json().catch(() => ({}))) as { error?: string };
+          const errBody = (await res.json().catch(() => ({}))) as {
+            error?: string;
+          };
           throw new Error(errBody.error ?? `HTTP ${res.status}`);
         }
         // Don't wait for the body — the dock will stream it in.
@@ -277,7 +281,9 @@ export function App() {
     try {
       const res = await fetch('/api/fetch-jobs', { method: 'POST' });
       if (!res.ok && res.status !== 202) {
-        const errBody = (await res.json().catch(() => ({}))) as { error?: string };
+        const errBody = (await res.json().catch(() => ({}))) as {
+          error?: string;
+        };
         setApiError(errBody.error ?? `fetch run failed: HTTP ${res.status}`);
       }
     } catch (err) {
@@ -292,7 +298,10 @@ export function App() {
       .then((r) =>
         r.ok
           ? (r.json() as Promise<PreferencesResponse>)
-          : Promise.resolve({ provider: null, onboardedAt: null } as PreferencesResponse),
+          : Promise.resolve({
+              provider: null,
+              onboardedAt: null,
+            } as PreferencesResponse),
       )
       .catch(() => ({ provider: null, onboardedAt: null }) as PreferencesResponse);
     Promise.all([reloadJobsAndReviews(), loadPrefs]).then(([, prefs]) => {
@@ -335,7 +344,7 @@ export function App() {
   // Latest fetchedAt across all jobs + derived staleness flag. Drives the
   // banner: shown when >24h since the latest fetch AND scheduler isn't
   // installed (the banner CTA is to install it).
-  const { latestFetchedAt, isStale } = useMemo(() => {
+  const latestFetchedAt = useMemo(() => {
     let maxIso: string | null = null;
     let maxMs = 0;
     for (const j of allJobs) {
@@ -345,11 +354,10 @@ export function App() {
         maxIso = j.fetchedAt ?? null;
       }
     }
-    return {
-      latestFetchedAt: maxIso,
-      isStale: maxMs > 0 && Date.now() - maxMs > 24 * 60 * 60 * 1000,
-    };
+    return maxIso;
   }, [allJobs]);
+  const isStale =
+    latestFetchedAt != null && Date.now() - Date.parse(latestFetchedAt) > 24 * 60 * 60 * 1000;
 
   // Poll the apply-queue while the swipe deck or Settings tab is mounted.
   // The two tabs are the only places the data is rendered, so other tabs
@@ -530,7 +538,12 @@ export function App() {
   }, [visible, groupByCompany, sortKey, sortDir]);
 
   const totals = useMemo(() => {
-    const counts: Record<Category, number> = { 'web3+ai': 0, web3: 0, ai: 0, general: 0 };
+    const counts: Record<Category, number> = {
+      'web3+ai': 0,
+      web3: 0,
+      ai: 0,
+      general: 0,
+    };
     for (const j of allJobs) counts[j.category]++;
     return counts;
   }, [allJobs]);

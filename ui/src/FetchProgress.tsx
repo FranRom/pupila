@@ -45,6 +45,7 @@ interface FetchProgressProps {
 const IDLE_POLL_MS = 5000;
 const ACTIVE_POLL_MS = 1000;
 const DISMISS_MS = 3000;
+const TERMINAL: readonly SourceState[] = ['done', 'partial', 'error'];
 
 function stateLabel(s: SourceState): string {
   if (s === 'pending') return '·';
@@ -60,6 +61,7 @@ export function FetchProgress({ onComplete, onStatusChange }: FetchProgressProps
   const completedRef = useRef(false);
   const dismissTimerRef = useRef<number | null>(null);
   const intervalRef = useRef<number | null>(null);
+  const prevStatusRef = useRef<RunStatus | null>(null);
 
   // LOW-7: dual-cadence polling — cheap when idle, snappy during runs.
   // Re-create the interval whenever the cadence flips between running and
@@ -74,7 +76,10 @@ export function FetchProgress({ onComplete, onStatusChange }: FetchProgressProps
         const next = (await res.json()) as FetchJobsState;
         if (cancelled) return;
         setState(next);
-        onStatusChange?.(next.status);
+        if (next.status !== prevStatusRef.current) {
+          prevStatusRef.current = next.status;
+          onStatusChange?.(next.status);
+        }
 
         // Show whenever a run is active, regardless of who started it.
         if (next.status === 'running') {
@@ -126,9 +131,6 @@ export function FetchProgress({ onComplete, onStatusChange }: FetchProgressProps
   if (hidden || !state || state.status === 'idle') return null;
 
   const total = state.sources.length;
-  // Any terminal state counts toward "N/M complete" — 'partial' isn't still
-  // running, it's just "done with caveats".
-  const TERMINAL: readonly SourceState[] = ['done', 'partial', 'error'];
   const doneCount = state.sources.filter((s) => TERMINAL.includes(s.state)).length;
   const totalFetched = state.sources.reduce((acc, s) => acc + (s.fetched ?? 0), 0);
 
