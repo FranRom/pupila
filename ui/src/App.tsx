@@ -756,7 +756,7 @@ function StalenessBanner({
         ⏳
       </span>
       <div className="staleness-banner-body">
-        <strong>Your job data is stale.</strong>{' '}
+        <strong>Your job data is stale.</strong>
         <span className="muted">
           Last fetched {fetchedAt ? relativeTime(fetchedAt) : 'over 24h ago'}. The daily scheduler
           isn't installed yet — without it, jobs only refresh when you trigger a fetch manually.

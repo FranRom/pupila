@@ -209,6 +209,11 @@ header h1 {
   flex: 1 1 auto;
   line-height: 1.4;
 }
+/* Visual gap between the bold lead-in and the muted explanation. Done in
+   CSS so the JSX doesn't need a `{' '}` whitespace literal between siblings. */
+.staleness-banner-body strong {
+  margin-right: 0.4em;
+}
 .staleness-banner-actions {
   display: flex;
   gap: 0.375rem;
