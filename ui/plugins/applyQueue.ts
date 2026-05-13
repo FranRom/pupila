@@ -10,7 +10,12 @@ import {
   markCancelled,
   type QueueRow,
 } from '../../src/lib/apply-queue.js';
-import { addSwipeSkip, listSwipeSkipIds, loadSwipeSkips } from '../../src/lib/swipe-skips.js';
+import {
+  addSwipeSkip,
+  listSwipeSkipIds,
+  loadSwipeSkips,
+  removeSwipeSkip,
+} from '../../src/lib/swipe-skips.js';
 import {
   APPLY_QUEUE_PATH,
   APPLY_WORKER_PID_PATH,
@@ -134,6 +139,15 @@ async function handleSkip(jobId: string, res: ServerResponse): Promise<void> {
   sendJson(res, 200, { ok: true });
 }
 
+async function handleUndoSkip(jobId: string, res: ServerResponse): Promise<void> {
+  if (!isValidJobId(jobId)) {
+    sendJson(res, 400, { error: 'jobId required (expected sha1 hex)' });
+    return;
+  }
+  await removeSwipeSkip(jobId, SWIPE_SKIPS_PATH);
+  sendJson(res, 200, { ok: true });
+}
+
 // Strip the registration prefix off `req.url` (which already has it removed
 // by Connect) into just the leading slash + path. Drops any query string.
 function pathnameOf(rawUrl: string | undefined): string {
@@ -173,6 +187,12 @@ export function applyQueueApiPlugin(): Plugin {
             // /<jobId>/skip → strip leading `/` + trailing `/skip`
             const jobId = url.slice(1, url.length - '/skip'.length);
             await handleSkip(jobId, res);
+            return;
+          }
+
+          if (method === 'DELETE' && url.endsWith('/skip')) {
+            const jobId = url.slice(1, url.length - '/skip'.length);
+            await handleUndoSkip(jobId, res);
             return;
           }
 

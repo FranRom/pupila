@@ -7,6 +7,7 @@ import {
   hasSwipeSkip,
   listSwipeSkipIds,
   loadSwipeSkips,
+  removeSwipeSkip,
 } from '../src/lib/swipe-skips.js';
 
 // Each test gets its own tmp directory to avoid cross-test contamination
@@ -123,6 +124,63 @@ describe('addSwipeSkip', () => {
 
   it('written file is valid JSON readable directly', async () => {
     await addSwipeSkip('job-010', skipsPath);
+    const raw = await readFile(skipsPath, 'utf8');
+    expect(() => JSON.parse(raw)).not.toThrow();
+    const parsed = JSON.parse(raw) as unknown;
+    expect(parsed).toHaveProperty('skips');
+  });
+});
+
+describe('removeSwipeSkip', () => {
+  it('removes an existing entry', async () => {
+    await addSwipeSkip('remove-job-1', skipsPath);
+    await addSwipeSkip('remove-job-2', skipsPath);
+    await removeSwipeSkip('remove-job-1', skipsPath);
+    const result = await loadSwipeSkips(skipsPath);
+    expect(result.skips).toHaveLength(1);
+    expect(result.skips[0]?.jobId).toBe('remove-job-2');
+  });
+
+  it('is a no-op when jobId is not present (does not throw)', async () => {
+    await addSwipeSkip('keep-job', skipsPath);
+    await expect(removeSwipeSkip('not-present', skipsPath)).resolves.toBeUndefined();
+    const result = await loadSwipeSkips(skipsPath);
+    expect(result.skips).toHaveLength(1);
+    expect(result.skips[0]?.jobId).toBe('keep-job');
+  });
+
+  it('works on a missing file (no-op, does not throw)', async () => {
+    await expect(removeSwipeSkip('any-job', skipsPath)).resolves.toBeUndefined();
+    const result = await loadSwipeSkips(skipsPath);
+    expect(result.skips).toHaveLength(0);
+  });
+
+  it('removes only the target jobId, not others', async () => {
+    await addSwipeSkip('alpha', skipsPath);
+    await addSwipeSkip('beta', skipsPath);
+    await addSwipeSkip('gamma', skipsPath);
+    await removeSwipeSkip('beta', skipsPath);
+    const result = await loadSwipeSkips(skipsPath);
+    const ids = result.skips.map((s) => s.jobId);
+    expect(ids).toContain('alpha');
+    expect(ids).not.toContain('beta');
+    expect(ids).toContain('gamma');
+    expect(ids).toHaveLength(2);
+  });
+
+  it('is atomic: no .tmp file leftover after a successful remove', async () => {
+    await addSwipeSkip('atomic-job', skipsPath);
+    await removeSwipeSkip('atomic-job', skipsPath);
+    const { access } = await import('node:fs/promises');
+    const tmpExists = await access(`${skipsPath}.tmp`)
+      .then(() => true)
+      .catch(() => false);
+    expect(tmpExists).toBe(false);
+  });
+
+  it('result is valid JSON after remove', async () => {
+    await addSwipeSkip('json-job', skipsPath);
+    await removeSwipeSkip('json-job', skipsPath);
     const raw = await readFile(skipsPath, 'utf8');
     expect(() => JSON.parse(raw)).not.toThrow();
     const parsed = JSON.parse(raw) as unknown;
