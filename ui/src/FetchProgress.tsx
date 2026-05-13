@@ -67,7 +67,7 @@ export function FetchProgress({ onComplete, onStatusChange }: FetchProgressProps
   useEffect(() => {
     const ctrl = new AbortController();
 
-    async function tick() {
+    const tick = async () => {
       try {
         const res = await fetch('/api/fetch-jobs', { signal: ctrl.signal });
         if (!res.ok) return;
@@ -98,7 +98,7 @@ export function FetchProgress({ onComplete, onStatusChange }: FetchProgressProps
         if (err instanceof Error && err.name === 'AbortError') return;
         // network blip; just try again next tick
       }
-    }
+    };
 
     void tick();
     const cadence = state?.status === 'running' ? ACTIVE_POLL_MS : IDLE_POLL_MS;

@@ -60,7 +60,7 @@ export function Profile() {
 
   useEffect(() => {
     const ctrl = new AbortController();
-    async function load() {
+    const load = async () => {
       try {
         const r = await fetch('/api/brief', { signal: ctrl.signal });
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
@@ -76,7 +76,7 @@ export function Profile() {
         );
         setLoading(false);
       }
-    }
+    };
     void load();
     return () => ctrl.abort();
   }, []);

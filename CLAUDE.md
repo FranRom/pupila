@@ -348,12 +348,12 @@ Settings is now the FOURTH tab (Jobs / Tik Tjob / Profile / Settings — `ui/src
 
 ### Async style
 
-`useEffect` callbacks can't themselves be `async` (they must return a cleanup function, not a Promise). Inside an effect, declare a named async function, pass an `AbortController` signal to every `fetch`, and abort on cleanup:
+`useEffect` callbacks can't themselves be `async` (they must return a cleanup function, not a Promise). Inside an effect, declare a named async arrow assigned to `const`, pass an `AbortController` signal to every `fetch`, and abort on cleanup:
 
 ```ts
 useEffect(() => {
   const ctrl = new AbortController();
-  async function load() {
+  const load = async () => {
     try {
       const r = await fetch('/api/foo', { signal: ctrl.signal });
       if (!r.ok) return;
@@ -363,13 +363,13 @@ useEffect(() => {
       if (err instanceof Error && err.name === 'AbortError') return;
       // handle other errors
     }
-  }
+  };
   void load();
   return () => ctrl.abort();
 }, [deps]);
 ```
 
-Same pattern for polling effects — replace the `cancelled` flag with the controller; the cleanup calls both `clearInterval` and `ctrl.abort()`. See `FetchProgress.tsx` (`tick`) and `AiApplyProgress.tsx` for the polling shape, `Onboarding.tsx` (`load`) for the one-shot shape.
+Same pattern for polling effects — replace the `cancelled` flag with the controller; the cleanup calls both `clearInterval` and `ctrl.abort()`. See `FetchProgress.tsx` (`tick`) and `AiApplyProgress.tsx` for the polling shape, `Onboarding.tsx` (`load`) for the one-shot shape. Use arrow-assigned-`const`, not `async function` declarations — keeps the style uniform with the rest of the UI's `useCallback` / `useMemo` patterns.
 
 For `useCallback`/event handlers (`triggerFetch`, `setApplied`, etc.), use plain `async`/`await` directly — no controller unless the operation is long-running and should be cancellable on unmount. When a `useCallback` is *also* called from a `useEffect`, accept an optional `signal?: AbortSignal` parameter so the effect can plumb cancellation through (`reloadJobsAndReviews`, `refreshApplyQueue`, `loadAll` follow this).
 

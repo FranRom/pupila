@@ -80,7 +80,7 @@ export function Onboarding({ onComplete }: OnboardingProps) {
   // Load installed-CLI status on mount.
   useEffect(() => {
     const ctrl = new AbortController();
-    async function load() {
+    const load = async () => {
       try {
         const r = await fetch('/api/llm-detect', { signal: ctrl.signal });
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
@@ -93,7 +93,7 @@ export function Onboarding({ onComplete }: OnboardingProps) {
         if (err instanceof Error && err.name === 'AbortError') return;
         setError(`Could not probe LLM CLIs: ${err instanceof Error ? err.message : String(err)}`);
       }
-    }
+    };
     void load();
     return () => ctrl.abort();
   }, []);

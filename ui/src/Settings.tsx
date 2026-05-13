@@ -135,7 +135,7 @@ export function Settings({
     if (schedulerCompletedAt === 0) return;
     setSchedulerOp(null);
     const ctrl = new AbortController();
-    async function load() {
+    const load = async () => {
       try {
         const r = await fetch('/api/scheduler-status', { signal: ctrl.signal });
         if (!r.ok) return;
@@ -145,7 +145,7 @@ export function Settings({
         if (err instanceof Error && err.name === 'AbortError') return;
         // non-AbortError swallowed by design — failure leaves the previous status visible
       }
-    }
+    };
     void load();
     return () => ctrl.abort();
   }, [schedulerCompletedAt]);

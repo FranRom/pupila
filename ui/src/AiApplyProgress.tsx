@@ -54,7 +54,7 @@ export function AiApplyProgress({ onComplete }: AiApplyProgressProps) {
   // any other state.
   useEffect(() => {
     const ctrl = new AbortController();
-    async function tick() {
+    const tick = async () => {
       try {
         const res = await fetch('/api/ai-apply-progress', { signal: ctrl.signal });
         if (!res.ok) return;
@@ -83,7 +83,7 @@ export function AiApplyProgress({ onComplete }: AiApplyProgressProps) {
         if (err instanceof Error && err.name === 'AbortError') return;
         // other network blip — ignore
       }
-    }
+    };
     void tick();
     const cadence = state?.status === 'running' ? ACTIVE_POLL_MS : IDLE_POLL_MS;
     intervalRef.current = window.setInterval(() => void tick(), cadence);

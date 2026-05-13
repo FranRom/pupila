@@ -180,7 +180,7 @@ export function App() {
   // status with the current jobs list so URL-keyed entries land on the
   // right job ids. Optional signal lets the caller abort on unmount.
   const reloadJobsAndReviews = useCallback(async (signal?: AbortSignal) => {
-    async function fetchOrFallback<T>(url: string, fallback: T): Promise<T> {
+    const fetchOrFallback = async <T,>(url: string, fallback: T): Promise<T> => {
       try {
         const r = await fetch(url, { signal });
         return r.ok ? ((await r.json()) as T) : fallback;
@@ -188,7 +188,7 @@ export function App() {
         if (err instanceof Error && err.name === 'AbortError') throw err;
         return fallback;
       }
-    }
+    };
     try {
       const [jobs, reviews, applied] = await Promise.all([
         fetchOrFallback<Job[]>('/api/jobs', []),
@@ -297,8 +297,8 @@ export function App() {
   // Load jobs + AI reviews + applied state + preferences on mount.
   useEffect(() => {
     const ctrl = new AbortController();
-    async function load() {
-      async function loadPrefs(): Promise<PreferencesResponse> {
+    const load = async () => {
+      const loadPrefs = async (): Promise<PreferencesResponse> => {
         try {
           const r = await fetch('/api/preferences', { signal: ctrl.signal });
           if (r.ok) return (await r.json()) as PreferencesResponse;
@@ -307,7 +307,7 @@ export function App() {
           if (err instanceof Error && err.name === 'AbortError') throw err;
           return { provider: null, onboardedAt: null };
         }
-      }
+      };
       try {
         const [, prefs] = await Promise.all([reloadJobsAndReviews(ctrl.signal), loadPrefs()]);
         setDataLoading(false);
@@ -317,7 +317,7 @@ export function App() {
         if (err instanceof Error && err.name === 'AbortError') return;
         throw err;
       }
-    }
+    };
     void load();
     return () => ctrl.abort();
   }, [reloadJobsAndReviews]);
@@ -328,7 +328,7 @@ export function App() {
   // biome-ignore lint/correctness/useExhaustiveDependencies: schedulerCompletedAt is the trigger for re-fetching — it intentionally isn't read inside.
   useEffect(() => {
     const ctrl = new AbortController();
-    async function load() {
+    const load = async () => {
       try {
         const r = await fetch('/api/scheduler-status', { signal: ctrl.signal });
         if (!r.ok) {
@@ -341,7 +341,7 @@ export function App() {
         if (err instanceof Error && err.name === 'AbortError') return;
         setSchedulerInstalled(false);
       }
-    }
+    };
     void load();
     return () => ctrl.abort();
   }, [schedulerCompletedAt]);
@@ -377,9 +377,9 @@ export function App() {
   useEffect(() => {
     if (tab !== 'swipe' && tab !== 'settings') return;
     const ctrl = new AbortController();
-    async function tick() {
+    const tick = async () => {
       await refreshApplyQueue(ctrl.signal);
-    }
+    };
     void tick();
     const id = window.setInterval(() => void tick(), 2500);
     return () => {
