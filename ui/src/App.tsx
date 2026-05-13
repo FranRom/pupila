@@ -147,19 +147,20 @@ export function App() {
   const [applyQueue, setApplyQueue] = useState<ApplyQueueResponse | null>(null);
   const [swipeSkipIds, setSwipeSkipIds] = useState<Set<string>>(new Set());
 
-  const refreshApplyQueue = useCallback(async () => {
+  const refreshApplyQueue = useCallback(async (signal?: AbortSignal) => {
     try {
       const [qr, sr] = await Promise.all([
-        fetch('/api/apply-queue'),
-        fetch('/api/apply-queue/skips'),
+        fetch('/api/apply-queue', { signal }),
+        fetch('/api/apply-queue/skips', { signal }),
       ]);
       if (qr.ok) setApplyQueue((await qr.json()) as ApplyQueueResponse);
       if (sr.ok) {
         const body = (await sr.json()) as { skips: string[] };
         setSwipeSkipIds(new Set(body.skips));
       }
-    } catch {
-      // network blip — keep the previous snapshot
+    } catch (err) {
+      if (err instanceof Error && err.name === 'AbortError') return;
+      // other network blip — keep the previous snapshot
     }
   }, []);
 
@@ -177,28 +178,36 @@ export function App() {
   // Re-fetch jobs + AI reviews + applied entries (e.g. after the fetch-jobs
   // run completes, or after onboarding finishes). Reconciles applied
   // status with the current jobs list so URL-keyed entries land on the
-  // right job ids.
-  const reloadJobsAndReviews = useCallback(async () => {
-    const [jobs, reviews, applied] = await Promise.all([
-      fetch('/api/jobs')
-        .then((r) => (r.ok ? (r.json() as Promise<Job[]>) : Promise.resolve([] as Job[])))
-        .catch(() => [] as Job[]),
-      fetch('/api/reviews')
-        .then((r) => (r.ok ? (r.json() as Promise<AiReviews>) : Promise.resolve({} as AiReviews)))
-        .catch(() => ({}) as AiReviews),
-      fetch('/api/applied')
-        .then((r) => (r.ok ? (r.json() as Promise<AppliedEntry[]>) : Promise.resolve([])))
-        .catch(() => [] as AppliedEntry[]),
-    ]);
-    setAllJobs(jobs);
-    setAiReviews(reviews);
-    const byUrl = new Map(applied.map((e) => [e.url, e]));
-    const nextApplied: AppliedMap = {};
-    for (const j of jobs) {
-      const e = byUrl.get(j.url);
-      if (e) nextApplied[j.id] = e;
+  // right job ids. Optional signal lets the caller abort on unmount.
+  const reloadJobsAndReviews = useCallback(async (signal?: AbortSignal) => {
+    async function fetchOrFallback<T>(url: string, fallback: T): Promise<T> {
+      try {
+        const r = await fetch(url, { signal });
+        return r.ok ? ((await r.json()) as T) : fallback;
+      } catch (err) {
+        if (err instanceof Error && err.name === 'AbortError') throw err;
+        return fallback;
+      }
     }
-    setAppliedById(nextApplied);
+    try {
+      const [jobs, reviews, applied] = await Promise.all([
+        fetchOrFallback<Job[]>('/api/jobs', []),
+        fetchOrFallback<AiReviews>('/api/reviews', {}),
+        fetchOrFallback<AppliedEntry[]>('/api/applied', []),
+      ]);
+      setAllJobs(jobs);
+      setAiReviews(reviews);
+      const byUrl = new Map(applied.map((e) => [e.url, e]));
+      const nextApplied: AppliedMap = {};
+      for (const j of jobs) {
+        const e = byUrl.get(j.url);
+        if (e) nextApplied[j.id] = e;
+      }
+      setAppliedById(nextApplied);
+    } catch (err) {
+      if (err instanceof Error && err.name === 'AbortError') return;
+      throw err;
+    }
   }, []);
 
   // POST /api/ai-apply — kicks off a background LLM run. The
@@ -287,23 +296,30 @@ export function App() {
 
   // Load jobs + AI reviews + applied state + preferences on mount.
   useEffect(() => {
-    let cancelled = false;
-    const loadPrefs = fetch('/api/preferences')
-      .then((r) =>
-        r.ok
-          ? (r.json() as Promise<PreferencesResponse>)
-          : Promise.resolve({ provider: null, onboardedAt: null } as PreferencesResponse),
-      )
-      .catch(() => ({ provider: null, onboardedAt: null }) as PreferencesResponse);
-    Promise.all([reloadJobsAndReviews(), loadPrefs]).then(([, prefs]) => {
-      if (cancelled) return;
-      setDataLoading(false);
-      // First run = no `onboardedAt` stamp yet. Show the wizard.
-      setShowOnboarding(!prefs.onboardedAt);
-    });
-    return () => {
-      cancelled = true;
-    };
+    const ctrl = new AbortController();
+    async function load() {
+      async function loadPrefs(): Promise<PreferencesResponse> {
+        try {
+          const r = await fetch('/api/preferences', { signal: ctrl.signal });
+          if (r.ok) return (await r.json()) as PreferencesResponse;
+          return { provider: null, onboardedAt: null };
+        } catch (err) {
+          if (err instanceof Error && err.name === 'AbortError') throw err;
+          return { provider: null, onboardedAt: null };
+        }
+      }
+      try {
+        const [, prefs] = await Promise.all([reloadJobsAndReviews(ctrl.signal), loadPrefs()]);
+        setDataLoading(false);
+        // First run = no `onboardedAt` stamp yet. Show the wizard.
+        setShowOnboarding(!prefs.onboardedAt);
+      } catch (err) {
+        if (err instanceof Error && err.name === 'AbortError') return;
+        throw err;
+      }
+    }
+    void load();
+    return () => ctrl.abort();
   }, [reloadJobsAndReviews]);
 
   // Load scheduler install state on mount and whenever an install/uninstall
@@ -311,19 +327,23 @@ export function App() {
   // "Install daily scheduler" CTA in the staleness banner.
   // biome-ignore lint/correctness/useExhaustiveDependencies: schedulerCompletedAt is the trigger for re-fetching — it intentionally isn't read inside.
   useEffect(() => {
-    let cancelled = false;
-    fetch('/api/scheduler-status')
-      .then((r) => (r.ok ? (r.json() as Promise<{ installed?: { aggregate?: boolean } }>) : null))
-      .then((data) => {
-        if (cancelled) return;
-        setSchedulerInstalled(Boolean(data?.installed?.aggregate));
-      })
-      .catch(() => {
-        if (!cancelled) setSchedulerInstalled(false);
-      });
-    return () => {
-      cancelled = true;
-    };
+    const ctrl = new AbortController();
+    async function load() {
+      try {
+        const r = await fetch('/api/scheduler-status', { signal: ctrl.signal });
+        if (!r.ok) {
+          setSchedulerInstalled(false);
+          return;
+        }
+        const data = (await r.json()) as { installed?: { aggregate?: boolean } };
+        setSchedulerInstalled(Boolean(data.installed?.aggregate));
+      } catch (err) {
+        if (err instanceof Error && err.name === 'AbortError') return;
+        setSchedulerInstalled(false);
+      }
+    }
+    void load();
+    return () => ctrl.abort();
   }, [schedulerCompletedAt]);
 
   // Lifted from FetchProgress: track whether a fetch run is in flight so the
@@ -356,16 +376,15 @@ export function App() {
   // skip the refresh to keep the dev server quiet.
   useEffect(() => {
     if (tab !== 'swipe' && tab !== 'settings') return;
-    let cancelled = false;
-    const tick = async () => {
-      if (cancelled) return;
-      await refreshApplyQueue();
-    };
+    const ctrl = new AbortController();
+    async function tick() {
+      await refreshApplyQueue(ctrl.signal);
+    }
     void tick();
     const id = window.setInterval(() => void tick(), 2500);
     return () => {
-      cancelled = true;
       window.clearInterval(id);
+      ctrl.abort();
     };
   }, [tab, refreshApplyQueue]);
 

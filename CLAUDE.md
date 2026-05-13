@@ -346,6 +346,35 @@ Settings is now the FOURTH tab (Jobs / Tik Tjob / Profile / Settings — `ui/src
 
 **Shared helpers.** `relativeTime` and `formatBytes` live in `ui/src/format.ts`, used by App/Settings/FetchProgress/SchedulerProgress. The previous inline `relativeTime` in `App.tsx` was extracted; granularity now reports `Nm ago`/`Nh ago` for sub-day diffs (deliberate improvement for Settings last-run case).
 
+### Async style
+
+`useEffect` callbacks can't themselves be `async` (they must return a cleanup function, not a Promise). Inside an effect, declare a named async function, pass an `AbortController` signal to every `fetch`, and abort on cleanup:
+
+```ts
+useEffect(() => {
+  const ctrl = new AbortController();
+  async function load() {
+    try {
+      const r = await fetch('/api/foo', { signal: ctrl.signal });
+      if (!r.ok) return;
+      const data = (await r.json()) as Foo;
+      setFoo(data);
+    } catch (err) {
+      if (err instanceof Error && err.name === 'AbortError') return;
+      // handle other errors
+    }
+  }
+  void load();
+  return () => ctrl.abort();
+}, [deps]);
+```
+
+Same pattern for polling effects — replace the `cancelled` flag with the controller; the cleanup calls both `clearInterval` and `ctrl.abort()`. See `FetchProgress.tsx` (`tick`) and `AiApplyProgress.tsx` for the polling shape, `Onboarding.tsx` (`load`) for the one-shot shape.
+
+For `useCallback`/event handlers (`triggerFetch`, `setApplied`, etc.), use plain `async`/`await` directly — no controller unless the operation is long-running and should be cancellable on unmount. When a `useCallback` is *also* called from a `useEffect`, accept an optional `signal?: AbortSignal` parameter so the effect can plumb cancellation through (`reloadJobsAndReviews`, `refreshApplyQueue`, `loadAll` follow this).
+
+No `.then`-chain `useEffect`s; no `let cancelled = false` flags. If you find either pattern, it's pre-convention and should be refactored.
+
 ## AI per-job review (`pnpm run ai-review`)
 
 [`src/ai-review.ts`](./src/ai-review.ts) is a **local-only** companion that augments selected jobs with an LLM review via `src/lib/llm.ts` (auto-detects `claude`/`codex`/`gemini`/`opencode`, override `JOB_HUNT_LLM`). Uses the user's local subscription (e.g. Claude Max) — **not** an API key, so no per-token charges. The launchd/cron review agent runs daily at 07:15 by default. Without an LLM CLI, run `scripts/install-launchd.sh --no-review` (or cron equivalent).
