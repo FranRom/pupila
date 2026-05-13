@@ -79,24 +79,23 @@ export function Onboarding({ onComplete }: OnboardingProps) {
 
   // Load installed-CLI status on mount.
   useEffect(() => {
-    let cancelled = false;
-    fetch('/api/llm-detect')
-      .then((r) => (r.ok ? (r.json() as Promise<DetectResponse>) : Promise.reject(r.status)))
-      .then((data) => {
-        if (cancelled) return;
+    const ctrl = new AbortController();
+    const load = async () => {
+      try {
+        const r = await fetch('/api/llm-detect', { signal: ctrl.signal });
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        const data = (await r.json()) as DetectResponse;
         setAvailable(data.available);
         // Pre-select the first installed CLI as a sensible default.
         const firstInstalled = PROVIDERS.find((p) => data.available[p]);
         if (firstInstalled) setProvider(firstInstalled);
-      })
-      .catch((err: unknown) => {
-        if (!cancelled) {
-          setError(`Could not probe LLM CLIs: ${err instanceof Error ? err.message : String(err)}`);
-        }
-      });
-    return () => {
-      cancelled = true;
+      } catch (err) {
+        if (err instanceof Error && err.name === 'AbortError') return;
+        setError(`Could not probe LLM CLIs: ${err instanceof Error ? err.message : String(err)}`);
+      }
     };
+    void load();
+    return () => ctrl.abort();
   }, []);
 
   const anyAvailable = useMemo(() => {

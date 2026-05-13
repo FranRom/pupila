@@ -53,13 +53,12 @@ export function AiApplyProgress({ onComplete }: AiApplyProgressProps) {
   // Re-create the interval whenever the cadence flips between running and
   // any other state.
   useEffect(() => {
-    let cancelled = false;
+    const ctrl = new AbortController();
     const tick = async () => {
       try {
-        const res = await fetch('/api/ai-apply-progress');
+        const res = await fetch('/api/ai-apply-progress', { signal: ctrl.signal });
         if (!res.ok) return;
         const next = (await res.json()) as AiApplyState;
-        if (cancelled) return;
         setState(next);
 
         if (next.status === 'running') {
@@ -80,19 +79,20 @@ export function AiApplyProgress({ onComplete }: AiApplyProgressProps) {
           onComplete(next);
           setHidden(false);
         }
-      } catch {
-        // ignore network blips
+      } catch (err) {
+        if (err instanceof Error && err.name === 'AbortError') return;
+        // other network blip — ignore
       }
     };
     void tick();
     const cadence = state?.status === 'running' ? ACTIVE_POLL_MS : IDLE_POLL_MS;
     intervalRef.current = window.setInterval(() => void tick(), cadence);
     return () => {
-      cancelled = true;
       if (intervalRef.current) {
         window.clearInterval(intervalRef.current);
         intervalRef.current = null;
       }
+      ctrl.abort();
     };
   }, [onComplete, state?.status]);
 

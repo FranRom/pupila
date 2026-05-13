@@ -86,39 +86,47 @@ export function Settings({
   const [confirmDialog, setConfirmDialog] = useState<ConfirmDialog | null>(null);
   const [copiedSnippet, setCopiedSnippet] = useState<string | null>(null);
 
-  const loadAll = useCallback(async () => {
+  const loadAll = useCallback(async (signal?: AbortSignal) => {
     const grab = async <T,>(url: string): Promise<T | null> => {
       try {
-        const r = await fetch(url);
+        const r = await fetch(url, { signal });
         if (!r.ok) return null;
         return (await r.json()) as T;
-      } catch {
+      } catch (err) {
+        if (err instanceof Error && err.name === 'AbortError') throw err;
         return null;
       }
     };
-    const [p, s, rs, d, e, prof] = await Promise.all([
-      grab<PreferencesResponse>('/api/preferences'),
-      grab<SchedulerStatus>('/api/scheduler-status'),
-      grab<RunSummary>('/api/run-summary'),
-      grab<DiskUsage>('/api/disk-usage'),
-      grab<EnvInfo>('/api/env'),
-      grab<ProfileGetResponse>('/api/profile'),
-    ]);
-    if (p) {
-      setPrefs(p);
-      setProvider(p.provider ?? 'auto');
+    try {
+      const [p, s, rs, d, e, prof] = await Promise.all([
+        grab<PreferencesResponse>('/api/preferences'),
+        grab<SchedulerStatus>('/api/scheduler-status'),
+        grab<RunSummary>('/api/run-summary'),
+        grab<DiskUsage>('/api/disk-usage'),
+        grab<EnvInfo>('/api/env'),
+        grab<ProfileGetResponse>('/api/profile'),
+      ]);
+      if (p) {
+        setPrefs(p);
+        setProvider(p.provider ?? 'auto');
+      }
+      setScheduler(s);
+      setRunSummary(rs);
+      setDisk(d);
+      setEnvInfo(e);
+      setProfile(prof?.profile ?? null);
+      setGenerating(prof?.generating ?? false);
+      setProfileLoaded(prof !== null);
+    } catch (err) {
+      if (err instanceof Error && err.name === 'AbortError') return;
+      throw err;
     }
-    setScheduler(s);
-    setRunSummary(rs);
-    setDisk(d);
-    setEnvInfo(e);
-    setProfile(prof?.profile ?? null);
-    setGenerating(prof?.generating ?? false);
-    setProfileLoaded(prof !== null);
   }, []);
 
   useEffect(() => {
-    void loadAll();
+    const ctrl = new AbortController();
+    void loadAll(ctrl.signal);
+    return () => ctrl.abort();
   }, [loadAll]);
 
   // LOW-9: refetch scheduler status whenever the App-level
@@ -126,12 +134,20 @@ export function Settings({
   useEffect(() => {
     if (schedulerCompletedAt === 0) return;
     setSchedulerOp(null);
-    void fetch('/api/scheduler-status')
-      .then((r) => (r.ok ? r.json() : null))
-      .then((s) => {
-        if (s) setScheduler(s as SchedulerStatus);
-      })
-      .catch(() => {});
+    const ctrl = new AbortController();
+    const load = async () => {
+      try {
+        const r = await fetch('/api/scheduler-status', { signal: ctrl.signal });
+        if (!r.ok) return;
+        const s = (await r.json()) as SchedulerStatus;
+        setScheduler(s);
+      } catch (err) {
+        if (err instanceof Error && err.name === 'AbortError') return;
+        // non-AbortError swallowed by design — failure leaves the previous status visible
+      }
+    };
+    void load();
+    return () => ctrl.abort();
   }, [schedulerCompletedAt]);
 
   const saveProvider = useCallback(async () => {

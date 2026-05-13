@@ -59,29 +59,26 @@ export function Profile() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    let cancelled = false;
-    fetch('/api/brief')
-      .then(async (r) => {
+    const ctrl = new AbortController();
+    const load = async () => {
+      try {
+        const r = await fetch('/api/brief', { signal: ctrl.signal });
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        return r.json() as Promise<BriefGetResponse>;
-      })
-      .then((data) => {
-        if (cancelled) return;
+        const data = (await r.json()) as BriefGetResponse;
         const next = data.body ?? '';
         setBody(next);
         setDraft(next);
         setLoading(false);
-      })
-      .catch((err: unknown) => {
-        if (cancelled) return;
+      } catch (err) {
+        if (err instanceof Error && err.name === 'AbortError') return;
         setError(
           `Could not load brief: ${err instanceof Error ? err.message : String(err)}. The /api/brief endpoint only runs under \`pnpm run ui\`.`,
         );
         setLoading(false);
-      });
-    return () => {
-      cancelled = true;
+      }
     };
+    void load();
+    return () => ctrl.abort();
   }, []);
 
   const summarizeFile = useCallback(async (file: File) => {

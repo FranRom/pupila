@@ -65,14 +65,13 @@ export function FetchProgress({ onComplete, onStatusChange }: FetchProgressProps
   // Re-create the interval whenever the cadence flips between running and
   // any other state.
   useEffect(() => {
-    let cancelled = false;
+    const ctrl = new AbortController();
 
     const tick = async () => {
       try {
-        const res = await fetch('/api/fetch-jobs');
+        const res = await fetch('/api/fetch-jobs', { signal: ctrl.signal });
         if (!res.ok) return;
         const next = (await res.json()) as FetchJobsState;
-        if (cancelled) return;
         setState(next);
         onStatusChange?.(next.status);
 
@@ -95,7 +94,8 @@ export function FetchProgress({ onComplete, onStatusChange }: FetchProgressProps
           // Keep error visible until the user dismisses or starts a new run.
           setHidden(false);
         }
-      } catch {
+      } catch (err) {
+        if (err instanceof Error && err.name === 'AbortError') return;
         // network blip; just try again next tick
       }
     };
@@ -107,11 +107,11 @@ export function FetchProgress({ onComplete, onStatusChange }: FetchProgressProps
     }, cadence);
 
     return () => {
-      cancelled = true;
       if (intervalRef.current) {
         window.clearInterval(intervalRef.current);
         intervalRef.current = null;
       }
+      ctrl.abort();
     };
   }, [onComplete, onStatusChange, state?.status]);
 
