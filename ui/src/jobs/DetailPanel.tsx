@@ -1,4 +1,4 @@
-import type { AiReview, AppliedEntry, Job } from '../types.ts';
+import type { AiReview, AppliedEntry, Job, QueueRowStatus } from '../types.ts';
 import { AiApplyPanel } from './AiApplyPanel.tsx';
 import { AppliedBar } from './AppliedBar.tsx';
 import { ReviewBody } from './ReviewBody.tsx';
@@ -9,7 +9,12 @@ interface DetailPanelProps {
   job: Job;
   review: AiReview | undefined;
   applied: AppliedEntry | undefined;
+  isSkipped: boolean;
+  queueStatus: QueueRowStatus | null;
   setApplied: SetApplied;
+  toggleSkip: (jobId: string) => void;
+  cancelQueueRow: (jobId: string) => Promise<void>;
+  enqueueJob: (jobId: string) => Promise<void>;
   aiApplyResult: AiApplyResult | null;
   aiApplyError: AiApplyError | null;
 }
@@ -18,13 +23,27 @@ export function DetailPanel({
   job,
   review,
   applied,
+  isSkipped,
+  queueStatus,
   setApplied,
+  toggleSkip,
+  cancelQueueRow,
+  enqueueJob,
   aiApplyResult,
   aiApplyError,
 }: DetailPanelProps) {
   return (
     <>
-      <AppliedBar job={job} applied={applied} setApplied={setApplied} />
+      <AppliedBar
+        job={job}
+        applied={applied}
+        isSkipped={isSkipped}
+        queueStatus={queueStatus}
+        setApplied={setApplied}
+        toggleSkip={toggleSkip}
+        cancelQueueRow={cancelQueueRow}
+        enqueueJob={enqueueJob}
+      />
       {aiApplyError && (
         <div className="api-error" role="alert">
           AI Apply failed: {aiApplyError.error}

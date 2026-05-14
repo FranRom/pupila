@@ -16,13 +16,13 @@ export function QueueBadge({ status }: QueueBadgeProps) {
   if (status === 'done' || status === 'failed' || status === 'cancelled') return null;
   if (status === 'queued') {
     return (
-      <span className="job-queue-badge queued" title="Queued for AI apply">
+      <span className="badge badge-applied" title="Queued for AI apply">
         ⏳ queued
       </span>
     );
   }
   return (
-    <span className="job-queue-badge running" title="AI apply in progress">
+    <span className="badge badge-applied badge-running" title="AI apply in progress">
       ⚙️ applying
     </span>
   );

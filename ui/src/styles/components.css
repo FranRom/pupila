@@ -399,7 +399,7 @@ a {
 }
 
 a:hover {
-  text-decoration: underline;
+  color: var(--accent);
 }
 
 .badge {
@@ -432,6 +432,20 @@ a:hover {
 .badge-withdrawn {
   background: var(--badge-withdrawn-bg);
   color: var(--badge-withdrawn-fg);
+}
+/* Jinder left-swipe marker. Sits in the badge family but reads danger so
+   "not interested" is unambiguous. Distinct from `rejected` which is an
+   actual application outcome. */
+.badge-skipped {
+  background: var(--badge-rejected-bg);
+  color: var(--badge-rejected-fg);
+}
+
+/* Skipped rows fade so they recede behind active candidates. The user has
+   to toggle "Show skipped" to see them at all; this is the visual cue when
+   they're on screen. */
+tbody tr.skipped > td {
+  opacity: 0.55;
 }
 
 .empty {
@@ -2379,7 +2393,7 @@ td.cell-actions {
   font-weight: 600;
   padding: 0.0625rem 0.375rem;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--warning) 16%, var(--surface));
+  background: var(--bg);
   color: var(--warning);
   border: 1px solid var(--warning);
   letter-spacing: 0.02em;
@@ -2474,7 +2488,7 @@ table.row-compact .signal-chip {
 }
 
 /* ============================================================
-   Tik Tjob — swipe deck + apply queue panel
+   Jinder — swipe deck + apply queue panel
    ============================================================ */
 
 /* Tokens specific to the swipe deck live in tokens.css now
@@ -2491,16 +2505,20 @@ table.row-compact .signal-chip {
   padding: 0.5rem 0.75rem 1.5rem;
 }
 
-/* The card itself — gesture-driven transform pivots from its anchor. */
+/* The card itself — gesture-driven transform pivots from its anchor.
+   Deep table-green surface + accent halo so it reads as "standing up" off
+   the page. Two shadows: the existing card-depth shadow for grounding,
+   plus the accent glow for the brand lift. Fixed height + scrollable body
+   so cards stay uniform regardless of description length. */
 .swipe-card {
   position: relative;
   width: 100%;
-  min-height: 420px;
+  height: 540px;
   padding: 1.25rem;
-  background: var(--surface-raised);
-  border: 1px solid var(--border);
+  background: var(--bg);
+  border: 1px solid var(--accent);
   border-radius: 12px;
-  box-shadow: var(--shadow-card);
+  box-shadow: var(--shadow-card), var(--shadow-glow-accent);
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
@@ -2516,6 +2534,43 @@ table.row-compact .signal-chip {
   transition: none;
 }
 
+/* Swiping left (skip / discard) → switch the outline + halo to danger so the
+   destructive intent reads clearly before commit. Also applies to the leaving
+   animation so the colour persists through the exit. */
+.swipe-card.swipe-direction-left,
+.swipe-card.swipe-leaving-left {
+  border-color: var(--danger);
+  box-shadow: var(--shadow-card), var(--shadow-glow-danger);
+}
+
+/* "SKIP" stamp — large red overlay text that fades in when the card is
+   being swiped left, so the destructive intent reads clearly. Tilted for a
+   passport-stamp feel. Pointer-events: none so it never blocks the gesture. */
+.swipe-stamp {
+  position: absolute;
+  top: 1.5rem;
+  z-index: 2;
+  pointer-events: none;
+  font-size: 2.5rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  border: 4px solid currentColor;
+  border-radius: var(--radius-md);
+  padding: 0.25rem 0.75rem;
+  opacity: 0;
+  transition: opacity var(--duration-fast) var(--ease-out);
+  text-transform: uppercase;
+}
+.swipe-stamp-skip {
+  right: 1.5rem;
+  color: var(--danger);
+  transform: rotate(12deg);
+}
+.swipe-card.swipe-direction-left .swipe-stamp-skip,
+.swipe-card.swipe-leaving-left .swipe-stamp-skip {
+  opacity: 1;
+}
+
 .swipe-card.swipe-leaving-right {
   transform: translateX(800px) rotate(25deg);
   opacity: 0;
@@ -2528,7 +2583,7 @@ table.row-compact .signal-chip {
 
 .swipe-card-header {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: 0.75rem;
 }
@@ -2571,7 +2626,8 @@ table.row-compact .signal-chip {
 }
 
 .swipe-card-body {
-  max-height: 12em;
+  flex: 1;
+  min-height: 0;
   overflow-y: auto;
   font-size: 0.8125rem;
   line-height: 1.5;
@@ -2579,29 +2635,38 @@ table.row-compact .signal-chip {
   padding-right: 0.25rem;
   white-space: pre-wrap;
   word-break: break-word;
+  scrollbar-color: var(--accent) transparent;
+}
+.swipe-card-body::-webkit-scrollbar-thumb {
+  background: var(--accent);
+}
+.swipe-card-body::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--accent) 80%, white);
 }
 
 .swipe-card-tags {
   display: flex;
   flex-wrap: wrap;
   gap: 0.375rem;
+  margin-top: var(--space-3);
 }
 
-/* Tag chips on the swipe card — same family as `.signal-chip` but neutral. */
+/* Tag chips on the swipe card — match the Jobs-table `.signal-chip` visual
+   so the same vocabulary of pill reads identically across surfaces. */
 .swipe-card-tag {
   display: inline-flex;
   align-items: center;
   font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   font-size: 0.625rem;
   font-weight: 600;
-  padding: 0.0625rem 0.4375rem;
+  padding: 0.0625rem 0.375rem;
   border-radius: 999px;
   background: var(--bg);
-  color: var(--text-muted);
-  border: 1px solid var(--border);
+  color: var(--warning);
+  border: 1px solid var(--warning);
   letter-spacing: 0.02em;
   white-space: nowrap;
-  line-height: 1.5;
+  line-height: 1.4;
 }
 
 /* Fit-score donut — small SVG indicator in the top-right of the card. */
@@ -2715,18 +2780,18 @@ table.row-compact .signal-chip {
   color: white;
 }
 
-.swipe-why {
+.swipe-why,
+.swipe-help-toggle {
   border: none;
   background: none;
-  color: var(--primary);
+  color: var(--accent);
   font: inherit;
   font-size: 0.8125rem;
   cursor: pointer;
   padding: 0.25rem 0.5rem;
-  text-decoration: underline;
-  text-underline-offset: 2px;
 }
-.swipe-why:hover {
+.swipe-why:hover,
+.swipe-help-toggle:hover {
   color: var(--text);
 }
 .swipe-why:disabled {
@@ -2747,6 +2812,123 @@ table.row-compact .signal-chip {
 .swipe-undo:hover {
   color: var(--fg);
   border-color: var(--accent);
+}
+
+/* Help disclosure — appears at the top of the deck for first-time users.
+   Auto-open on first visit (localStorage-flagged), togglable thereafter. */
+/* Side-by-side row holding the two disclosure buttons — "Why this score?"
+   and "How does Jinder work?" — below the swipe controls. */
+.swipe-disclosure-row {
+  display: flex;
+  gap: var(--space-3);
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+/* Shared disclosure panel — used by both "Why this score?" (.WhyPanel) and
+   "How does Jinder work?" (.HelpPanel). Lime border + accent halo. */
+.swipe-panel {
+  width: 100%;
+  background: var(--bg);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-lg);
+  padding: var(--space-4) var(--space-5);
+  box-shadow: var(--shadow-glow-accent);
+  font-size: var(--text-base);
+  color: var(--text);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.swipe-panel > header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--space-3);
+}
+.swipe-panel > header strong {
+  font-size: var(--text-lg);
+  color: var(--accent);
+}
+.swipe-panel p {
+  margin: 0;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+.swipe-panel code {
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 0.85em;
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+  padding: 0 0.25rem;
+  border-radius: var(--radius-sm);
+  color: var(--accent);
+}
+.swipe-help-actions {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-3);
+}
+.swipe-help-actions > li {
+  display: flex;
+  gap: var(--space-3);
+  align-items: flex-start;
+}
+.swipe-help-actions > li > div {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+.swipe-help-actions strong {
+  color: var(--text);
+}
+.swipe-help-actions span {
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+.swipe-help-glyph {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-pill);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 1rem;
+}
+.swipe-help-glyph-right {
+  background: color-mix(in srgb, var(--accent) 18%, var(--surface));
+  color: var(--accent);
+  border: 1px solid var(--accent);
+}
+.swipe-help-glyph-left {
+  background: color-mix(in srgb, var(--danger) 18%, var(--surface));
+  color: var(--danger);
+  border: 1px solid var(--danger);
+}
+.swipe-help-foot {
+  font-size: var(--text-sm);
+  font-style: italic;
+}
+
+/* WhyPanel content (rawTotal header + signal list) — sits inside .swipe-panel. */
+.swipe-panel-meta {
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+.swipe-panel-list {
+  margin: 0;
+  padding-left: 1.1rem;
+  display: grid;
+  gap: var(--space-1);
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+}
+.swipe-panel-list .muted {
+  color: var(--text-muted);
 }
 
 /* ─── Apply queue panel ──────────────────────────────────────────
@@ -2955,30 +3137,8 @@ table.row-compact .signal-chip {
 /* ─── Jobs-tab queue badge ──────────────────────────────────────
    Tiny inline pill that appears next to a job title in the Jobs table
    when a non-terminal queue row exists. */
-.job-queue-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.25rem;
-  font-size: 0.75rem;
-  font-weight: 600;
-  padding: 2px 6px;
-  border-radius: 999px;
-  border: 1px solid transparent;
-  vertical-align: middle;
-  white-space: nowrap;
-  line-height: 1.2;
-}
-
-.job-queue-badge.queued {
-  background: var(--badge-withdrawn-bg);
-  color: var(--badge-withdrawn-fg);
-  border-color: var(--border);
-}
-
-.job-queue-badge.running {
-  background: var(--badge-applied-bg);
-  color: var(--badge-applied-fg);
-  border-color: var(--applied-border);
+/* Queue running badge pulses to differentiate "in flight" from "queued". */
+.badge-running {
   animation: queue-pulse 1.4s ease-in-out infinite;
 }
 
@@ -2994,7 +3154,7 @@ table.row-compact .signal-chip {
 
 @media (prefers-reduced-motion: reduce) {
   .qstatus-running,
-  .job-queue-badge.running {
+  .badge-running {
     animation: none;
   }
   .swipe-card,

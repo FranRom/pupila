@@ -51,8 +51,8 @@ table,
 }
 
 *::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 2px;
+  height: 2px;
 }
 
 *::-webkit-scrollbar-track {

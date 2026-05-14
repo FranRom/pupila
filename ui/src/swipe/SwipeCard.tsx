@@ -42,6 +42,10 @@ export function SwipeCard({ job, body, onSwipe, leaving }: SwipeCardProps) {
       onPointerUp={cardProps.onPointerUp}
       onPointerCancel={cardProps.onPointerCancel}
     >
+      <div className="swipe-stamp swipe-stamp-skip" aria-hidden>
+        SKIP
+      </div>
+
       <div className="swipe-card-header">
         <div className="swipe-card-company">{job.company ?? '—'}</div>
         <FitDonut score={job.fitScore} />

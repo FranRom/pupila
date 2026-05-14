@@ -53,7 +53,7 @@ export function AppHeader({
           className={`tab ${tab === 'swipe' ? 'tab-active' : ''}`}
           onClick={() => onTabChange('swipe')}
         >
-          Tik Tjob
+          Jinder
         </button>
         <button
           type="button"

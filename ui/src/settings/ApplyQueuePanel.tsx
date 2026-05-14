@@ -108,7 +108,7 @@ export function ApplyQueuePanel({ data, onCancel, onRefresh }: ApplyQueuePanelPr
         </button>
       </header>
       <p className="apply-queue-panel-subtitle">
-        Background jobs queued for AI apply. Right-swipe in the Tik Tjob tab enqueues; the worker
+        Background jobs queued for AI apply. Right-swipe in the Jinder tab enqueues; the worker
         drains serially. Cancel anytime.
       </p>
 

@@ -1,4 +1,4 @@
-// Local types for the Tik Tjob swipe deck. Kept narrow on purpose —
+// Local types for the Jinder swipe deck. Kept narrow on purpose —
 // shared types live in ../types.ts (Job, JobSignals, ApplyQueueResponse,
 // QueueRow, JobBodyResponse, QUEUE_STATUS_EMOJI). Don't duplicate those here.
 

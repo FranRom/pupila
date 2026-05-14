@@ -31,7 +31,7 @@ pnpm test                   # vitest run
 pnpm run test:watch         # vitest watch
 pnpm run ui                 # local-only Vite dev server on http://127.0.0.1:5173
 pnpm run ai-review          # writes data/ai-reviews.json (flags: --top=N, --force, --ids=a,b)
-pnpm run apply-worker       # standalone Tik Tjob queue consumer (separate terminal)
+pnpm run apply-worker       # standalone Jinder queue consumer (separate terminal)
 pnpm run setup-brief --file ~/cv.pdf  # generate config/candidate-brief.md from a CV
 pnpm run daily              # = dev && ai-review (morning routine)
 pnpm run clean [-- --all]   # wipe locally-generated artifacts (--all also wipes brief + applied)
@@ -45,7 +45,7 @@ pnpm run clean [-- --all]   # wipe locally-generated artifacts (--all also wipes
 
 **AI Apply (per-job).** UI rows have an `AI Apply ✨` button next to `Apply ↗`. POSTs `/api/ai-apply` with `{ jobId }` — runs the LLM CLI on (brief + posting + CV) and writes a tailored package to `data/applications/<jobId>.md`. Auto-marks as applied. Middleware: `aiApplyApiPlugin` in `ui/vite.config.ts`. The endpoint is a thin wrapper around `runAiApplyForJob` in `src/lib/ai-apply.ts` (same core used by the apply-worker — see below).
 
-**Tik Tjob (swipe-to-apply).** A third tab in the UI. Right-swipe enqueues an AI Apply task; left-swipe records a persistent skip in `data/swipe-skips.json` so the card doesn't re-appear. Queued jobs are drained serially by a separate process — start it once per session with `pnpm run apply-worker` in another terminal. The Settings → panel [08] APPLY QUEUE shows worker liveness + per-row status + cancel. Architecture:
+**Jinder (swipe-to-apply).** A third tab in the UI. Right-swipe enqueues an AI Apply task; left-swipe records a persistent skip in `data/swipe-skips.json` so the card doesn't re-appear. Queued jobs are drained serially by a separate process — start it once per session with `pnpm run apply-worker` in another terminal. The Settings → panel [08] APPLY QUEUE shows worker liveness + per-row status + cancel. Architecture:
 
 - `data/apply-queue.json` (gitignored, `{ version: 1, rows: QueueRow[] }`) — single source of truth, written by both Vite middleware (enqueue/cancel) and the worker (claim/done/failed). Concurrent R-M-W guarded by **proper-lockfile** (the project's second runtime dep) wrapped in `withQueueLock` (`src/lib/apply-queue.ts`).
 - Queue row state machine: `queued → running → done|failed|cancelled`, plus `queued → cancelled` direct. UI cancel writes 'cancelled' to the row; the worker's sub-poll (`isCancelled` every 500ms while a job runs) translates that to an `AbortController.abort()`, which the LLM spawn handler escalates SIGTERM → 5s → SIGKILL. Partial output on cancel lands at `data/applications/<jobId>.cancelled.md` (separate filename — never masquerades as a finished package). No applied entry is written on cancel.
@@ -67,7 +67,7 @@ Pre-commit runs `lint && typecheck`. Bypass with `SKIP_SIMPLE_GIT_HOOKS=1 git co
 src/
   index.ts          # orchestrator
   types.ts          # Job, Source, Category, ApplicationStatus, AppliedEntry, FetcherResult, Raw* shapes
-  lib/apply-queue.ts # Tik Tjob queue mutators (enqueue/claim/markDone/cancel/recover) + proper-lockfile wrapper, VALID_QUEUE_STATUSES, isValidJobId
+  lib/apply-queue.ts # Jinder queue mutators (enqueue/claim/markDone/cancel/recover) + proper-lockfile wrapper, VALID_QUEUE_STATUSES, isValidJobId
   lib/swipe-skips.ts # data/swipe-skips.json reader+writer (add/has/list)
   lib/ai-apply.ts    # extracted AI Apply core (prompt + spawn + write) — shared by /api/ai-apply and scripts/apply-worker.ts
   utils.ts          # fetchWithTimeout (1-retry), isSafeUrl, sha1, stripHtml, readJsonOrNull, ...
@@ -107,7 +107,7 @@ config/
 scripts/
   install-launchd.sh # macOS local scheduler — wraps `pnpm run daily`
   install-cron.sh    # Linux local scheduler — appends a crontab entry
-  apply-worker.ts    # standalone Node poll-loop worker for the Tik Tjob queue
+  apply-worker.ts    # standalone Node poll-loop worker for the Jinder queue
 
 tests/
   fixtures/test-profile.json  # frozen tuned profile for filters.test.ts
@@ -332,7 +332,7 @@ HTML has `<meta name="robots" content="noindex,nofollow">` as belt-and-suspender
 
 ### Settings tab
 
-Settings is now the FOURTH tab (Jobs / Tik Tjob / Profile / Settings — `ui/src/Settings.tsx`). Eight numbered panels (`[01]`..`[08]`, last is `[08] APPLY QUEUE`) — terminal-grade aesthetic. All backed by Vite middleware in `ui/vite.config.ts`:
+Settings is now the FOURTH tab (Jobs / Jinder / Profile / Settings — `ui/src/Settings.tsx`). Eight numbered panels (`[01]`..`[08]`, last is `[08] APPLY QUEUE`) — terminal-grade aesthetic. All backed by Vite middleware in `ui/vite.config.ts`:
 
 1. **LLM CLI** — switch provider (POST `/api/preferences`) + "Test connection" (POST `/api/llm-test`, 6-token prompt, 30s timeout, latency badge: green ≤3s/yellow ≤10s/red >10s).
 2. **Scheduler** — full lifecycle. GET `/api/scheduler-status` (`launchctl list` on darwin, `crontab -l` on linux) detects `dev.${USER}.job-hunt.aggregate`/`.review` + log mtimes for "last run X ago". POST `/api/scheduler-install` (body `{ skipReview }`) and `/api/scheduler-uninstall` shell out to bundled scripts. Both gated by in-app confirm modal. `<SchedulerProgress />` streams stdout; on completion pills auto-refresh. Single in-flight op enforced server-side.
