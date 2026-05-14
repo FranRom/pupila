@@ -168,6 +168,16 @@ Canonical example: `ui/src/App.tsx`'s mount-load effect (`reloadJobsAndReviews` 
 
 ---
 
+## Enforcement
+
+Documentation explains *why*; lint enforces *what*. Both rules above are gated automatically — neither relies on you remembering to follow them.
+
+- **`fetch('/api/...')` outside `ui/src/lib/api/client.ts`** → Biome `noRestrictedGlobals` flags it at lint time. Configured in `biome.json` `overrides` (scoped to `ui/src/**` excluding `client.ts`). Test it: drop a `fetch(...)` into any UI file and run `pnpm run lint`.
+- **String-literal `className="..."`** → `scripts/check-ui-patterns.sh` flags it. Backstop also re-checks for inline /api fetches in case the Biome scope drifts. Runs via `pnpm run lint:ui-patterns`.
+- **Pre-commit hook** chains all three gates: `pnpm run lint && pnpm run typecheck && pnpm run lint:ui-patterns`. Bypass-able via `SKIP_SIMPLE_GIT_HOOKS=1 git commit ...` only for true emergencies.
+
+If you add a new structural rule that's grep-able or AST-matchable, extend `scripts/check-ui-patterns.sh` or the Biome `overrides` block so it's enforced, not just documented.
+
 ## When to update this doc
 
 Add a new section any time we introduce a **structural** pattern that future agents need to discover. Bug fixes, single-component tweaks, and feature work don't belong here — those live in the code + PR description.
@@ -177,3 +187,5 @@ Triggers for an update:
 - A new top-level pattern in `lib/api/` (e.g. retry, streaming, optimistic-update helper)
 - A new convention around hooks, state management, or composition
 - A reversal of an existing rule (with reason)
+
+Whenever you add a rule here, ask: can it also be enforced in lint? If yes, extend `scripts/check-ui-patterns.sh` or `biome.json` in the same PR.
