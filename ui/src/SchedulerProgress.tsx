@@ -1,4 +1,6 @@
+import clsx from 'clsx';
 import { useEffect, useRef, useState } from 'react';
+import dockStyles from './styles/Dock.module.css';
 
 // Bottom-right docked card mirroring FetchProgress, scoped to the
 // scheduler install/uninstall script. Polls /api/scheduler-progress every
@@ -6,8 +8,8 @@ import { useEffect, useRef, useState } from 'react';
 // auto-dismisses 4s after success, and pings the parent to refresh the
 // scheduler status panel.
 //
-// Visually inherits .fetch-progress* classes so the docked-card affordance
-// stays consistent across "fetching jobs" and "installing scheduler".
+// Visually inherits Dock.module.css so the docked-card affordance stays
+// consistent across "fetching jobs" and "installing scheduler".
 
 type RunStatus = 'idle' | 'running' | 'done' | 'error';
 type SchedulerOp = 'install' | 'uninstall';
@@ -30,6 +32,13 @@ interface SchedulerProgressProps {
 const IDLE_POLL_MS = 5000;
 const ACTIVE_POLL_MS = 1000;
 const DISMISS_MS = 4000;
+
+const DOCK_VARIANT = {
+  idle: null,
+  running: dockStyles.dockRunning,
+  done: dockStyles.dockDone,
+  error: dockStyles.dockError,
+} as const;
 
 function opLabel(op: SchedulerOp | null): string {
   if (op === 'install') return 'Installing scheduler';
@@ -103,36 +112,34 @@ export function SchedulerProgress({ onComplete }: SchedulerProgressProps) {
 
   return (
     <aside
-      className={`fetch-progress fetch-progress-${state.status} fetch-progress-scheduler`}
+      className={clsx(dockStyles.dock, DOCK_VARIANT[state.status])}
       role="status"
       aria-live="polite"
     >
-      <header className="fetch-progress-header">
-        <span className="fetch-progress-title">
+      <header className={dockStyles.header}>
+        <span className={dockStyles.title}>
           {state.status === 'running' && (
             <>
-              <span className="fetch-progress-spinner" aria-hidden />
+              <span className={dockStyles.spinner} aria-hidden />
               {opLabel(state.op)}…
             </>
           )}
           {state.status === 'done' && <>✓ {opLabel(state.op)} done</>}
           {state.status === 'error' && <>✗ {opLabel(state.op)} failed</>}
         </span>
-        {state.exitCode !== null && (
-          <span className="fetch-progress-count">exit {state.exitCode}</span>
-        )}
+        {state.exitCode !== null && <span className={dockStyles.count}>exit {state.exitCode}</span>}
       </header>
 
-      <pre className="fetch-progress-log">{state.output.trim() || '(waiting for output…)'}</pre>
+      <pre className={dockStyles.log}>{state.output.trim() || '(waiting for output…)'}</pre>
 
       {state.lastError && state.status === 'error' && (
-        <p className="fetch-progress-error" title={state.lastError}>
+        <p className={dockStyles.errorBlock} title={state.lastError}>
           {state.lastError.slice(0, 200)}
         </p>
       )}
 
       {(state.status === 'done' || state.status === 'error') && (
-        <button type="button" className="fetch-progress-dismiss" onClick={() => setHidden(true)}>
+        <button type="button" className={dockStyles.dismiss} onClick={() => setHidden(true)}>
           dismiss
         </button>
       )}

@@ -1,0 +1,46 @@
+/*
+ * Shared tab system.
+ *
+ * Used by the main header navigation (Jobs / Jinder / Profile / Settings) and
+ * also re-used inside settings cards (e.g. the Apply Queue filter strip). The
+ * in-card use-case opts in via the `inCard` strip modifier which neutralizes
+ * the header-only positioning.
+ */
+
+.strip {
+  display: flex;
+  gap: 0.25rem;
+  margin-left: 1rem;
+  align-self: flex-end;
+}
+
+/* In-card strips (settings panels) sit inside a vertical card, not the flex
+   header — strip out the header-specific positioning. */
+.stripInCard {
+  composes: strip;
+  margin-left: 0;
+  align-self: auto;
+  flex-wrap: wrap;
+}
+
+.tab {
+  border: 1px solid var(--border);
+  background: var(--surface-raised);
+  color: var(--text-muted);
+  padding: 0.4rem 0.875rem;
+  border-radius: 6px;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.875rem;
+}
+
+.tab:hover {
+  color: var(--text);
+}
+
+.tabActive {
+  composes: tab;
+  color: var(--text);
+  background: var(--bg);
+  border-color: var(--accent);
+}

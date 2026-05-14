@@ -1,0 +1,45 @@
+/*
+ * [04] LastRunPanel — totals row + per-source kept count grid.
+ */
+
+.totals {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.sourceList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 0.25rem 0.75rem;
+}
+
+.sourceRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.3125rem 0.625rem;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-size: 0.8125rem;
+}
+
+.sourceRowEmpty {
+  composes: sourceRow;
+  border-color: var(--badge-rejected-fg);
+  color: var(--badge-rejected-fg);
+}
+
+.sourceName {
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 0.75rem;
+}
+
+.sourceKept {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}

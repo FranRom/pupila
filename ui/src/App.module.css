@@ -1,0 +1,509 @@
+/*
+ * App.tsx-level styles — the outer container, Jobs-table layout, staleness
+ * banner, empty-state CTA, company group rows, and verdict/score tier
+ * classes used inline by the row renderer.
+ */
+
+.app {
+  max-width: 1500px;
+  margin: 0 auto;
+  padding: 1.5rem;
+}
+
+.placeholder {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.8125rem;
+}
+
+.muted {
+  color: var(--text-muted);
+}
+
+.empty {
+  padding: 3rem 1rem;
+  text-align: center;
+  color: var(--text-muted);
+}
+
+/* ── Staleness banner ── */
+.stalenessBanner {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+  padding: 0.625rem 0.875rem;
+  background: var(--row-hover);
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  box-shadow: var(--shadow-glow-accent);
+  font-size: 0.8125rem;
+  color: var(--text);
+}
+
+.stalenessIcon {
+  font-size: 1.125rem;
+  line-height: 1.2;
+}
+
+.stalenessBody {
+  flex: 1 1 auto;
+  line-height: 1.4;
+}
+
+.stalenessBody strong {
+  margin-right: 0.4em;
+}
+
+.stalenessActions {
+  display: flex;
+  gap: 0.375rem;
+  flex-wrap: wrap;
+  align-self: center;
+}
+
+/* ── Empty-state CTA ── */
+.fetchCta {
+  margin: 3rem auto;
+  max-width: 520px;
+  text-align: center;
+  padding: 2rem 1.5rem;
+  border: 1px dashed var(--border);
+  border-radius: 12px;
+  background: var(--surface-raised);
+}
+
+.fetchCta h2 {
+  margin: 0 0 0.5rem;
+  font-size: 1.1rem;
+}
+
+.fetchCta p {
+  margin: 0 0 1rem;
+  color: var(--text-muted);
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+.fetchCtaHint {
+  margin-top: 1rem;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.fetchCtaHint code {
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 0.75rem;
+  background: var(--bg);
+  padding: 0.125rem 0.375rem;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+}
+
+/* ── Jobs table ── */
+.table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 0.875rem;
+  /* Fixed layout locks column widths from the thead row so opening a job
+     (which inserts a colSpan=8 detail row) cannot redistribute widths and
+     shift the header / other rows. */
+  table-layout: fixed;
+}
+
+/* Explicit column widths via the thead ths — title column flexes (no width
+   set), all others are content-sized. */
+.table thead th:nth-child(1) {
+  width: 110px;
+} /* Score */
+.table thead th:nth-child(3) {
+  width: 14%;
+} /* Company */
+.table thead th:nth-child(4) {
+  width: 8%;
+} /* Location */
+.table thead th:nth-child(5) {
+  width: 130px;
+} /* Source */
+.table thead th:nth-child(6) {
+  width: 110px;
+} /* Salary */
+.table thead th:nth-child(7) {
+  width: 80px;
+} /* Posted */
+.table thead th:nth-child(8) {
+  width: 110px;
+} /* Actions */
+
+.table th {
+  text-align: left;
+  padding: 0.625rem 0.75rem;
+  border-bottom: 2px solid var(--border);
+  color: var(--text-muted);
+  font-weight: 600;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.sortButton {
+  background: none;
+  border: none;
+  padding: 0;
+  color: inherit;
+  font: inherit;
+  text-transform: inherit;
+  letter-spacing: inherit;
+  cursor: pointer;
+}
+
+.sortButton:hover {
+  color: var(--text);
+}
+
+/* Row separator lives on td because the table uses border-collapse: separate
+   (needed so border-radius on the open-row outline renders). With separate,
+   borders on <tr> don't paint — tds carry them instead. */
+.table td {
+  padding: 0.625rem 0.75rem;
+  vertical-align: top;
+  border-bottom: 1px solid var(--border);
+}
+
+/* Reserve 1px transparent side borders on the outer columns so opening a
+   row (which colors them accent) doesn't shift column widths and bump
+   neighboring rows around. Uniform across every row → no per-row shift. */
+.table td:first-child {
+  border-left: 1px solid transparent;
+}
+.table td:last-child {
+  border-right: 1px solid transparent;
+}
+
+.tdTitle {
+  max-width: 640px;
+  min-width: 320px;
+}
+
+.tdCompany {
+  max-width: 220px;
+}
+
+.tdLocation {
+  max-width: 180px;
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+}
+
+.tdMuted {
+  color: var(--text-muted);
+  font-size: 0.8125rem;
+  white-space: nowrap;
+}
+
+.tdActions {
+  vertical-align: middle;
+}
+
+.clamp2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.table tbody tr:hover {
+  background: var(--row-hover);
+}
+
+.rowApplied {
+  background: var(--applied-bg);
+  border-left: 3px solid var(--applied-border);
+}
+
+.rowSkipped > td {
+  opacity: 0.55;
+}
+
+.table tbody tr {
+  cursor: pointer;
+}
+
+/* When an individual job row is open, outline the summary + detail-row pair
+   in the accent color so the two trs read as one expanded card. The
+   `:not(.groupRow)` keeps company-group expansions out — only real job rows
+   get the outline. */
+.rowOpen {
+  background: var(--row-hover);
+}
+
+/* Glow on the tr itself — clip-path clips each row's shadow at the seam so
+   neither row bleeds into the other. Negative inset values (-50px) let the
+   shadow paint outside the element's natural bounding box on the three
+   outward sides; `0` at the seam side stops the bleed at the row edge.
+   Requires `border-collapse: separate` on the table (already set). */
+.rowOpen:not(.groupRow) {
+  box-shadow: var(--shadow-glow-accent);
+  clip-path: inset(-50px -50px 0 -50px);
+}
+
+/* Top edge uses inset box-shadow (no layout impact); side edges colorize the
+   reserved transparent borders; bottom border-color goes transparent at the
+   seam. Keeping the 1px border-bottom in place (just invisible) preserves
+   the cell's natural height → no shift in surrounding rows. */
+.rowOpen:not(.groupRow) td {
+  border-bottom-color: transparent;
+  box-shadow: inset 0 1px 0 0 var(--accent);
+}
+
+.rowOpen:not(.groupRow) td:first-child {
+  border-left-color: var(--accent);
+  border-top-left-radius: 6px;
+}
+.rowOpen:not(.groupRow) td:last-child {
+  border-right-color: var(--accent);
+  border-top-right-radius: 6px;
+}
+
+.caret {
+  display: inline-block;
+  color: var(--text-muted);
+  font-weight: normal;
+  font-size: 1.5rem;
+  line-height: 1;
+  transition: color var(--duration-fast) var(--ease-out);
+}
+
+.table tbody tr:hover > td > .caret,
+.rowOpen > td > .caret {
+  color: var(--text);
+}
+
+.detailRow {
+  cursor: default;
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-glow-accent);
+  clip-path: inset(0 -50px -50px -50px);
+}
+
+.detailRow:hover {
+  background: var(--surface-raised);
+}
+
+/* Detail-row td has colSpan=8, so it is both first-child and last-child —
+   border-left and border-right both apply to the same cell. All edges
+   recolour reserved borders (no layout shift). */
+.detailRow td {
+  padding: 0;
+  border-bottom-color: var(--accent);
+  border-left-color: var(--accent);
+  border-right-color: var(--accent);
+}
+.detailRow td:first-child {
+  border-bottom-left-radius: 6px;
+}
+.detailRow td:last-child {
+  border-bottom-right-radius: 6px;
+}
+
+/* Source/code-style pill in the table */
+.source {
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  padding: 0.125rem 0.375rem;
+  background: var(--surface-raised);
+  border-radius: 4px;
+  border: 1px solid var(--border);
+}
+
+/* Score cell — tier-coloured digits + ScoreBar */
+.score {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+.scoreCell {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.scoreHigh {
+  color: var(--accent);
+}
+.scoreMid {
+  color: var(--score-mid);
+}
+.scoreLow {
+  color: var(--text-muted);
+}
+
+/* Title-cell layout — badges + title + chips on one wrapping row, then the
+   body preview underneath. */
+.titleRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.375rem 0.5rem;
+  min-width: 0;
+}
+
+.titleText {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  word-break: break-word;
+  flex: 1 1 auto;
+  min-width: 12rem;
+}
+
+.bodyPreview {
+  margin: var(--space-2) 0 0;
+  color: var(--text-muted);
+  font-size: 0.8125rem;
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  word-break: break-word;
+}
+
+.signalChipRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+  margin-top: 0.25rem;
+}
+
+/* AI verdict badges (live inline next to job titles) */
+.verdictStrongMatch {
+  background: var(--badge-offer-bg);
+  color: var(--badge-offer-fg);
+}
+
+.verdictMatch {
+  background: var(--badge-applied-bg);
+  color: var(--badge-applied-fg);
+}
+
+.verdictWeakMatch {
+  background: var(--badge-interview-bg);
+  color: var(--badge-interview-fg);
+}
+
+.verdictSkip {
+  background: var(--badge-rejected-bg);
+  color: var(--badge-rejected-fg);
+}
+
+/* Compact mode — shrink td/th padding to fit more rows on screen. */
+.tableCompact th,
+.tableCompact td {
+  padding: 0.375rem 0.5rem;
+}
+
+.tableCompact .bodyPreview {
+  -webkit-line-clamp: 1;
+  line-clamp: 1;
+  margin-top: 0.125rem;
+}
+
+/* ── Company-grouped rows ── */
+.groupRow {
+  background: var(--surface-raised);
+  font-weight: 500;
+}
+
+.groupRow:hover {
+  background: var(--row-hover);
+}
+
+.groupRow.rowOpen {
+  background: var(--row-hover);
+  border-bottom-color: transparent;
+}
+
+.groupRow td {
+  padding: 0.625rem 0.75rem;
+}
+
+.groupCo {
+  font-weight: 600;
+  margin-right: 0.5rem;
+}
+
+.groupCount {
+  display: inline-block;
+  padding: 0.0625rem 0.375rem;
+  border-radius: 4px;
+  font-size: 0.6875rem;
+  background: var(--badge-applied-bg);
+  color: var(--badge-applied-fg);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-right: 0.75rem;
+}
+
+.groupPreview {
+  color: var(--text-muted);
+  font-size: 0.8125rem;
+  font-weight: normal;
+}
+
+.indent td:first-child {
+  padding-left: 1.75rem;
+}
+
+/* ── Apply / AI Apply cell ── */
+.rowActions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  align-items: flex-start;
+  justify-content: center;
+  height: 100%;
+}
+
+.actionLink {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 0.25rem;
+  color: var(--accent);
+  font: inherit;
+  font-weight: 600;
+  text-decoration: none;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color var(--duration-fast) var(--ease-out);
+}
+
+.actionLink:hover:not(:disabled) {
+  color: var(--text);
+  text-decoration: none;
+}
+
+.actionLink:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.actionArrow {
+  font-size: 1.25em;
+  line-height: 1;
+  transition: transform var(--duration-fast) var(--ease-out);
+}
+
+.actionLink:hover:not(:disabled) .actionArrow {
+  transform: translate(2px, -2px);
+}

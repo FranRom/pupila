@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import styles from './AiApplyPanel.module.css';
 
 interface AiApplyPanelProps {
   body: string;
@@ -34,21 +35,21 @@ function splitMarkdownByH2(md: string): MarkdownSection[] {
 export function AiApplyPanel({ body, path }: AiApplyPanelProps) {
   const sections = useMemo(() => splitMarkdownByH2(body), [body]);
   return (
-    <div className="ai-apply-panel">
+    <div className={styles.panel}>
       <header>
         <strong>✨ AI Apply package</strong>
-        {path && <span className="muted"> · saved to {path}</span>}
+        {path && <span className={styles.muted}> · saved to {path}</span>}
       </header>
       {sections.length === 0 ? (
-        <pre className="ai-apply-raw">{body}</pre>
+        <pre className={styles.raw}>{body}</pre>
       ) : (
         sections.map((s) => (
-          <section key={s.heading} className="ai-apply-section">
+          <section key={s.heading} className={styles.section}>
             <header>
               <h4>{s.heading}</h4>
               <button
                 type="button"
-                className="ai-apply-copy"
+                className={styles.copy}
                 onClick={() => {
                   void navigator.clipboard.writeText(s.body.trim());
                 }}

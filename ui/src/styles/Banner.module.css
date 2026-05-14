@@ -1,0 +1,29 @@
+/*
+ * Shared error banner. Used wherever a request can fail (AppliedBar rollback,
+ * AI Apply errors, Settings/Profile/Onboarding API failures). The inline
+ * button slot styles match by descending — keep markup as `<div><span /><button /></div>`.
+ */
+
+.error {
+  margin-bottom: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  background: var(--badge-rejected-bg);
+  color: var(--badge-rejected-fg);
+  border-radius: 4px;
+  font-size: 0.8125rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.error button {
+  border: 1px solid currentColor;
+  background: transparent;
+  color: inherit;
+  padding: 0.125rem 0.5rem;
+  border-radius: 4px;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.75rem;
+}

@@ -1,0 +1,29 @@
+/*
+ * Inline button/header spinner. Sized in em so it scales with surrounding
+ * text. Used on disabled "working" buttons and as a status glyph in the
+ * StreamingPanel header. Honours prefers-reduced-motion.
+ */
+
+.spinner {
+  display: inline-block;
+  width: 0.9em;
+  height: 0.9em;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  vertical-align: -0.15em;
+  margin-right: 0.4em;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner {
+    animation: none;
+  }
+}

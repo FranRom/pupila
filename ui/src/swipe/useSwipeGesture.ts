@@ -20,11 +20,14 @@ interface CardProps {
   onPointerUp: (e: ReactPointerEvent<HTMLElement>) => void;
   onPointerCancel: (e: ReactPointerEvent<HTMLElement>) => void;
   style: CSSProperties;
-  className: string;
 }
+
+export type SwipeDirection = 'left' | 'right' | null;
 
 interface UseSwipeGestureResult {
   cardProps: CardProps;
+  dragging: boolean;
+  direction: SwipeDirection;
 }
 
 const DEFAULT_THRESHOLD = 100;
@@ -113,16 +116,11 @@ export function useSwipeGesture({
   const style: CSSProperties =
     dragX !== 0 ? { transform: `translateX(${dragX}px) rotate(${dragX * 0.06}deg)` } : {};
 
-  // Direction class only kicks in past a small deadzone so a tap or a few
-  // pixels of jitter don't flash the danger border.
+  // Direction only flips past a small deadzone so a tap or a few pixels of
+  // jitter don't flash the danger border.
   const DIRECTION_DEADZONE = 20;
-  const direction = Math.abs(dragX) > DIRECTION_DEADZONE ? (dragX > 0 ? 'right' : 'left') : null;
-  const className = [
-    dragging ? 'is-swiping' : null,
-    direction ? `swipe-direction-${direction}` : null,
-  ]
-    .filter(Boolean)
-    .join(' ');
+  const direction: SwipeDirection =
+    Math.abs(dragX) > DIRECTION_DEADZONE ? (dragX > 0 ? 'right' : 'left') : null;
 
   return {
     cardProps: {
@@ -131,7 +129,8 @@ export function useSwipeGesture({
       onPointerUp,
       onPointerCancel,
       style,
-      className,
     },
+    dragging,
+    direction,
   };
 }

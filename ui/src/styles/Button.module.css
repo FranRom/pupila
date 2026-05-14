@@ -1,0 +1,97 @@
+/*
+ * Shared button system.
+ *
+ * Consumers import via:
+ *   import buttonStyles from '../styles/Button.module.css';
+ *   <button className={buttonStyles.primary}>Save</button>
+ *   <button className={clsx(buttonStyles.primary, buttonStyles.sm)}>Save</button>
+ *
+ * Each variant `composes` the base so the consumer only needs to know the
+ * variant name. Size modifiers (.sm / .lg) stack with any variant via clsx.
+ */
+
+.base {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.375rem;
+  padding: 0.5rem 1rem;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  font: inherit;
+  font-weight: 600;
+  font-size: var(--text-md);
+  letter-spacing: var(--tracking-snug);
+  cursor: pointer;
+  white-space: nowrap;
+  user-select: none;
+  transition:
+    background var(--duration-fast) var(--ease-out),
+    border-color var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out),
+    box-shadow var(--duration-base) var(--ease-out),
+    transform var(--duration-fast) var(--ease-out);
+}
+
+.base:disabled,
+.base[aria-disabled="true"] {
+  cursor: not-allowed;
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.base:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.primary {
+  composes: base;
+  background: var(--primary-button-bg);
+  border-color: var(--primary-button-border);
+  color: var(--primary-button-text);
+}
+
+.primary:hover:not(:disabled) {
+  background: var(--primary-button-bg-hover);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--primary-button-text) 14%, transparent);
+}
+
+.secondary {
+  composes: base;
+  background: var(--secondary-button-bg);
+  border-color: var(--secondary-button-border);
+  color: var(--secondary-button-text);
+  font-weight: 700;
+  box-shadow: var(--shadow-sm);
+}
+
+.secondary:hover:not(:disabled) {
+  background: var(--secondary-button-bg-hover);
+  border-color: var(--secondary-button-bg-hover);
+  box-shadow: var(--shadow-md);
+}
+
+.danger {
+  composes: base;
+  background: var(--danger-button-bg);
+  border-color: var(--danger-button-border);
+  color: var(--danger-button-text);
+}
+
+.danger:hover:not(:disabled) {
+  background: var(--danger-button-bg-hover);
+  border-color: var(--danger-button-bg-hover);
+  box-shadow: var(--shadow-glow-danger);
+}
+
+.sm {
+  padding: 0.3125rem 0.625rem;
+  font-size: var(--text-base);
+  border-radius: var(--radius-sm);
+}
+
+.lg {
+  padding: 0.625rem 1.25rem;
+  font-size: var(--text-lg);
+  border-radius: var(--radius-lg);
+}

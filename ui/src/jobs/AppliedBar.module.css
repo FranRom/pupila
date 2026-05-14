@@ -1,0 +1,118 @@
+/*
+ * AppliedBar: the row of pills + notes input inside an expanded job's detail
+ * panel. Controls applied status (5 statuses), skip lifecycle, and AI Apply
+ * queue lifecycle. Notes input saves on blur/Enter.
+ */
+
+.bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.625rem 1.25rem;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.8125rem;
+}
+
+.label {
+  color: var(--text-muted);
+  text-transform: uppercase;
+  font-size: 0.6875rem;
+  letter-spacing: 0.04em;
+  font-weight: 600;
+}
+
+.pills {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+}
+
+.pill {
+  padding: 0.25rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg);
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  font-family: inherit;
+  cursor: pointer;
+  text-transform: lowercase;
+  letter-spacing: 0.02em;
+}
+
+.pill:hover {
+  background: var(--row-hover);
+  color: var(--text);
+}
+
+.pillActive {
+  font-weight: 700;
+  border-color: currentColor;
+  box-shadow:
+    0 0 0 2px var(--bg),
+    0 0 0 3px currentColor;
+}
+
+.check {
+  margin-right: 0.125rem;
+  font-weight: 700;
+}
+
+.applied {
+  background: var(--badge-applied-bg);
+  color: var(--badge-applied-fg);
+}
+
+.interview {
+  background: var(--badge-interview-bg);
+  color: var(--badge-interview-fg);
+}
+
+.offer {
+  background: var(--badge-offer-bg);
+  color: var(--badge-offer-fg);
+}
+
+.rejected {
+  background: var(--badge-rejected-bg);
+  color: var(--badge-rejected-fg);
+}
+
+.withdrawn {
+  background: var(--badge-withdrawn-bg);
+  color: var(--badge-withdrawn-fg);
+}
+
+.clearButton {
+  border: 1px dashed var(--border);
+  background: none;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 0.75rem;
+  cursor: pointer;
+  padding: 0.25rem 0.5rem;
+  border-radius: 999px;
+}
+
+.clearButton:hover {
+  color: var(--badge-rejected-fg);
+  border-color: var(--badge-rejected-fg);
+}
+
+.notes {
+  flex: 1 1 200px;
+  min-width: 160px;
+  padding: 0.25rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 0.8125rem;
+}
+
+.notes:focus {
+  outline: 1px solid var(--primary);
+  outline-offset: -1px;
+}

@@ -1,0 +1,57 @@
+/*
+ * AppHeader: top-level brand lockup + main navigation tabs.
+ * Tabs themselves come from the shared Tab.module.css via `composes:`.
+ */
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 1.25rem;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 0.125rem;
+}
+
+.logo {
+  width: 60px;
+  height: 60px;
+  flex: 0 0 auto;
+  display: block;
+}
+
+.title {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--accent);
+  text-transform: uppercase;
+  display: flex;
+  align-items: center;
+  line-height: 1;
+}
+
+.titleAscii {
+  height: 28px;
+  width: auto;
+  display: block;
+}
+
+.subtitle {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.8125rem;
+}
+
+/* Inline emphasis inside the subtitle — e.g. "Showing N" on the Jobs tab.
+   Tinted primary so it stands out against the muted stats run. */
+.subtitleEmphasis {
+  color: var(--primary);
+  font-weight: 600;
+}

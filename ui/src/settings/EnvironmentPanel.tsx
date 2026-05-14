@@ -1,5 +1,8 @@
 // [07] Environment panel — runtime + filesystem state for debugging.
 
+import clsx from 'clsx';
+import buttonStyles from '../styles/Button.module.css';
+import styles from './EnvironmentPanel.module.css';
 import { Section, SkeletonRows } from './shared.tsx';
 import { type EnvInfo, PROVIDERS } from './types.ts';
 
@@ -15,7 +18,11 @@ export function EnvironmentPanel({ envInfo, onRefreshAll }: EnvironmentPanelProp
       title="Environment"
       subtitle="Runtime + filesystem state for debugging."
       action={
-        <button type="button" className="btn btn-primary btn-sm" onClick={onRefreshAll}>
+        <button
+          type="button"
+          className={clsx(buttonStyles.primary, buttonStyles.sm)}
+          onClick={onRefreshAll}
+        >
           Refresh all
         </button>
       }
@@ -23,27 +30,27 @@ export function EnvironmentPanel({ envInfo, onRefreshAll }: EnvironmentPanelProp
       {!envInfo ? (
         <SkeletonRows count={5} />
       ) : (
-        <dl className="env-grid">
+        <dl className={styles.grid}>
           <dt>Node</dt>
-          <dd className="mono">{envInfo.node}</dd>
+          <dd className={styles.mono}>{envInfo.node}</dd>
           <dt>Platform</dt>
-          <dd className="mono">{envInfo.platform}</dd>
+          <dd className={styles.mono}>{envInfo.platform}</dd>
           <dt>Repo</dt>
-          <dd className="mono">{envInfo.repoRoot}</dd>
+          <dd className={styles.mono}>{envInfo.repoRoot}</dd>
           <dt>Brief</dt>
           <dd>
             {envInfo.briefPresent ? (
-              <span className="env-badge env-badge-ok">✓ present</span>
+              <span className={styles.badgeOk}>✓ present</span>
             ) : (
-              <span className="env-badge env-badge-missing">✗ missing</span>
+              <span className={styles.badgeMissing}>✗ missing</span>
             )}
           </dd>
           <dt>CV file</dt>
           <dd>
             {envInfo.cvPresent ? (
-              <span className="env-badge env-badge-ok">✓ present</span>
+              <span className={styles.badgeOk}>✓ present</span>
             ) : (
-              <span className="env-badge env-badge-missing">✗ missing</span>
+              <span className={styles.badgeMissing}>✗ missing</span>
             )}
           </dd>
           <dt>Providers</dt>
@@ -51,7 +58,7 @@ export function EnvironmentPanel({ envInfo, onRefreshAll }: EnvironmentPanelProp
             {PROVIDERS.map((p) => (
               <span
                 key={p}
-                className={`env-provider ${envInfo.providers[p] ? 'env-provider-ok' : 'env-provider-missing'}`}
+                className={envInfo.providers[p] ? styles.providerOk : styles.providerMissing}
               >
                 {envInfo.providers[p] ? '✓' : '✗'} {p}
               </span>

@@ -1,4 +1,8 @@
+import clsx from 'clsx';
 import { useEffect, useRef } from 'react';
+import styles from './StreamingPanel.module.css';
+import buttonStyles from './styles/Button.module.css';
+import spinnerStyles from './styles/Spinner.module.css';
 
 // Inline streaming-log panel used by the onboarding wizard while an LLM is
 // running. Lives inside the active wizard step (not as a fixed-position dock
@@ -27,6 +31,12 @@ function formatElapsed(ms: number): string {
   return `${m}m ${s.toString().padStart(2, '0')}s`;
 }
 
+const PANEL_VARIANT = {
+  running: styles.panelRunning,
+  done: styles.panelDone,
+  error: styles.panelError,
+} as const;
+
 export function StreamingPanel({
   title,
   stream,
@@ -53,32 +63,31 @@ export function StreamingPanel({
   if (status === 'idle') return null;
 
   return (
-    <aside
-      className={`streaming-panel streaming-panel-${status}`}
-      role="status"
-      aria-live="polite"
-      aria-atomic="false"
-    >
-      <header className="streaming-panel-header">
-        <span className="streaming-panel-title">
-          {status === 'running' && <span className="button-spinner" aria-hidden />}
+    <aside className={PANEL_VARIANT[status]} role="status" aria-live="polite" aria-atomic="false">
+      <header className={styles.header}>
+        <span className={styles.title}>
+          {status === 'running' && <span className={spinnerStyles.spinner} aria-hidden />}
           {status === 'done' && <span aria-hidden>✓</span>}
           {status === 'error' && <span aria-hidden>✗</span>}
           {title}
         </span>
-        <span className="streaming-panel-meta">
+        <span className={styles.meta}>
           {provider && <code>{provider}</code>}
           <span>{formatElapsed(elapsedMs)}</span>
         </span>
       </header>
-      <pre ref={logRef} className="streaming-panel-log">
+      <pre ref={logRef} className={styles.log}>
         {stream.trim() || (status === 'running' ? '(waiting for first token…)' : '')}
       </pre>
       {error && status === 'error' && (
-        <div className="streaming-panel-error">
+        <div className={styles.error}>
           <span>{error}</span>
           {onRetry && (
-            <button type="button" onClick={onRetry} className="btn btn-primary btn-sm">
+            <button
+              type="button"
+              onClick={onRetry}
+              className={clsx(buttonStyles.primary, buttonStyles.sm)}
+            >
               Retry
             </button>
           )}

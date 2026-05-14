@@ -1,0 +1,223 @@
+/*
+ * [08] ApplyQueuePanel — queue row list, status pills, cancel buttons.
+ *
+ * The outer card visuals come from settings.module.css `.section`. Only
+ * panel-specific layout knobs and per-row visuals live here.
+ */
+
+.panel {
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 1.25rem 1.5rem 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.875rem;
+  position: relative;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  padding-bottom: 0.875rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.header h2 {
+  margin: 0;
+  font-size: 1.05rem;
+  letter-spacing: -0.01em;
+}
+
+.subtitle {
+  margin: 0.125rem 0 0;
+  color: var(--text-muted);
+  font-size: 0.8125rem;
+}
+
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: minmax(120px, auto) minmax(0, 1fr) auto auto auto;
+  align-items: center;
+  gap: 0.875rem;
+  padding: 0.5rem 0.75rem;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 0.8125rem;
+}
+
+.jobid {
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.attempts {
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+}
+
+.time {
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+
+.error {
+  grid-column: 1 / -1;
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 0.7rem;
+  color: var(--badge-rejected-fg);
+  background: var(--badge-rejected-bg);
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  word-break: break-word;
+}
+
+.cancel {
+  border: 1px solid var(--border);
+  background: var(--surface-raised);
+  color: var(--text-muted);
+  padding: 0.25rem 0.625rem;
+  border-radius: 4px;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.75rem;
+}
+
+.cancel:hover:not(:disabled) {
+  color: var(--badge-rejected-fg);
+  border-color: var(--badge-rejected-fg);
+}
+
+.cancel:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Status pill — coloured by queue status. */
+.status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3125rem;
+  padding: 0.125rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  text-transform: lowercase;
+  letter-spacing: 0.02em;
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+
+.statusQueued {
+  composes: status;
+  background: var(--badge-withdrawn-bg);
+  color: var(--badge-withdrawn-fg);
+  border-color: var(--border);
+}
+
+.statusRunning {
+  composes: status;
+  background: var(--badge-applied-bg);
+  color: var(--badge-applied-fg);
+  border-color: var(--applied-border);
+  animation: queue-pulse 1.4s ease-in-out infinite;
+}
+
+.statusDone {
+  composes: status;
+  background: var(--badge-offer-bg);
+  color: var(--badge-offer-fg);
+  border-color: var(--badge-offer-fg);
+}
+
+.statusFailed {
+  composes: status;
+  background: var(--badge-rejected-bg);
+  color: var(--badge-rejected-fg);
+  border-color: var(--badge-rejected-fg);
+}
+
+.statusCancelled {
+  composes: status;
+  background: var(--badge-withdrawn-bg);
+  color: var(--badge-withdrawn-fg);
+  border-color: var(--border);
+  text-decoration: line-through;
+  text-decoration-color: var(--text-muted);
+}
+
+@keyframes queue-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.55;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .statusRunning {
+    animation: none;
+  }
+}
+
+.empty {
+  text-align: center;
+  color: var(--text-muted);
+  padding: 1.5rem 1rem;
+  font-size: 0.8125rem;
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+}
+
+/* Banner shown when the apply-worker daemon is not running. Yellow-ish
+   warning panel with a copy-paste runnable command inside. */
+.workerBanner {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.75rem 0.875rem;
+  background: var(--badge-interview-bg);
+  color: var(--badge-interview-fg);
+  border: 1px solid var(--badge-interview-fg);
+  border-radius: 8px;
+  font-size: 0.8125rem;
+  line-height: 1.4;
+}
+
+.workerBanner code {
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 0.75rem;
+  background: var(--bg);
+  color: var(--text);
+  padding: 0.125rem 0.4375rem;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+}
+
+.workerBannerCmd {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}

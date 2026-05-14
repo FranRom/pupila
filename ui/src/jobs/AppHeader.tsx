@@ -1,6 +1,8 @@
 import logoUrl from '../../../assets/logo.svg';
 import asciiTitleUrl from '../../../assets/pupila-ascii.svg';
+import tabStyles from '../styles/Tab.module.css';
 import type { Category } from '../types.ts';
+import styles from './AppHeader.module.css';
 
 type Tab = 'jobs' | 'swipe' | 'profile' | 'settings';
 
@@ -14,6 +16,13 @@ interface AppHeaderProps {
   visibleCount: number;
 }
 
+const TABS: ReadonlyArray<{ id: Tab; label: string }> = [
+  { id: 'jobs', label: 'Jobs' },
+  { id: 'swipe', label: 'Jinder' },
+  { id: 'profile', label: 'Profile' },
+  { id: 'settings', label: 'Settings' },
+];
+
 export function AppHeader({
   tab,
   onTabChange,
@@ -24,15 +33,15 @@ export function AppHeader({
   visibleCount,
 }: AppHeaderProps) {
   return (
-    <header>
+    <header className={styles.header}>
       <div>
-        <div className="app-brand">
-          <img src={logoUrl} alt="" className="app-logo" aria-hidden />
-          <h1 className="app-title">
-            <img src={asciiTitleUrl} alt="pupila" className="app-title-ascii" />
+        <div className={styles.brand}>
+          <img src={logoUrl} alt="" className={styles.logo} aria-hidden />
+          <h1 className={styles.title}>
+            <img src={asciiTitleUrl} alt="pupila" className={styles.titleAscii} />
           </h1>
         </div>
-        <p className="subtitle">
+        <p className={styles.subtitle}>
           {dataLoading ? (
             'loading…'
           ) : (
@@ -42,7 +51,7 @@ export function AppHeader({
               {tab === 'jobs' && (
                 <>
                   {' — '}
-                  <span className="subtitle-emphasis">
+                  <span className={styles.subtitleEmphasis}>
                     Showing <strong>{visibleCount}</strong>
                   </span>
                 </>
@@ -51,35 +60,17 @@ export function AppHeader({
           )}
         </p>
       </div>
-      <div className="tabs">
-        <button
-          type="button"
-          className={`tab ${tab === 'jobs' ? 'tab-active' : ''}`}
-          onClick={() => onTabChange('jobs')}
-        >
-          Jobs
-        </button>
-        <button
-          type="button"
-          className={`tab ${tab === 'swipe' ? 'tab-active' : ''}`}
-          onClick={() => onTabChange('swipe')}
-        >
-          Jinder
-        </button>
-        <button
-          type="button"
-          className={`tab ${tab === 'profile' ? 'tab-active' : ''}`}
-          onClick={() => onTabChange('profile')}
-        >
-          Profile
-        </button>
-        <button
-          type="button"
-          className={`tab ${tab === 'settings' ? 'tab-active' : ''}`}
-          onClick={() => onTabChange('settings')}
-        >
-          Settings
-        </button>
+      <div className={tabStyles.strip}>
+        {TABS.map(({ id, label }) => (
+          <button
+            key={id}
+            type="button"
+            className={tab === id ? tabStyles.tabActive : tabStyles.tab}
+            onClick={() => onTabChange(id)}
+          >
+            {label}
+          </button>
+        ))}
       </div>
     </header>
   );

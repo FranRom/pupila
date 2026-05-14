@@ -1,4 +1,8 @@
+import clsx from 'clsx';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import styles from './Profile.module.css';
+import bannerStyles from './styles/Banner.module.css';
+import buttonStyles from './styles/Button.module.css';
 
 type CvFormat = 'pdf' | 'docx' | 'md' | 'txt';
 
@@ -188,8 +192,8 @@ export function Profile() {
 
   if (loading) {
     return (
-      <div className="profile">
-        <p className="placeholder">Loading…</p>
+      <div className={styles.tab}>
+        <p className={styles.placeholder}>Loading…</p>
       </div>
     );
   }
@@ -197,31 +201,34 @@ export function Profile() {
   const dirty = draft.trim() !== body.trim();
 
   return (
-    <div className="profile">
-      <header className="profile-header">
+    <div className={styles.tab}>
+      <header className={styles.header}>
         <h2>Candidate brief</h2>
-        <p className="subtitle">
+        <p className={styles.subtitle}>
           Used by <code>pnpm run ai-review</code> to score every job posting against your profile.
           Drop your CV here to regenerate, or hand-edit the markdown below.
         </p>
       </header>
 
       {error && (
-        <div className="api-error" role="alert">
-          {error}{' '}
+        <div className={bannerStyles.error} role="alert">
+          <span>{error}</span>
           <button type="button" onClick={() => setError(null)}>
             dismiss
           </button>
         </div>
       )}
       {info && !error && (
-        <div className="api-info" role="status">
+        <div className={styles.info} role="status">
           {info}
         </div>
       )}
 
       <section
-        className={`cv-drop ${dragActive ? 'cv-drop-active' : ''} ${busy ? 'cv-drop-busy' : ''}`}
+        className={clsx(
+          dragActive ? styles.cvDropActive : styles.cvDrop,
+          busy && styles.cvDropBusy,
+        )}
         aria-label="CV upload drop zone"
         onDragOver={(e) => {
           e.preventDefault();
@@ -230,15 +237,15 @@ export function Profile() {
         onDragLeave={() => setDragActive(false)}
         onDrop={onDrop}
       >
-        <div className="cv-drop-row">
-          <div className="cv-drop-text">
+        <div className={styles.cvDropRow}>
+          <div className={styles.cvDropText}>
             <strong>Drop a CV file</strong> (.pdf / .docx / .md / .txt) to regenerate the brief via
             your local LLM CLI (claude / codex / gemini / opencode).
           </div>
-          <div className="cv-drop-actions">
+          <div className={styles.cvDropActions}>
             <button
               type="button"
-              className="btn btn-secondary btn-sm"
+              className={clsx(buttonStyles.secondary, buttonStyles.sm)}
               disabled={busy}
               onClick={() => fileInputRef.current?.click()}
             >
@@ -246,7 +253,7 @@ export function Profile() {
             </button>
             <button
               type="button"
-              className="btn btn-primary btn-sm"
+              className={clsx(buttonStyles.primary, buttonStyles.sm)}
               disabled={busy}
               onClick={() => setPasteMode((m) => !m)}
             >
@@ -264,38 +271,38 @@ export function Profile() {
       </section>
 
       {pasteMode && (
-        <section className="cv-paste">
+        <section className={styles.cvPaste}>
           <textarea
             placeholder="Paste your CV here as text or markdown…"
             value={pasteText}
             onChange={(e) => setPasteText(e.target.value)}
             rows={12}
           />
-          <div className="cv-paste-actions">
+          <div className={styles.cvPasteActions}>
             <button
               type="button"
-              className="btn btn-secondary btn-sm"
+              className={clsx(buttonStyles.secondary, buttonStyles.sm)}
               disabled={busy || !pasteText.trim()}
               onClick={() => void summarizePasted()}
             >
               Summarize via LLM
             </button>
-            <span className="muted">{pasteText.length} chars</span>
+            <span className={styles.muted}>{pasteText.length} chars</span>
           </div>
         </section>
       )}
 
-      <section className="brief-editor">
-        <header className="brief-editor-header">
+      <section className={styles.briefEditor}>
+        <header className={styles.briefEditorHeader}>
           <h3>Current brief</h3>
-          <span className="muted">
+          <span className={styles.muted}>
             {body ? `${body.length} chars` : 'no brief yet'}
-            {dirty && <span className="dirty-tag"> · unsaved</span>}
+            {dirty && <span className={styles.dirtyTag}> · unsaved</span>}
           </span>
         </header>
         {body || dirty ? (
           <textarea
-            className="brief-textarea"
+            className={styles.briefTextarea}
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
             rows={14}
@@ -303,23 +310,23 @@ export function Profile() {
             placeholder="Hand-write your brief here, or drop a CV file above."
           />
         ) : (
-          <p className="placeholder">
+          <p className={styles.placeholder}>
             No brief yet. Drop a CV above, paste text, or write directly into the textarea below.
           </p>
         )}
         {!body && !dirty && (
           <textarea
-            className="brief-textarea"
+            className={styles.briefTextarea}
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
             rows={14}
             placeholder="Three short paragraphs: who you are, what you want, what to avoid."
           />
         )}
-        <div className="brief-actions">
+        <div className={styles.briefActions}>
           <button
             type="button"
-            className="btn btn-secondary btn-sm"
+            className={clsx(buttonStyles.secondary, buttonStyles.sm)}
             disabled={busy || !dirty}
             onClick={() => void saveDraft()}
           >
@@ -329,7 +336,7 @@ export function Profile() {
             type="button"
             disabled={busy || !dirty}
             onClick={() => setDraft(body)}
-            className="btn btn-primary btn-sm"
+            className={clsx(buttonStyles.primary, buttonStyles.sm)}
           >
             Discard changes
           </button>

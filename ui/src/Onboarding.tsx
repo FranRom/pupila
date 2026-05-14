@@ -1,6 +1,11 @@
+import clsx from 'clsx';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useLlmStream } from './lib/use-llm-stream.ts';
+import styles from './Onboarding.module.css';
 import { StreamingPanel } from './StreamingPanel.tsx';
+import bannerStyles from './styles/Banner.module.css';
+import buttonStyles from './styles/Button.module.css';
+import spinnerStyles from './styles/Spinner.module.css';
 
 // First-run wizard. Three steps:
 //   1. Pick the LLM CLI provider (probes /api/llm-detect for ✓/✗).
@@ -176,24 +181,34 @@ export function Onboarding({ onComplete }: OnboardingProps) {
   }, [briefDraft, generatedBrief, provider, onComplete, tune]);
 
   return (
-    <div className="onboarding">
-      <header className="onboarding-header">
+    <div className={styles.wizard}>
+      <header className={styles.header}>
         <AsciiHero />
-        <p className="subtitle">
+        <p className={styles.subtitle}>
           A 30-second setup. Pick your LLM CLI, drop your CV, confirm the generated brief.
         </p>
-        <ol className="onboarding-progress">
-          <li className={step === 'provider' ? 'current' : 'done'}>1. LLM CLI</li>
-          <li className={step === 'cv' ? 'current' : step === 'preview' ? 'done' : ''}>
+        <ol className={styles.progress}>
+          <li className={step === 'provider' ? styles.progressCurrent : styles.progressDone}>
+            1. LLM CLI
+          </li>
+          <li
+            className={
+              step === 'cv'
+                ? styles.progressCurrent
+                : step === 'preview'
+                  ? styles.progressDone
+                  : undefined
+            }
+          >
             2. CV upload
           </li>
-          <li className={step === 'preview' ? 'current' : ''}>3. Confirm</li>
+          <li className={step === 'preview' ? styles.progressCurrent : undefined}>3. Confirm</li>
         </ol>
       </header>
 
       {error && (
-        <div className="api-error" role="alert">
-          {error}{' '}
+        <div className={bannerStyles.error} role="alert">
+          <span>{error}</span>
           <button type="button" onClick={() => setError(null)}>
             dismiss
           </button>
@@ -201,16 +216,16 @@ export function Onboarding({ onComplete }: OnboardingProps) {
       )}
 
       {step === 'provider' && (
-        <section className="onboarding-step">
+        <section className={styles.step}>
           <h2>Pick your LLM CLI</h2>
           <p>
             Pupila shells out to a local LLM CLI (no API keys, uses your existing subscription) for
             the CV summary, per-job AI review, and AI Apply. Pick whichever you have installed.
           </p>
           {!available ? (
-            <p className="placeholder">Probing installed CLIs…</p>
+            <p className={styles.placeholder}>Probing installed CLIs…</p>
           ) : (
-            <ul className="provider-list">
+            <ul className={styles.providerList}>
               <li>
                 <label>
                   <input
@@ -221,7 +236,7 @@ export function Onboarding({ onComplete }: OnboardingProps) {
                     onChange={() => setProvider('auto')}
                   />
                   <strong>Auto-detect</strong>
-                  <span className="muted">
+                  <span className={styles.muted}>
                     — picks the first installed in claude → codex → gemini → opencode order
                   </span>
                 </label>
@@ -238,7 +253,7 @@ export function Onboarding({ onComplete }: OnboardingProps) {
                       disabled={!available[p]}
                     />
                     <strong>{p}</strong>
-                    <span className={available[p] ? 'available' : 'unavailable'}>
+                    <span className={available[p] ? styles.available : styles.unavailable}>
                       {available[p] ? '✓ installed' : '✗ not on PATH'}
                     </span>
                   </label>
@@ -247,7 +262,7 @@ export function Onboarding({ onComplete }: OnboardingProps) {
             </ul>
           )}
           {!anyAvailable && available && (
-            <p className="warn">
+            <p className={styles.warn}>
               No supported CLI found on PATH. Install one before continuing — for example,{' '}
               <a
                 href="https://docs.claude.com/en/docs/claude-code/quickstart"
@@ -259,10 +274,10 @@ export function Onboarding({ onComplete }: OnboardingProps) {
               .
             </p>
           )}
-          <div className="onboarding-actions">
+          <div className={styles.actions}>
             <button
               type="button"
-              className="btn btn-secondary"
+              className={buttonStyles.secondary}
               disabled={!anyAvailable || busy}
               onClick={() => setStep('cv')}
             >
@@ -273,7 +288,7 @@ export function Onboarding({ onComplete }: OnboardingProps) {
       )}
 
       {step === 'cv' && (
-        <section className="onboarding-step">
+        <section className={styles.step}>
           <h2>Upload your CV</h2>
           <p>
             We'll send the contents to your local <code>{provider}</code> CLI to generate a short
@@ -295,10 +310,10 @@ export function Onboarding({ onComplete }: OnboardingProps) {
             provider={provider === 'auto' ? null : provider}
             error={cv.status === 'error' ? error : null}
           />
-          <div className="onboarding-actions">
+          <div className={styles.actions}>
             <button
               type="button"
-              className="btn btn-primary"
+              className={buttonStyles.primary}
               disabled={busy}
               onClick={() => setStep('provider')}
             >
@@ -309,13 +324,13 @@ export function Onboarding({ onComplete }: OnboardingProps) {
       )}
 
       {step === 'preview' && (
-        <section className="onboarding-step">
+        <section className={styles.step}>
           <h2>Confirm your brief</h2>
           <p>
             Edit anything that's off — this is what the per-job AI review and AI Apply will see.
           </p>
           <textarea
-            className="brief-textarea"
+            className={styles.briefTextarea}
             value={briefDraft}
             onChange={(e) => setBriefDraft(e.target.value)}
             rows={14}
@@ -328,10 +343,10 @@ export function Onboarding({ onComplete }: OnboardingProps) {
             elapsedMs={tune.elapsedMs}
             provider={provider === 'auto' ? null : provider}
           />
-          <div className="onboarding-actions">
+          <div className={styles.actions}>
             <button
               type="button"
-              className="btn btn-primary"
+              className={buttonStyles.primary}
               disabled={busy}
               onClick={() => setStep('cv')}
             >
@@ -339,11 +354,11 @@ export function Onboarding({ onComplete }: OnboardingProps) {
             </button>
             <button
               type="button"
-              className="btn btn-secondary"
+              className={buttonStyles.secondary}
               disabled={busy}
               onClick={() => void finish()}
             >
-              {busy && <span className="button-spinner" aria-hidden />}
+              {busy && <span className={spinnerStyles.spinner} aria-hidden />}
               {tuning
                 ? 'Tuning scoring profile from your brief…'
                 : busy
@@ -359,8 +374,9 @@ export function Onboarding({ onComplete }: OnboardingProps) {
 
 // Hand-laid ASCII block reading "pupila" — figlet-style "Standard" font,
 // trimmed and aligned. Each line types itself out with a staggered delay
-// (CSS keyframes in styles/components.css), and a blinking cursor lands at the end of
-// the tagline. Falls back to instant render under prefers-reduced-motion.
+// (CSS keyframes in Onboarding.module.css), and a blinking cursor lands at
+// the end of the tagline. Falls back to instant render under
+// prefers-reduced-motion.
 const ASCII_HERO_LINES: readonly string[] = [
   '                 _ _       ',
   ' _ __  _   _ _ __(_) | __ _ ',
@@ -372,15 +388,15 @@ const ASCII_HERO_LINES: readonly string[] = [
 
 function AsciiHero() {
   return (
-    <div className="ascii-hero" role="img" aria-label="pupila">
+    <div className={styles.asciiHero} role="img" aria-label="pupila">
       {ASCII_HERO_LINES.map((line) => (
-        <span key={line} className="ascii-hero-line">
+        <span key={line} className={styles.asciiLine}>
           {line}
         </span>
       ))}
-      <span className="ascii-hero-tag">
+      <span className={styles.asciiTag}>
         &gt; watching for your next role across 13 sources
-        <span className="ascii-hero-cursor" />
+        <span className={styles.asciiCursor} />
       </span>
     </div>
   );
@@ -404,7 +420,7 @@ function CvDropZone({ busy, onFile }: CvDropZoneProps) {
   );
   return (
     <section
-      className={`cv-drop ${dragActive ? 'cv-drop-active' : ''} ${busy ? 'cv-drop-busy' : ''}`}
+      className={clsx(dragActive ? styles.cvDropActive : styles.cvDrop, busy && styles.cvDropBusy)}
       aria-label="CV upload drop zone"
       onDragOver={(e) => {
         e.preventDefault();
@@ -413,12 +429,12 @@ function CvDropZone({ busy, onFile }: CvDropZoneProps) {
       onDragLeave={() => setDragActive(false)}
       onDrop={onDrop}
     >
-      <div className="cv-drop-row">
-        <div className="cv-drop-text">
+      <div className={styles.cvDropRow}>
+        <div className={styles.cvDropText}>
           <strong>Drop your CV here</strong> (.pdf / .docx / .md / .txt). The LLM CLI runs locally —
           no upload to any server.
         </div>
-        <label className="cv-drop-actions">
+        <label className={styles.cvDropActions}>
           <input
             type="file"
             accept=".pdf,.docx,.md,.markdown,.txt"
@@ -430,8 +446,8 @@ function CvDropZone({ busy, onFile }: CvDropZoneProps) {
               e.target.value = '';
             }}
           />
-          <span className="btn btn-secondary">
-            {busy && <span className="button-spinner" aria-hidden />}
+          <span className={buttonStyles.secondary}>
+            {busy && <span className={spinnerStyles.spinner} aria-hidden />}
             {busy ? 'Working…' : 'Choose file'}
           </span>
         </label>

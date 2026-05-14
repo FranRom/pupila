@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import styles from './Settings.module.css';
 import { ApplyQueuePanel } from './settings/ApplyQueuePanel.tsx';
 import { ConfirmModal } from './settings/ConfirmModal.tsx';
 import { DiskUsagePanel } from './settings/DiskUsagePanel.tsx';
@@ -24,6 +25,7 @@ import {
   type SchedulerStatus,
   type ScoringProfile,
 } from './settings/types.ts';
+import bannerStyles from './styles/Banner.module.css';
 import type { ApplyQueueResponse } from './types.ts';
 
 // Settings tab. Seven numbered panels — terminal-grade dashboard aesthetic
@@ -358,10 +360,10 @@ export function Settings({
   };
 
   return (
-    <div className="settings">
+    <div className={styles.tab}>
       {error && (
-        <div className="api-error" role="alert">
-          {error}{' '}
+        <div className={bannerStyles.error} role="alert">
+          <span>{error}</span>
           <button type="button" onClick={() => setError(null)}>
             dismiss
           </button>

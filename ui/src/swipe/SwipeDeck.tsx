@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Job, JobBodyResponse, JobSignals, QueueRow } from '../types.ts';
 import { SwipeCard } from './SwipeCard.tsx';
 import { SwipeControls } from './SwipeControls.tsx';
+import styles from './SwipeDeck.module.css';
 import type { SwipeAction } from './types.ts';
 
 // SwipeDeck — the "Jinder" container. Owns:
@@ -252,17 +253,10 @@ export function SwipeDeck({
 
   if (empty) {
     return (
-      <div className="swipe-deck">
-        <div
-          className="swipe-card"
-          style={{
-            justifyContent: 'center',
-            alignItems: 'center',
-            textAlign: 'center',
-          }}
-        >
-          <h2 className="swipe-card-title">Nothing left to swipe</h2>
-          <p className="swipe-card-body" style={{ maxHeight: 'none', overflow: 'visible' }}>
+      <div className={styles.deck}>
+        <div className={styles.emptyCard}>
+          <h2 className={styles.emptyTitle}>Nothing left to swipe</h2>
+          <p className={styles.emptyBody}>
             Run <code>pnpm run daily</code> or <code>pnpm run dev</code> to pull fresh jobs, or
             clear your swipe skips from Settings.
           </p>
@@ -280,15 +274,8 @@ export function SwipeDeck({
   const signals = job._signals;
 
   return (
-    <div className="swipe-deck">
-      <div
-        className="swipe-card-meta"
-        style={{
-          alignSelf: 'center',
-          fontSize: '0.75rem',
-          gap: '0.5rem',
-        }}
-      >
+    <div className={styles.deck}>
+      <div className={styles.deckMeta}>
         <span>
           Card {currentIndex + 1} of {deck.length}
         </span>
@@ -304,11 +291,11 @@ export function SwipeDeck({
         disabled={busy || leaving !== null}
       />
 
-      <div className="swipe-disclosure-row">
+      <div className={styles.disclosureRow}>
         {signals ? (
           <button
             type="button"
-            className="swipe-why"
+            className={styles.toggle}
             onClick={() => setOpenPanel((p) => (p === 'why' ? null : 'why'))}
             aria-expanded={showWhy}
           >
@@ -317,7 +304,7 @@ export function SwipeDeck({
         ) : null}
         <button
           type="button"
-          className="swipe-help-toggle"
+          className={styles.toggle}
           onClick={() => setOpenPanel((p) => (p === 'help' ? null : 'help'))}
           aria-expanded={showHelp}
         >
@@ -329,26 +316,13 @@ export function SwipeDeck({
       {showHelp ? <HelpPanel /> : null}
 
       {lastSkippedJob ? (
-        <button type="button" className="swipe-undo" onClick={() => void handleUndo()}>
+        <button type="button" className={styles.undo} onClick={() => void handleUndo()}>
           ↩ Undo last skip
         </button>
       ) : null}
 
       {error ? (
-        <div
-          role="alert"
-          style={{
-            color: 'var(--badge-rejected-fg)',
-            fontSize: '0.8125rem',
-            textAlign: 'center',
-            padding: '0.5rem 0.75rem',
-            border: '1px solid var(--border)',
-            borderRadius: '8px',
-            background: 'var(--bg-elevated)',
-            width: '100%',
-            boxSizing: 'border-box',
-          }}
-        >
+        <div role="alert" className={styles.error}>
           {error}
         </div>
       ) : null}
@@ -366,21 +340,22 @@ function WhyPanel({ signals }: WhyPanelProps) {
     .filter(([, v]) => v !== 0);
 
   return (
-    <aside className="swipe-panel">
+    <aside className={styles.panel}>
       <header>
         <strong>Score breakdown</strong>
       </header>
-      <p className="swipe-panel-meta">
+      <p className={styles.panelMeta}>
         rawTotal {signals.rawTotal}
         {signals.capped ? ' · capped at 100' : ''}
       </p>
       {entries.length === 0 ? (
-        <p className="swipe-panel-meta">No positive signals fired.</p>
+        <p className={styles.panelMeta}>No positive signals fired.</p>
       ) : (
-        <ul className="swipe-panel-list">
+        <ul className={styles.panelList}>
           {entries.map(([k, v]) => (
             <li key={k}>
-              <span className="muted">{SIGNAL_LABELS[k]}:</span> {v > 0 ? `+${v}` : v}
+              <span className={styles.panelListMuted}>{SIGNAL_LABELS[k]}:</span>{' '}
+              {v > 0 ? `+${v}` : v}
             </li>
           ))}
         </ul>
@@ -391,7 +366,7 @@ function WhyPanel({ signals }: WhyPanelProps) {
 
 function HelpPanel() {
   return (
-    <aside className="swipe-panel">
+    <aside className={styles.panel}>
       <header>
         <strong>Welcome to Jinder</strong>
       </header>
@@ -399,9 +374,9 @@ function HelpPanel() {
         Speed-triage your top-scoring jobs one card at a time. Each card is a posting from{' '}
         <code>data/jobs.json</code>, ranked by <code>fitScore</code>. Decide fast, move on.
       </p>
-      <ul className="swipe-help-actions">
+      <ul className={styles.helpActions}>
         <li>
-          <span className="swipe-help-glyph swipe-help-glyph-right">→</span>
+          <span className={styles.helpGlyphRight}>→</span>
           <div>
             <strong>Swipe right · Apply</strong>
             <span>
@@ -412,7 +387,7 @@ function HelpPanel() {
           </div>
         </li>
         <li>
-          <span className="swipe-help-glyph swipe-help-glyph-left">←</span>
+          <span className={styles.helpGlyphLeft}>←</span>
           <div>
             <strong>Swipe left · Skip</strong>
             <span>
@@ -422,7 +397,7 @@ function HelpPanel() {
           </div>
         </li>
       </ul>
-      <p className="swipe-help-foot">
+      <p className={styles.helpFoot}>
         Deck = top 50 unseen jobs, refreshed when you re-run the pipeline. The buttons below the
         card do the same thing if you prefer clicking.
       </p>

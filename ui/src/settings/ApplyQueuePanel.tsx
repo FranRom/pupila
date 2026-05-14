@@ -5,6 +5,7 @@
 
 import { useMemo, useState } from 'react';
 import { relativeTime } from '../format.ts';
+import tabStyles from '../styles/Tab.module.css';
 import {
   type ApplyQueueResponse,
   QUEUE_STATUS_EMOJI,
@@ -12,6 +13,7 @@ import {
   type QueueRow,
   type QueueRowStatus,
 } from '../types.ts';
+import styles from './ApplyQueuePanel.module.css';
 
 interface ApplyQueuePanelProps {
   data: ApplyQueueResponse | null;
@@ -35,6 +37,14 @@ const STATUS_RANK: Record<QueueRowStatus, number> = {
   cancelled: 3,
   done: 4,
 };
+
+const STATUS_CLASS = {
+  queued: styles.statusQueued,
+  running: styles.statusRunning,
+  done: styles.statusDone,
+  failed: styles.statusFailed,
+  cancelled: styles.statusCancelled,
+} as const;
 
 function matchesFilter(status: QueueRowStatus, filter: QueueFilter): boolean {
   if (filter === 'all') return true;
@@ -100,44 +110,44 @@ export function ApplyQueuePanel({ data, onCancel, onRefresh }: ApplyQueuePanelPr
   };
 
   return (
-    <section className="settings-section apply-queue-panel">
-      <header className="apply-queue-panel-header">
+    <section className={styles.panel}>
+      <header className={styles.header}>
         <h2>[08] APPLY QUEUE</h2>
-        <button type="button" className="apply-queue-cancel" onClick={onRefresh}>
+        <button type="button" className={styles.cancel} onClick={onRefresh}>
           ↻ refresh
         </button>
       </header>
-      <p className="apply-queue-panel-subtitle">
+      <p className={styles.subtitle}>
         Background jobs queued for AI apply. Right-swipe in the Jinder tab enqueues; the worker
         drains serially. Cancel anytime.
       </p>
 
       {data === null ? (
-        <div className="apply-queue-empty">Loading…</div>
+        <div className={styles.empty}>Loading…</div>
       ) : (
         <>
           {data.worker.alive ? (
-            <div className="apply-queue-worker-banner">
+            <div className={styles.workerBanner}>
               <span>✓ worker running (pid {data.worker.pid ?? '—'})</span>
             </div>
           ) : (
-            <div className="apply-queue-worker-banner">
+            <div className={styles.workerBanner}>
               <span>⚠ apply-worker is not running. Start it in a terminal:</span>
-              <code className="apply-queue-worker-banner-cmd">pnpm run apply-worker</code>
+              <code className={styles.workerBannerCmd}>pnpm run apply-worker</code>
             </div>
           )}
 
-          <div className="apply-queue-panel-subtitle">
+          <div className={styles.subtitle}>
             {counts.queued} queued · {counts.running} running · {counts.done} done · {counts.failed}{' '}
             failed · {counts.cancelled} cancelled
           </div>
 
-          <div className="tabs apply-queue-tabs">
+          <div className={tabStyles.stripInCard}>
             {(Object.keys(FILTER_LABELS) as QueueFilter[]).map((f) => (
               <button
                 key={f}
                 type="button"
-                className={`tab ${filter === f ? 'tab-active' : ''}`}
+                className={filter === f ? tabStyles.tabActive : tabStyles.tab}
                 onClick={() => setFilter(f)}
                 aria-pressed={filter === f}
               >
@@ -147,32 +157,32 @@ export function ApplyQueuePanel({ data, onCancel, onRefresh }: ApplyQueuePanelPr
           </div>
 
           {visibleRows.length === 0 ? (
-            <div className="apply-queue-empty">Queue is empty.</div>
+            <div className={styles.empty}>Queue is empty.</div>
           ) : (
-            <ul className="apply-queue-list">
+            <ul className={styles.list}>
               {visibleRows.map((row) => {
                 const isActive = row.status === 'queued' || row.status === 'running';
                 const isCancelling = cancelling.has(row.jobId);
                 const timeIso = row.startedAt ?? row.enqueuedAt;
                 return (
-                  <li key={`${row.jobId}-${row.enqueuedAt}`} className="apply-queue-row">
-                    <span className={`apply-queue-status qstatus-${row.status}`}>
+                  <li key={`${row.jobId}-${row.enqueuedAt}`} className={styles.row}>
+                    <span className={STATUS_CLASS[row.status]}>
                       {QUEUE_STATUS_EMOJI[row.status]} {QUEUE_STATUS_LABEL[row.status]}
                     </span>
-                    <code className="apply-queue-jobid">{row.jobId.slice(0, 10)}…</code>
+                    <code className={styles.jobid}>{row.jobId.slice(0, 10)}…</code>
                     {row.attempts > 1 && (
-                      <span className="apply-queue-attempts">attempts: {row.attempts}</span>
+                      <span className={styles.attempts}>attempts: {row.attempts}</span>
                     )}
-                    <span className="apply-queue-time">{relativeTime(timeIso)}</span>
+                    <span className={styles.time}>{relativeTime(timeIso)}</span>
                     {row.error && (row.status === 'failed' || row.status === 'cancelled') && (
-                      <span className="apply-queue-error" title={row.error}>
+                      <span className={styles.error} title={row.error}>
                         {row.error.slice(0, 60)}…
                       </span>
                     )}
                     {isActive && (
                       <button
                         type="button"
-                        className="apply-queue-cancel"
+                        className={styles.cancel}
                         onClick={() => void handleCancel(row.jobId)}
                         disabled={isCancelling}
                         title={

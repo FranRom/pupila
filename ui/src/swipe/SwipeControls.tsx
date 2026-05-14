@@ -2,6 +2,8 @@
 // disabled flag (e.g. while a network request is in flight or a card is
 // mid-exit-animation).
 
+import styles from './SwipeControls.module.css';
+
 interface SwipeControlsProps {
   onSkip: () => void;
   onApply: () => void;
@@ -10,10 +12,10 @@ interface SwipeControlsProps {
 
 export function SwipeControls({ onSkip, onApply, disabled = false }: SwipeControlsProps) {
   return (
-    <div className="swipe-controls">
+    <div className={styles.controls}>
       <button
         type="button"
-        className="swipe-btn swipe-btn-skip"
+        className={styles.skip}
         onClick={onSkip}
         disabled={disabled}
         aria-label="Skip job"
@@ -23,7 +25,7 @@ export function SwipeControls({ onSkip, onApply, disabled = false }: SwipeContro
       </button>
       <button
         type="button"
-        className="swipe-btn swipe-btn-apply"
+        className={styles.apply}
         onClick={onApply}
         disabled={disabled}
         aria-label="Apply to job"

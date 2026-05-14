@@ -1,4 +1,6 @@
+import clsx from 'clsx';
 import type { JobSignals } from '../types.ts';
+import styles from './SignalsList.module.css';
 
 const SIGNAL_LABELS: Record<keyof JobSignals, string> = {
   web3TitleBody: 'web3 (title/body)',
@@ -26,21 +28,21 @@ export function SignalsList({ signals }: { signals: JobSignals }) {
     .map((k) => ({ key: k, label: SIGNAL_LABELS[k], value: signals[k] as number }))
     .filter((s) => s.value !== 0);
   return (
-    <ul className="signals">
+    <ul className={styles.list}>
       {fired.map((s) => (
         <li key={s.key}>
-          <span className="signal-label">{s.label}</span>
-          <span className={s.value > 0 ? 'signal-pos' : 'signal-neg'}>
+          <span className={styles.label}>{s.label}</span>
+          <span className={s.value > 0 ? styles.pos : styles.neg}>
             {s.value > 0 ? '+' : ''}
             {s.value}
           </span>
         </li>
       ))}
-      <li className="signal-total">
-        <span className="signal-label">raw total</span>
+      <li className={styles.total}>
+        <span className={styles.label}>raw total</span>
         <span>{signals.rawTotal}</span>
       </li>
-      {signals.capped && <li className="signal-total muted">(capped at 100)</li>}
+      {signals.capped && <li className={clsx(styles.total, styles.muted)}>(capped at 100)</li>}
     </ul>
   );
 }
