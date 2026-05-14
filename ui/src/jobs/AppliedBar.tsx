@@ -105,10 +105,10 @@ export function AppliedBar({
             title={
               queueStatus === 'running'
                 ? 'Cancel the in-flight AI Apply run'
-                : 'Remove from the AI Apply queue'
+                : 'Remove from the AI Apply queue (no work happened yet)'
             }
           >
-            ✕ cancel {queueStatus === 'running' ? 'apply' : 'queue'}
+            ✕ {queueStatus === 'running' ? 'cancel apply' : 'remove from queue'}
           </button>
         ) : queueStatus !== 'done' ? (
           <button

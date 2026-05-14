@@ -912,6 +912,15 @@ tbody tr.indent td:first-child {
   border-color: var(--accent);
 }
 
+/* In-card tab strips (e.g. Apply queue filter) reset the main-nav
+   positioning (margin-left + align-self: flex-end) since they don't sit
+   inside a flex header. */
+.apply-queue-tabs {
+  margin-left: 0;
+  align-self: auto;
+  flex-wrap: wrap;
+}
+
 /* Profile view */
 .profile {
   max-width: 860px;
@@ -2934,16 +2943,11 @@ table.row-compact .signal-chip {
 /* ─── Apply queue panel ──────────────────────────────────────────
    Reuses the .settings-section card aesthetic for visual continuity
    with the numbered Settings panels. */
+/* Card styling is inherited from `.settings-section` (the panel is rendered
+   with both classes). Only the layout knobs specific to the queue list live
+   here — keeping the card itself in lock-step with the other settings panels. */
 .apply-queue-panel {
-  background: var(--surface-raised);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 1.25rem 1.5rem 1.5rem;
-  display: flex;
-  flex-direction: column;
   gap: 0.875rem;
-  max-width: 920px;
-  margin: 1.5rem auto;
 }
 
 .apply-queue-panel-header {

@@ -252,6 +252,16 @@ export async function markCancelled(
       return { next: queue, result: { ok: false, reason: 'terminal' as const } };
     }
 
+    // Queued rows haven't started running yet — no LLM work happened, no
+    // partial output to preserve. Remove them entirely so they don't pile
+    // up in the Failed tab as audit-trail noise.
+    if (target.status === 'queued') {
+      const rows = queue.rows.filter((r) => r !== target);
+      return { next: { ...queue, rows }, result: { ok: true } };
+    }
+
+    // Running rows: keep the row + flip to cancelled so the partial output
+    // and the cancellation are auditable.
     const cancelledAt = now();
     const rows = queue.rows.map((r): QueueRow => {
       if (r === target) {

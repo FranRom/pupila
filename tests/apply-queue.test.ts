@@ -168,7 +168,8 @@ describe('markDone', () => {
 
   it('returns {ok:false} when no running row exists (e.g. cancelled mid-run)', async () => {
     await enqueue('job-1', queuePath);
-    await markCancelled('job-1', queuePath);
+    await claimNext(queuePath); // running
+    await markCancelled('job-1', queuePath); // running → cancelled
 
     const result = await markDone('job-1', 'data/applications/job-1.md', queuePath);
     expect(result).toEqual({ ok: false, reason: 'no-running-row' });
@@ -204,16 +205,16 @@ describe('markFailed', () => {
 });
 
 describe('markCancelled', () => {
-  it('cancels a queued row and returns {ok:true}', async () => {
+  it('removes a queued row entirely and returns {ok:true}', async () => {
+    // Queued rows haven't started running — cancelling them removes the row
+    // so it doesn't clutter the Failed tab with audit-trail noise.
     await enqueue('job-1', queuePath);
     const result = await markCancelled('job-1', queuePath);
 
     expect(result).toEqual({ ok: true });
 
     const q = await loadQueue(queuePath);
-    const row = q.rows[0];
-    expect(row?.status).toBe('cancelled');
-    expect(row?.cancelledAt).toBeDefined();
+    expect(q.rows).toHaveLength(0);
   });
 
   it('cancels a running row and returns {ok:true}', async () => {
@@ -254,9 +255,18 @@ describe('markCancelled', () => {
     expect(result).toEqual({ ok: false, reason: 'terminal' });
   });
 
-  it('returns {ok:false, reason:"terminal"} for an already-cancelled row', async () => {
+  it('returns {ok:false, reason:"not-found"} after cancelling a queued row (row is gone)', async () => {
     await enqueue('job-1', queuePath);
-    await markCancelled('job-1', queuePath);
+    await markCancelled('job-1', queuePath); // queued → removed
+
+    const result = await markCancelled('job-1', queuePath);
+    expect(result).toEqual({ ok: false, reason: 'not-found' });
+  });
+
+  it('returns {ok:false, reason:"terminal"} for an already-cancelled running row', async () => {
+    await enqueue('job-1', queuePath);
+    await claimNext(queuePath); // running
+    await markCancelled('job-1', queuePath); // running → cancelled (kept)
 
     const result = await markCancelled('job-1', queuePath);
     expect(result).toEqual({ ok: false, reason: 'terminal' });
@@ -327,10 +337,17 @@ describe('isCancelled', () => {
     expect(await isCancelled('job-1', queuePath)).toBe(false);
   });
 
-  it('returns true for a cancelled row', async () => {
+  it('returns true for a cancelled running row', async () => {
     await enqueue('job-1', queuePath);
+    await claimNext(queuePath);
     await markCancelled('job-1', queuePath);
     expect(await isCancelled('job-1', queuePath)).toBe(true);
+  });
+
+  it('returns false after cancelling a queued row (row removed, not cancelled)', async () => {
+    await enqueue('job-1', queuePath);
+    await markCancelled('job-1', queuePath);
+    expect(await isCancelled('job-1', queuePath)).toBe(false);
   });
 
   it('returns false for unknown jobId', async () => {
