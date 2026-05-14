@@ -88,17 +88,13 @@ export function ConfirmModal({ dialog, onClose }: ConfirmModalProps) {
         </header>
         <p className="confirm-modal-body">{dialog.body}</p>
         <div className="confirm-modal-actions">
-          <button
-            type="button"
-            className="settings-button settings-button-secondary"
-            onClick={onClose}
-          >
+          <button type="button" className="btn btn-primary" onClick={onClose}>
             Cancel
           </button>
           <button
             ref={lastFocusableRef}
             type="button"
-            className={`settings-button ${dialog.destructive ? 'settings-button-danger' : 'settings-button-primary'}`}
+            className={`btn ${dialog.destructive ? 'btn-danger' : 'btn-secondary'}`}
             onClick={dialog.onConfirm}
           >
             {dialog.confirmLabel}

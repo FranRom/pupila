@@ -1,14 +1,28 @@
 import { useEffect, useState } from 'react';
-import type { AppliedEntry, Job } from '../types.ts';
+import type { AppliedEntry, Job, QueueRowStatus } from '../types.ts';
 import { type SetApplied, STATUS_EMOJI, STATUS_OPTIONS } from './types.ts';
 
 interface AppliedBarProps {
   job: Job;
   applied: AppliedEntry | undefined;
+  isSkipped: boolean;
+  queueStatus: QueueRowStatus | null;
   setApplied: SetApplied;
+  toggleSkip: (jobId: string) => void;
+  cancelQueueRow: (jobId: string) => Promise<void>;
+  enqueueJob: (jobId: string) => Promise<void>;
 }
 
-export function AppliedBar({ job, applied, setApplied }: AppliedBarProps) {
+export function AppliedBar({
+  job,
+  applied,
+  isSkipped,
+  queueStatus,
+  setApplied,
+  toggleSkip,
+  cancelQueueRow,
+  enqueueJob,
+}: AppliedBarProps) {
   const [notesDraft, setNotesDraft] = useState(applied?.notes ?? '');
   // Reset the notes draft whenever the underlying entry changes (e.g. after
   // server confirms or status switches via the pills).
@@ -69,6 +83,43 @@ export function AppliedBar({ job, applied, setApplied }: AppliedBarProps) {
             clear
           </button>
         )}
+        <button
+          type="button"
+          className={`pill ${isSkipped ? 'pill-active pill-rejected' : ''}`}
+          aria-pressed={isSkipped}
+          onClick={() => toggleSkip(job.id)}
+          title={isSkipped ? 'Click to un-skip — restores in Jinder' : 'Skip from Jinder'}
+        >
+          {isSkipped && (
+            <span className="pill-check" aria-hidden>
+              ✓{' '}
+            </span>
+          )}
+          ❌ {isSkipped ? 'skipped' : 'skip'}
+        </button>
+        {queueStatus === 'queued' || queueStatus === 'running' ? (
+          <button
+            type="button"
+            className="pill pill-active pill-rejected"
+            onClick={() => void cancelQueueRow(job.id)}
+            title={
+              queueStatus === 'running'
+                ? 'Cancel the in-flight AI Apply run'
+                : 'Remove from the AI Apply queue (no work happened yet)'
+            }
+          >
+            ✕ {queueStatus === 'running' ? 'cancel apply' : 'remove from queue'}
+          </button>
+        ) : queueStatus !== 'done' ? (
+          <button
+            type="button"
+            className="pill"
+            onClick={() => void enqueueJob(job.id)}
+            title="Queue this job for AI Apply (background LLM run)"
+          >
+            ⏳ queue
+          </button>
+        ) : null}
       </div>
       {applied && (
         <input

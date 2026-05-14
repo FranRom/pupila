@@ -5,6 +5,8 @@ interface JobsFiltersProps {
   category: Category | 'all';
   source: Source | 'all';
   appliedOnly: boolean;
+  showSkipped: boolean;
+  queuedOnly: boolean;
   groupByCompany: boolean;
   compact: boolean;
   sources: Source[];
@@ -13,6 +15,8 @@ interface JobsFiltersProps {
   onCategoryChange: (v: Category | 'all') => void;
   onSourceChange: (v: Source | 'all') => void;
   onAppliedOnlyChange: (v: boolean) => void;
+  onShowSkippedChange: (v: boolean) => void;
+  onQueuedOnlyChange: (v: boolean) => void;
   onGroupByCompanyChange: (v: boolean) => void;
   onCompactChange: (v: boolean) => void;
   onReset: () => void;
@@ -25,6 +29,8 @@ export function JobsFilters({
   category,
   source,
   appliedOnly,
+  showSkipped,
+  queuedOnly,
   groupByCompany,
   compact,
   sources,
@@ -33,13 +39,21 @@ export function JobsFilters({
   onCategoryChange,
   onSourceChange,
   onAppliedOnlyChange,
+  onShowSkippedChange,
+  onQueuedOnlyChange,
   onGroupByCompanyChange,
   onCompactChange,
   onReset,
   onRefetch,
   isFetching,
 }: JobsFiltersProps) {
-  const hasActiveFilters = Boolean(search) || category !== 'all' || source !== 'all' || appliedOnly;
+  const hasActiveFilters =
+    Boolean(search) ||
+    category !== 'all' ||
+    source !== 'all' ||
+    appliedOnly ||
+    showSkipped ||
+    queuedOnly;
   return (
     <div className="filters">
       <input
@@ -78,6 +92,24 @@ export function JobsFilters({
         Applied only
       </label>
 
+      <label className="checkbox" title="Show jobs you left-swiped in Jinder">
+        <input
+          type="checkbox"
+          checked={showSkipped}
+          onChange={(e) => onShowSkippedChange(e.target.checked)}
+        />
+        Show skipped
+      </label>
+
+      <label className="checkbox" title="Show only jobs currently queued or running in AI Apply">
+        <input
+          type="checkbox"
+          checked={queuedOnly}
+          onChange={(e) => onQueuedOnlyChange(e.target.checked)}
+        />
+        Queued only
+      </label>
+
       <label className="checkbox">
         <input
           type="checkbox"
@@ -97,19 +129,19 @@ export function JobsFilters({
       </label>
 
       {hasActiveFilters && (
-        <button type="button" className="reset" onClick={onReset}>
+        <button type="button" className="btn btn-secondary btn-sm reset" onClick={onReset}>
           Reset
         </button>
       )}
 
       <button
         type="button"
-        className="filters-refetch"
+        className="btn btn-primary btn-sm filters-refetch"
         onClick={onRefetch}
         disabled={isFetching}
         title={isFetching ? 'A fetch run is already in flight' : 'Refetch jobs from all sources'}
       >
-        {isFetching ? '⟳ Fetching…' : '⟳ Refetch'}
+        {isFetching ? 'Fetching…' : 'Refetch'}
       </button>
     </div>
   );

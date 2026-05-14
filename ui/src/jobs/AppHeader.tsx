@@ -1,3 +1,5 @@
+import logoUrl from '../../../assets/logo.svg';
+import asciiTitleUrl from '../../../assets/pupila-ascii.svg';
 import type { Category } from '../types.ts';
 
 type Tab = 'jobs' | 'swipe' | 'profile' | 'settings';
@@ -24,7 +26,12 @@ export function AppHeader({
   return (
     <header>
       <div>
-        <h1>Job hunt</h1>
+        <div className="app-brand">
+          <img src={logoUrl} alt="" className="app-logo" aria-hidden />
+          <h1 className="app-title">
+            <img src={asciiTitleUrl} alt="pupila" className="app-title-ascii" />
+          </h1>
+        </div>
         <p className="subtitle">
           {dataLoading ? (
             'loading…'
@@ -32,6 +39,14 @@ export function AppHeader({
             <>
               {totalJobs} jobs · {totals['web3+ai']} web3+ai · {totals.web3} web3 · {totals.ai} ai ·{' '}
               {totals.general} general · {appliedCount} applied
+              {tab === 'jobs' && (
+                <>
+                  {' — '}
+                  <span className="subtitle-emphasis">
+                    Showing <strong>{visibleCount}</strong>
+                  </span>
+                </>
+              )}
             </>
           )}
         </p>
@@ -49,7 +64,7 @@ export function AppHeader({
           className={`tab ${tab === 'swipe' ? 'tab-active' : ''}`}
           onClick={() => onTabChange('swipe')}
         >
-          Tik Tjob
+          Jinder
         </button>
         <button
           type="button"
@@ -66,11 +81,6 @@ export function AppHeader({
           Settings
         </button>
       </div>
-      {tab === 'jobs' && (
-        <div className="counts">
-          showing <strong>{visibleCount}</strong>
-        </div>
-      )}
     </header>
   );
 }

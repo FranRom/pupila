@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 80" role="img" aria-label="pupila">
+  <style>
+    .ascii {
+      font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+      font-size: 14px;
+      font-weight: 700;
+      fill: #b6ff6a;
+      white-space: pre;
+    }
+  </style>
+  <text class="ascii" x="50%" y="14" text-anchor="middle">█████  █   █  █████  █  █      █████</text>
+  <text class="ascii" x="50%" y="28" text-anchor="middle">█   █  █   █  █   █  █  █      █   █</text>
+  <text class="ascii" x="50%" y="42" text-anchor="middle">█████  █   █  █████  █  █      █████</text>
+  <text class="ascii" x="50%" y="56" text-anchor="middle">█      █   █  █      █  █      █   █</text>
+  <text class="ascii" x="50%" y="70" text-anchor="middle">█       ███   █      █  █████  █   █</text>
+</svg>

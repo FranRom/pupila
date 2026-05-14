@@ -78,7 +78,7 @@ export function StreamingPanel({
         <div className="streaming-panel-error">
           <span>{error}</span>
           {onRetry && (
-            <button type="button" onClick={onRetry} className="onboarding-button">
+            <button type="button" onClick={onRetry} className="btn btn-primary btn-sm">
               Retry
             </button>
           )}

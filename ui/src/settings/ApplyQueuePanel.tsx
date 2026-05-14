@@ -108,7 +108,7 @@ export function ApplyQueuePanel({ data, onCancel, onRefresh }: ApplyQueuePanelPr
         </button>
       </header>
       <p className="apply-queue-panel-subtitle">
-        Background jobs queued for AI apply. Right-swipe in the Tik Tjob tab enqueues; the worker
+        Background jobs queued for AI apply. Right-swipe in the Jinder tab enqueues; the worker
         drains serially. Cancel anytime.
       </p>
 
@@ -132,15 +132,14 @@ export function ApplyQueuePanel({ data, onCancel, onRefresh }: ApplyQueuePanelPr
             failed · {counts.cancelled} cancelled
           </div>
 
-          <div className="apply-queue-panel-header">
+          <div className="tabs apply-queue-tabs">
             {(Object.keys(FILTER_LABELS) as QueueFilter[]).map((f) => (
               <button
                 key={f}
                 type="button"
-                className="apply-queue-cancel"
+                className={`tab ${filter === f ? 'tab-active' : ''}`}
                 onClick={() => setFilter(f)}
                 aria-pressed={filter === f}
-                disabled={filter === f}
               >
                 {FILTER_LABELS[f]}
               </button>
@@ -176,8 +175,13 @@ export function ApplyQueuePanel({ data, onCancel, onRefresh }: ApplyQueuePanelPr
                         className="apply-queue-cancel"
                         onClick={() => void handleCancel(row.jobId)}
                         disabled={isCancelling}
+                        title={
+                          row.status === 'queued'
+                            ? 'Remove from queue (no work happened yet)'
+                            : 'Cancel the in-flight AI Apply run'
+                        }
                       >
-                        {isCancelling ? 'cancelling…' : 'cancel'}
+                        {isCancelling ? 'working…' : row.status === 'queued' ? 'remove' : 'cancel'}
                       </button>
                     )}
                   </li>

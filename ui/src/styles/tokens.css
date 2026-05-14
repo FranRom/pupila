@@ -1,0 +1,191 @@
+/* =============================================================================
+   Design tokens — the single source of truth for the entire UI.
+
+   Components MUST consume tokens (var(--…)) — never hardcode hex/rgba.
+   To rebrand: change values in the palette block. Everything else adapts
+   automatically through color-mix() derivations.
+
+   PRIMARY vs DANGER — important separation:
+     - --primary is the main CTA color (apply, save, confirm, focus rings).
+     - --danger is reserved for destructive actions (cancel, delete, reject,
+       errors). The two are visibly distinct so the user never confuses
+       "confirm" with "cancel".
+   ========================================================================== */
+
+:root {
+  color-scheme: dark;
+
+  /* ── Surfaces ──────────────────────────────────────────────────────────── */
+  --bg: rgb(0, 20, 9);
+  --surface: rgb(12, 46, 26);
+  --surface-raised: rgb(23, 32, 25);
+  --border: rgb(38, 51, 40);
+
+  /* ── Text ──────────────────────────────────────────────────────────────── */
+  --text: #fff7f9;
+  --text-muted: #b9a6ad;
+  --text-soft: #7e6972;
+
+  /* ── Primary (brand CTA = pale ice blue) ──────────────────────────────── */
+  --primary: #d7f7ff;
+  --primary-fg: #071014;
+  --primary-hover: color-mix(in srgb, var(--primary) 92%, var(--bg));
+  --primary-soft: color-mix(in srgb, var(--primary) 12%, var(--surface));
+
+  /* ── Danger (destructive / error / cancel) ────────────────────────────── */
+  --danger: rgb(227, 50, 79);
+  --danger-fg: #ffffff;
+  --danger-hover: color-mix(in srgb, var(--danger) 82%, white);
+  --danger-soft: color-mix(in srgb, var(--danger) 18%, var(--surface));
+
+  /* ── Accent + status colors ───────────────────────────────────────────── */
+  --accent: #b6ff6a;
+  --warning: #ffd166;
+
+  /* ── Shadow tint (user-supplied) ──────────────────────────────────────── */
+  --shadow-color: rgba(18, 0, 7, 0.54);
+
+  /* Modal scrim — full-viewport dim behind dialogs. Pure black so it works
+     against any tinted surface without competing for hue. */
+  --scrim: rgba(0, 0, 0, 0.55);
+
+  /* ── Focus ring ───────────────────────────────────────────────────────── */
+  --focus-ring: var(--primary);
+  --focus-ring-halo: color-mix(in srgb, var(--focus-ring) 28%, transparent);
+
+  /* ── Derived: surface / state tints ───────────────────────────────────────
+     If the palette changes, only the block above moves — these adapt.
+     ────────────────────────────────────────────────────────────────────── */
+  --surface-hover: color-mix(in srgb, var(--primary) 6%, var(--surface));
+  --surface-active: color-mix(in srgb, var(--primary) 10%, var(--surface));
+  --row-hover: color-mix(in srgb, var(--primary) 4%, transparent);
+
+  --border-strong: color-mix(in srgb, var(--text) 24%, var(--border));
+
+  /* ── Status badges ─────────────────────────────────────────────────────── */
+  --applied-bg: var(--surface-raised);
+  --applied-border: var(--accent);
+
+  --badge-applied-bg: color-mix(in srgb, var(--accent) 16%, var(--surface));
+  --badge-applied-fg: var(--accent);
+
+  --badge-interview-bg: color-mix(in srgb, var(--warning) 18%, var(--surface));
+  --badge-interview-fg: var(--warning);
+
+  --badge-offer-bg: color-mix(in srgb, var(--accent) 18%, var(--surface));
+  --badge-offer-fg: var(--accent);
+
+  --badge-rejected-bg: var(--danger-soft);
+  --badge-rejected-fg: var(--danger);
+
+  --badge-withdrawn-bg: var(--surface);
+  --badge-withdrawn-fg: var(--text-soft);
+
+  /* ── Score colors ──────────────────────────────────────────────────────── */
+  --score-mid: var(--warning);
+  --score-low: var(--text-soft);
+
+  /* ── Selection / scroll ────────────────────────────────────────────────── */
+  --selection-bg: color-mix(in srgb, var(--primary) 22%, var(--surface));
+  --selection-fg: var(--text);
+  --scrollbar-thumb: color-mix(in srgb, var(--primary) 14%, var(--surface-raised));
+  --scrollbar-thumb-hover: color-mix(in srgb, var(--primary) 30%, var(--surface-raised));
+
+  /* ── Spacing scale (4-pt rhythm) ──────────────────────────────────────── */
+  --space-0: 0;
+  --space-1: 0.25rem; /*  4px */
+  --space-2: 0.5rem; /*  8px */
+  --space-3: 0.75rem; /* 12px */
+  --space-4: 1rem; /* 16px */
+  --space-5: 1.25rem; /* 20px */
+  --space-6: 1.5rem; /* 24px */
+  --space-8: 2rem; /* 32px */
+  --space-10: 2.5rem; /* 40px */
+  --space-12: 3rem; /* 48px */
+
+  /* ── Type scale ────────────────────────────────────────────────────────── */
+  --text-xs: 0.6875rem; /* 11px */
+  --text-sm: 0.75rem; /* 12px */
+  --text-base: 0.8125rem; /* 13px */
+  --text-md: 0.875rem; /* 14px — body default */
+  --text-lg: 1rem; /* 16px */
+  --text-xl: 1.125rem; /* 18px */
+  --text-2xl: 1.5rem; /* 24px */
+  --text-3xl: 2rem; /* 32px */
+
+  --tracking-tight: -0.01em;
+  --tracking-snug: -0.005em;
+  --tracking-wide: 0.04em;
+
+  /* ── Radius scale ──────────────────────────────────────────────────────── */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 10px;
+  --radius-xl: 14px;
+  --radius-pill: 999px;
+
+  /* ── Shadows (depth) ───────────────────────────────────────────────────── */
+  --shadow-sm: 0 1px 2px var(--shadow-color);
+  --shadow-md: 0 4px 12px var(--shadow-color);
+  --shadow-lg: 0 12px 32px var(--shadow-color);
+  --shadow-card: var(--shadow-md);
+  --shadow-glow-primary: 0 0 16px color-mix(in srgb, var(--primary) 30%, transparent);
+  --shadow-glow-accent: 0 0 14px color-mix(in srgb, var(--accent) 50%, transparent);
+  --shadow-glow-danger: 0 0 14px color-mix(in srgb, var(--danger) 50%, transparent);
+  /* Modal lift — deeper than --shadow-lg for dialog elevation off the page. */
+  --shadow-modal: 0 20px 60px color-mix(in srgb, black 40%, transparent);
+
+  /* ── Motion ────────────────────────────────────────────────────────────── */
+  --duration-fast: 120ms;
+  --duration-base: 200ms;
+  --duration-slow: 320ms;
+  --ease-out: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  /* ── Z-index scale ─────────────────────────────────────────────────────── */
+  --z-base: 1;
+  --z-sticky: 50;
+  --z-overlay: 80;
+  --z-dialog: 100;
+  --z-dock: 90;
+
+  /* ── Domain aliases (used by swipe deck) ──────────────────────────────── */
+  --swipe-skip: var(--danger);
+  --swipe-apply: var(--accent);
+
+  /* ── Component tokens ────────────────────────────────────────────────────
+     Tier-3 tokens for specific components. They default to semantic tokens
+     so the system stays coherent; override one for a bespoke look without
+     touching the semantic layer. Buttons live here because they often need
+     a treatment distinct from the semantic --primary used elsewhere
+     (focus rings, selection, etc.).
+     ────────────────────────────────────────────────────────────────────── */
+
+  /* Primary button: olive surface + lime text (designer override).
+     Defaults shown for reference: transparent / var(--primary). */
+  --primary-button-bg: #344327;
+  --primary-button-text: var(--accent);
+  --primary-button-border: var(--accent);
+  --primary-button-bg-hover: color-mix(
+    in srgb,
+    var(--primary-button-text) 12%,
+    var(--primary-button-bg)
+  );
+
+  /* Secondary button: pale lime surface + olive text (designer override).
+     Defaults shown for reference: var(--primary) / var(--primary-fg). */
+  --secondary-button-bg: #e7ff9e;
+  --secondary-button-text: #344327;
+  --secondary-button-border: #e7ff9e;
+  --secondary-button-bg-hover: color-mix(
+    in srgb,
+    var(--secondary-button-text) 8%,
+    var(--secondary-button-bg)
+  );
+
+  /* Danger button: destructive (defaults to semantic danger). */
+  --danger-button-bg: var(--danger);
+  --danger-button-text: var(--danger-fg);
+  --danger-button-border: var(--danger);
+  --danger-button-bg-hover: var(--danger-hover);
+}

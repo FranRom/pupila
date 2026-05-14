@@ -31,7 +31,7 @@ describe('renderFeed', () => {
     expect(xml).toMatch(/<\?xml version="1\.0" encoding="UTF-8"\?>/);
     expect(xml).toMatch(/<rss version="2\.0">/);
     expect(xml).toMatch(/<channel>/);
-    expect(xml).toMatch(/<title>job-hunt — new matches<\/title>/);
+    expect(xml).toMatch(/<title>pupila — new matches<\/title>/);
   });
 
   it('renders one item per job with title containing fit score', () => {

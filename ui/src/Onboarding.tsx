@@ -204,8 +204,8 @@ export function Onboarding({ onComplete }: OnboardingProps) {
         <section className="onboarding-step">
           <h2>Pick your LLM CLI</h2>
           <p>
-            job-hunt shells out to a local LLM CLI (no API keys, uses your existing subscription)
-            for the CV summary, per-job AI review, and AI Apply. Pick whichever you have installed.
+            Pupila shells out to a local LLM CLI (no API keys, uses your existing subscription) for
+            the CV summary, per-job AI review, and AI Apply. Pick whichever you have installed.
           </p>
           {!available ? (
             <p className="placeholder">Probing installed CLIs…</p>
@@ -260,7 +260,12 @@ export function Onboarding({ onComplete }: OnboardingProps) {
             </p>
           )}
           <div className="onboarding-actions">
-            <button type="button" disabled={!anyAvailable || busy} onClick={() => setStep('cv')}>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              disabled={!anyAvailable || busy}
+              onClick={() => setStep('cv')}
+            >
               Next: upload CV →
             </button>
           </div>
@@ -291,7 +296,12 @@ export function Onboarding({ onComplete }: OnboardingProps) {
             error={cv.status === 'error' ? error : null}
           />
           <div className="onboarding-actions">
-            <button type="button" disabled={busy} onClick={() => setStep('provider')}>
+            <button
+              type="button"
+              className="btn btn-primary"
+              disabled={busy}
+              onClick={() => setStep('provider')}
+            >
               ← Back
             </button>
           </div>
@@ -319,10 +329,20 @@ export function Onboarding({ onComplete }: OnboardingProps) {
             provider={provider === 'auto' ? null : provider}
           />
           <div className="onboarding-actions">
-            <button type="button" disabled={busy} onClick={() => setStep('cv')}>
+            <button
+              type="button"
+              className="btn btn-primary"
+              disabled={busy}
+              onClick={() => setStep('cv')}
+            >
               ← Re-upload CV
             </button>
-            <button type="button" disabled={busy} onClick={() => void finish()}>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              disabled={busy}
+              onClick={() => void finish()}
+            >
               {busy && <span className="button-spinner" aria-hidden />}
               {tuning
                 ? 'Tuning scoring profile from your brief…'
@@ -337,29 +357,29 @@ export function Onboarding({ onComplete }: OnboardingProps) {
   );
 }
 
-// Hand-laid ASCII block reading "job hunt" — figlet-style "Standard" font,
+// Hand-laid ASCII block reading "pupila" — figlet-style "Standard" font,
 // trimmed and aligned. Each line types itself out with a staggered delay
-// (CSS keyframes in styles.css), and a blinking cursor lands at the end of
+// (CSS keyframes in styles/components.css), and a blinking cursor lands at the end of
 // the tagline. Falls back to instant render under prefers-reduced-motion.
 const ASCII_HERO_LINES: readonly string[] = [
-  '   _       _        _                 _   ',
-  '  (_) ___ | |__    | |__  _   _ _ __ | |_ ',
-  "  | |/ _ \\| '_ \\   | '_ \\| | | | '_ \\| __|",
-  '  | | (_) | |_) |  | | | | |_| | | | | |_ ',
-  ' _/ |\\___/|_.__/   |_| |_|\\__,_|_| |_|\\__|',
-  '|__/                                      ',
+  '                 _ _       ',
+  ' _ __  _   _ _ __(_) | __ _ ',
+  "| '_ \\| | | | '_ \\| | |/ _` |",
+  '| |_) | |_| | |_) | | | (_| |',
+  '| .__/ \\__,_| .__/|_|_|\\__,_|',
+  '|_|         |_|             ',
 ];
 
 function AsciiHero() {
   return (
-    <div className="ascii-hero" role="img" aria-label="job-hunt">
+    <div className="ascii-hero" role="img" aria-label="pupila">
       {ASCII_HERO_LINES.map((line) => (
         <span key={line} className="ascii-hero-line">
           {line}
         </span>
       ))}
       <span className="ascii-hero-tag">
-        &gt; hunting for your next role across 13 sources
+        &gt; watching for your next role across 13 sources
         <span className="ascii-hero-cursor" />
       </span>
     </div>
@@ -410,7 +430,7 @@ function CvDropZone({ busy, onFile }: CvDropZoneProps) {
               e.target.value = '';
             }}
           />
-          <span className="onboarding-button">
+          <span className="btn btn-secondary">
             {busy && <span className="button-spinner" aria-hidden />}
             {busy ? 'Working…' : 'Choose file'}
           </span>

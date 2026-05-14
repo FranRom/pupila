@@ -113,6 +113,17 @@ export function useSwipeGesture({
   const style: CSSProperties =
     dragX !== 0 ? { transform: `translateX(${dragX}px) rotate(${dragX * 0.06}deg)` } : {};
 
+  // Direction class only kicks in past a small deadzone so a tap or a few
+  // pixels of jitter don't flash the danger border.
+  const DIRECTION_DEADZONE = 20;
+  const direction = Math.abs(dragX) > DIRECTION_DEADZONE ? (dragX > 0 ? 'right' : 'left') : null;
+  const className = [
+    dragging ? 'is-swiping' : null,
+    direction ? `swipe-direction-${direction}` : null,
+  ]
+    .filter(Boolean)
+    .join(' ');
+
   return {
     cardProps: {
       onPointerDown,
@@ -120,7 +131,7 @@ export function useSwipeGesture({
       onPointerUp,
       onPointerCancel,
       style,
-      className: dragging ? 'is-swiping' : '',
+      className,
     },
   };
 }

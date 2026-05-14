@@ -2,7 +2,7 @@ import type { Job } from './types.js';
 
 // Generic feed metadata. Forks can override via the JOB_HUNT_FEED_* env vars
 // without touching code (handy when self-hosting under a different repo URL).
-const FEED_TITLE = process.env.JOB_HUNT_FEED_TITLE ?? 'job-hunt — new matches';
+const FEED_TITLE = process.env.JOB_HUNT_FEED_TITLE ?? 'pupila — new matches';
 const FEED_DESC = process.env.JOB_HUNT_FEED_DESC ?? 'Daily job matches new since the last run.';
 const FEED_LINK = process.env.JOB_HUNT_FEED_LINK ?? 'JOBS.md';
 

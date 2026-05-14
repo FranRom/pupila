@@ -66,6 +66,8 @@ function readUrl(): {
   category: Category | 'all';
   source: Source | 'all';
   appliedOnly: boolean;
+  showSkipped: boolean;
+  queuedOnly: boolean;
   sortKey: SortKey;
   sortDir: SortDir;
   groupByCompany: boolean;
@@ -85,6 +87,8 @@ function readUrl(): {
       cat === 'web3+ai' || cat === 'web3' || cat === 'ai' || cat === 'general' ? cat : 'all',
     source: (p.get('src') as Source | 'all' | null) ?? 'all',
     appliedOnly: p.get('applied') === '1',
+    showSkipped: p.get('skipped') === '1',
+    queuedOnly: p.get('queued') === '1',
     sortKey: sortKey === 'salaryMax' || sortKey === 'postedAt' ? sortKey : 'fitScore',
     sortDir: sortDir === 'asc' ? 'asc' : 'desc',
     groupByCompany: p.get('group') !== '0',
@@ -109,6 +113,8 @@ export function App() {
   const [category, setCategory] = useState<Category | 'all'>(initial.category);
   const [source, setSource] = useState<Source | 'all'>(initial.source);
   const [appliedOnly, setAppliedOnly] = useState(initial.appliedOnly);
+  const [showSkipped, setShowSkipped] = useState(initial.showSkipped);
+  const [queuedOnly, setQueuedOnly] = useState(initial.queuedOnly);
   const [sortKey, setSortKey] = useState<SortKey>(initial.sortKey);
   const [sortDir, setSortDir] = useState<SortDir>(initial.sortDir);
   const [groupByCompany, setGroupByCompany] = useState(initial.groupByCompany);
@@ -141,11 +147,31 @@ export function App() {
   // LOW-9: SchedulerProgress dock now lives at App root. Settings reads
   // schedulerCompletedAt to know when to refresh its status panel.
   const [schedulerCompletedAt, setSchedulerCompletedAt] = useState(0);
-  // Apply-queue state. Polled at App root so both the Tik Tjob deck and the
+  // Apply-queue state. Polled at App root so both the Jinder deck and the
   // Settings panel see the same snapshot. Skipped when the relevant tabs
   // aren't visible to keep the dev server quiet.
   const [applyQueue, setApplyQueue] = useState<ApplyQueueResponse | null>(null);
   const [swipeSkipIds, setSwipeSkipIds] = useState<Set<string>>(new Set());
+  // AI verdict 'skip' is treated as an implicit skip — but the user can
+  // override it. Stored in localStorage (UI-only visibility concern; doesn't
+  // belong in the file-based ledgers). The Set holds jobIds where the user
+  // has explicitly chosen to ignore the AI's skip recommendation.
+  const [aiSkipOverrides, setAiSkipOverrides] = useState<Set<string>>(() => {
+    try {
+      const raw = window.localStorage.getItem('jinder-ai-skip-overrides');
+      if (raw) return new Set(JSON.parse(raw) as string[]);
+    } catch {
+      // ignore — corrupt storage value, fall back to empty.
+    }
+    return new Set();
+  });
+  useEffect(() => {
+    try {
+      window.localStorage.setItem('jinder-ai-skip-overrides', JSON.stringify([...aiSkipOverrides]));
+    } catch {
+      // localStorage may be full / disabled; behavior degrades to in-memory.
+    }
+  }, [aiSkipOverrides]);
 
   const refreshApplyQueue = useCallback(async (signal?: AbortSignal) => {
     try {
@@ -164,10 +190,107 @@ export function App() {
     }
   }, []);
 
+  // Toggle skipped state for a job, unifying both sources:
+  //   - swipe-skips.json (persisted, written by Jinder swipes + this pill)
+  //   - aiSkipOverrides   (localStorage, only used to override AI verdict 'skip')
+  // The pill works regardless of why the job is currently skipped — including
+  // AI-driven skips, which previously had no user control.
+  // Unified "is this job effectively skipped?" — used by filter, badge, pill
+  // state, and row class. Sourced from either the persistent swipe-skips file
+  // or the AI verdict 'skip', minus any user override of the latter.
+  const isJobSkipped = useCallback(
+    (jobId: string): boolean =>
+      swipeSkipIds.has(jobId) ||
+      (aiReviews[jobId]?.verdict === 'skip' && !aiSkipOverrides.has(jobId)),
+    [swipeSkipIds, aiReviews, aiSkipOverrides],
+  );
+
+  const toggleSkip = useCallback(
+    async (jobId: string): Promise<void> => {
+      const inSwipe = swipeSkipIds.has(jobId);
+      const aiSays = aiReviews[jobId]?.verdict === 'skip';
+      const overridden = aiSkipOverrides.has(jobId);
+      const effectivelySkipped = inSwipe || (aiSays && !overridden);
+
+      if (effectivelySkipped) {
+        // User wants to UNskip. Two stores might contribute; handle both.
+        if (aiSays && !overridden) {
+          setAiSkipOverrides((prev) => new Set([...prev, jobId]));
+        }
+        if (inSwipe) {
+          setSwipeSkipIds((prev) => {
+            const next = new Set(prev);
+            next.delete(jobId);
+            return next;
+          });
+          try {
+            const res = await fetch(`/api/apply-queue/${encodeURIComponent(jobId)}/skip`, {
+              method: 'DELETE',
+            });
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          } catch (err) {
+            // Rollback swipe-skip removal; the AI override (pure UI state) stays.
+            setSwipeSkipIds((prev) => new Set([...prev, jobId]));
+            setApiError(`Could not unskip: ${err instanceof Error ? err.message : String(err)}`);
+          }
+        }
+      } else {
+        // User wants to SKIP. If AI overrode is the only blocker, just lift it.
+        if (aiSays && overridden) {
+          setAiSkipOverrides((prev) => {
+            const next = new Set(prev);
+            next.delete(jobId);
+            return next;
+          });
+        } else {
+          setSwipeSkipIds((prev) => new Set([...prev, jobId]));
+          try {
+            const res = await fetch(`/api/apply-queue/${encodeURIComponent(jobId)}/skip`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+            });
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          } catch (err) {
+            setSwipeSkipIds((prev) => {
+              const next = new Set(prev);
+              next.delete(jobId);
+              return next;
+            });
+            setApiError(`Could not skip: ${err instanceof Error ? err.message : String(err)}`);
+          }
+        }
+      }
+    },
+    [swipeSkipIds, aiReviews, aiSkipOverrides],
+  );
+
   const cancelQueueRow = useCallback(
     async (jobId: string): Promise<void> => {
       try {
         await fetch(`/api/apply-queue/${encodeURIComponent(jobId)}`, { method: 'DELETE' });
+      } finally {
+        await refreshApplyQueue();
+      }
+    },
+    [refreshApplyQueue],
+  );
+
+  // Enqueue a job for AI Apply from the table — symmetric with the
+  // Jinder right-swipe. Backend already de-duplicates (409 on existing
+  // active rows) so we just surface that as a non-fatal error.
+  const enqueueJob = useCallback(
+    async (jobId: string): Promise<void> => {
+      try {
+        const res = await fetch('/api/apply-queue/enqueue', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ jobId }),
+        });
+        if (!res.ok && res.status !== 409) {
+          throw new Error(`HTTP ${res.status}`);
+        }
+      } catch (err) {
+        setApiError(`Could not queue job: ${err instanceof Error ? err.message : String(err)}`);
       } finally {
         await refreshApplyQueue();
       }
@@ -395,6 +518,8 @@ export function App() {
     if (category !== 'all') p.set('cat', category);
     if (source !== 'all') p.set('src', source);
     if (appliedOnly) p.set('applied', '1');
+    if (showSkipped) p.set('skipped', '1');
+    if (queuedOnly) p.set('queued', '1');
     if (sortKey !== 'fitScore') p.set('sort', sortKey);
     if (sortDir !== 'desc') p.set('dir', sortDir);
     if (!groupByCompany) p.set('group', '0');
@@ -412,6 +537,8 @@ export function App() {
     category,
     source,
     appliedOnly,
+    showSkipped,
+    queuedOnly,
     sortKey,
     sortDir,
     groupByCompany,
@@ -492,12 +619,32 @@ export function App() {
     return Array.from(s).sort();
   }, [allJobs]);
 
+  const queueStatusMap = useMemo<QueueStatusMap>(() => {
+    const map: QueueStatusMap = {};
+    if (!applyQueue) return map;
+    for (const row of applyQueue.rows) {
+      // Most recent row wins per jobId (queue can carry historical rows
+      // when a job has been re-enqueued after a previous done/failed run).
+      map[row.jobId] = row.status;
+    }
+    return map;
+  }, [applyQueue]);
+
   const visible = useMemo(() => {
     const q = search.trim().toLowerCase();
     const filtered = allJobs.filter((j) => {
       if (category !== 'all' && j.category !== category) return false;
       if (source !== 'all' && j.source !== source) return false;
       if (appliedOnly && !appliedById[j.id]) return false;
+      if (!showSkipped) {
+        const aiSays = aiReviews[j.id]?.verdict === 'skip';
+        const effSkipped = swipeSkipIds.has(j.id) || (aiSays && !aiSkipOverrides.has(j.id));
+        if (effSkipped) return false;
+      }
+      if (queuedOnly) {
+        const qs = queueStatusMap[j.id];
+        if (qs !== 'queued' && qs !== 'running') return false;
+      }
       if (q) {
         const hay = `${j.title} ${j.company ?? ''} ${j.location ?? ''}`.toLowerCase();
         if (!hay.includes(q)) return false;
@@ -512,7 +659,22 @@ export function App() {
       return av < bv ? -1 * dir : 1 * dir;
     });
     return filtered;
-  }, [allJobs, search, category, source, appliedOnly, sortKey, sortDir, appliedById]);
+  }, [
+    allJobs,
+    search,
+    category,
+    source,
+    appliedOnly,
+    showSkipped,
+    swipeSkipIds,
+    aiSkipOverrides,
+    aiReviews,
+    queuedOnly,
+    queueStatusMap,
+    sortKey,
+    sortDir,
+    appliedById,
+  ]);
 
   // When grouping is on, fold jobs by lower-cased company. Single-job
   // "groups" render flat (no header); only multi-job groups get a collapsible
@@ -559,17 +721,6 @@ export function App() {
   // Derive the queue-status-by-jobId map and the set of jobIds with
   // non-terminal queue rows. Both the Jobs-tab badge and the SwipeDeck
   // filter use these.
-  const queueStatusMap = useMemo<QueueStatusMap>(() => {
-    const map: QueueStatusMap = {};
-    if (!applyQueue) return map;
-    for (const row of applyQueue.rows) {
-      // Most recent row wins per jobId (queue can carry historical rows
-      // when a job has been re-enqueued after a previous done/failed run).
-      map[row.jobId] = row.status;
-    }
-    return map;
-  }, [applyQueue]);
-
   const activeQueueJobIds = useMemo<Set<string>>(() => {
     const ids = new Set<string>();
     for (const [jobId, status] of Object.entries(queueStatusMap)) {
@@ -663,6 +814,8 @@ export function App() {
             category={category}
             source={source}
             appliedOnly={appliedOnly}
+            showSkipped={showSkipped}
+            queuedOnly={queuedOnly}
             groupByCompany={groupByCompany}
             compact={compact}
             sources={sources}
@@ -671,6 +824,8 @@ export function App() {
             onCategoryChange={setCategory}
             onSourceChange={setSource}
             onAppliedOnlyChange={setAppliedOnly}
+            onShowSkippedChange={setShowSkipped}
+            onQueuedOnlyChange={setQueuedOnly}
             onGroupByCompanyChange={setGroupByCompany}
             onCompactChange={setCompact}
             onReset={() => {
@@ -678,6 +833,8 @@ export function App() {
               setCategory('all');
               setSource('all');
               setAppliedOnly(false);
+              setShowSkipped(false);
+              setQueuedOnly(false);
             }}
             onRefetch={triggerFetch}
             isFetching={fetchInFlight}
@@ -710,6 +867,10 @@ export function App() {
                         isOpen={expandedCompany === g.key}
                         expanded={expanded}
                         appliedById={appliedById}
+                        isJobSkipped={isJobSkipped}
+                        toggleSkip={toggleSkip}
+                        cancelQueueRow={cancelQueueRow}
+                        enqueueJob={enqueueJob}
                         aiReviews={aiReviews}
                         queueStatusMap={queueStatusMap}
                         setApplied={setApplied}
@@ -730,8 +891,12 @@ export function App() {
                         isOpen={expanded === j.id}
                         review={aiReviews[j.id]}
                         applied={appliedById[j.id]}
+                        isSkipped={isJobSkipped(j.id)}
                         queueStatus={queueStatusMap[j.id] ?? null}
                         setApplied={setApplied}
+                        toggleSkip={toggleSkip}
+                        cancelQueueRow={cancelQueueRow}
+                        enqueueJob={enqueueJob}
                         triggerAiApply={triggerAiApply}
                         aiApplyBusyId={aiApplyBusyId}
                         aiApplyResult={aiApplyResult}
@@ -778,19 +943,19 @@ function StalenessBanner({
         <strong>Your job data is stale.</strong>
         <span className="muted">
           Last fetched {fetchedAt ? relativeTime(fetchedAt) : 'over 24h ago'}. The daily scheduler
-          isn't installed yet — without it, jobs only refresh when you trigger a fetch manually.
+          isn't installed yet, without it, jobs only refresh when you trigger a fetch manually.
         </span>
       </div>
       <div className="staleness-banner-actions">
         <button
           type="button"
-          className="staleness-banner-primary"
+          className="btn btn-secondary btn-sm"
           onClick={onRefetch}
           disabled={isFetching}
         >
-          {isFetching ? '⟳ Fetching…' : '⟳ Refetch now'}
+          {isFetching ? 'Fetching…' : 'Refetch now'}
         </button>
-        <button type="button" className="staleness-banner-secondary" onClick={onOpenScheduler}>
+        <button type="button" className="btn btn-primary btn-sm" onClick={onOpenScheduler}>
           Install daily scheduler →
         </button>
       </div>
@@ -810,7 +975,7 @@ function FetchCta({ onFetch }: FetchCtaProps) {
         Run the aggregator to pull listings from 13 sources (Ashby, Greenhouse, Lever, Hacker News,
         Web3 boards, etc.). Takes about 30–60 seconds.
       </p>
-      <button type="button" className="fetch-cta-button" onClick={onFetch}>
+      <button type="button" className="btn btn-secondary btn-lg" onClick={onFetch}>
         ✨ Fetch jobs now
       </button>
       <p className="muted fetch-cta-hint">
@@ -827,9 +992,13 @@ interface CompanyBlockProps {
   isOpen: boolean;
   expanded: string | null;
   appliedById: AppliedMap;
+  isJobSkipped: (jobId: string) => boolean;
   aiReviews: AiReviews;
   queueStatusMap: QueueStatusMap;
   setApplied: SetApplied;
+  toggleSkip: (jobId: string) => void;
+  cancelQueueRow: (jobId: string) => Promise<void>;
+  enqueueJob: (jobId: string) => Promise<void>;
   triggerAiApply: (job: Job) => void;
   aiApplyBusyId: string | null;
   aiApplyResult: AiApplyResult | null;
@@ -843,9 +1012,13 @@ function CompanyBlock({
   isOpen,
   expanded,
   appliedById,
+  isJobSkipped,
   aiReviews,
   queueStatusMap,
   setApplied,
+  toggleSkip,
+  cancelQueueRow,
+  enqueueJob,
   triggerAiApply,
   aiApplyBusyId,
   aiApplyResult,
@@ -864,8 +1037,12 @@ function CompanyBlock({
         isOpen={jobOpen}
         review={aiReviews[job.id]}
         applied={appliedById[job.id]}
+        isSkipped={isJobSkipped(job.id)}
         queueStatus={queueStatusMap[job.id] ?? null}
         setApplied={setApplied}
+        toggleSkip={toggleSkip}
+        cancelQueueRow={cancelQueueRow}
+        enqueueJob={enqueueJob}
         triggerAiApply={triggerAiApply}
         aiApplyBusyId={aiApplyBusyId}
         aiApplyResult={aiApplyResult}
@@ -878,10 +1055,12 @@ function CompanyBlock({
     <>
       <tr className={`group-row ${isOpen ? 'open' : ''}`} onClick={onToggleCompany}>
         <td className={`score ${scoreTier(group.topScore)}`}>
-          <span className="caret" aria-hidden>
-            {isOpen ? '▾' : '▸'}
-          </span>
-          {group.topScore}
+          <div className="score-cell">
+            <span className="caret" aria-hidden>
+              {isOpen ? '▾' : '▸'}
+            </span>
+            {group.topScore}
+          </div>
         </td>
         <td colSpan={7}>
           <span className="group-co">{group.display}</span>
@@ -905,8 +1084,12 @@ function CompanyBlock({
               isOpen={jobOpen}
               review={aiReviews[j.id]}
               applied={appliedById[j.id]}
+              isSkipped={isJobSkipped(j.id)}
               queueStatus={queueStatusMap[j.id] ?? null}
               setApplied={setApplied}
+              toggleSkip={toggleSkip}
+              cancelQueueRow={cancelQueueRow}
+              enqueueJob={enqueueJob}
               triggerAiApply={triggerAiApply}
               aiApplyBusyId={aiApplyBusyId}
               aiApplyResult={aiApplyResult}
@@ -925,8 +1108,12 @@ interface FragmentRowProps {
   isOpen: boolean;
   review: AiReview | undefined;
   applied: AppliedEntry | undefined;
+  isSkipped: boolean;
   queueStatus: QueueRowStatus | null;
   setApplied: SetApplied;
+  toggleSkip: (jobId: string) => void;
+  cancelQueueRow: (jobId: string) => Promise<void>;
+  enqueueJob: (jobId: string) => Promise<void>;
   triggerAiApply: (job: Job) => void;
   aiApplyBusyId: string | null;
   aiApplyResult: AiApplyResult | null;
@@ -940,8 +1127,12 @@ function FragmentRow({
   isOpen,
   review,
   applied,
+  isSkipped,
   queueStatus,
   setApplied,
+  toggleSkip,
+  cancelQueueRow,
+  enqueueJob,
   triggerAiApply,
   aiApplyBusyId,
   aiApplyResult,
@@ -952,6 +1143,7 @@ function FragmentRow({
   const tier = scoreTier(job.fitScore);
   const rowClass = [
     applied ? 'applied' : '',
+    isSkipped ? 'skipped' : '',
     isOpen ? 'open' : '',
     indent ? 'indent' : '',
     review ? `has-verdict verdict-stripe-${review.verdict}` : '',
@@ -971,10 +1163,12 @@ function FragmentRow({
     <>
       <tr className={rowClass} onClick={onToggle}>
         <td className={`score ${tier}`}>
-          <span className="caret" aria-hidden>
-            {isOpen ? '▾' : '▸'}
-          </span>
-          <ScoreBar score={job.fitScore} tier={tier} />
+          <div className="score-cell">
+            <span className="caret" aria-hidden>
+              {isOpen ? '▾' : '▸'}
+            </span>
+            <ScoreBar score={job.fitScore} tier={tier} />
+          </div>
         </td>
         <td className="title" title={titleTooltip}>
           <span className="title-row">
@@ -983,11 +1177,22 @@ function FragmentRow({
                 {STATUS_EMOJI[applied.status]} {applied.status}
               </span>
             )}
-            {review && <span className={`badge verdict-${review.verdict}`}>{review.verdict}</span>}
+            {isSkipped && !applied && (
+              <span className="badge badge-skipped" title="Skipped from Jinder">
+                skipped
+              </span>
+            )}
+            {review && review.verdict !== 'skip' && (
+              <span className={`badge verdict-${review.verdict}`}>{review.verdict}</span>
+            )}
             <QueueBadge status={queueStatus} />
             <span className="title-text">{job.title}</span>
-            <SignalChips signals={job._signals} />
           </span>
+          {job._signals && (
+            <div className="signal-chip-row">
+              <SignalChips signals={job._signals} />
+            </div>
+          )}
           {job.bodyPreview && <p className="body-preview">{job.bodyPreview}</p>}
         </td>
         <td className="company" title={job.company ?? ''}>
@@ -1001,32 +1206,37 @@ function FragmentRow({
         </td>
         <td>{job.salary ?? '—'}</td>
         <td className="muted">{relativeTime(job.postedAt)}</td>
-        <td>
-          <a
-            href={job.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={(e) => e.stopPropagation()}
-          >
-            Apply ↗
-          </a>
-          {' · '}
-          <button
-            type="button"
-            className="ai-apply-link"
-            disabled={isMine || otherBusy}
-            onClick={(e) => {
-              e.stopPropagation();
-              triggerAiApply(job);
-            }}
-            title={
-              otherBusy
-                ? 'Another AI Apply is in progress'
-                : 'Generate a tailored cover letter + application package via your local LLM CLI'
-            }
-          >
-            {isMine ? '… generating' : 'AI Apply ✨'}
-          </button>
+        <td className="cell-actions">
+          <div className="row-actions">
+            <a
+              href={job.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="action-link"
+              onClick={(e) => e.stopPropagation()}
+            >
+              Apply
+              <span className="action-arrow" aria-hidden>
+                ↗
+              </span>
+            </a>
+            <button
+              type="button"
+              className="action-link"
+              disabled={isMine || otherBusy}
+              onClick={(e) => {
+                e.stopPropagation();
+                triggerAiApply(job);
+              }}
+              title={
+                otherBusy
+                  ? 'Another AI Apply is in progress'
+                  : 'Generate a tailored cover letter + application package via your local LLM CLI'
+              }
+            >
+              {isMine ? '… generating' : 'AI Apply'}
+            </button>
+          </div>
         </td>
       </tr>
       {isOpen && (
@@ -1036,7 +1246,12 @@ function FragmentRow({
               job={job}
               review={review}
               applied={applied}
+              isSkipped={isSkipped}
+              queueStatus={queueStatus}
               setApplied={setApplied}
+              toggleSkip={toggleSkip}
+              cancelQueueRow={cancelQueueRow}
+              enqueueJob={enqueueJob}
               aiApplyResult={myResult}
               aiApplyError={myError}
             />

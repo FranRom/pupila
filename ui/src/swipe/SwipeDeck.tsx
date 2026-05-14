@@ -4,7 +4,7 @@ import { SwipeCard } from './SwipeCard.tsx';
 import { SwipeControls } from './SwipeControls.tsx';
 import type { SwipeAction } from './types.ts';
 
-// SwipeDeck — the "Tik Tjob" container. Owns:
+// SwipeDeck — the "Jinder" container. Owns:
 //   • the filtered + sorted deck of candidate jobs (top 50 unseen by fitScore),
 //   • per-card body fetching with a small preload for the next card,
 //   • exit animations + dispatch of skip/enqueue API calls,
@@ -96,7 +96,10 @@ export function SwipeDeck({
   const [leaving, setLeaving] = useState<'left' | 'right' | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [showWhy, setShowWhy] = useState(false);
+  // Mutually-exclusive disclosures: opening one closes the other.
+  const [openPanel, setOpenPanel] = useState<'why' | 'help' | null>(null);
+  const showWhy = openPanel === 'why';
+  const showHelp = openPanel === 'help';
   const [lastSkippedJob, setLastSkippedJob] = useState<Job | null>(null);
 
   // If the deck shrinks below the current index (e.g. App reloaded jobs.json
@@ -191,7 +194,7 @@ export function SwipeDeck({
           setLeaving('right');
           await new Promise<void>((resolve) => setTimeout(resolve, EXIT_ANIMATION_MS));
           setLeaving(null);
-          setShowWhy(false);
+          setOpenPanel(null);
           setCurrentIndex((i) => i + 1);
         } else {
           const res = await fetch(`/api/apply-queue/${encodeURIComponent(job.id)}/skip`, {
@@ -210,7 +213,7 @@ export function SwipeDeck({
           setLeaving('left');
           await new Promise<void>((resolve) => setTimeout(resolve, EXIT_ANIMATION_MS));
           setLeaving(null);
-          setShowWhy(false);
+          setOpenPanel(null);
           setCurrentIndex((i) => i + 1);
         }
       } catch (e: unknown) {
@@ -301,18 +304,29 @@ export function SwipeDeck({
         disabled={busy || leaving !== null}
       />
 
-      {signals ? (
+      <div className="swipe-disclosure-row">
+        {signals ? (
+          <button
+            type="button"
+            className="swipe-why"
+            onClick={() => setOpenPanel((p) => (p === 'why' ? null : 'why'))}
+            aria-expanded={showWhy}
+          >
+            {showWhy ? 'Hide reasoning' : 'Why this score?'}
+          </button>
+        ) : null}
         <button
           type="button"
-          className="swipe-why"
-          onClick={() => setShowWhy((v) => !v)}
-          aria-expanded={showWhy}
+          className="swipe-help-toggle"
+          onClick={() => setOpenPanel((p) => (p === 'help' ? null : 'help'))}
+          aria-expanded={showHelp}
         >
-          {showWhy ? 'Hide reasoning' : 'Why this score?'}
+          {showHelp ? 'Hide intro' : 'How does Jinder work?'}
         </button>
-      ) : null}
+      </div>
 
       {showWhy && signals ? <WhyPanel signals={signals} /> : null}
+      {showHelp ? <HelpPanel /> : null}
 
       {lastSkippedJob ? (
         <button type="button" className="swipe-undo" onClick={() => void handleUndo()}>
@@ -352,34 +366,66 @@ function WhyPanel({ signals }: WhyPanelProps) {
     .filter(([, v]) => v !== 0);
 
   return (
-    <div
-      style={{
-        width: '100%',
-        fontSize: '0.75rem',
-        color: 'var(--fg)',
-        background: 'var(--bg-elevated)',
-        border: '1px solid var(--border)',
-        borderRadius: '8px',
-        padding: '0.75rem',
-        boxSizing: 'border-box',
-      }}
-    >
-      <div style={{ marginBottom: '0.5rem', color: 'var(--muted)' }}>
+    <aside className="swipe-panel">
+      <header>
+        <strong>Score breakdown</strong>
+      </header>
+      <p className="swipe-panel-meta">
         rawTotal {signals.rawTotal}
         {signals.capped ? ' · capped at 100' : ''}
-      </div>
+      </p>
       {entries.length === 0 ? (
-        <div style={{ color: 'var(--muted)' }}>No positive signals fired.</div>
+        <p className="swipe-panel-meta">No positive signals fired.</p>
       ) : (
-        <ul style={{ margin: 0, paddingLeft: '1.1rem', display: 'grid', gap: '0.125rem' }}>
+        <ul className="swipe-panel-list">
           {entries.map(([k, v]) => (
             <li key={k}>
-              <span style={{ color: 'var(--muted)' }}>{SIGNAL_LABELS[k]}:</span>{' '}
-              <span style={{ fontVariantNumeric: 'tabular-nums' }}>{v > 0 ? `+${v}` : v}</span>
+              <span className="muted">{SIGNAL_LABELS[k]}:</span> {v > 0 ? `+${v}` : v}
             </li>
           ))}
         </ul>
       )}
-    </div>
+    </aside>
+  );
+}
+
+function HelpPanel() {
+  return (
+    <aside className="swipe-panel">
+      <header>
+        <strong>Welcome to Jinder</strong>
+      </header>
+      <p>
+        Speed-triage your top-scoring jobs one card at a time. Each card is a posting from{' '}
+        <code>data/jobs.json</code>, ranked by <code>fitScore</code>. Decide fast, move on.
+      </p>
+      <ul className="swipe-help-actions">
+        <li>
+          <span className="swipe-help-glyph swipe-help-glyph-right">→</span>
+          <div>
+            <strong>Swipe right · Apply</strong>
+            <span>
+              Queues an <em>AI Apply</em> task. A background worker (
+              <code>pnpm run apply-worker</code>) drafts a tailored cover-letter package, then marks
+              the job <em>applied</em>.
+            </span>
+          </div>
+        </li>
+        <li>
+          <span className="swipe-help-glyph swipe-help-glyph-left">←</span>
+          <div>
+            <strong>Swipe left · Skip</strong>
+            <span>
+              Hides the card from this deck and adds a <em>SKIPPED</em> badge in the Jobs tab.
+              Reversible via <em>Undo last skip</em> or the <em>skip</em> pill in the table.
+            </span>
+          </div>
+        </li>
+      </ul>
+      <p className="swipe-help-foot">
+        Deck = top 50 unseen jobs, refreshed when you re-run the pipeline. The buttons below the
+        card do the same thing if you prefer clicking.
+      </p>
+    </aside>
   );
 }
