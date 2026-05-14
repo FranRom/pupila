@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { Job, JobBodyResponse, JobSignals, QueueRow } from '../types.ts';
+import { api, formatError } from '../lib/api/index.ts';
+import type { Job, JobSignals } from '../types.ts';
 import { SwipeCard } from './SwipeCard.tsx';
 import { SwipeControls } from './SwipeControls.tsx';
 import styles from './SwipeDeck.module.css';
@@ -47,26 +48,6 @@ const SIGNAL_LABELS: Record<keyof Omit<JobSignals, 'rawTotal' | 'capped'>, strin
   freshness14d: 'posted ≤ 14d',
   usCentricPenalty: 'US-centric penalty',
 };
-
-function describeError(error: unknown): string {
-  if (error instanceof Error) return error.message;
-  return 'Unexpected error';
-}
-
-async function safeJson<T>(res: Response): Promise<T> {
-  // Narrow before parsing per the project's fetch convention.
-  if (!res.ok) {
-    let detail = '';
-    try {
-      const txt = await res.text();
-      detail = txt ? ` — ${txt.slice(0, 200)}` : '';
-    } catch {
-      // ignore — we'll fall back to the status text.
-    }
-    throw new Error(`HTTP ${res.status} ${res.statusText}${detail}`);
-  }
-  return (await res.json()) as T;
-}
 
 export function SwipeDeck({
   allJobs,
@@ -124,20 +105,15 @@ export function SwipeDeck({
       if (bodyCache[jobId] !== undefined) return;
       if (bodyLoadingRef.current.has(jobId)) return;
       bodyLoadingRef.current.add(jobId);
-      try {
-        const res = await fetch(`/api/job-body/${encodeURIComponent(jobId)}`);
-        if (res.status === 404) {
-          setBodyCache((prev) => ({ ...prev, [jobId]: '' }));
-          return;
-        }
-        const data = await safeJson<JobBodyResponse>(res);
-        setBodyCache((prev) => ({ ...prev, [jobId]: data.body ?? '' }));
-      } catch {
-        // Network or parse error — degrade to bodyPreview path.
+      const r = await api.jobBody.get(jobId);
+      bodyLoadingRef.current.delete(jobId);
+      // 404 and any non-ok response collapse to empty — the SwipeCard
+      // falls back to bodyPreview when the cached body is empty.
+      if (!r.ok) {
         setBodyCache((prev) => ({ ...prev, [jobId]: '' }));
-      } finally {
-        bodyLoadingRef.current.delete(jobId);
+        return;
       }
+      setBodyCache((prev) => ({ ...prev, [jobId]: r.value.body ?? '' }));
     },
     [bodyCache],
   );
@@ -173,58 +149,45 @@ export function SwipeDeck({
       // off-screen, which looked like a glitch. Now: fetch first, then animate
       // only on success. The `busy` state already disables the swipe controls
       // so the user knows something is happening.
-      try {
-        if (action === 'apply') {
-          const res = await fetch('/api/apply-queue/enqueue', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ jobId: job.id }),
-          });
-          if (!res.ok) {
-            const txt = await res.text().catch(() => '');
-            if (res.status === 409) {
-              throw new Error('Already in the queue.');
-            }
-            throw new Error(
-              `Couldn't enqueue (HTTP ${res.status})${txt ? ` — ${txt.slice(0, 160)}` : ''}`,
-            );
-          }
-          await safeJson<{ ok: true; row?: QueueRow }>(res).catch(() => undefined);
-          onQueueRefresh();
-          // Confirmed — play exit animation, then advance.
-          setLeaving('right');
-          await new Promise<void>((resolve) => setTimeout(resolve, EXIT_ANIMATION_MS));
-          setLeaving(null);
-          setOpenPanel(null);
-          setCurrentIndex((i) => i + 1);
-        } else {
-          const res = await fetch(`/api/apply-queue/${encodeURIComponent(job.id)}/skip`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-          });
-          if (!res.ok) {
-            // Skips are local-only — surface the error but still advance.
-            // Trapping the user on a card they want to skip is the wrong UX.
-            const txt = await res.text().catch(() => '');
-            setError(`Skip failed (HTTP ${res.status})${txt ? ` — ${txt.slice(0, 160)}` : ''}`);
+      if (action === 'apply') {
+        const r = await api.applyQueue.enqueue(job.id);
+        if (!r.ok) {
+          // 409 = backend dedup already has this job in flight; everyone else
+          // gets a "couldn't enqueue" line with the formatted error body.
+          if (r.error.kind === 'http' && r.error.status === 409) {
+            setError('Already in the queue.');
           } else {
-            onQueueRefresh();
-            setLastSkippedJob(job);
+            setError(`Couldn't enqueue — ${formatError(r.error)}`);
           }
-          setLeaving('left');
-          await new Promise<void>((resolve) => setTimeout(resolve, EXIT_ANIMATION_MS));
-          setLeaving(null);
-          setOpenPanel(null);
-          setCurrentIndex((i) => i + 1);
+          inFlightRef.current = false;
+          setBusy(false);
+          return;
         }
-      } catch (e: unknown) {
-        // Apply path failed BEFORE we started the animation — just show the
-        // error inline, card stays put, user can retry or skip.
-        setError(describeError(e));
-      } finally {
-        inFlightRef.current = false;
-        setBusy(false);
+        onQueueRefresh();
+        // Confirmed — play exit animation, then advance.
+        setLeaving('right');
+        await new Promise<void>((resolve) => setTimeout(resolve, EXIT_ANIMATION_MS));
+        setLeaving(null);
+        setOpenPanel(null);
+        setCurrentIndex((i) => i + 1);
+      } else {
+        const r = await api.applyQueue.addSkip(job.id);
+        if (!r.ok) {
+          // Skips are local-only — surface the error but still advance.
+          // Trapping the user on a card they want to skip is the wrong UX.
+          setError(`Skip failed — ${formatError(r.error)}`);
+        } else {
+          onQueueRefresh();
+          setLastSkippedJob(job);
+        }
+        setLeaving('left');
+        await new Promise<void>((resolve) => setTimeout(resolve, EXIT_ANIMATION_MS));
+        setLeaving(null);
+        setOpenPanel(null);
+        setCurrentIndex((i) => i + 1);
       }
+      inFlightRef.current = false;
+      setBusy(false);
     },
     [deck, currentIndex, onQueueRefresh, clearUndo],
   );
@@ -233,20 +196,13 @@ export function SwipeDeck({
     if (!lastSkippedJob) return;
     const job = lastSkippedJob;
     clearUndo();
-    try {
-      const res = await fetch(`/api/apply-queue/${encodeURIComponent(job.id)}/skip`, {
-        method: 'DELETE',
-      });
-      if (!res.ok) {
-        const txt = await res.text().catch(() => '');
-        setError(`Undo failed (HTTP ${res.status})${txt ? ` — ${txt.slice(0, 160)}` : ''}`);
-        return;
-      }
-      onQueueRefresh();
-      setCurrentIndex((i) => Math.max(0, i - 1));
-    } catch (e: unknown) {
-      setError(describeError(e));
+    const r = await api.applyQueue.removeSkip(job.id);
+    if (!r.ok) {
+      setError(`Undo failed — ${formatError(r.error)}`);
+      return;
     }
+    onQueueRefresh();
+    setCurrentIndex((i) => Math.max(0, i - 1));
   }, [lastSkippedJob, onQueueRefresh, clearUndo]);
 
   const empty = deck.length === 0 || currentIndex >= deck.length;

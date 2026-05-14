@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { api, formatError } from './lib/api/index.ts';
 import styles from './Settings.module.css';
 import { ApplyQueuePanel } from './settings/ApplyQueuePanel.tsx';
 import { ConfirmModal } from './settings/ConfirmModal.tsx';
@@ -19,7 +20,6 @@ import {
   type LlmTestResult,
   type PreferencesResponse,
   type ProfileGenerateResult,
-  type ProfileGetResponse,
   type ProviderChoice,
   type RunSummary,
   type SchedulerStatus,
@@ -89,40 +89,29 @@ export function Settings({
   const [copiedSnippet, setCopiedSnippet] = useState<string | null>(null);
 
   const loadAll = useCallback(async (signal?: AbortSignal) => {
-    const grab = async <T,>(url: string): Promise<T | null> => {
-      try {
-        const r = await fetch(url, { signal });
-        if (!r.ok) return null;
-        return (await r.json()) as T;
-      } catch (err) {
-        if (err instanceof Error && err.name === 'AbortError') throw err;
-        return null;
-      }
-    };
-    try {
-      const [p, s, rs, d, e, prof] = await Promise.all([
-        grab<PreferencesResponse>('/api/preferences'),
-        grab<SchedulerStatus>('/api/scheduler-status'),
-        grab<RunSummary>('/api/run-summary'),
-        grab<DiskUsage>('/api/disk-usage'),
-        grab<EnvInfo>('/api/env'),
-        grab<ProfileGetResponse>('/api/profile'),
-      ]);
-      if (p) {
-        setPrefs(p);
-        setProvider(p.provider ?? 'auto');
-      }
-      setScheduler(s);
-      setRunSummary(rs);
-      setDisk(d);
-      setEnvInfo(e);
-      setProfile(prof?.profile ?? null);
-      setGenerating(prof?.generating ?? false);
-      setProfileLoaded(prof !== null);
-    } catch (err) {
-      if (err instanceof Error && err.name === 'AbortError') return;
-      throw err;
+    const [p, s, rs, d, e, prof] = await Promise.all([
+      api.preferences.get({ signal }),
+      api.scheduler.status({ signal }),
+      api.runSummary.get({ signal }),
+      api.diskUsage.get({ signal }),
+      api.env.get({ signal }),
+      api.profile.get({ signal }),
+    ]);
+    // If any request was aborted (e.g. tab unmount mid-flight), bail — the
+    // unmounted component shouldn't setState.
+    const results = [p, s, rs, d, e, prof];
+    if (results.some((r) => !r.ok && r.error.kind === 'abort')) return;
+    if (p.ok) {
+      setPrefs(p.value);
+      setProvider(p.value.provider ?? 'auto');
     }
+    setScheduler(s.ok ? s.value : null);
+    setRunSummary(rs.ok ? rs.value : null);
+    setDisk(d.ok ? d.value : null);
+    setEnvInfo(e.ok ? e.value : null);
+    setProfile(prof.ok ? (prof.value.profile ?? null) : null);
+    setGenerating(prof.ok ? (prof.value.generating ?? false) : false);
+    setProfileLoaded(prof.ok);
   }, []);
 
   useEffect(() => {
@@ -138,15 +127,9 @@ export function Settings({
     setSchedulerOp(null);
     const ctrl = new AbortController();
     const load = async () => {
-      try {
-        const r = await fetch('/api/scheduler-status', { signal: ctrl.signal });
-        if (!r.ok) return;
-        const s = (await r.json()) as SchedulerStatus;
-        setScheduler(s);
-      } catch (err) {
-        if (err instanceof Error && err.name === 'AbortError') return;
-        // non-AbortError swallowed by design — failure leaves the previous status visible
-      }
+      const r = await api.scheduler.status({ signal: ctrl.signal });
+      // Non-abort failure swallowed by design — previous status stays visible.
+      if (r.ok) setScheduler(r.value);
     };
     void load();
     return () => ctrl.abort();
@@ -155,40 +138,27 @@ export function Settings({
   const saveProvider = useCallback(async () => {
     setSavingProvider(true);
     setError(null);
-    try {
-      const res = await fetch('/api/preferences', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ provider }),
-      });
-      if (!res.ok) {
-        const errBody = (await res.json().catch(() => ({}))) as { error?: string };
-        throw new Error(errBody.error ?? `HTTP ${res.status}`);
-      }
-      const next = (await res.json()) as PreferencesResponse;
-      setPrefs(next);
-      setSavedToastVisible(true);
-      window.setTimeout(() => setSavedToastVisible(false), 3000);
-      setLlmTest({ busy: false, result: null });
-    } catch (err) {
-      setError(`Could not save provider: ${err instanceof Error ? err.message : String(err)}`);
-    } finally {
-      setSavingProvider(false);
+    const r = await api.preferences.set({ provider });
+    setSavingProvider(false);
+    if (!r.ok) {
+      setError(`Could not save provider: ${formatError(r.error)}`);
+      return;
     }
+    setPrefs(r.value);
+    setSavedToastVisible(true);
+    window.setTimeout(() => setSavedToastVisible(false), 3000);
+    setLlmTest({ busy: false, result: null });
   }, [provider]);
 
   const testLlm = useCallback(async () => {
     setLlmTest({ busy: true, result: null });
     setError(null);
-    try {
-      const res = await fetch('/api/llm-test', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ provider }),
-      });
-      const body = (await res.json()) as LlmTestResult;
-      setLlmTest({ busy: false, result: body });
-    } catch (err) {
+    const r = await api.llm.test();
+    if (r.ok) {
+      setLlmTest({ busy: false, result: r.value });
+    } else {
+      // Network/abort/parse errors surface as a synthetic failed result so
+      // the LLM CLI panel keeps the single-shape render path.
       setLlmTest({
         busy: false,
         result: {
@@ -196,7 +166,7 @@ export function Settings({
           provider,
           latencyMs: 0,
           output: '',
-          error: err instanceof Error ? err.message : String(err),
+          error: formatError(r.error),
         },
       });
     }
@@ -207,20 +177,14 @@ export function Settings({
       setCleaning(mode);
       setCleanResult(null);
       setError(null);
-      try {
-        const res = await fetch('/api/clean', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ mode }),
-        });
-        const body = (await res.json()) as CleanResult;
-        setCleanResult(body);
-        await loadAll();
-      } catch (err) {
-        setError(`Clean failed: ${err instanceof Error ? err.message : String(err)}`);
-      } finally {
-        setCleaning(null);
+      const r = await api.clean({ mode });
+      setCleaning(null);
+      if (!r.ok) {
+        setError(`Clean failed: ${formatError(r.error)}`);
+        return;
       }
+      setCleanResult(r.value);
+      await loadAll();
     },
     [loadAll],
   );
@@ -229,47 +193,34 @@ export function Settings({
     setRegenBusy(true);
     setRegenResult(null);
     setError(null);
-    try {
-      const res = await fetch('/api/profile-generate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ provider: provider === 'auto' ? null : provider }),
-      });
-      const body = (await res.json()) as ProfileGenerateResult;
-      if (!res.ok) {
-        throw new Error(body.error ?? `HTTP ${res.status}`);
-      }
-      setRegenResult(body);
-      // Reload the profile so the UI reflects the new state. Re-uses the
-      // new MED-7 { profile, generating } shape.
-      const r = await fetch('/api/profile');
-      if (r.ok) {
-        const next = (await r.json()) as ProfileGetResponse;
-        setProfile(next.profile ?? null);
-        setGenerating(next.generating ?? false);
-      }
-    } catch (err) {
-      setError(`Profile regeneration failed: ${err instanceof Error ? err.message : String(err)}`);
-    } finally {
+    const r = await api.profile.generate();
+    if (!r.ok) {
+      setError(`Profile regeneration failed: ${formatError(r.error)}`);
       setRegenBusy(false);
+      return;
     }
-  }, [provider]);
+    // JSON-mode response either matches ProfileGenerateResult or the
+    // streaming-accepted shape; only the former carries weightsChanged.
+    if ('weightsChanged' in r.value) {
+      setRegenResult(r.value as ProfileGenerateResult);
+    }
+    // Reload the profile so the UI reflects the new state. Re-uses the
+    // new MED-7 { profile, generating } shape.
+    const reload = await api.profile.get();
+    if (reload.ok) {
+      setProfile(reload.value.profile ?? null);
+      setGenerating(reload.value.generating ?? false);
+    }
+    setRegenBusy(false);
+  }, []);
 
   const installScheduler = useCallback(async () => {
     setError(null);
     setSchedulerOp('install');
-    try {
-      const res = await fetch('/api/scheduler-install', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ skipReview }),
-      });
-      if (!res.ok && res.status !== 202) {
-        const errBody = (await res.json().catch(() => ({}))) as { error?: string };
-        throw new Error(errBody.error ?? `HTTP ${res.status}`);
-      }
-    } catch (err) {
-      setError(`Install failed: ${err instanceof Error ? err.message : String(err)}`);
+    const r = await api.scheduler.install({ skipReview });
+    // 202 is success — request() already treats it as 2xx ok.
+    if (!r.ok) {
+      setError(`Install failed: ${formatError(r.error)}`);
       setSchedulerOp(null);
     }
   }, [skipReview]);
@@ -277,14 +228,9 @@ export function Settings({
   const uninstallScheduler = useCallback(async () => {
     setError(null);
     setSchedulerOp('uninstall');
-    try {
-      const res = await fetch('/api/scheduler-uninstall', { method: 'POST' });
-      if (!res.ok && res.status !== 202) {
-        const errBody = (await res.json().catch(() => ({}))) as { error?: string };
-        throw new Error(errBody.error ?? `HTTP ${res.status}`);
-      }
-    } catch (err) {
-      setError(`Uninstall failed: ${err instanceof Error ? err.message : String(err)}`);
+    const r = await api.scheduler.uninstall();
+    if (!r.ok) {
+      setError(`Uninstall failed: ${formatError(r.error)}`);
       setSchedulerOp(null);
     }
   }, []);

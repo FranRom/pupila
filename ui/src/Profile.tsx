@@ -1,23 +1,11 @@
 import clsx from 'clsx';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { api, formatError } from './lib/api/index.ts';
 import styles from './Profile.module.css';
 import bannerStyles from './styles/Banner.module.css';
 import buttonStyles from './styles/Button.module.css';
 
 type CvFormat = 'pdf' | 'docx' | 'md' | 'txt';
-
-interface BriefGetResponse {
-  body: string | null;
-}
-
-interface BriefMutateResponse {
-  ok: boolean;
-  body: string;
-}
-
-interface ApiError {
-  error: string;
-}
 
 const FORMAT_BY_EXT: Record<string, CvFormat> = {
   pdf: 'pdf',
@@ -65,21 +53,19 @@ export function Profile() {
   useEffect(() => {
     const ctrl = new AbortController();
     const load = async () => {
-      try {
-        const r = await fetch('/api/brief', { signal: ctrl.signal });
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        const data = (await r.json()) as BriefGetResponse;
-        const next = data.body ?? '';
-        setBody(next);
-        setDraft(next);
-        setLoading(false);
-      } catch (err) {
-        if (err instanceof Error && err.name === 'AbortError') return;
+      const r = await api.brief.get({ signal: ctrl.signal });
+      if (!r.ok) {
+        if (r.error.kind === 'abort') return;
         setError(
-          `Could not load brief: ${err instanceof Error ? err.message : String(err)}. The /api/brief endpoint only runs under \`pnpm run ui\`.`,
+          `Could not load brief: ${formatError(r.error)}. The /api/brief endpoint only runs under \`pnpm run ui\`.`,
         );
         setLoading(false);
+        return;
       }
+      const next = r.value.body ?? '';
+      setBody(next);
+      setDraft(next);
+      setLoading(false);
     };
     void load();
     return () => ctrl.abort();
@@ -94,28 +80,18 @@ export function Profile() {
     setBusy(true);
     setError(null);
     setInfo(`Parsing ${file.name} and running LLM CLI…`);
-    try {
-      const data =
-        format === 'pdf' || format === 'docx' ? await fileToBase64(file) : await fileToText(file);
-      const res = await fetch('/api/cv', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ format, data }),
-      });
-      if (!res.ok) {
-        const errBody = (await res.json().catch(() => ({}))) as ApiError;
-        throw new Error(errBody.error ?? `HTTP ${res.status}`);
-      }
-      const out = (await res.json()) as BriefMutateResponse;
-      setBody(out.body);
-      setDraft(out.body);
-      setInfo(`✓ Brief regenerated from ${file.name}.`);
-    } catch (err) {
-      setError(`CV summarization failed: ${err instanceof Error ? err.message : String(err)}`);
+    const data =
+      format === 'pdf' || format === 'docx' ? await fileToBase64(file) : await fileToText(file);
+    const r = await api.cv.upload({ format, data });
+    setBusy(false);
+    if (!r.ok) {
+      setError(`CV summarization failed: ${formatError(r.error)}`);
       setInfo(null);
-    } finally {
-      setBusy(false);
+      return;
     }
+    setBody(r.value.body);
+    setDraft(r.value.body);
+    setInfo(`✓ Brief regenerated from ${file.name}.`);
   }, []);
 
   const summarizePasted = useCallback(async () => {
@@ -123,28 +99,18 @@ export function Profile() {
     setBusy(true);
     setError(null);
     setInfo('Running LLM CLI on pasted text…');
-    try {
-      const res = await fetch('/api/cv', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ format: 'txt', data: pasteText }),
-      });
-      if (!res.ok) {
-        const errBody = (await res.json().catch(() => ({}))) as ApiError;
-        throw new Error(errBody.error ?? `HTTP ${res.status}`);
-      }
-      const out = (await res.json()) as BriefMutateResponse;
-      setBody(out.body);
-      setDraft(out.body);
-      setPasteText('');
-      setPasteMode(false);
-      setInfo('✓ Brief regenerated from pasted text.');
-    } catch (err) {
-      setError(`CV summarization failed: ${err instanceof Error ? err.message : String(err)}`);
+    const r = await api.cv.upload({ format: 'txt', data: pasteText });
+    setBusy(false);
+    if (!r.ok) {
+      setError(`CV summarization failed: ${formatError(r.error)}`);
       setInfo(null);
-    } finally {
-      setBusy(false);
+      return;
     }
+    setBody(r.value.body);
+    setDraft(r.value.body);
+    setPasteText('');
+    setPasteMode(false);
+    setInfo('✓ Brief regenerated from pasted text.');
   }, [pasteText]);
 
   const saveDraft = useCallback(async () => {
@@ -155,26 +121,16 @@ export function Profile() {
     setBusy(true);
     setError(null);
     setInfo('Saving…');
-    try {
-      const res = await fetch('/api/brief', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ markdown: draft }),
-      });
-      if (!res.ok) {
-        const errBody = (await res.json().catch(() => ({}))) as ApiError;
-        throw new Error(errBody.error ?? `HTTP ${res.status}`);
-      }
-      const out = (await res.json()) as BriefMutateResponse;
-      setBody(out.body);
-      setDraft(out.body);
-      setInfo('✓ Saved.');
-    } catch (err) {
-      setError(`Save failed: ${err instanceof Error ? err.message : String(err)}`);
+    const r = await api.brief.set(draft);
+    setBusy(false);
+    if (!r.ok) {
+      setError(`Save failed: ${formatError(r.error)}`);
       setInfo(null);
-    } finally {
-      setBusy(false);
+      return;
     }
+    setBody(r.value.body);
+    setDraft(r.value.body);
+    setInfo('✓ Saved.');
   }, [draft, body]);
 
   function onDrop(e: React.DragEvent<HTMLDivElement>) {

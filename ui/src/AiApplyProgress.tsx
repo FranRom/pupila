@@ -1,5 +1,6 @@
 import clsx from 'clsx';
 import { useEffect, useRef, useState } from 'react';
+import { type AiApplyState, api } from './lib/api/index.ts';
 import dockStyles from './styles/Dock.module.css';
 
 // Bottom-right docked card streaming the AI Apply LLM output. Polls
@@ -9,29 +10,9 @@ import dockStyles from './styles/Dock.module.css';
 // visually via shared Dock.module.css. Slightly wider (`dockWide`) so the
 // streaming log doesn't wrap too aggressively when multiple docks are visible.
 
-type RunStatus = 'idle' | 'running' | 'done' | 'error';
-
-interface AppliedEntry {
-  url: string;
-  status: string;
-  date: string;
-  notes?: string;
-}
-
-export interface AiApplyState {
-  jobId: string | null;
-  jobTitle: string | null;
-  company: string | null;
-  cvPath: string | null;
-  status: RunStatus;
-  startedAt: string | null;
-  finishedAt: string | null;
-  output: string;
-  path: string | null;
-  applied: AppliedEntry | null;
-  provider: string | null;
-  error: string | null;
-}
+// Re-export so existing consumers (App.tsx imports it as `DockState`) keep
+// working without churn.
+export type { AiApplyState };
 
 interface AiApplyProgressProps {
   // Called when a run transitions to `done` so the parent can refresh the
@@ -64,33 +45,28 @@ export function AiApplyProgress({ onComplete }: AiApplyProgressProps) {
   useEffect(() => {
     const ctrl = new AbortController();
     const tick = async () => {
-      try {
-        const res = await fetch('/api/ai-apply-progress', { signal: ctrl.signal });
-        if (!res.ok) return;
-        const next = (await res.json()) as AiApplyState;
-        setState(next);
+      const r = await api.aiApply.progress({ signal: ctrl.signal });
+      if (!r.ok) return; // abort/network/parse blip — try again next tick
+      const next = r.value;
+      setState(next);
 
-        if (next.status === 'running') {
-          setHidden(false);
-          completedRef.current = false;
-          if (dismissTimerRef.current) {
-            window.clearTimeout(dismissTimerRef.current);
-            dismissTimerRef.current = null;
-          }
-        } else if (next.status === 'done' && !completedRef.current) {
-          completedRef.current = true;
-          onComplete(next);
-          dismissTimerRef.current = window.setTimeout(() => setHidden(true), DISMISS_MS);
-        } else if (next.status === 'error' && !completedRef.current) {
-          // Notify parent on error too, otherwise aiApplyBusyId stays set
-          // and every AI Apply button locks forever after the first failure.
-          completedRef.current = true;
-          onComplete(next);
-          setHidden(false);
+      if (next.status === 'running') {
+        setHidden(false);
+        completedRef.current = false;
+        if (dismissTimerRef.current) {
+          window.clearTimeout(dismissTimerRef.current);
+          dismissTimerRef.current = null;
         }
-      } catch (err) {
-        if (err instanceof Error && err.name === 'AbortError') return;
-        // other network blip — ignore
+      } else if (next.status === 'done' && !completedRef.current) {
+        completedRef.current = true;
+        onComplete(next);
+        dismissTimerRef.current = window.setTimeout(() => setHidden(true), DISMISS_MS);
+      } else if (next.status === 'error' && !completedRef.current) {
+        // Notify parent on error too, otherwise aiApplyBusyId stays set
+        // and every AI Apply button locks forever after the first failure.
+        completedRef.current = true;
+        onComplete(next);
+        setHidden(false);
       }
     };
     void tick();
