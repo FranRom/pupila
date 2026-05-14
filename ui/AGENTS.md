@@ -156,6 +156,60 @@ Variations:
 
 ---
 
+## 3. Feature hooks: one resource per hook
+
+**One golden rule:** if `App.tsx` would carry more than ~2 `useState` calls for one concern, extract it to a feature hook under `ui/src/lib/hooks/`. App is a composer; hooks own data + lifecycle.
+
+### File layout
+
+```
+ui/src/lib/hooks/
+  useJobsData.ts        ← server snapshot (jobs.json + ai-reviews.json) + mount-load
+  useApplied.ts         ← applied tracking, optimistic mutate + rollback
+  useApplyQueue.ts      ← AI Apply queue, tab-gated polling, derived helpers
+  useSwipeSkips.ts      ← unified isJobSkipped predicate (server + AI verdict + localStorage)
+  useUrlSyncedState.ts  ← all filter / sort / group / tab state + history.replaceState writer
+```
+
+### Conventions
+
+- **One hook owns one resource.** A resource is a coherent state slice + its mutations + its lifecycle (fetching, polling, persistence). The hook is the single source of truth for that resource.
+- **Returns a stable shape.** `{ data, loading, refresh, mutate, ... }` or named-result shape. Document it with an exported `interface UseFooResult { ... }`.
+- **Hooks own server + persistence state. App owns UI state (banner, modals).** Errors are surfaced via `onError?: (msg: string) => void` callback, not via an internal `apiError` field. UI display lives in App.
+- **Derived values live in the hook**, not the consumer. If a consumer would `useMemo` something out of the hook's return, that memo belongs inside the hook.
+- **Effects are encapsulated.** Polling, localStorage sync, AbortController setup — all inside the hook. App doesn't write `setInterval` or `useEffect(..., [])` for anything a hook can own.
+- **Composition over coordination.** When one hook depends on another's data (e.g. `useSwipeSkips` reads `useApplyQueue.swipeSkipIds`), App passes the value as an arg. Hooks don't share state via context for first-party concerns.
+- **TypeScript-first interface.** Args + result are exported interfaces named `UseFooArgs` / `UseFooResult`. Consumers import the types when needed.
+
+### Adding a new hook
+
+1. Create `ui/src/lib/hooks/useFoo.ts` co-located with its siblings.
+2. Define `UseFooArgs` (if any) and `UseFooResult` interfaces. Export both.
+3. Implement the hook. Use `useCallback` for all exposed mutators so consumers can pass them to `useEffect` deps without churn.
+4. If the hook can fail an async op, accept `onError?: (msg: string) => void` (and optionally `onSuccess?: () => void`) so App can route to its banner.
+5. If the hook polls or subscribes, do it inside the hook's `useEffect`. Accept a gate flag (e.g. `pollEnabled`) so the consumer can pause it tab-by-tab.
+6. Compose in `App.tsx`. Destructure return at the top of `App()`. Pass cross-hook data through args.
+
+### Anti-patterns (don't do this)
+
+- ❌ `useState` inside `App()` for a concern that crosses more than one effect or mutation. Extract a hook.
+- ❌ Two hooks reading the same server resource — pick one owner; the other reads it as an arg.
+- ❌ `apiError` state inside a hook. Hooks surface errors via callback; App owns the banner.
+- ❌ A hook that takes a setter as a dep instead of returning data. Dataflow goes hook → App, not App → hook.
+- ❌ Mounting a hook conditionally (`if (showSwipe) useApplyQueue(...)`). Rules of Hooks — call unconditionally, pass gate flags inside.
+- ❌ Re-deriving a value the hook already exposes (e.g. building a Set from the hook's `appliedById` keys when the hook could expose `appliedIds` directly).
+
+### Canonical examples to copy from
+
+- **Server snapshot + mount-load**: `ui/src/lib/hooks/useJobsData.ts`
+- **Optimistic mutate + rollback + error routing**: `ui/src/lib/hooks/useApplied.ts`
+- **Tab-gated polling + derived helpers**: `ui/src/lib/hooks/useApplyQueue.ts`
+- **Composition (this hook reads another's data)**: `ui/src/lib/hooks/useSwipeSkips.ts`
+- **localStorage sync + 13 settable values + URL writer**: `ui/src/lib/hooks/useUrlSyncedState.ts`
+- **App as composer**: `ui/src/App.tsx`'s top — 5 destructured hooks before any local state, then a handful of cross-cutting useStates that genuinely belong in the root (banner, AI Apply trio, scheduler bookkeeping).
+
+---
+
 ## React effects
 
 Project convention (pre-existing, restated here for context):
@@ -164,7 +218,7 @@ Project convention (pre-existing, restated here for context):
 - Pass `ctrl.signal` from a new `AbortController()` to every fetch / api call inside the effect. Cleanup function aborts it.
 - Don't use `let cancelled = false` flags. If you find one in legacy code, refactor to AbortController.
 
-Canonical example: `ui/src/App.tsx`'s mount-load effect (`reloadJobsAndReviews` + `api.preferences.get`).
+Canonical example: `ui/src/lib/hooks/useJobsData.ts`'s mount-load effect.
 
 ---
 
