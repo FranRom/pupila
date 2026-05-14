@@ -97,19 +97,19 @@ export function JobsFilters({
       </label>
 
       {hasActiveFilters && (
-        <button type="button" className="reset" onClick={onReset}>
+        <button type="button" className="btn btn-primary btn-sm reset" onClick={onReset}>
           Reset
         </button>
       )}
 
       <button
         type="button"
-        className="filters-refetch"
+        className="btn btn-primary btn-sm filters-refetch"
         onClick={onRefetch}
         disabled={isFetching}
         title={isFetching ? 'A fetch run is already in flight' : 'Refetch jobs from all sources'}
       >
-        {isFetching ? '⟳ Fetching…' : '⟳ Refetch'}
+        {isFetching ? 'Fetching…' : 'Refetch'}
       </button>
     </div>
   );

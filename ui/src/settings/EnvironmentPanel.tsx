@@ -15,11 +15,7 @@ export function EnvironmentPanel({ envInfo, onRefreshAll }: EnvironmentPanelProp
       title="Environment"
       subtitle="Runtime + filesystem state for debugging."
       action={
-        <button
-          type="button"
-          className="settings-button settings-button-secondary settings-button-small"
-          onClick={onRefreshAll}
-        >
+        <button type="button" className="btn btn-primary btn-sm" onClick={onRefreshAll}>
           Refresh all
         </button>
       }

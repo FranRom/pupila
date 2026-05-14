@@ -66,7 +66,7 @@ export function ScoringProfilePanel({
       <div className="settings-actions">
         <button
           type="button"
-          className="settings-button settings-button-primary"
+          className="btn btn-secondary"
           disabled={regenBusy || generating || !envInfo}
           onClick={onAskRegenerate}
         >
@@ -76,11 +76,7 @@ export function ScoringProfilePanel({
               ? 'Regenerating…'
               : 'Regenerate from brief'}
         </button>
-        <button
-          type="button"
-          className="settings-button settings-button-secondary"
-          onClick={onToggleRaw}
-        >
+        <button type="button" className="btn btn-primary" onClick={onToggleRaw}>
           {showRawProfile ? 'Hide raw JSON' : 'View raw JSON'}
         </button>
       </div>

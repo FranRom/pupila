@@ -778,19 +778,19 @@ function StalenessBanner({
         <strong>Your job data is stale.</strong>
         <span className="muted">
           Last fetched {fetchedAt ? relativeTime(fetchedAt) : 'over 24h ago'}. The daily scheduler
-          isn't installed yet — without it, jobs only refresh when you trigger a fetch manually.
+          isn't installed yet, without it, jobs only refresh when you trigger a fetch manually.
         </span>
       </div>
       <div className="staleness-banner-actions">
         <button
           type="button"
-          className="staleness-banner-primary"
+          className="btn btn-secondary btn-sm"
           onClick={onRefetch}
           disabled={isFetching}
         >
-          {isFetching ? '⟳ Fetching…' : '⟳ Refetch now'}
+          {isFetching ? 'Fetching…' : 'Refetch now'}
         </button>
-        <button type="button" className="staleness-banner-secondary" onClick={onOpenScheduler}>
+        <button type="button" className="btn btn-primary btn-sm" onClick={onOpenScheduler}>
           Install daily scheduler →
         </button>
       </div>
@@ -810,7 +810,7 @@ function FetchCta({ onFetch }: FetchCtaProps) {
         Run the aggregator to pull listings from 13 sources (Ashby, Greenhouse, Lever, Hacker News,
         Web3 boards, etc.). Takes about 30–60 seconds.
       </p>
-      <button type="button" className="fetch-cta-button" onClick={onFetch}>
+      <button type="button" className="btn btn-secondary btn-lg" onClick={onFetch}>
         ✨ Fetch jobs now
       </button>
       <p className="muted fetch-cta-hint">
@@ -878,10 +878,12 @@ function CompanyBlock({
     <>
       <tr className={`group-row ${isOpen ? 'open' : ''}`} onClick={onToggleCompany}>
         <td className={`score ${scoreTier(group.topScore)}`}>
-          <span className="caret" aria-hidden>
-            {isOpen ? '▾' : '▸'}
-          </span>
-          {group.topScore}
+          <div className="score-cell">
+            <span className="caret" aria-hidden>
+              {isOpen ? '▾' : '▸'}
+            </span>
+            {group.topScore}
+          </div>
         </td>
         <td colSpan={7}>
           <span className="group-co">{group.display}</span>
@@ -971,10 +973,12 @@ function FragmentRow({
     <>
       <tr className={rowClass} onClick={onToggle}>
         <td className={`score ${tier}`}>
-          <span className="caret" aria-hidden>
-            {isOpen ? '▾' : '▸'}
-          </span>
-          <ScoreBar score={job.fitScore} tier={tier} />
+          <div className="score-cell">
+            <span className="caret" aria-hidden>
+              {isOpen ? '▾' : '▸'}
+            </span>
+            <ScoreBar score={job.fitScore} tier={tier} />
+          </div>
         </td>
         <td className="title" title={titleTooltip}>
           <span className="title-row">
@@ -986,8 +990,12 @@ function FragmentRow({
             {review && <span className={`badge verdict-${review.verdict}`}>{review.verdict}</span>}
             <QueueBadge status={queueStatus} />
             <span className="title-text">{job.title}</span>
-            <SignalChips signals={job._signals} />
           </span>
+          {job._signals && (
+            <div className="signal-chip-row">
+              <SignalChips signals={job._signals} />
+            </div>
+          )}
           {job.bodyPreview && <p className="body-preview">{job.bodyPreview}</p>}
         </td>
         <td className="company" title={job.company ?? ''}>
@@ -1001,32 +1009,37 @@ function FragmentRow({
         </td>
         <td>{job.salary ?? '—'}</td>
         <td className="muted">{relativeTime(job.postedAt)}</td>
-        <td>
-          <a
-            href={job.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={(e) => e.stopPropagation()}
-          >
-            Apply ↗
-          </a>
-          {' · '}
-          <button
-            type="button"
-            className="ai-apply-link"
-            disabled={isMine || otherBusy}
-            onClick={(e) => {
-              e.stopPropagation();
-              triggerAiApply(job);
-            }}
-            title={
-              otherBusy
-                ? 'Another AI Apply is in progress'
-                : 'Generate a tailored cover letter + application package via your local LLM CLI'
-            }
-          >
-            {isMine ? '… generating' : 'AI Apply ✨'}
-          </button>
+        <td className="cell-actions">
+          <div className="row-actions">
+            <a
+              href={job.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="action-link"
+              onClick={(e) => e.stopPropagation()}
+            >
+              Apply
+              <span className="action-arrow" aria-hidden>
+                ↗
+              </span>
+            </a>
+            <button
+              type="button"
+              className="action-link"
+              disabled={isMine || otherBusy}
+              onClick={(e) => {
+                e.stopPropagation();
+                triggerAiApply(job);
+              }}
+              title={
+                otherBusy
+                  ? 'Another AI Apply is in progress'
+                  : 'Generate a tailored cover letter + application package via your local LLM CLI'
+              }
+            >
+              {isMine ? '… generating' : 'AI Apply'}
+            </button>
+          </div>
         </td>
       </tr>
       {isOpen && (

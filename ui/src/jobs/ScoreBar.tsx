@@ -13,10 +13,10 @@ export function ScoreBar({ score, tier }: ScoreBarProps) {
   const pct = Math.max(0, Math.min(100, score));
   return (
     <span className="score-bar" role="img" aria-label={`fit score ${score} of 100`}>
+      <span className={`score-bar-num ${tier}`}>{score}</span>
       <span className="score-bar-track">
         <span className={`score-bar-fill ${tier}`} style={{ width: `${pct}%` }} />
       </span>
-      <span className="score-bar-num">{score}</span>
     </span>
   );
 }

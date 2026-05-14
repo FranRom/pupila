@@ -1,0 +1,95 @@
+/* =============================================================================
+   Base layer — reset, root layout, typography defaults, a11y baselines.
+   Everything visual lives in components.css; this file owns the foundations.
+   ========================================================================== */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family:
+    "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial,
+    sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  font-size: var(--text-md);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  accent-color: var(--primary);
+  min-height: 100dvh;
+}
+
+/* Numbers should always be tabular by default so column-aligned figures
+   (scores, salaries, counts) read like a designed dashboard, not a doc. */
+table,
+.mono,
+[data-numeric] {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Selection colour reads on-brand wherever the user highlights text. */
+::selection {
+  background: var(--selection-bg);
+  color: var(--selection-fg);
+}
+
+/* Branded scrollbar. Webkit + Firefox both covered. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+  border-radius: var(--radius-pill);
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb-hover);
+}
+
+/* Keyboard focus: visible, branded, generous halo.
+   Mouse focus stays invisible (the :focus-visible heuristic handles it). */
+:focus {
+  outline: none;
+}
+
+:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 4px var(--focus-ring-halo);
+  border-radius: var(--radius-sm);
+}
+
+/* Respect motion preferences. Anything we animate elsewhere should also
+   honour this — but a global override covers everything by default. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

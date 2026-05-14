@@ -260,7 +260,12 @@ export function Onboarding({ onComplete }: OnboardingProps) {
             </p>
           )}
           <div className="onboarding-actions">
-            <button type="button" disabled={!anyAvailable || busy} onClick={() => setStep('cv')}>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              disabled={!anyAvailable || busy}
+              onClick={() => setStep('cv')}
+            >
               Next: upload CV →
             </button>
           </div>
@@ -291,7 +296,12 @@ export function Onboarding({ onComplete }: OnboardingProps) {
             error={cv.status === 'error' ? error : null}
           />
           <div className="onboarding-actions">
-            <button type="button" disabled={busy} onClick={() => setStep('provider')}>
+            <button
+              type="button"
+              className="btn btn-primary"
+              disabled={busy}
+              onClick={() => setStep('provider')}
+            >
               ← Back
             </button>
           </div>
@@ -319,10 +329,20 @@ export function Onboarding({ onComplete }: OnboardingProps) {
             provider={provider === 'auto' ? null : provider}
           />
           <div className="onboarding-actions">
-            <button type="button" disabled={busy} onClick={() => setStep('cv')}>
+            <button
+              type="button"
+              className="btn btn-primary"
+              disabled={busy}
+              onClick={() => setStep('cv')}
+            >
               ← Re-upload CV
             </button>
-            <button type="button" disabled={busy} onClick={() => void finish()}>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              disabled={busy}
+              onClick={() => void finish()}
+            >
               {busy && <span className="button-spinner" aria-hidden />}
               {tuning
                 ? 'Tuning scoring profile from your brief…'
@@ -339,7 +359,7 @@ export function Onboarding({ onComplete }: OnboardingProps) {
 
 // Hand-laid ASCII block reading "job hunt" — figlet-style "Standard" font,
 // trimmed and aligned. Each line types itself out with a staggered delay
-// (CSS keyframes in styles.css), and a blinking cursor lands at the end of
+// (CSS keyframes in styles/components.css), and a blinking cursor lands at the end of
 // the tagline. Falls back to instant render under prefers-reduced-motion.
 const ASCII_HERO_LINES: readonly string[] = [
   '   _       _        _                 _   ',
@@ -410,7 +430,7 @@ function CvDropZone({ busy, onFile }: CvDropZoneProps) {
               e.target.value = '';
             }}
           />
-          <span className="onboarding-button">
+          <span className="btn btn-secondary">
             {busy && <span className="button-spinner" aria-hidden />}
             {busy ? 'Working…' : 'Choose file'}
           </span>

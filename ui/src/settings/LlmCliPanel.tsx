@@ -101,7 +101,7 @@ export function LlmCliPanel({
       <div className="settings-actions">
         <button
           type="button"
-          className="settings-button settings-button-primary"
+          className="btn btn-secondary"
           disabled={savingProvider || !envInfo}
           onClick={onSave}
         >
@@ -109,7 +109,7 @@ export function LlmCliPanel({
         </button>
         <button
           type="button"
-          className="settings-button settings-button-secondary"
+          className="btn btn-primary"
           disabled={llmTest.busy || !detectedAny}
           onClick={onTest}
         >

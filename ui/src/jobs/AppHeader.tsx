@@ -1,3 +1,4 @@
+import logoUrl from '../../../assets/logo.svg';
 import type { Category } from '../types.ts';
 
 type Tab = 'jobs' | 'swipe' | 'profile' | 'settings';
@@ -24,7 +25,10 @@ export function AppHeader({
   return (
     <header>
       <div>
-        <h1>Job hunt</h1>
+        <div className="app-brand">
+          <img src={logoUrl} alt="logo" className="app-logo" aria-hidden />
+          <h1>Job hunt</h1>
+        </div>
         <p className="subtitle">
           {dataLoading ? (
             'loading…'

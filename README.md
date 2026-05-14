@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="./assets/logo.svg" alt="job-hunt logo" width="160" />
+</p>
+
 # job-hunt
 
 <p align="center">

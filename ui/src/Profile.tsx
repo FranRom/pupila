@@ -236,10 +236,20 @@ export function Profile() {
             your local LLM CLI (claude / codex / gemini / opencode).
           </div>
           <div className="cv-drop-actions">
-            <button type="button" disabled={busy} onClick={() => fileInputRef.current?.click()}>
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm"
+              disabled={busy}
+              onClick={() => fileInputRef.current?.click()}
+            >
               Choose file
             </button>
-            <button type="button" disabled={busy} onClick={() => setPasteMode((m) => !m)}>
+            <button
+              type="button"
+              className="btn btn-primary btn-sm"
+              disabled={busy}
+              onClick={() => setPasteMode((m) => !m)}
+            >
               {pasteMode ? 'Cancel paste' : 'Paste text'}
             </button>
           </div>
@@ -264,6 +274,7 @@ export function Profile() {
           <div className="cv-paste-actions">
             <button
               type="button"
+              className="btn btn-secondary btn-sm"
               disabled={busy || !pasteText.trim()}
               onClick={() => void summarizePasted()}
             >
@@ -306,14 +317,19 @@ export function Profile() {
           />
         )}
         <div className="brief-actions">
-          <button type="button" disabled={busy || !dirty} onClick={() => void saveDraft()}>
+          <button
+            type="button"
+            className="btn btn-secondary btn-sm"
+            disabled={busy || !dirty}
+            onClick={() => void saveDraft()}
+          >
             Save
           </button>
           <button
             type="button"
             disabled={busy || !dirty}
             onClick={() => setDraft(body)}
-            className="reset"
+            className="btn btn-primary btn-sm"
           >
             Discard changes
           </button>

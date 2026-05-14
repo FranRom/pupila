@@ -56,7 +56,7 @@ function MaintenanceRow({ meta, busy, disabled, onClick }: MaintenanceRowProps) 
       </div>
       <button
         type="button"
-        className={`settings-button ${meta.destructive ? 'settings-button-danger' : 'settings-button-secondary'}`}
+        className={`btn ${meta.destructive ? 'btn-danger' : 'btn-primary'}`}
         disabled={disabled}
         onClick={onClick}
       >
