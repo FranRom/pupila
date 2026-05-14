@@ -1,5 +1,5 @@
 import clsx from 'clsx';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { lazy, memo, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { AiApplyProgress, type AiApplyState as DockState } from './AiApplyProgress.tsx';
 import styles from './App.module.css';
 import { FetchProgress } from './FetchProgress.tsx';
@@ -23,15 +23,11 @@ import { useApplyQueue } from './lib/hooks/useApplyQueue.ts';
 import { useJobsData } from './lib/hooks/useJobsData.ts';
 import { useSwipeSkips } from './lib/hooks/useSwipeSkips.ts';
 import { type SortDir, type SortKey, useUrlSyncedState } from './lib/hooks/useUrlSyncedState.ts';
-import { Onboarding } from './Onboarding.tsx';
-import { Profile } from './Profile.tsx';
 import { SchedulerProgress } from './SchedulerProgress.tsx';
-import { Settings } from './Settings.tsx';
 import badgeStyles from './styles/Badge.module.css';
 import bannerStyles from './styles/Banner.module.css';
 import buttonStyles from './styles/Button.module.css';
 import dockStyles from './styles/Dock.module.css';
-import { SwipeDeck } from './swipe/SwipeDeck.tsx';
 import type {
   AiReview,
   AiReviews,
@@ -43,6 +39,16 @@ import type {
   QueueStatusMap,
   Source,
 } from './types.ts';
+
+// Lazy-loaded tab subtrees. Each is its own bundle chunk so the initial Jobs
+// view doesn't ship Settings/Profile/Onboarding code the user may never open.
+// Wrap the named export as `default` to match `React.lazy()`'s required shape.
+const Onboarding = lazy(() => import('./Onboarding.tsx').then((m) => ({ default: m.Onboarding })));
+const Profile = lazy(() => import('./Profile.tsx').then((m) => ({ default: m.Profile })));
+const Settings = lazy(() => import('./Settings.tsx').then((m) => ({ default: m.Settings })));
+const SwipeDeck = lazy(() =>
+  import('./swipe/SwipeDeck.tsx').then((m) => ({ default: m.SwipeDeck })),
+);
 
 const SCORE_TIER_CLASS = {
   high: styles.scoreHigh,
@@ -110,9 +116,9 @@ export function App() {
     setSortDir,
     setGroupByCompany,
     setCompact,
-    setExpanded,
-    setExpandedCompany,
     setTab,
+    toggleExpanded,
+    toggleExpandedCompany,
   } = useUrlSyncedState();
 
   // Cross-cutting UI banner — shared by every async failure path.
@@ -408,18 +414,20 @@ export function App() {
   if (showOnboarding) {
     return (
       <div className={styles.app}>
-        <Onboarding
-          onComplete={async () => {
-            setShowOnboarding(false);
-            await reloadJobsAndReviews();
-            // First-time user just finished onboarding and jobs.json is
-            // still empty — kick off the first aggregator run automatically
-            // so they don't land on an empty table with no obvious next
-            // action. The FetchProgress card handles the live UI; the
-            // poller will call reloadJobsAndReviews when it finishes.
-            void triggerFetch();
-          }}
-        />
+        <Suspense fallback={<p className={styles.placeholder}>Loading…</p>}>
+          <Onboarding
+            onComplete={async () => {
+              setShowOnboarding(false);
+              await reloadJobsAndReviews();
+              // First-time user just finished onboarding and jobs.json is
+              // still empty — kick off the first aggregator run automatically
+              // so they don't land on an empty table with no obvious next
+              // action. The FetchProgress card handles the live UI; the
+              // poller will call reloadJobsAndReviews when it finishes.
+              void triggerFetch();
+            }}
+          />
+        </Suspense>
       </div>
     );
   }
@@ -436,23 +444,34 @@ export function App() {
         visibleCount={visible.length}
       />
 
-      {tab === 'profile' && <Profile />}
+      {/* Each lazy tab needs a Suspense boundary; sharing one would unmount
+          and re-suspend on every tab swap. Per-tab fallbacks let the user
+          see they're loading the chunk on first open. */}
+      {tab === 'profile' && (
+        <Suspense fallback={<p className={styles.placeholder}>Loading profile…</p>}>
+          <Profile />
+        </Suspense>
+      )}
       {tab === 'settings' && (
-        <Settings
-          schedulerCompletedAt={schedulerCompletedAt}
-          applyQueue={applyQueue}
-          onCancelQueueRow={cancelQueueRow}
-          onRefreshQueue={refreshApplyQueue}
-        />
+        <Suspense fallback={<p className={styles.placeholder}>Loading settings…</p>}>
+          <Settings
+            schedulerCompletedAt={schedulerCompletedAt}
+            applyQueue={applyQueue}
+            onCancelQueueRow={cancelQueueRow}
+            onRefreshQueue={refreshApplyQueue}
+          />
+        </Suspense>
       )}
       {tab === 'swipe' && (
-        <SwipeDeck
-          allJobs={allJobs}
-          appliedJobIds={appliedJobIds}
-          queueRowJobIds={activeQueueJobIds}
-          skippedJobIds={swipeSkipIds}
-          onQueueRefresh={refreshApplyQueue}
-        />
+        <Suspense fallback={<p className={styles.placeholder}>Loading Jinder…</p>}>
+          <SwipeDeck
+            allJobs={allJobs}
+            appliedJobIds={appliedJobIds}
+            queueRowJobIds={activeQueueJobIds}
+            skippedJobIds={swipeSkipIds}
+            onQueueRefresh={refreshApplyQueue}
+          />
+        </Suspense>
       )}
       {tab === 'jobs' && (
         <>
@@ -534,10 +553,8 @@ export function App() {
                         aiApplyBusyId={aiApplyBusyId}
                         aiApplyResult={aiApplyResult}
                         aiApplyError={aiApplyError}
-                        onToggleCompany={() =>
-                          setExpandedCompany(expandedCompany === g.key ? null : g.key)
-                        }
-                        onToggleJob={(id) => setExpanded(expanded === id ? null : id)}
+                        onToggleCompany={toggleExpandedCompany}
+                        onToggleJob={toggleExpanded}
                       />
                     ))
                   : visible.map((j) => (
@@ -557,7 +574,7 @@ export function App() {
                         aiApplyBusyId={aiApplyBusyId}
                         aiApplyResult={aiApplyResult}
                         aiApplyError={aiApplyError}
-                        onToggle={() => setExpanded(expanded === j.id ? null : j.id)}
+                        onToggle={toggleExpanded}
                       />
                     ))}
               </tbody>
@@ -667,11 +684,13 @@ interface CompanyBlockProps {
   aiApplyBusyId: string | null;
   aiApplyResult: AiApplyResult | null;
   aiApplyError: AiApplyError | null;
-  onToggleCompany: () => void;
+  /** Receives the company group key — App passes a stable functional-setState
+   *  toggle so React.memo on rows isn't defeated by per-render arrows. */
+  onToggleCompany: (key: string) => void;
   onToggleJob: (id: string) => void;
 }
 
-function CompanyBlock({
+const CompanyBlock = memo(function CompanyBlock({
   group,
   isOpen,
   expanded,
@@ -711,13 +730,16 @@ function CompanyBlock({
         aiApplyBusyId={aiApplyBusyId}
         aiApplyResult={aiApplyResult}
         aiApplyError={aiApplyError}
-        onToggle={() => onToggleJob(job.id)}
+        onToggle={onToggleJob}
       />
     );
   }
   return (
     <>
-      <tr className={clsx(styles.groupRow, isOpen && styles.rowOpen)} onClick={onToggleCompany}>
+      <tr
+        className={clsx(styles.groupRow, isOpen && styles.rowOpen)}
+        onClick={() => onToggleCompany(group.key)}
+      >
         <td className={clsx(styles.score, SCORE_TIER_CLASS[scoreTier(group.topScore)])}>
           <div className={styles.scoreCell}>
             <span className={styles.caret} aria-hidden>
@@ -758,14 +780,14 @@ function CompanyBlock({
               aiApplyBusyId={aiApplyBusyId}
               aiApplyResult={aiApplyResult}
               aiApplyError={aiApplyError}
-              onToggle={() => onToggleJob(j.id)}
+              onToggle={onToggleJob}
               indent
             />
           );
         })}
     </>
   );
-}
+});
 
 interface FragmentRowProps {
   job: Job;
@@ -782,11 +804,13 @@ interface FragmentRowProps {
   aiApplyBusyId: string | null;
   aiApplyResult: AiApplyResult | null;
   aiApplyError: AiApplyError | null;
-  onToggle: () => void;
+  /** Receives the job id — App passes a stable functional-setState toggle so
+   *  this row component is React.memo-safe across keystrokes. */
+  onToggle: (id: string) => void;
   indent?: boolean;
 }
 
-function FragmentRow({
+const FragmentRow = memo(function FragmentRow({
   job,
   isOpen,
   review,
@@ -822,7 +846,7 @@ function FragmentRow({
     : job.title;
   return (
     <>
-      <tr className={rowClass} onClick={onToggle}>
+      <tr className={rowClass} onClick={() => onToggle(job.id)}>
         <td className={clsx(styles.score, SCORE_TIER_CLASS[tier])}>
           <div className={styles.scoreCell}>
             <span className={styles.caret} aria-hidden>
@@ -926,7 +950,7 @@ function FragmentRow({
       )}
     </>
   );
-}
+});
 
 interface SortableThProps {
   label: string;

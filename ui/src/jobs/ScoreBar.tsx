@@ -1,4 +1,5 @@
 import clsx from 'clsx';
+import { memo } from 'react';
 import styles from './ScoreBar.module.css';
 
 export type ScoreTier = 'high' | 'mid' | 'low';
@@ -26,7 +27,7 @@ const FILL_TIER = {
  * numeric value. The bar fill width tracks the score; colour comes from
  * the tier so it matches the existing colour ramp.
  */
-export function ScoreBar({ score, tier }: ScoreBarProps) {
+export const ScoreBar = memo(function ScoreBar({ score, tier }: ScoreBarProps) {
   const pct = Math.max(0, Math.min(100, score));
   return (
     <span className={styles.bar} role="img" aria-label={`fit score ${score} of 100`}>
@@ -36,4 +37,4 @@ export function ScoreBar({ score, tier }: ScoreBarProps) {
       </span>
     </span>
   );
-}
+});
