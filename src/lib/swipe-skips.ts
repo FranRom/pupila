@@ -77,6 +77,18 @@ export async function addSwipeSkip(jobId: string, path = DEFAULT_PATH): Promise<
   await rename(tmp, path);
 }
 
+export async function removeSwipeSkip(jobId: string, path = DEFAULT_PATH): Promise<void> {
+  const current = await loadSwipeSkips(path);
+  const updated: SwipeSkipsFile = {
+    skips: current.skips.filter((s) => s.jobId !== jobId),
+  };
+  const dir = dirname(path);
+  await mkdir(dir, { recursive: true });
+  const tmp = `${path}.tmp`;
+  await writeFile(tmp, JSON.stringify(updated, null, 2), 'utf8');
+  await rename(tmp, path);
+}
+
 export async function hasSwipeSkip(jobId: string, path = DEFAULT_PATH): Promise<boolean> {
   const { skips } = await loadSwipeSkips(path);
   return skips.some((s) => s.jobId === jobId);

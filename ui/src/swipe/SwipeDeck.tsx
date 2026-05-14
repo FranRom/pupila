@@ -97,6 +97,7 @@ export function SwipeDeck({
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [showWhy, setShowWhy] = useState(false);
+  const [lastSkippedJob, setLastSkippedJob] = useState<Job | null>(null);
 
   // If the deck shrinks below the current index (e.g. App reloaded jobs.json
   // and the current card is no longer in the candidate set), clamp.
@@ -144,6 +145,10 @@ export function SwipeDeck({
     if (next) void loadBody(next.id);
   }, [deck, currentIndex, loadBody]);
 
+  const clearUndo = useCallback(() => {
+    setLastSkippedJob(null);
+  }, []);
+
   // Use a ref to guard against double-firing handleAction in fast succession
   // (e.g. button click + drag commit racing). The CSS transition is short
   // enough that without this guard we'd advance twice.
@@ -157,6 +162,7 @@ export function SwipeDeck({
       inFlightRef.current = true;
       setBusy(true);
       setError(null);
+      clearUndo();
 
       // Confirm with the API BEFORE starting the CSS exit animation. Previously
       // setLeaving fired immediately and a 4xx made the card snap back from
@@ -199,6 +205,7 @@ export function SwipeDeck({
             setError(`Skip failed (HTTP ${res.status})${txt ? ` — ${txt.slice(0, 160)}` : ''}`);
           } else {
             onQueueRefresh();
+            setLastSkippedJob(job);
           }
           setLeaving('left');
           await new Promise<void>((resolve) => setTimeout(resolve, EXIT_ANIMATION_MS));
@@ -215,8 +222,28 @@ export function SwipeDeck({
         setBusy(false);
       }
     },
-    [deck, currentIndex, onQueueRefresh],
+    [deck, currentIndex, onQueueRefresh, clearUndo],
   );
+
+  const handleUndo = useCallback(async () => {
+    if (!lastSkippedJob) return;
+    const job = lastSkippedJob;
+    clearUndo();
+    try {
+      const res = await fetch(`/api/apply-queue/${encodeURIComponent(job.id)}/skip`, {
+        method: 'DELETE',
+      });
+      if (!res.ok) {
+        const txt = await res.text().catch(() => '');
+        setError(`Undo failed (HTTP ${res.status})${txt ? ` — ${txt.slice(0, 160)}` : ''}`);
+        return;
+      }
+      onQueueRefresh();
+      setCurrentIndex((i) => Math.max(0, i - 1));
+    } catch (e: unknown) {
+      setError(describeError(e));
+    }
+  }, [lastSkippedJob, onQueueRefresh, clearUndo]);
 
   const empty = deck.length === 0 || currentIndex >= deck.length;
 
@@ -286,6 +313,12 @@ export function SwipeDeck({
       ) : null}
 
       {showWhy && signals ? <WhyPanel signals={signals} /> : null}
+
+      {lastSkippedJob ? (
+        <button type="button" className="swipe-undo" onClick={() => void handleUndo()}>
+          ↩ Undo last skip
+        </button>
+      ) : null}
 
       {error ? (
         <div
