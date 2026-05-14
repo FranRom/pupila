@@ -1,4 +1,5 @@
 import logoUrl from '../../../assets/logo.svg';
+import asciiTitleUrl from '../../../assets/pupila-ascii.svg';
 import type { Category } from '../types.ts';
 
 type Tab = 'jobs' | 'swipe' | 'profile' | 'settings';
@@ -26,8 +27,10 @@ export function AppHeader({
     <header>
       <div>
         <div className="app-brand">
-          <img src={logoUrl} alt="logo" className="app-logo" aria-hidden />
-          <h1>Pupila</h1>
+          <img src={logoUrl} alt="" className="app-logo" aria-hidden />
+          <h1 className="app-title">
+            <img src={asciiTitleUrl} alt="pupila" className="app-title-ascii" />
+          </h1>
         </div>
         <p className="subtitle">
           {dataLoading ? (
