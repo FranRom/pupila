@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="./assets/logo.svg" alt="job-hunt logo" width="160" />
+  <img src="./assets/logo.svg" alt="pupila logo" width="160" />
 </p>
 
-# job-hunt
+# pupila
 
 <p align="center">
   <img src="./assets/readme-hero.png" alt="Local job matching dashboard with source feeds, scoring, and scheduled file output" width="100%" />

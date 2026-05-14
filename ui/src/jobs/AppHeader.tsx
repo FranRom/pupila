@@ -27,7 +27,7 @@ export function AppHeader({
       <div>
         <div className="app-brand">
           <img src={logoUrl} alt="logo" className="app-logo" aria-hidden />
-          <h1>Job hunt</h1>
+          <h1>Pupila</h1>
         </div>
         <p className="subtitle">
           {dataLoading ? (
