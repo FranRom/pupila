@@ -39,6 +39,13 @@ header h1 {
   font-size: 0.8125rem;
 }
 
+/* Inline emphasis inside the subtitle — e.g. "Showing N" on the Jobs tab.
+   Tinted primary so it stands out against the muted stats run. */
+.subtitle-emphasis {
+  color: var(--primary);
+  font-weight: 600;
+}
+
 .counts {
   color: var(--text-muted);
   font-size: 0.875rem;

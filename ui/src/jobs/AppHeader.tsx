@@ -36,6 +36,14 @@ export function AppHeader({
             <>
               {totalJobs} jobs · {totals['web3+ai']} web3+ai · {totals.web3} web3 · {totals.ai} ai ·{' '}
               {totals.general} general · {appliedCount} applied
+              {tab === 'jobs' && (
+                <>
+                  {' — '}
+                  <span className="subtitle-emphasis">
+                    Showing <strong>{visibleCount}</strong>
+                  </span>
+                </>
+              )}
             </>
           )}
         </p>
@@ -70,11 +78,6 @@ export function AppHeader({
           Settings
         </button>
       </div>
-      {tab === 'jobs' && (
-        <div className="counts">
-          showing <strong>{visibleCount}</strong>
-        </div>
-      )}
     </header>
   );
 }
