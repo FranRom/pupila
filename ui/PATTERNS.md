@@ -1,0 +1,179 @@
+# UI patterns
+
+Canonical structure for the `ui/` codebase. **Read this before adding components, fetching, or styling anything.** If you're tempted to deviate, leave a comment with why — pattern drift turns into the next refactor PR.
+
+Two architectural rules, each with a small set of mechanics.
+
+---
+
+## 1. Styling: CSS Modules per component
+
+**One golden rule:** never write a class name as a string. Every class comes from a `*.module.css` import.
+
+### File layout
+
+```
+ui/src/
+  styles/
+    tokens.css        ← global, design tokens (colors, spacing, shadows)
+    base.css          ← global, reset + prefers-reduced-motion
+    index.css         ← imports tokens + base only
+    Button.module.css ← shared design-system module
+    Badge.module.css
+    Tab.module.css
+    Chip.module.css
+    Banner.module.css
+    Dock.module.css
+    Spinner.module.css
+  jobs/
+    AppHeader.tsx
+    AppHeader.module.css   ← co-located, component-local
+    ...
+  swipe/
+    SwipeCard.tsx
+    SwipeCard.module.css
+    ...
+```
+
+### What stays global vs. modular
+
+- `tokens.css` + `base.css` — **global**. Design tokens and the CSS reset are correctly cross-cutting.
+- Everything else — **module**. Including animations (`@keyframes`) and media queries scoped to one component.
+
+### Conventions
+
+- **camelCase selectors** in `.module.css` files. Matches JS access (`styles.signalChip`, not `styles['signal-chip']`).
+- **`composes:`** for variant→base inheritance inside a single module. Example: `.primary { composes: base; background: ... }` in `Button.module.css`. Consumer writes `<button className={buttonStyles.primary}>` and gets both classes applied.
+- **Cross-module composition** happens at the JS level via `clsx`, not via `composes: foo from '../Other.module.css'`. Modules stay self-contained.
+- **Conditional joining** uses `clsx(...)`:
+  ```tsx
+  className={clsx(styles.pill, isActive && styles.pillActive, variant && styles[variant])}
+  ```
+- **Mutually-exclusive variants** use a ternary, not clsx with both true/false branches:
+  ```tsx
+  className={isActive ? styles.tabActive : styles.tab}
+  ```
+- **Variant maps** for class lookups by string key — `as const` to keep TypeScript happy with `noUncheckedIndexedAccess`:
+  ```tsx
+  const STATUS_VARIANT_CLASS = {
+    applied: styles.applied,
+    interview: styles.interview,
+    // ...
+  } as const;
+  ```
+
+### Adding styles to a new component
+
+1. Create `Component.module.css` next to `Component.tsx`.
+2. Import as `import styles from './Component.module.css'`.
+3. Import shared modules as `buttonStyles`, `badgeStyles`, `tabStyles`, `chipStyles`, `bannerStyles`, `dockStyles`, `spinnerStyles` — never repurpose a name.
+4. Use only `var(--token)` for colours / spacing / shadows. No raw hex / rgba.
+
+### Anti-patterns (don't do this)
+
+- ❌ Writing `className="some-class"` as a string literal.
+- ❌ Creating a new global `*.css` file outside `tokens.css` / `base.css`.
+- ❌ Hardcoded colours or pixel values. Use tokens.
+- ❌ Inline styles for anything reusable. (One-off positioning is fine.)
+- ❌ Importing the same shared module under different alias names.
+
+### Canonical examples to copy from
+
+- **Simple co-located**: `ui/src/jobs/AppHeader.tsx` + `AppHeader.module.css`
+- **Variant + composes**: `ui/src/styles/Button.module.css`
+- **Conditional joining with shared + local**: `ui/src/jobs/AppliedBar.tsx`
+- **Cross-module sharing of a chip primitive**: `ui/src/styles/Chip.module.css`, consumed by `SignalChips` and `SwipeCard`
+
+---
+
+## 2. HTTP: the typed `api` client
+
+**One golden rule:** never write `fetch('/api/...')` at a call site. Every server call goes through `ui/src/lib/api/`.
+
+### File layout
+
+```
+ui/src/lib/api/
+  client.ts   ← low-level: request(), Result<T>, ApiError, formatError(), path()
+  index.ts    ← typed resource surface: api.jobs, api.applyQueue, api.applied, ...
+```
+
+### The model
+
+- **`Result<T>`** = `{ ok: true; value: T } | { ok: false; error: ApiError }`. Methods never throw; they return Results.
+- **`ApiError`** discriminated union — four kinds:
+  - `http` — non-2xx response, carries `status`, `statusText`, best-effort `body`.
+  - `network` — fetch threw (offline, DNS, CORS).
+  - `abort` — caller's `AbortSignal` fired.
+  - `parse` — server returned invalid JSON when JSON was expected.
+- **`formatError(err)`** renders any `ApiError` to a user-facing string. Use this in every `setApiError(...)`.
+- **AbortSignal** is opt-in via the last `{ signal }` arg on every method. Required for effect-loaders / pollers; optional for fire-and-forget handlers.
+
+### The call-site pattern
+
+```ts
+const r = await api.applied.set({ url, status, date });
+if (!r.ok) {
+  if (r.error.kind === 'abort') return;
+  setApiError(formatError(r.error));
+  return;
+}
+setApplied(r.value);
+```
+
+Variations:
+
+- **Silent error tolerance** (pollers): drop the `setApiError`; just no-op on `!r.ok`.
+- **Specific HTTP status is fine** (e.g. 409 = "already queued"):
+  ```ts
+  if (!r.ok && !(r.error.kind === 'http' && r.error.status === 409)) { ... }
+  ```
+- **Inside `useEffect` with cleanup**: pass `signal` from the AbortController, branch on `r.error.kind === 'abort'` to skip the cleanup.
+
+### Adding a new endpoint
+
+1. Add the response shape to `ui/src/lib/api/index.ts` (or to `ui/src/types.ts` if cross-cutting).
+2. Add the method under the appropriate `api.<resource>` namespace.
+3. Use `path('/api/foo', segment)` for URL-encoded path segments — never inline `\`/api/foo/\${encodeURIComponent(x)}\``.
+4. Use `expectJson: false` on the `request<T>(...)` call when the server returns 204 / non-JSON; the typed return is `void`.
+5. **DO NOT** add an inline `fetch('/api/...')` at a call site. If a method is missing, add it to the api module in a focused edit and continue.
+
+### Anti-patterns (don't do this)
+
+- ❌ `fetch('/api/...')` anywhere except inside `ui/src/lib/api/client.ts`.
+- ❌ Inline `interface FooResponse { … }` in a component. Hoist it to `lib/api/index.ts`.
+- ❌ `try/catch` + `err instanceof Error && err.name === 'AbortError'`. Use `r.error.kind === 'abort'`.
+- ❌ Throwing from an api method. Return a `Result` instead.
+- ❌ `JSON.stringify(...)` + manual `Content-Type` headers. Use `{ json: ... }` on `request()`.
+- ❌ Constructing the same `\`HTTP \${res.status}\`` string at every call site. Use `formatError(err)`.
+
+### Canonical examples to copy from
+
+- **Read with abort**: `ui/src/App.tsx` — the preferences load `useEffect` (around the mount).
+- **Mutation with optimistic + rollback**: `ui/src/App.tsx` — `setApplied` callback.
+- **Polling**: `ui/src/FetchProgress.tsx` — `api.fetchJobs.status` tick.
+- **409 as success**: `ui/src/swipe/SwipeDeck.tsx` — `handleAction('apply')` and `App.tsx`'s `enqueueJob`.
+
+---
+
+## React effects
+
+Project convention (pre-existing, restated here for context):
+
+- `useEffect` callbacks can't be `async`. Declare a named `const load = async () => { ... }` inside, then `void load()`.
+- Pass `ctrl.signal` from a new `AbortController()` to every fetch / api call inside the effect. Cleanup function aborts it.
+- Don't use `let cancelled = false` flags. If you find one in legacy code, refactor to AbortController.
+
+Canonical example: `ui/src/App.tsx`'s mount-load effect (`reloadJobsAndReviews` + `api.preferences.get`).
+
+---
+
+## When to update this doc
+
+Add a new section any time we introduce a **structural** pattern that future agents need to discover. Bug fixes, single-component tweaks, and feature work don't belong here — those live in the code + PR description.
+
+Triggers for an update:
+- A new shared module under `ui/src/styles/`
+- A new top-level pattern in `lib/api/` (e.g. retry, streaming, optimistic-update helper)
+- A new convention around hooks, state management, or composition
+- A reversal of an existing rule (with reason)

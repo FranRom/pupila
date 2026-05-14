@@ -323,6 +323,8 @@ When tuning a filter regex or scoring weight (in `config/profile.json` or `filte
 
 ## Local UI (`pnpm run ui`)
 
+> **Before adding code to `ui/`, read [`ui/PATTERNS.md`](./ui/PATTERNS.md).** Two hard rules: (1) styling goes through co-located `*.module.css` — never write a class name as a string literal; (2) every server call goes through `ui/src/lib/api/` — never write `fetch('/api/...')` at a call site. The doc has canonical examples for both.
+
 A Vite + React 19 dashboard at `ui/` that reads `data/jobs.json` and `data/ai-reviews.json` directly via JSON import. **Local-only — no auth, no hosting, intentionally not exposed beyond `127.0.0.1:5173`** (the user explicitly chose this over public Pages because a public dashboard surfacing their applied-job statuses could be Google-indexed and visible to recruiters). Don't add a `pnpm run ui:deploy` or wire it into a workflow without explicit instruction.
 
 Single-component MVP (no router, no state-management lib): filter chips for category/source/applied, search box, sortable columns (score / salaryMax / postedAt), dark-mode via `prefers-color-scheme`. Score cells are tier-colored (green ≥80, gold 50-79, muted <50). Long company/title cells are clamped to 2 lines via `display: -webkit-box` (the clamp is on a `<span>` wrapper inside the `<td>` — applying it directly on the `<td>` breaks table-cell layout).
