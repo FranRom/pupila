@@ -22,6 +22,7 @@
     "lint": "biome check",
     "lint:fix": "biome check --write",
     "lint:ui-patterns": "bash scripts/check-ui-patterns.sh",
+    "lint:bundle-size": "bash scripts/check-bundle-size.sh",
     "format": "biome format --write",
     "test": "vitest run",
     "test:watch": "vitest",
