@@ -17,6 +17,7 @@ import {
   type SetApplied,
   STATUS_EMOJI,
 } from './jobs/types.ts';
+import { api, formatError } from './lib/api/index.ts';
 import { Onboarding } from './Onboarding.tsx';
 import { Profile } from './Profile.tsx';
 import { SchedulerProgress } from './SchedulerProgress.tsx';
@@ -61,11 +62,6 @@ const STATUS_BADGE_CLASS = {
   rejected: badgeStyles.rejected,
   withdrawn: badgeStyles.withdrawn,
 } as const;
-
-interface PreferencesResponse {
-  provider: string | null;
-  onboardedAt: string | null;
-}
 
 const CATEGORY_OPTIONS: ReadonlyArray<Category | 'all'> = [
   'all',
@@ -201,20 +197,13 @@ export function App() {
   }, [aiSkipOverrides]);
 
   const refreshApplyQueue = useCallback(async (signal?: AbortSignal) => {
-    try {
-      const [qr, sr] = await Promise.all([
-        fetch('/api/apply-queue', { signal }),
-        fetch('/api/apply-queue/skips', { signal }),
-      ]);
-      if (qr.ok) setApplyQueue((await qr.json()) as ApplyQueueResponse);
-      if (sr.ok) {
-        const body = (await sr.json()) as { skips: string[] };
-        setSwipeSkipIds(new Set(body.skips));
-      }
-    } catch (err) {
-      if (err instanceof Error && err.name === 'AbortError') return;
-      // other network blip — keep the previous snapshot
-    }
+    const [qr, sr] = await Promise.all([
+      api.applyQueue.list({ signal }),
+      api.applyQueue.listSkips({ signal }),
+    ]);
+    if (qr.ok) setApplyQueue(qr.value);
+    if (sr.ok) setSwipeSkipIds(new Set(sr.value.skips));
+    // network/abort blips just keep the previous snapshot — silent recovery.
   }, []);
 
   // Toggle skipped state for a job, unifying both sources:
@@ -250,15 +239,11 @@ export function App() {
             next.delete(jobId);
             return next;
           });
-          try {
-            const res = await fetch(`/api/apply-queue/${encodeURIComponent(jobId)}/skip`, {
-              method: 'DELETE',
-            });
-            if (!res.ok) throw new Error(`HTTP ${res.status}`);
-          } catch (err) {
+          const r = await api.applyQueue.removeSkip(jobId);
+          if (!r.ok) {
             // Rollback swipe-skip removal; the AI override (pure UI state) stays.
             setSwipeSkipIds((prev) => new Set([...prev, jobId]));
-            setApiError(`Could not unskip: ${err instanceof Error ? err.message : String(err)}`);
+            setApiError(`Could not unskip: ${formatError(r.error)}`);
           }
         }
       } else {
@@ -271,19 +256,14 @@ export function App() {
           });
         } else {
           setSwipeSkipIds((prev) => new Set([...prev, jobId]));
-          try {
-            const res = await fetch(`/api/apply-queue/${encodeURIComponent(jobId)}/skip`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-            });
-            if (!res.ok) throw new Error(`HTTP ${res.status}`);
-          } catch (err) {
+          const r = await api.applyQueue.addSkip(jobId);
+          if (!r.ok) {
             setSwipeSkipIds((prev) => {
               const next = new Set(prev);
               next.delete(jobId);
               return next;
             });
-            setApiError(`Could not skip: ${err instanceof Error ? err.message : String(err)}`);
+            setApiError(`Could not skip: ${formatError(r.error)}`);
           }
         }
       }
@@ -293,34 +273,22 @@ export function App() {
 
   const cancelQueueRow = useCallback(
     async (jobId: string): Promise<void> => {
-      try {
-        await fetch(`/api/apply-queue/${encodeURIComponent(jobId)}`, { method: 'DELETE' });
-      } finally {
-        await refreshApplyQueue();
-      }
+      await api.applyQueue.cancel(jobId);
+      await refreshApplyQueue();
     },
     [refreshApplyQueue],
   );
 
   // Enqueue a job for AI Apply from the table — symmetric with the
   // Jinder right-swipe. Backend already de-duplicates (409 on existing
-  // active rows) so we just surface that as a non-fatal error.
+  // active rows) so we surface non-409 errors and let 409 be a silent no-op.
   const enqueueJob = useCallback(
     async (jobId: string): Promise<void> => {
-      try {
-        const res = await fetch('/api/apply-queue/enqueue', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ jobId }),
-        });
-        if (!res.ok && res.status !== 409) {
-          throw new Error(`HTTP ${res.status}`);
-        }
-      } catch (err) {
-        setApiError(`Could not queue job: ${err instanceof Error ? err.message : String(err)}`);
-      } finally {
-        await refreshApplyQueue();
+      const r = await api.applyQueue.enqueue(jobId);
+      if (!r.ok && !(r.error.kind === 'http' && r.error.status === 409)) {
+        setApiError(`Could not queue job: ${formatError(r.error)}`);
       }
+      await refreshApplyQueue();
     },
     [refreshApplyQueue],
   );
@@ -330,34 +298,26 @@ export function App() {
   // status with the current jobs list so URL-keyed entries land on the
   // right job ids. Optional signal lets the caller abort on unmount.
   const reloadJobsAndReviews = useCallback(async (signal?: AbortSignal) => {
-    const fetchOrFallback = async <T,>(url: string, fallback: T): Promise<T> => {
-      try {
-        const r = await fetch(url, { signal });
-        return r.ok ? ((await r.json()) as T) : fallback;
-      } catch (err) {
-        if (err instanceof Error && err.name === 'AbortError') throw err;
-        return fallback;
-      }
-    };
-    try {
-      const [jobs, reviews, applied] = await Promise.all([
-        fetchOrFallback<Job[]>('/api/jobs', []),
-        fetchOrFallback<AiReviews>('/api/reviews', {}),
-        fetchOrFallback<AppliedEntry[]>('/api/applied', []),
-      ]);
-      setAllJobs(jobs);
-      setAiReviews(reviews);
-      const byUrl = new Map(applied.map((e) => [e.url, e]));
-      const nextApplied: AppliedMap = {};
-      for (const j of jobs) {
-        const e = byUrl.get(j.url);
-        if (e) nextApplied[j.id] = e;
-      }
-      setAppliedById(nextApplied);
-    } catch (err) {
-      if (err instanceof Error && err.name === 'AbortError') return;
-      throw err;
+    const [jobsR, reviewsR, appliedR] = await Promise.all([
+      api.jobs.list({ signal }),
+      api.reviews.list({ signal }),
+      api.applied.list({ signal }),
+    ]);
+    if ([jobsR, reviewsR, appliedR].some((r) => !r.ok && r.error.kind === 'abort')) {
+      return;
     }
+    const jobs = jobsR.ok ? jobsR.value : [];
+    const reviews = reviewsR.ok ? reviewsR.value : {};
+    const applied = appliedR.ok ? appliedR.value : [];
+    setAllJobs(jobs);
+    setAiReviews(reviews);
+    const byUrl = new Map(applied.map((e) => [e.url, e]));
+    const nextApplied: AppliedMap = {};
+    for (const j of jobs) {
+      const e = byUrl.get(j.url);
+      if (e) nextApplied[j.id] = e;
+    }
+    setAppliedById(nextApplied);
   }, []);
 
   // POST /api/ai-apply — kicks off a background LLM run. The
@@ -374,22 +334,11 @@ export function App() {
       setAiApplyBusyId(job.id);
       setAiApplyResult(null);
       setAiApplyError(null);
-      try {
-        const res = await fetch('/api/ai-apply', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ jobId: job.id }),
-        });
-        if (!res.ok && res.status !== 202) {
-          const errBody = (await res.json().catch(() => ({}))) as { error?: string };
-          throw new Error(errBody.error ?? `HTTP ${res.status}`);
-        }
-        // Don't wait for the body — the dock will stream it in.
-      } catch (err) {
-        setAiApplyError({
-          jobId: job.id,
-          error: err instanceof Error ? err.message : String(err),
-        });
+      const r = await api.aiApply.run(job.id);
+      // 202 Accepted is success: the dock will stream the body in.
+      // (request() treats 2xx as ok, so we just check r.ok here.)
+      if (!r.ok) {
+        setAiApplyError({ jobId: job.id, error: formatError(r.error) });
         setAiApplyBusyId(null);
       }
     },
@@ -433,40 +382,23 @@ export function App() {
   // POST /api/fetch-jobs — kicks off the aggregator. The FetchProgress
   // component handles its own polling + parent re-fetch on success.
   const triggerFetch = useCallback(async () => {
-    try {
-      const res = await fetch('/api/fetch-jobs', { method: 'POST' });
-      if (!res.ok && res.status !== 202) {
-        const errBody = (await res.json().catch(() => ({}))) as { error?: string };
-        setApiError(errBody.error ?? `fetch run failed: HTTP ${res.status}`);
-      }
-    } catch (err) {
-      setApiError(`fetch run failed: ${err instanceof Error ? err.message : String(err)}`);
-    }
+    const r = await api.fetchJobs.trigger();
+    if (!r.ok) setApiError(`fetch run failed: ${formatError(r.error)}`);
   }, []);
 
   // Load jobs + AI reviews + applied state + preferences on mount.
   useEffect(() => {
     const ctrl = new AbortController();
     const load = async () => {
-      const loadPrefs = async (): Promise<PreferencesResponse> => {
-        try {
-          const r = await fetch('/api/preferences', { signal: ctrl.signal });
-          if (r.ok) return (await r.json()) as PreferencesResponse;
-          return { provider: null, onboardedAt: null };
-        } catch (err) {
-          if (err instanceof Error && err.name === 'AbortError') throw err;
-          return { provider: null, onboardedAt: null };
-        }
-      };
-      try {
-        const [, prefs] = await Promise.all([reloadJobsAndReviews(ctrl.signal), loadPrefs()]);
-        setDataLoading(false);
-        // First run = no `onboardedAt` stamp yet. Show the wizard.
-        setShowOnboarding(!prefs.onboardedAt);
-      } catch (err) {
-        if (err instanceof Error && err.name === 'AbortError') return;
-        throw err;
-      }
+      const [, prefsR] = await Promise.all([
+        reloadJobsAndReviews(ctrl.signal),
+        api.preferences.get({ signal: ctrl.signal }),
+      ]);
+      if (!prefsR.ok && prefsR.error.kind === 'abort') return;
+      const prefs = prefsR.ok ? prefsR.value : { provider: null, onboardedAt: null };
+      setDataLoading(false);
+      // First run = no `onboardedAt` stamp yet. Show the wizard.
+      setShowOnboarding(!prefs.onboardedAt);
     };
     void load();
     return () => ctrl.abort();
@@ -479,18 +411,13 @@ export function App() {
   useEffect(() => {
     const ctrl = new AbortController();
     const load = async () => {
-      try {
-        const r = await fetch('/api/scheduler-status', { signal: ctrl.signal });
-        if (!r.ok) {
-          setSchedulerInstalled(false);
-          return;
-        }
-        const data = (await r.json()) as { installed?: { aggregate?: boolean } };
-        setSchedulerInstalled(Boolean(data.installed?.aggregate));
-      } catch (err) {
-        if (err instanceof Error && err.name === 'AbortError') return;
+      const r = await api.scheduler.status({ signal: ctrl.signal });
+      if (!r.ok) {
+        if (r.error.kind === 'abort') return;
         setSchedulerInstalled(false);
+        return;
       }
+      setSchedulerInstalled(Boolean(r.value.installed.aggregate));
     };
     void load();
     return () => ctrl.abort();
@@ -587,22 +514,15 @@ export function App() {
           delete next[job.id];
           return next;
         });
-        try {
-          const res = await fetch('/api/applied', {
-            method: 'DELETE',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ url: job.url }),
-          });
-          if (!res.ok) throw new Error(`HTTP ${res.status}`);
-          setApiError(null);
-        } catch (err) {
+        const r = await api.applied.clear(job.url);
+        if (!r.ok) {
           setAppliedById((prev) => {
             if (!prevSnapshot) return prev;
             return { ...prev, [job.id]: prevSnapshot };
           });
-          setApiError(
-            `Failed to clear status: ${err instanceof Error ? err.message : String(err)}`,
-          );
+          setApiError(`Failed to clear status: ${formatError(r.error)}`);
+        } else {
+          setApiError(null);
         }
         return;
       }
@@ -617,24 +537,18 @@ export function App() {
       };
       setAppliedById((prev) => ({ ...prev, [job.id]: optimistic }));
 
-      try {
-        const res = await fetch('/api/applied', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(optimistic),
-        });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const saved = (await res.json()) as AppliedEntry;
-        setAppliedById((prev) => ({ ...prev, [job.id]: saved }));
+      const r = await api.applied.set(optimistic);
+      if (r.ok) {
+        setAppliedById((prev) => ({ ...prev, [job.id]: r.value }));
         setApiError(null);
-      } catch (err) {
+      } else {
         setAppliedById((prev) => {
           const next = { ...prev };
           if (prevSnapshot) next[job.id] = prevSnapshot;
           else delete next[job.id];
           return next;
         });
-        setApiError(`Failed to save status: ${err instanceof Error ? err.message : String(err)}`);
+        setApiError(`Failed to save status: ${formatError(r.error)}`);
       }
     },
     [appliedById],

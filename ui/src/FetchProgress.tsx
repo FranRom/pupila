@@ -1,5 +1,6 @@
 import clsx from 'clsx';
 import { useEffect, useRef, useState } from 'react';
+import { api, type FetchJobsState, type RunStatus, type SourceState } from './lib/api/index.ts';
 import dockStyles from './styles/Dock.module.css';
 
 // Bottom-right docked card that streams the aggregator's per-source progress.
@@ -10,28 +11,13 @@ import dockStyles from './styles/Dock.module.css';
 // Polling beats SSE here because the run is short (30-60s for 13 sources)
 // and the polling code lives entirely in this component.
 
-type RunStatus = 'idle' | 'running' | 'done' | 'error';
+// FetchJobsState + FetchJobsSourceEntry now live in ui/src/lib/api/index.ts
+// so this dock and Settings' last-run summary share one definition. Local
+// type re-exports here keep the rest of the file's lookup tables stable.
+
 // 'partial' = fetched > 0 AND errors > 0 (e.g. stale tier-S slugs that 404'd
 // while the rest of the source delivered jobs). Rendered amber with the
 // real fetched count; distinct from 'error' (red, zero items came through).
-type SourceState = 'pending' | 'running' | 'done' | 'partial' | 'error';
-
-interface SourceEntry {
-  name: string;
-  state: SourceState;
-  fetched?: number;
-  errors?: number;
-  message?: string;
-}
-
-interface FetchJobsState {
-  status: RunStatus;
-  startedAt: string | null;
-  finishedAt: string | null;
-  sources: SourceEntry[];
-  exitCode: number | null;
-  lastError: string | null;
-}
 
 interface FetchProgressProps {
   onComplete: () => void;
@@ -85,35 +71,32 @@ export function FetchProgress({ onComplete, onStatusChange }: FetchProgressProps
     const ctrl = new AbortController();
 
     const tick = async () => {
-      try {
-        const res = await fetch('/api/fetch-jobs', { signal: ctrl.signal });
-        if (!res.ok) return;
-        const next = (await res.json()) as FetchJobsState;
-        setState(next);
-        onStatusChange?.(next.status);
+      const r = await api.fetchJobs.status({ signal: ctrl.signal });
+      // abort + network/parse failures: just wait for next tick. Visible
+      // state stays as-is so a transient blip doesn't yank the dock away.
+      if (!r.ok) return;
+      const next = r.value;
+      setState(next);
+      onStatusChange?.(next.status);
 
-        // Show whenever a run is active, regardless of who started it.
-        if (next.status === 'running') {
-          setHidden(false);
-          completedRef.current = false;
-          if (dismissTimerRef.current) {
-            window.clearTimeout(dismissTimerRef.current);
-            dismissTimerRef.current = null;
-          }
-        } else if (next.status === 'done' && !completedRef.current) {
-          completedRef.current = true;
-          // Trigger parent re-fetch as soon as we see the success transition.
-          onComplete();
-          dismissTimerRef.current = window.setTimeout(() => {
-            setHidden(true);
-          }, DISMISS_MS);
-        } else if (next.status === 'error') {
-          // Keep error visible until the user dismisses or starts a new run.
-          setHidden(false);
+      // Show whenever a run is active, regardless of who started it.
+      if (next.status === 'running') {
+        setHidden(false);
+        completedRef.current = false;
+        if (dismissTimerRef.current) {
+          window.clearTimeout(dismissTimerRef.current);
+          dismissTimerRef.current = null;
         }
-      } catch (err) {
-        if (err instanceof Error && err.name === 'AbortError') return;
-        // network blip; just try again next tick
+      } else if (next.status === 'done' && !completedRef.current) {
+        completedRef.current = true;
+        // Trigger parent re-fetch as soon as we see the success transition.
+        onComplete();
+        dismissTimerRef.current = window.setTimeout(() => {
+          setHidden(true);
+        }, DISMISS_MS);
+      } else if (next.status === 'error') {
+        // Keep error visible until the user dismisses or starts a new run.
+        setHidden(false);
       }
     };
 

@@ -21,6 +21,7 @@
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.test.json && tsc --noEmit -p ui/tsconfig.json",
     "lint": "biome check",
     "lint:fix": "biome check --write",
+    "lint:ui-patterns": "bash scripts/check-ui-patterns.sh",
     "format": "biome format --write",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -29,7 +30,7 @@
     "prepare": "simple-git-hooks"
   },
   "simple-git-hooks": {
-    "pre-commit": "pnpm run lint && pnpm run typecheck"
+    "pre-commit": "pnpm run lint && pnpm run typecheck && pnpm run lint:ui-patterns"
   },
   "dependencies": {
     "clsx": "^2.1.1",

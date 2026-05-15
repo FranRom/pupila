@@ -1,5 +1,6 @@
 import clsx from 'clsx';
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { api, formatError } from './lib/api/index.ts';
 import { useLlmStream } from './lib/use-llm-stream.ts';
 import styles from './Onboarding.module.css';
 import { StreamingPanel } from './StreamingPanel.tsx';
@@ -22,10 +23,6 @@ type Provider = 'claude' | 'codex' | 'gemini' | 'opencode';
 type ProviderChoice = Provider | 'auto';
 
 const PROVIDERS: readonly Provider[] = ['claude', 'codex', 'gemini', 'opencode'];
-
-interface DetectResponse {
-  available: Record<Provider, boolean>;
-}
 
 type CvFormat = 'pdf' | 'docx' | 'md' | 'txt';
 
@@ -86,18 +83,16 @@ export function Onboarding({ onComplete }: OnboardingProps) {
   useEffect(() => {
     const ctrl = new AbortController();
     const load = async () => {
-      try {
-        const r = await fetch('/api/llm-detect', { signal: ctrl.signal });
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        const data = (await r.json()) as DetectResponse;
-        setAvailable(data.available);
-        // Pre-select the first installed CLI as a sensible default.
-        const firstInstalled = PROVIDERS.find((p) => data.available[p]);
-        if (firstInstalled) setProvider(firstInstalled);
-      } catch (err) {
-        if (err instanceof Error && err.name === 'AbortError') return;
-        setError(`Could not probe LLM CLIs: ${err instanceof Error ? err.message : String(err)}`);
+      const r = await api.llm.detect({ signal: ctrl.signal });
+      if (!r.ok) {
+        if (r.error.kind === 'abort') return;
+        setError(`Could not probe LLM CLIs: ${formatError(r.error)}`);
+        return;
       }
+      setAvailable(r.value.available);
+      // Pre-select the first installed CLI as a sensible default.
+      const firstInstalled = PROVIDERS.find((p) => r.value.available[p]);
+      if (firstInstalled) setProvider(firstInstalled);
     };
     void load();
     return () => ctrl.abort();
@@ -140,44 +135,36 @@ export function Onboarding({ onComplete }: OnboardingProps) {
   const finish = useCallback(async () => {
     setBusy(true);
     setError(null);
-    try {
-      // If the user edited the preview, save those edits first.
-      if (briefDraft.trim() !== generatedBrief.trim()) {
-        const briefRes = await fetch('/api/brief', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ markdown: briefDraft }),
-        });
-        if (!briefRes.ok) throw new Error(`brief save: HTTP ${briefRes.status}`);
+    // If the user edited the preview, save those edits first.
+    if (briefDraft.trim() !== generatedBrief.trim()) {
+      const briefR = await api.brief.set(briefDraft);
+      if (!briefR.ok) {
+        setError(`Could not finish onboarding: brief save: ${formatError(briefR.error)}`);
+        setBusy(false);
+        return;
       }
-      const prefRes = await fetch('/api/preferences', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ provider }),
-      });
-      if (!prefRes.ok) {
-        const errBody = (await prefRes.json().catch(() => ({}))) as { error?: string };
-        throw new Error(errBody.error ?? `preferences save: HTTP ${prefRes.status}`);
-      }
-      // Block onboarding handoff on profile-generate so the auto-fetch
-      // that fires next picks up the freshly-tuned profile.json. Earlier
-      // versions did this fire-and-forget, which caused the first jobs.json
-      // to score against the empty profile (max ~45 from seniority alone)
-      // even though the brief had been generated.
-      // Errors here don't block the handoff — Settings → Scoring profile
-      // has a manual retry button.
-      setTuning(true);
-      const tuneDone = await tune.start({ provider: provider === 'auto' ? null : provider });
-      if (!tuneDone && tune.error) {
-        console.warn('[onboarding] profile generation failed; continuing anyway:', tune.error);
-      }
-      setTuning(false);
-      onComplete();
-    } catch (err) {
-      setError(`Could not finish onboarding: ${err instanceof Error ? err.message : String(err)}`);
-    } finally {
-      setBusy(false);
     }
+    const prefR = await api.preferences.set({ provider });
+    if (!prefR.ok) {
+      setError(`Could not finish onboarding: preferences save: ${formatError(prefR.error)}`);
+      setBusy(false);
+      return;
+    }
+    // Block onboarding handoff on profile-generate so the auto-fetch
+    // that fires next picks up the freshly-tuned profile.json. Earlier
+    // versions did this fire-and-forget, which caused the first jobs.json
+    // to score against the empty profile (max ~45 from seniority alone)
+    // even though the brief had been generated.
+    // Errors here don't block the handoff — Settings → Scoring profile
+    // has a manual retry button.
+    setTuning(true);
+    const tuneDone = await tune.start({ provider: provider === 'auto' ? null : provider });
+    if (!tuneDone && tune.error) {
+      console.warn('[onboarding] profile generation failed; continuing anyway:', tune.error);
+    }
+    setTuning(false);
+    setBusy(false);
+    onComplete();
   }, [briefDraft, generatedBrief, provider, onComplete, tune]);
 
   return (

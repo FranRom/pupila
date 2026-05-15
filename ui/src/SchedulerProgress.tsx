@@ -1,5 +1,6 @@
 import clsx from 'clsx';
 import { useEffect, useRef, useState } from 'react';
+import { api, type SchedulerOp, type SchedulerOpState } from './lib/api/index.ts';
 import dockStyles from './styles/Dock.module.css';
 
 // Bottom-right docked card mirroring FetchProgress, scoped to the
@@ -10,19 +11,6 @@ import dockStyles from './styles/Dock.module.css';
 //
 // Visually inherits Dock.module.css so the docked-card affordance stays
 // consistent across "fetching jobs" and "installing scheduler".
-
-type RunStatus = 'idle' | 'running' | 'done' | 'error';
-type SchedulerOp = 'install' | 'uninstall';
-
-interface SchedulerOpState {
-  op: SchedulerOp | null;
-  status: RunStatus;
-  startedAt: string | null;
-  finishedAt: string | null;
-  output: string;
-  exitCode: number | null;
-  lastError: string | null;
-}
 
 interface SchedulerProgressProps {
   onComplete: () => void;
@@ -55,44 +43,42 @@ export function SchedulerProgress({ onComplete }: SchedulerProgressProps) {
 
   // LOW-7: dual-cadence polling — cheap when idle, snappy during runs.
   // Re-create the interval whenever the cadence flips between running and
-  // any other state.
+  // any other state. Per project async-style convention (CLAUDE.md), we
+  // use an AbortController rather than a `cancelled` flag — the API client
+  // maps abort to a `{ kind: 'abort' }` result that the tick treats as a
+  // no-op alongside network/parse failures.
   useEffect(() => {
-    let cancelled = false;
+    const ctrl = new AbortController();
     const tick = async () => {
-      try {
-        const res = await fetch('/api/scheduler-progress');
-        if (!res.ok) return;
-        const next = (await res.json()) as SchedulerOpState;
-        if (cancelled) return;
-        setState(next);
+      const r = await api.scheduler.progress({ signal: ctrl.signal });
+      if (!r.ok) return;
+      const next = r.value;
+      setState(next);
 
-        if (next.status === 'running') {
-          setHidden(false);
-          completedRef.current = false;
-          if (dismissTimerRef.current) {
-            window.clearTimeout(dismissTimerRef.current);
-            dismissTimerRef.current = null;
-          }
-        } else if (next.status === 'done' && !completedRef.current) {
-          completedRef.current = true;
-          onComplete();
-          dismissTimerRef.current = window.setTimeout(() => setHidden(true), DISMISS_MS);
-        } else if (next.status === 'error' && !completedRef.current) {
-          // Notify parent on error too, otherwise schedulerOp stays set in
-          // Settings.tsx and Install/Uninstall buttons lock forever.
-          completedRef.current = true;
-          onComplete();
-          setHidden(false);
+      if (next.status === 'running') {
+        setHidden(false);
+        completedRef.current = false;
+        if (dismissTimerRef.current) {
+          window.clearTimeout(dismissTimerRef.current);
+          dismissTimerRef.current = null;
         }
-      } catch {
-        // ignore network blips
+      } else if (next.status === 'done' && !completedRef.current) {
+        completedRef.current = true;
+        onComplete();
+        dismissTimerRef.current = window.setTimeout(() => setHidden(true), DISMISS_MS);
+      } else if (next.status === 'error' && !completedRef.current) {
+        // Notify parent on error too, otherwise schedulerOp stays set in
+        // Settings.tsx and Install/Uninstall buttons lock forever.
+        completedRef.current = true;
+        onComplete();
+        setHidden(false);
       }
     };
     void tick();
     const cadence = state?.status === 'running' ? ACTIVE_POLL_MS : IDLE_POLL_MS;
     intervalRef.current = window.setInterval(() => void tick(), cadence);
     return () => {
-      cancelled = true;
+      ctrl.abort();
       if (intervalRef.current) {
         window.clearInterval(intervalRef.current);
         intervalRef.current = null;
