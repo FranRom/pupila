@@ -40,3 +40,13 @@ data/cron-*.log
 .env
 .env.*
 !.env.example
+
+# OpenSpec — keep the `openspec/` proposals + specs in version control,
+# but ignore the per-IDE integration files `openspec init` materializes
+# under .claude/.codebuddy/.continue/.junie/.kiro. Those are local tooling
+# for whichever editor each developer uses.
+.claude/
+.codebuddy/
+.continue/
+.junie/
+.kiro/
