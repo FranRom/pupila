@@ -2,6 +2,7 @@ import { readFile, stat, writeFile } from 'node:fs/promises';
 import type { Connect } from 'vite';
 import type { CvFormat } from '../../src/lib/cv-parser.js';
 import { type LlmProvider, SUPPORTED_PROVIDERS } from '../../src/lib/llm.js';
+import { APPLICATION_STATUSES } from '../../src/types.js';
 import { APPLIED_PATH, CV_BASENAME, PREFERENCES_PATH } from './_paths.ts';
 
 export type { LlmProvider };
@@ -10,7 +11,10 @@ export type { LlmProvider };
 // JOB_HUNT_CV_MAX_CHARS for users hitting OOM kills on large CVs.
 export const CV_MAX_CHARS = Number(process.env.JOB_HUNT_CV_MAX_CHARS ?? '12000');
 
-export const VALID_STATUSES = new Set(['applied', 'interview', 'offer', 'rejected', 'withdrawn']);
+// Wrap the const tuple in a Set so call sites can keep using `.has(x)` for
+// O(1) lookups in middleware request validation. The literal list lives in
+// `src/types.ts` so the MCP server and the UI agree on the same values.
+export const VALID_STATUSES: ReadonlySet<string> = new Set<string>(APPLICATION_STATUSES);
 export const VALID_CV_FORMATS = new Set<CvFormat>(['pdf', 'docx', 'md', 'txt']);
 export const VALID_PROVIDER_OR_AUTO = new Set<string>([...SUPPORTED_PROVIDERS, 'auto']);
 
