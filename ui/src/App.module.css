@@ -85,10 +85,26 @@
   line-height: 1.5;
 }
 
-.fetchCtaHint {
-  margin-top: 1rem;
-  font-size: 0.75rem;
+.fetchCta .fetchCtaHint {
+  margin-top: 1.5rem;
+  font-size: 0.85rem;
   color: var(--text-muted);
+}
+
+.fetchCtaHint p {
+  margin: 0 0 0.5rem;
+}
+
+.fetchCtaHint ul {
+  display: inline-block;
+  text-align: left;
+  margin: 0;
+  padding-left: 1.25rem;
+  list-style: disc;
+}
+
+.fetchCtaHint li + li {
+  margin-top: 0.25rem;
 }
 
 .fetchCtaHint code {
@@ -188,7 +204,7 @@
 }
 
 .tdCompany {
-  max-width: 220px;
+  max-width: 180px;
 }
 
 .tdLocation {
@@ -295,17 +311,20 @@
 
 /* Detail-row td has colSpan=8, so it is both first-child and last-child —
    border-left and border-right both apply to the same cell. All edges
-   recolour reserved borders (no layout shift). */
+   recolour reserved borders (no layout shift). Left/right colors live on the
+   :first-child/:last-child selectors so they match the specificity of
+   `.table td:first-child`/`:last-child` (reserved transparent borders) and
+   win on source order. */
 .detailRow td {
   padding: 0;
   border-bottom-color: var(--accent);
-  border-left-color: var(--accent);
-  border-right-color: var(--accent);
 }
 .detailRow td:first-child {
+  border-left-color: var(--accent);
   border-bottom-left-radius: 6px;
 }
 .detailRow td:last-child {
+  border-right-color: var(--accent);
   border-bottom-right-radius: 6px;
 }
 

@@ -648,22 +648,25 @@ function FetchCta({ onFetch }: FetchCtaProps) {
   return (
     <div className={styles.fetchCta}>
       <h2>No jobs yet</h2>
-      <p>
-        Run the aggregator to pull listings from 13 sources (Ashby, Greenhouse, Lever, Hacker News,
-        Web3 boards, etc.). Takes about 30–60 seconds.
-      </p>
+      <p>Run the aggregator to pull listings from all the sources.</p>
       <button
         type="button"
-        className={clsx(buttonStyles.secondary, buttonStyles.lg)}
+        className={clsx(buttonStyles.primary, buttonStyles.lg)}
         onClick={onFetch}
       >
-        ✨ Fetch jobs now
+        Fetch jobs now
       </button>
-      <p className={styles.fetchCtaHint}>
-        After the first run you can schedule daily fetches with{' '}
-        <code>scripts/install-launchd.sh</code> (macOS) or <code>scripts/install-cron.sh</code>{' '}
-        (Linux).
-      </p>
+      <div className={styles.fetchCtaHint}>
+        <p>After the first run you can also schedule daily fetches automatically with:</p>
+        <ul>
+          <li>
+            <code>scripts/install-launchd.sh</code> (macOS)
+          </li>
+          <li>
+            <code>scripts/install-cron.sh</code> (Linux)
+          </li>
+        </ul>
+      </div>
     </div>
   );
 }
