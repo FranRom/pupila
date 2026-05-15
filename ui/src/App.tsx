@@ -750,7 +750,7 @@ const CompanyBlock = memo(function CompanyBlock({
         <td className={clsx(styles.score, SCORE_TIER_CLASS[scoreTier(group.topScore)])}>
           <div className={styles.scoreCell}>
             <span className={styles.caret} aria-hidden>
-              {isOpen ? '▾' : '▸'}
+              {isOpen ? '×' : '+'}
             </span>
             {group.topScore}
           </div>

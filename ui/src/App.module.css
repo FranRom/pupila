@@ -293,9 +293,18 @@
   transition: color var(--duration-fast) var(--ease-out);
 }
 
-.table tbody tr:hover > td > .caret,
-.rowOpen > td > .caret {
+/* Group-row carets use +/× (heavier glyphs than the ▸/▾ arrows on
+   individual job rows), so size them down to compensate. */
+.groupRow .caret {
+  font-size: 1.5rem;
+}
+
+.table tbody tr:hover .caret {
   color: var(--text);
+}
+
+.rowOpen .caret {
+  color: var(--accent);
 }
 
 .detailRow {
@@ -478,7 +487,7 @@
 }
 
 .indent td:first-child {
-  padding-left: 1.75rem;
+  padding-left: 1rem;
 }
 
 /* ── Apply / AI Apply cell ── */
