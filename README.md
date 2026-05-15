@@ -1,13 +1,71 @@
 <p align="center">
   <img src="./assets/logo.svg" alt="pupila logo" height="60" align="middle" /><img src="./assets/pupila-ascii.svg" alt="pupila" height="60" align="middle" /></p>
 
-# pupila
+# PUPILA: An A-eye on every job board
 
 <p align="center">
-  <img src="./assets/readme-hero.png" alt="Local job matching dashboard with source feeds, scoring, and scheduled file output" width="100%" />
+  <img src="./assets/readme/dashboard.jpg" alt="Local job matching dashboard with source feeds, scoring, and scheduled file output" width="100%" />
 </p>
 
-A config-driven, **local-first** daily job aggregator. Pulls listings from 13 public sources (job boards, RSS feeds, Hacker News, three ATSes — Greenhouse, Ashby, Lever — plus a custom Aave scraper and an Ashby-private GraphQL fetcher), normalizes them into a single shape, scores each one against **your** profile (defined in [`config/profile.json`](./config/profile.json)), deduplicates, and writes the result to your local checkout.
+## What
+
+PUPILA is a local-first job aggregator. Choose for schedule a task or trigger a manual refetch and it pulls from many public sources (adding more is an easy job), filters out the noise (junior roles, non-engineering, onsite-only, etc.), and scores each remaining posting against your CV-derived profile. You wake up to a single sorted table of roles that actually fit, every row links to the original posting, so you can apply directly. **That's the core value: getting the data, filtering it, and scoring it. The AI layers below are optional.**
+
+Optional layers, powered by your local LLM CLI (`claude` / `codex` / `gemini` / `opencode` — no API keys, no cloud, no third party ever sees your data):
+
+- **AI per-job review** — a `strong-match` / `match` / `weak-match` / `skip` verdict with a one-line reason next to each title.
+- **Jinder** — a Tinder-style swipe deck for triaging the top matches in seconds: right-swipe to queue a role for application, left-swipe to skip it forever.
+- **AI Apply** — drafts a tailored cover letter + highlights + Q&A package from your CV and the posting for every job in the queue, while you do something else.
+
+<p align="left">
+  <img width="800" height="427" alt="Image" src="https://github.com/user-attachments/assets/abaeee2b-862e-4e30-a138-e628f877944b" />
+</p>
+
+## Key features
+
+The stuff that makes the daily routine actually pleasant:
+
+- **Day-over-day diff.** Every run computes what's *new* and what *disappeared* since yesterday — surfaced as **✨ New since last run** + **🗑 Removed since last run** at the top of `JOBS.md`. The actionable bit is always the first thing you see.
+- **Scheduled, no babysitting.** `scripts/install-launchd.sh` (macOS) and `scripts/install-cron.sh` (Linux) install two agents — aggregator + AI review — that run on independent times. launchd catches up missed runs after wake.
+- **Group-by-company (default on).** Folds a 24-role Vercel into one expandable row instead of dominating the top of your table.
+- **URL-encoded view state.** Every filter, sort, and expanded row syncs to `?q=...&cat=...&src=...` — bookmark a filtered view and it rehydrates next time.
+- **Source-health banner.** A 🚨 banner appears in `JOBS.md` when a fetcher returns zero items or errors, so silent upstream breakage isn't silent.
+- **Application tracking.** Click a status pill on any row (`📝 applied / 💬 interview / 🎯 offer / ❌ rejected / ⏸ withdrawn`) — saves to `config/applied.json` and feeds the "📋 Application status" section at the top of `JOBS.md`.
+- **8-panel Settings dashboard** — switch LLM CLI / install or remove the scheduler / regenerate scoring profile / inspect the last run / check disk usage / clean / view environment / monitor the apply queue, all from `pnpm run ui` → Settings.
+- **RSS feed.** `data/feed.xml` gets every "✨ new" job — point any RSS reader at the local `file://` path.
+- **Local-first by design.** No API keys, no cloud, no hosted scheduler. The LLM features use *your* existing `claude` / `codex` / `gemini` / `opencode` subscription via the CLI. Your CV, brief, and applied list never leave the machine.
+
+## Onboarding
+
+The first time you run `pnpm run ui`, a three-step wizard sets you up. Total time: about 30 seconds.
+
+### 1. Pick your LLM CLI
+
+<p align="left">
+  <img src="./assets/readme/onboarding-1.jpg" alt="Onboarding step 1 — pick your local LLM CLI" width="50%" />
+</p>
+
+PUPILA shells out to whichever AI CLI you already have authenticated locally — `claude`, `codex`, `gemini`, or `opencode`. The wizard auto-detects what's on your `PATH` and pre-selects the first available one. No API keys, no signup, no per-token billing — it uses your existing CLI subscription.
+
+### 2. Drop your CV
+
+<p align="left">
+  <img src="./assets/readme/onboarding-2.jpg" alt="Onboarding step 2 — drop your CV" width="50%" />
+</p>
+
+Drag a `.pdf` / `.docx` / `.md` / `.txt` CV onto the drop zone (or click **Choose file**). The CV is parsed locally and sent to your LLM CLI to generate a short candidate brief — who you are, what stack you work in, what kind of role you want, and what to avoid. The original CV stays on disk at `config/cv.<ext>` (gitignored) so **AI Apply** can re-attach it later.
+
+### 3. Confirm the generated brief
+
+<p align="left">
+  <img src="./assets/readme/onboarding-3.jpg" alt="Onboarding step 3 — review and confirm the candidate brief" width="50%" />
+</p>
+
+Eyeball the brief and edit anything that needs tweaking — this natural-language description drives every scoring decision and AI verdict downstream. Hit **Looks good** and the wizard stamps `config/preferences.json` with `onboardedAt`, never re-triggers, and kicks off the first aggregator run automatically. You land on the Jobs view already populated.
+
+## How it works
+
+A config-driven, **local-first** daily job aggregator. Pulls listings from a dozen-plus public sources (job boards, RSS feeds, Hacker News, three ATSes — Greenhouse, Ashby, Lever — plus a custom Aave scraper and an Ashby-private GraphQL fetcher; adding a new source is one file), normalizes them into a single shape, scores each one against **your** profile (defined in [`config/profile.json`](./config/profile.json)), deduplicates, and writes the result to your local checkout.
 
 Designed to be **cloned and run locally**. No hosted scheduler, no public dashboard, no external services. Anyone — frontend, backend, mobile, data, infra, any seniority, any region — sets their role via:
 
@@ -27,10 +85,6 @@ Contributing rules and project invariants live in [`CONTRIBUTING.md`](./CONTRIBU
 > Prefer a UI? → `pnpm run ui` opens a local-only Vite dashboard at `http://127.0.0.1:5173`. Four tabs: **Jobs** (filter, search, sortable columns, click-to-expand rows over `data/jobs.json`), **Jinder** (Tinder-style swipe deck — right-swipe to queue an AI Apply, left-swipe to skip), **Profile** (drop a PDF/DOCX/MD CV to set up or refresh your candidate brief), and **Settings** (scheduler lifecycle, scoring profile regenerate, disk usage, apply queue). See [AI Apply](#ai-apply-per-job-optional) and [AI per-job review](#ai-per-job-review) below.
 
 ---
-
-## Why
-
-Manually checking a dozen job boards every morning is tedious. This repo replaces that with a single auto-generated table, scored by relevance, sorted by fit, with a "✨ New since last run" section at the top so the daily diff is the actionable bit. No external services, no cloud — just files in your local checkout, refreshed by a launchd / cron agent.
 
 ## Forking & personalizing
 
@@ -157,11 +211,13 @@ The UI fetches `data/jobs.json` and `data/ai-reviews.json` at runtime from `/api
 #### Reset to a clean slate
 
 ```bash
-pnpm run clean              # wipe generated outputs, archives, raw caches, schedule logs
-pnpm run clean -- --all     # also wipe candidate-brief.md + applied.json
+pnpm run clean              # wipe generated outputs, archives, raw caches, schedule logs, queue state
+pnpm run clean:onboarding   # reset just the onboarding state (preferences + brief + raw CV) — re-triggers wizard
+pnpm run clean -- --all     # full fresh-clone reset: everything above PLUS brief, applied,
+                            # swipe-skips, generated AI Apply packages, preferences, and uploaded CV
 ```
 
-Idempotent — running on an already-clean state prints `nothing to clean`. Useful when re-tuning your profile (so old jobs don't muddy the diff against the next run) or when handing the repo to someone else.
+Idempotent — running on an already-clean state prints `nothing to clean`. After `--all` the UI re-routes to the onboarding wizard automatically; no hard refresh needed.
 
 ## Stack
 
@@ -171,7 +227,7 @@ Idempotent — running on an already-clean state prints `nothing to clean`. Usef
 | Language | TypeScript 5.9 (NodeNext, strict) |
 | Lint + format | Biome 2.4 |
 | Package manager | pnpm 11 (`minimumReleaseAge: 1d` + `strictDepBuilds: true` for supply-chain hardening) |
-| Tests | Vitest 3 (217 unit tests across filters, dedup, utils, applied, salary, feed, aave, ashby-private, AI Apply core, apply queue, swipe-skips, profile bootstrap; tiered keyword weighting + salary-aware sort tiebreak both have dedicated cases) |
+| Tests | Vitest 3 — extensive backend + UI suite covering filters, dedup, utils, applied, salary, feed, aave, ashby-private, AI Apply core, apply queue, swipe-skips, profile bootstrap, plus every co-located UI hook (`useJobsData`, `useApplied`, `useApplyQueue`, `useSwipeSkips`, `useUrlSyncedState`, `useOnboarding`) and key components (`AppliedBar`, `SignalChips`, `QueueBadge`). Tiered keyword weighting + salary-aware sort tiebreak have dedicated cases. |
 | Pre-commit | simple-git-hooks (runs lint + typecheck on every commit) |
 | HTTP | Native `fetch` with `AbortController` (30s timeout, 1 retry on 5xx/network) |
 | RSS parsing | `fast-xml-parser` (only runtime dep) |
@@ -559,6 +615,9 @@ Keyword arrays are joined with `|` and compiled into word-bounded, case-insensit
 
 ## Repo layout
 
+<details>
+<summary>Click to expand the full tree</summary>
+
 ```
 job-hunt/
 ├── .github/
@@ -566,7 +625,8 @@ job-hunt/
 │   │   └── check.yml          # PR/push: biome + typecheck + tests + build + audit
 │   └── dependabot.yml         # weekly npm + github-actions updates
 ├── assets/
-│   └── readme-hero.png        # README banner artwork
+│   └── readme/
+│       └── dashboard.jpg      # README banner artwork
 ├── scripts/
 │   ├── install-launchd.sh     # macOS: install aggregate + review launchd agents
 │   └── install-cron.sh        # Linux: install aggregate + review crontab entries
@@ -630,6 +690,10 @@ job-hunt/
 └── README.md                  # this file
 ```
 
+</details>
+
+High-level: orchestration in `src/index.ts`; per-source fetchers in `src/fetchers/`; UI in `ui/src/` with feature hooks under `ui/src/lib/hooks/` and a typed `lib/api/` client; settings panels in `ui/src/settings/`; the Jinder swipe deck in `ui/src/swipe/`. See [`CONTRIBUTING.md`](./CONTRIBUTING.md) for adding a fetcher or a UI feature.
+
 ## Run locally
 
 ```bash
@@ -639,15 +703,18 @@ pnpm start                   # built output (run pnpm run build first)
 pnpm run typecheck           # tsc --noEmit across src, tests, and ui configs
 pnpm run lint                # biome check
 pnpm run lint:fix            # biome check --write
-pnpm test                    # vitest run (217 unit tests across 17 files)
+pnpm run lint:ui-patterns    # enforce CSS-Module-only + typed api/ client patterns in ui/
+pnpm run lint:bundle-size    # post-build budget check (.bundle-budget.json)
+pnpm test                    # vitest run (backend + UI suite, ~290 cases)
 pnpm run test:watch          # vitest in watch mode
 pnpm run ui                  # local browser UI (Vite dev server, 127.0.0.1:5173)
 pnpm run ai-review           # local-only: per-job LLM review via your local LLM CLI
 pnpm run apply-worker        # AI Apply queue worker — run in a separate terminal while using Jinder / AI Apply
 pnpm run setup-brief         # ingest CV (.pdf/.docx/.md/.txt) → config/candidate-brief.md
 pnpm run daily               # convenience: dev + ai-review back-to-back
-pnpm run clean               # wipe locally-generated artifacts (jobs.json, JOBS.md, feed.xml, archives, logs)
-pnpm run clean -- --all      # also wipe candidate-brief.md + applied.json (full reset)
+pnpm run clean               # wipe generated outputs + queue state
+pnpm run clean:onboarding    # wipe only the onboarding state (preferences + brief + CV) → re-triggers wizard
+pnpm run clean -- --all      # full fresh-clone reset (see "Reset to a clean slate" below)
 ```
 
 > **Heads up:** `pnpm run dev` refuses to start unless `config/candidate-brief.md` exists — set up your candidate brief first via `pnpm run setup-brief` or the UI Profile tab. Bypass with `JOB_HUNT_NO_BRIEF_CHECK=1` (or `--no-brief-check`) for raw aggregation without AI review.
@@ -719,7 +786,7 @@ Defense-in-depth measures, ranked from runtime to build-time:
 - **HTML attribute escaping.** Apply links in `JOBS.md` use raw `<a target="_blank" rel="noopener noreferrer">` with HTML-escaped href (`escapeHtmlAttr` in [`src/render.ts`](./src/render.ts)). `noopener noreferrer` blocks tabnabbing.
 - **HTML stripping.** All scraped/RSS/JSON `body` content is run through [`stripHtml`](./src/utils.ts) before any other processing.
 - **Pre-commit hook** runs `pnpm run lint && pnpm run typecheck` before each commit. Bypass with `SKIP_SIMPLE_GIT_HOOKS=1`.
-- **Tests** (`pnpm test`) — Vitest, 217 cases across security-sensitive code (URL safety, regex filters, dedup tiebreaks, applied-status grouping, salary parsing, RSS escaping, custom-ATS HTML/GraphQL parsers, AI Apply core, apply-queue mutators, swipe-skip storage, profile bootstrap). Runs on every PR.
+- **Tests** (`pnpm test`) — Vitest, extensive backend + UI suite covering security-sensitive code (URL safety, regex filters, dedup tiebreaks, applied-status grouping, salary parsing, RSS escaping, custom-ATS HTML/GraphQL parsers, AI Apply core, apply-queue mutators, swipe-skip storage, profile bootstrap) plus every UI hook + key components. Runs on every PR.
 - **`pnpm audit --prod --audit-level high`** in [`check.yml`](./.github/workflows/check.yml). Reports known CVEs in production deps.
 - **Pinned actions.** The remaining workflow references third-party actions by commit SHA, not floating tags. Defends against tag-hijacking.
 - **Dependabot** ([`dependabot.yml`](./.github/dependabot.yml)) — weekly PRs for npm + GitHub Actions. Each PR is gated by `check.yml`.
