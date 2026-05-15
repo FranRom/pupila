@@ -1,5 +1,9 @@
 import { readFile, stat, writeFile } from 'node:fs/promises';
 import type { Connect } from 'vite';
+import {
+  readApplied as readAppliedStore,
+  writeApplied as writeAppliedStore,
+} from '../../src/lib/applied-store.js';
 import type { CvFormat } from '../../src/lib/cv-parser.js';
 import { type LlmProvider, SUPPORTED_PROVIDERS } from '../../src/lib/llm.js';
 import { APPLICATION_STATUSES } from '../../src/types.js';
@@ -67,19 +71,18 @@ export function todayIso(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
+// Thin wrappers preserve the existing zero-arg call signatures from
+// ui/plugins/applied.ts while routing through the shared, atomic-write
+// applied-store. The local AppliedEntry interface above carries `status:
+// string` (looser than the store's typed union) because the UI's POST
+// validator accepts unknown strings and rejects with a 400 — keep it.
 export async function readApplied(): Promise<AppliedEntry[]> {
-  try {
-    const raw = await readFile(APPLIED_PATH, 'utf8');
-    const parsed = JSON.parse(raw) as unknown;
-    return Array.isArray(parsed) ? (parsed as AppliedEntry[]) : [];
-  } catch (err) {
-    if ((err as NodeJS.ErrnoException).code === 'ENOENT') return [];
-    throw err;
-  }
+  return (await readAppliedStore(APPLIED_PATH)) as AppliedEntry[];
 }
 
 export async function writeApplied(entries: AppliedEntry[]): Promise<void> {
-  await writeFile(APPLIED_PATH, `${JSON.stringify(entries, null, 2)}\n`, 'utf8');
+  // biome-ignore lint/suspicious/noExplicitAny: bridging UI's loose status type
+  await writeAppliedStore(entries as any, APPLIED_PATH);
 }
 
 export async function readPreferences(): Promise<Preferences> {

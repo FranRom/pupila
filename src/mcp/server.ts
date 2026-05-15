@@ -1,7 +1,18 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { registerCancelApply } from './tools/cancel-apply.js';
+import { registerClearApplied } from './tools/clear-applied.js';
+import { registerEnqueueApply } from './tools/enqueue-apply.js';
+import { registerGetAiReview } from './tools/get-ai-review.js';
 import { registerGetBrief } from './tools/get-brief.js';
 import { registerGetJobDetail } from './tools/get-job-detail.js';
+import { registerListAiReviews } from './tools/list-ai-reviews.js';
 import { registerListJobs } from './tools/list-jobs.js';
+import { registerMarkApplied } from './tools/mark-applied.js';
+import { registerQueueStatus } from './tools/queue-status.js';
+import { registerRunSummary } from './tools/run-summary.js';
+import { registerSkipJob } from './tools/skip-job.js';
+import { registerUpdateStatus } from './tools/update-status.js';
+import { registerWorkerStatus } from './tools/worker-status.js';
 
 // MCP server name + version. The name is what the user sees in their MCP
 // client's tool listing; the version is purely informational.
@@ -19,9 +30,24 @@ export function createMcpServer(): McpServer {
     version: SERVER_VERSION,
   });
 
+  // Read tools
   registerListJobs(server);
   registerGetJobDetail(server);
   registerGetBrief(server);
+  // Write tools (applied-table mutators)
+  registerMarkApplied(server);
+  registerUpdateStatus(server);
+  registerClearApplied(server);
+  // Queue tools
+  registerEnqueueApply(server);
+  registerCancelApply(server);
+  registerSkipJob(server);
+  registerQueueStatus(server);
+  registerWorkerStatus(server);
+  // Aggregate + AI-review tools
+  registerRunSummary(server);
+  registerGetAiReview(server);
+  registerListAiReviews(server);
 
   return server;
 }
