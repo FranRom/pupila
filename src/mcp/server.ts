@@ -4,13 +4,16 @@ import { registerClearApplied } from './tools/clear-applied.js';
 import { registerEnqueueApply } from './tools/enqueue-apply.js';
 import { registerGetAiReview } from './tools/get-ai-review.js';
 import { registerGetBrief } from './tools/get-brief.js';
+import { registerGetFetchStatus } from './tools/get-fetch-status.js';
 import { registerGetJobDetail } from './tools/get-job-detail.js';
 import { registerListAiReviews } from './tools/list-ai-reviews.js';
 import { registerListJobs } from './tools/list-jobs.js';
 import { registerMarkApplied } from './tools/mark-applied.js';
 import { registerQueueStatus } from './tools/queue-status.js';
+import { registerRegenerateProfile } from './tools/regenerate-profile.js';
 import { registerRunSummary } from './tools/run-summary.js';
 import { registerSkipJob } from './tools/skip-job.js';
+import { registerTriggerFetch } from './tools/trigger-fetch.js';
 import { registerUpdateStatus } from './tools/update-status.js';
 import { registerWorkerStatus } from './tools/worker-status.js';
 
@@ -48,6 +51,10 @@ export function createMcpServer(): McpServer {
   registerRunSummary(server);
   registerGetAiReview(server);
   registerListAiReviews(server);
+  // Long-running tools (subprocess + LLM)
+  registerTriggerFetch(server);
+  registerGetFetchStatus(server);
+  registerRegenerateProfile(server);
 
   return server;
 }

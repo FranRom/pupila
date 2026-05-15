@@ -91,6 +91,10 @@ describe('MCP integration — SDK client ↔ server over in-memory transport', (
         'run_summary',
         'get_ai_review',
         'list_ai_reviews',
+        // long-running
+        'trigger_fetch',
+        'get_fetch_status',
+        'regenerate_profile',
       ].sort(),
     );
 
@@ -275,6 +279,42 @@ describe('MCP integration — SDK client ↔ server over in-memory transport', (
       });
       const payload = parseToolResult(result) as { review: unknown };
       expect(payload.review).toBeNull();
+    });
+  });
+
+  describe('long-running tools through the wire', () => {
+    it('get_fetch_status rejects malformed runId via error envelope', async () => {
+      const result = (await client.callTool({
+        name: 'get_fetch_status',
+        arguments: { runId: 'not-a-sha1' },
+      })) as CallToolResponse;
+      expect(result.isError).toBe(true);
+    });
+
+    it('get_fetch_status returns a not-found error envelope for an unknown runId', async () => {
+      const result = (await client.callTool({
+        name: 'get_fetch_status',
+        arguments: { runId: 'f'.repeat(40) },
+      })) as CallToolResponse;
+      expect(result.isError).toBe(true);
+      expect(result.content[0]?.text).toContain('no run found');
+    });
+
+    it('regenerate_profile schema validates provider via JSON Schema enum', async () => {
+      // Sanity-check that the tool is wired and the schema is enforced.
+      // We can't safely callTool({name: 'regenerate_profile'}) here — on a
+      // developer's box the brief file exists and the call would actually
+      // invoke the local LLM CLI for tens of seconds. Unit tests
+      // (regenerate-profile.test.ts) cover the precondition + happy path
+      // with dependency-injected stubs.
+      const { tools } = await client.listTools();
+      const tool = tools.find((t) => t.name === 'regenerate_profile');
+      expect(tool).toBeDefined();
+      const schema = tool?.inputSchema as {
+        properties?: { provider?: { enum?: string[] } };
+      };
+      expect(schema.properties?.provider?.enum).toContain('auto');
+      expect(schema.properties?.provider?.enum).toContain('claude');
     });
   });
 
