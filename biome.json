@@ -64,7 +64,12 @@
   },
   "overrides": [
     {
-      "includes": ["ui/src/**", "!ui/src/lib/api/client.ts"],
+      "includes": [
+        "ui/src/**",
+        "!ui/src/lib/api/client.ts",
+        "!ui/src/**/*.test.ts",
+        "!ui/src/**/*.test.tsx"
+      ],
       "linter": {
         "rules": {
           "style": {

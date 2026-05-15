@@ -15,7 +15,7 @@
     "allowImportingTsExtensions": true,
     "isolatedModules": true,
     "useDefineForClassFields": true,
-    "types": []
+    "types": ["@testing-library/jest-dom"]
   },
-  "include": ["src/**/*", "vite.config.ts", "plugins/**/*"]
+  "include": ["src/**/*", "vite.config.ts", "plugins/**/*", "test-setup.ts"]
 }

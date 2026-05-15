@@ -210,6 +210,130 @@ ui/src/lib/hooks/
 
 ---
 
+## 4. Testing: hooks + components in jsdom
+
+**One golden rule:** test the public surface, mock the network. Hooks expose `{ data, mutate, ... }` — test those; never reach into implementation details. Components expose rendered DOM + callback wiring — test what the user sees and what fires when they click.
+
+### File layout
+
+```
+ui/
+  test-setup.ts                     ← jest-dom matchers, cleanup, localStorage/URL reset
+  src/
+    lib/hooks/
+      useJobsData.ts
+      useJobsData.test.ts           ← co-located, hook tests
+      useApplied.test.ts
+      useApplyQueue.test.ts
+      useSwipeSkips.test.ts
+      useUrlSyncedState.test.ts
+    jobs/
+      QueueBadge.tsx
+      QueueBadge.test.tsx           ← co-located, component tests (.tsx)
+      SignalChips.test.tsx
+      AppliedBar.test.tsx
+vitest.config.ts                    ← multi-project: backend (node) + ui (jsdom)
+```
+
+### What to test at each layer
+
+- **`lib/api/`** — not unit-tested directly. Covered transitively by hook tests (they mock `globalThis.fetch` and exercise the full client → request → Result path).
+- **`lib/hooks/`** — every hook ships with a test file. Cover: mount load, every public method on the result, error routing via `onError`/`onSuccess`, polling gates, localStorage / URL persistence.
+- **Components** — favour high-value canonical examples (state-machine UIs, derived render branches, controlled-input plumbing) over exhaustive snapshot coverage. Three canonical examples ship today: `AppliedBar` (pill state machine + clear + notes), `SignalChips` (top-N sort + label rendering), `QueueBadge` (status-based render branches).
+- **`App.tsx`** — not unit-tested. It's a composer; the parts it composes are covered.
+
+### Mocking pattern: fetch, never the api object
+
+Hook tests mock `globalThis.fetch` and route by URL + method. This exercises the **full** path (hook → api/index.ts → request() → fetch) so a regression in `client.ts` or a typo in an api method shows up here. Mocking the api object would skip that.
+
+```ts
+type Handler = (input: RequestInfo | URL, init?: RequestInit) => Response | Promise<Response>;
+
+function mockFetch(handler: Handler) {
+  globalThis.fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) =>
+    handler(input, init),
+  ) as typeof fetch;
+}
+
+// Endpoint-keyed variant when one test needs multiple URLs:
+function mockEndpoints(handlers: Record<string, () => Response>) {
+  globalThis.fetch = vi.fn(async (input: RequestInfo | URL) => {
+    const url = typeof input === 'string' ? input : input.toString();
+    return handlers[url]?.() ?? new Response('not mocked', { status: 500 });
+  }) as typeof fetch;
+}
+```
+
+Return a `new Response(JSON.stringify(body), { status })` or `new Response(null, { status: 204 })` for the 204-on-success endpoints (`expectJson: false`). `vi.restoreAllMocks()` in `afterEach` resets the fetch spy.
+
+### Hook test shape
+
+```ts
+import { act, renderHook, waitFor } from '@testing-library/react';
+
+it('does X', async () => {
+  mockFetch(() => new Response(JSON.stringify(payload), { status: 200 }));
+  const { result } = renderHook(() => useFoo(args));
+  await waitFor(() => expect(result.current.loading).toBe(false));
+
+  await act(async () => {
+    await result.current.mutate(...);
+  });
+
+  expect(result.current.data).toEqual(...);
+});
+```
+
+Always wrap mutations in `act(async () => { ... })`. Always `waitFor` the post-mount state before asserting on hook output.
+
+### Component test shape
+
+```tsx
+import { fireEvent, render, screen } from '@testing-library/react';
+
+it('fires callback when pill clicked', () => {
+  const setApplied = vi.fn();
+  render(<AppliedBar {...defaultProps} setApplied={setApplied} />);
+  fireEvent.click(screen.getByTitle('Mark as applied'));
+  expect(setApplied).toHaveBeenCalledWith(job, 'applied');
+});
+```
+
+- Use `getByRole` / `getByTitle` / `getByText` — selectors that match what a screen-reader or human sees. **Do NOT** select by CSS Module class — they're hashed and brittle.
+- For focus-dependent handlers (`input.blur()` from a keyDown), explicitly `input.focus()` first. jsdom doesn't auto-focus.
+- Prefer `fireEvent` for narrow interaction tests; reach for `@testing-library/user-event` when realism matters (typing, paste, tab order).
+
+### Running
+
+```
+pnpm test               # both projects (backend + ui), CI gate
+pnpm run test:watch     # both projects in watch mode
+```
+
+`vitest.config.ts` defines two `projects`. The ui project sets `environment: 'jsdom'` and loads `ui/test-setup.ts` for matchers + cleanup. No filtering needed — backend tests stay node-only because they live under `tests/`.
+
+### Anti-patterns (don't do this)
+
+- ❌ `vi.mock('../api/index.ts')` to stub the api object. Mock `globalThis.fetch` instead — exercises more code.
+- ❌ Asserting on hashed CSS Module class names (`expect(el).toHaveClass(styles.pillActive)`). Use `aria-pressed`, `getByRole`, `toBeInTheDocument`.
+- ❌ `setTimeout(...)` to wait for async state. Use `waitFor(...)` from RTL.
+- ❌ Calling mutations outside `act(async () => ...)`. React will warn; consumers may see stale renders.
+- ❌ Adding a new hook without a co-located test file. The five existing hook tests are the contract.
+- ❌ Reaching into `result.current.<internal>` that isn't part of the exported interface. Test the public surface.
+
+### Canonical examples to copy from
+
+- **Hook with mount load + reload**: `ui/src/lib/hooks/useJobsData.test.ts`
+- **Hook with optimistic mutate + rollback**: `ui/src/lib/hooks/useApplied.test.ts`
+- **Hook with polling gate + 409-as-success**: `ui/src/lib/hooks/useApplyQueue.test.ts`
+- **Hook with localStorage**: `ui/src/lib/hooks/useSwipeSkips.test.ts`
+- **Hook with URL sync**: `ui/src/lib/hooks/useUrlSyncedState.test.ts`
+- **Render-branch component**: `ui/src/jobs/QueueBadge.test.tsx`
+- **Sort + truncate render**: `ui/src/jobs/SignalChips.test.tsx`
+- **Stateful component with controlled input**: `ui/src/jobs/AppliedBar.test.tsx`
+
+---
+
 ## React effects
 
 Project convention (pre-existing, restated here for context):
