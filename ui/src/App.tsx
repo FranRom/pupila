@@ -18,6 +18,11 @@ import {
   STATUS_EMOJI,
 } from './jobs/types.ts';
 import { api, formatError } from './lib/api/index.ts';
+import { useApplied } from './lib/hooks/useApplied.ts';
+import { useApplyQueue } from './lib/hooks/useApplyQueue.ts';
+import { useJobsData } from './lib/hooks/useJobsData.ts';
+import { useSwipeSkips } from './lib/hooks/useSwipeSkips.ts';
+import { type SortDir, type SortKey, useUrlSyncedState } from './lib/hooks/useUrlSyncedState.ts';
 import { Onboarding } from './Onboarding.tsx';
 import { Profile } from './Profile.tsx';
 import { SchedulerProgress } from './SchedulerProgress.tsx';
@@ -32,15 +37,12 @@ import type {
   AiReviews,
   ApplicationStatus,
   AppliedEntry,
-  ApplyQueueResponse,
   Category,
   Job,
   QueueRowStatus,
   QueueStatusMap,
   Source,
 } from './types.ts';
-
-type Tab = 'jobs' | 'swipe' | 'profile' | 'settings';
 
 const SCORE_TIER_CLASS = {
   high: styles.scoreHigh,
@@ -71,9 +73,6 @@ const CATEGORY_OPTIONS: ReadonlyArray<Category | 'all'> = [
   'general',
 ];
 
-type SortKey = 'fitScore' | 'salaryMax' | 'postedAt';
-type SortDir = 'asc' | 'desc';
-
 interface CompanyGroup {
   /** lowercased — used as identity for expand state and grouping key */
   key: string;
@@ -84,241 +83,95 @@ interface CompanyGroup {
   topJob: Job;
 }
 
-function readUrl(): {
-  search: string;
-  category: Category | 'all';
-  source: Source | 'all';
-  appliedOnly: boolean;
-  showSkipped: boolean;
-  queuedOnly: boolean;
-  sortKey: SortKey;
-  sortDir: SortDir;
-  groupByCompany: boolean;
-  compact: boolean;
-  expanded: string | null;
-  expandedCompany: string | null;
-  tab: Tab;
-} {
-  const p = new URLSearchParams(window.location.search);
-  const cat = p.get('cat');
-  const sortKey = p.get('sort');
-  const sortDir = p.get('dir');
-  const tab = p.get('tab');
-  return {
-    search: p.get('q') ?? '',
-    category:
-      cat === 'web3+ai' || cat === 'web3' || cat === 'ai' || cat === 'general' ? cat : 'all',
-    source: (p.get('src') as Source | 'all' | null) ?? 'all',
-    appliedOnly: p.get('applied') === '1',
-    showSkipped: p.get('skipped') === '1',
-    queuedOnly: p.get('queued') === '1',
-    sortKey: sortKey === 'salaryMax' || sortKey === 'postedAt' ? sortKey : 'fitScore',
-    sortDir: sortDir === 'asc' ? 'asc' : 'desc',
-    groupByCompany: p.get('group') !== '0',
-    // Default OFF — only persisted in URL when explicitly enabled.
-    compact: p.get('compact') === '1',
-    expanded: p.get('expanded'),
-    expandedCompany: p.get('co'),
-    tab:
-      tab === 'profile'
-        ? 'profile'
-        : tab === 'settings'
-          ? 'settings'
-          : tab === 'swipe'
-            ? 'swipe'
-            : 'jobs',
-  };
-}
-
 export function App() {
-  const initial = useMemo(() => readUrl(), []);
-  const [search, setSearch] = useState(initial.search);
-  const [category, setCategory] = useState<Category | 'all'>(initial.category);
-  const [source, setSource] = useState<Source | 'all'>(initial.source);
-  const [appliedOnly, setAppliedOnly] = useState(initial.appliedOnly);
-  const [showSkipped, setShowSkipped] = useState(initial.showSkipped);
-  const [queuedOnly, setQueuedOnly] = useState(initial.queuedOnly);
-  const [sortKey, setSortKey] = useState<SortKey>(initial.sortKey);
-  const [sortDir, setSortDir] = useState<SortDir>(initial.sortDir);
-  const [groupByCompany, setGroupByCompany] = useState(initial.groupByCompany);
-  const [compact, setCompact] = useState(initial.compact);
-  const [expanded, setExpanded] = useState<string | null>(initial.expanded);
-  const [expandedCompany, setExpandedCompany] = useState<string | null>(initial.expandedCompany);
-  const [appliedById, setAppliedById] = useState<AppliedMap>({});
+  // URL-synced filter / sort / group / tab state — readUrl on mount, write
+  // back to history.replaceState on every change. See useUrlSyncedState.
+  const {
+    search,
+    category,
+    source,
+    appliedOnly,
+    showSkipped,
+    queuedOnly,
+    sortKey,
+    sortDir,
+    groupByCompany,
+    compact,
+    expanded,
+    expandedCompany,
+    tab,
+    setSearch,
+    setCategory,
+    setSource,
+    setAppliedOnly,
+    setShowSkipped,
+    setQueuedOnly,
+    setSortKey,
+    setSortDir,
+    setGroupByCompany,
+    setCompact,
+    setExpanded,
+    setExpandedCompany,
+    setTab,
+  } = useUrlSyncedState();
+
+  // Cross-cutting UI banner — shared by every async failure path.
   const [apiError, setApiError] = useState<string | null>(null);
+  const onApiError = useCallback((msg: string) => setApiError(msg), []);
+  const onApiSuccess = useCallback(() => setApiError(null), []);
+
   // Lifted AI Apply state — the dock at App root is the only source of
   // truth for "is something running"; FragmentRow reads {busyJobId, result,
   // error} to know what to render and whether to disable its button.
   const [aiApplyBusyId, setAiApplyBusyId] = useState<string | null>(null);
   const [aiApplyResult, setAiApplyResult] = useState<AiApplyResult | null>(null);
   const [aiApplyError, setAiApplyError] = useState<AiApplyError | null>(null);
-  const [tab, setTab] = useState<Tab>(initial.tab);
-  // jobs.json and ai-reviews.json are gitignored personal/AI artifacts —
-  // fetched at runtime from the dev-server middleware so a fresh clone
-  // works without those files existing.
-  const [allJobs, setAllJobs] = useState<Job[]>([]);
-  const [aiReviews, setAiReviews] = useState<AiReviews>({});
-  const [dataLoading, setDataLoading] = useState(true);
-  const [fetchInFlight, setFetchInFlight] = useState(false);
-  // null = not loaded yet (don't surface banner); false = scheduler not
-  // installed (the banner's "install daily scheduler" CTA makes sense).
-  const [schedulerInstalled, setSchedulerInstalled] = useState<boolean | null>(null);
-  // Onboarding state. `null` while we're still fetching /api/preferences;
-  // `false` once we've confirmed the user has finished onboarding (or
-  // they bypass via the Profile tab); `true` triggers the wizard.
-  const [showOnboarding, setShowOnboarding] = useState<boolean | null>(null);
-  // LOW-9: SchedulerProgress dock now lives at App root. Settings reads
-  // schedulerCompletedAt to know when to refresh its status panel.
-  const [schedulerCompletedAt, setSchedulerCompletedAt] = useState(0);
-  // Apply-queue state. Polled at App root so both the Jinder deck and the
-  // Settings panel see the same snapshot. Skipped when the relevant tabs
-  // aren't visible to keep the dev server quiet.
-  const [applyQueue, setApplyQueue] = useState<ApplyQueueResponse | null>(null);
-  const [swipeSkipIds, setSwipeSkipIds] = useState<Set<string>>(new Set());
-  // AI verdict 'skip' is treated as an implicit skip — but the user can
-  // override it. Stored in localStorage (UI-only visibility concern; doesn't
-  // belong in the file-based ledgers). The Set holds jobIds where the user
-  // has explicitly chosen to ignore the AI's skip recommendation.
-  const [aiSkipOverrides, setAiSkipOverrides] = useState<Set<string>>(() => {
-    try {
-      const raw = window.localStorage.getItem('jinder-ai-skip-overrides');
-      if (raw) return new Set(JSON.parse(raw) as string[]);
-    } catch {
-      // ignore — corrupt storage value, fall back to empty.
-    }
-    return new Set();
+
+  // jobs.json + ai-reviews.json — server snapshot.
+  const { allJobs, aiReviews, loading: dataLoading, reload: reloadJobsAndReviews } = useJobsData();
+
+  // applied tracking: jobId-keyed map reconciled against allJobs.
+  const {
+    appliedById,
+    setApplied,
+    upsertEntry: upsertApplied,
+  } = useApplied({
+    allJobs,
+    onError: onApiError,
+    onSuccess: onApiSuccess,
   });
-  useEffect(() => {
-    try {
-      window.localStorage.setItem('jinder-ai-skip-overrides', JSON.stringify([...aiSkipOverrides]));
-    } catch {
-      // localStorage may be full / disabled; behavior degrades to in-memory.
-    }
-  }, [aiSkipOverrides]);
 
-  const refreshApplyQueue = useCallback(async (signal?: AbortSignal) => {
-    const [qr, sr] = await Promise.all([
-      api.applyQueue.list({ signal }),
-      api.applyQueue.listSkips({ signal }),
-    ]);
-    if (qr.ok) setApplyQueue(qr.value);
-    if (sr.ok) setSwipeSkipIds(new Set(sr.value.skips));
-    // network/abort blips just keep the previous snapshot — silent recovery.
-  }, []);
+  // AI Apply queue: snapshot + mutations + derived helpers + tab-gated poll.
+  const {
+    queue: applyQueue,
+    swipeSkipIds,
+    statusMap: queueStatusMap,
+    activeJobIds: activeQueueJobIds,
+    refresh: refreshApplyQueue,
+    enqueue: enqueueJob,
+    cancel: cancelQueueRow,
+    addSkip,
+    removeSkip,
+  } = useApplyQueue({
+    pollEnabled: tab === 'swipe' || tab === 'settings',
+    onError: onApiError,
+  });
 
-  // Toggle skipped state for a job, unifying both sources:
-  //   - swipe-skips.json (persisted, written by Jinder swipes + this pill)
-  //   - aiSkipOverrides   (localStorage, only used to override AI verdict 'skip')
-  // The pill works regardless of why the job is currently skipped — including
-  // AI-driven skips, which previously had no user control.
-  // Unified "is this job effectively skipped?" — used by filter, badge, pill
-  // state, and row class. Sourced from either the persistent swipe-skips file
-  // or the AI verdict 'skip', minus any user override of the latter.
-  const isJobSkipped = useCallback(
-    (jobId: string): boolean =>
-      swipeSkipIds.has(jobId) ||
-      (aiReviews[jobId]?.verdict === 'skip' && !aiSkipOverrides.has(jobId)),
-    [swipeSkipIds, aiReviews, aiSkipOverrides],
-  );
+  // Unified skip predicate combining server skips + AI-verdict skips + local
+  // AI-override Set in localStorage.
+  const { isJobSkipped, toggleSkip } = useSwipeSkips({
+    swipeSkipIds,
+    aiReviews,
+    addSkip,
+    removeSkip,
+    onError: onApiError,
+  });
 
-  const toggleSkip = useCallback(
-    async (jobId: string): Promise<void> => {
-      const inSwipe = swipeSkipIds.has(jobId);
-      const aiSays = aiReviews[jobId]?.verdict === 'skip';
-      const overridden = aiSkipOverrides.has(jobId);
-      const effectivelySkipped = inSwipe || (aiSays && !overridden);
-
-      if (effectivelySkipped) {
-        // User wants to UNskip. Two stores might contribute; handle both.
-        if (aiSays && !overridden) {
-          setAiSkipOverrides((prev) => new Set([...prev, jobId]));
-        }
-        if (inSwipe) {
-          setSwipeSkipIds((prev) => {
-            const next = new Set(prev);
-            next.delete(jobId);
-            return next;
-          });
-          const r = await api.applyQueue.removeSkip(jobId);
-          if (!r.ok) {
-            // Rollback swipe-skip removal; the AI override (pure UI state) stays.
-            setSwipeSkipIds((prev) => new Set([...prev, jobId]));
-            setApiError(`Could not unskip: ${formatError(r.error)}`);
-          }
-        }
-      } else {
-        // User wants to SKIP. If AI overrode is the only blocker, just lift it.
-        if (aiSays && overridden) {
-          setAiSkipOverrides((prev) => {
-            const next = new Set(prev);
-            next.delete(jobId);
-            return next;
-          });
-        } else {
-          setSwipeSkipIds((prev) => new Set([...prev, jobId]));
-          const r = await api.applyQueue.addSkip(jobId);
-          if (!r.ok) {
-            setSwipeSkipIds((prev) => {
-              const next = new Set(prev);
-              next.delete(jobId);
-              return next;
-            });
-            setApiError(`Could not skip: ${formatError(r.error)}`);
-          }
-        }
-      }
-    },
-    [swipeSkipIds, aiReviews, aiSkipOverrides],
-  );
-
-  const cancelQueueRow = useCallback(
-    async (jobId: string): Promise<void> => {
-      await api.applyQueue.cancel(jobId);
-      await refreshApplyQueue();
-    },
-    [refreshApplyQueue],
-  );
-
-  // Enqueue a job for AI Apply from the table — symmetric with the
-  // Jinder right-swipe. Backend already de-duplicates (409 on existing
-  // active rows) so we surface non-409 errors and let 409 be a silent no-op.
-  const enqueueJob = useCallback(
-    async (jobId: string): Promise<void> => {
-      const r = await api.applyQueue.enqueue(jobId);
-      if (!r.ok && !(r.error.kind === 'http' && r.error.status === 409)) {
-        setApiError(`Could not queue job: ${formatError(r.error)}`);
-      }
-      await refreshApplyQueue();
-    },
-    [refreshApplyQueue],
-  );
-
-  // Re-fetch jobs + AI reviews + applied entries (e.g. after the fetch-jobs
-  // run completes, or after onboarding finishes). Reconciles applied
-  // status with the current jobs list so URL-keyed entries land on the
-  // right job ids. Optional signal lets the caller abort on unmount.
-  const reloadJobsAndReviews = useCallback(async (signal?: AbortSignal) => {
-    const [jobsR, reviewsR, appliedR] = await Promise.all([
-      api.jobs.list({ signal }),
-      api.reviews.list({ signal }),
-      api.applied.list({ signal }),
-    ]);
-    if ([jobsR, reviewsR, appliedR].some((r) => !r.ok && r.error.kind === 'abort')) {
-      return;
-    }
-    const jobs = jobsR.ok ? jobsR.value : [];
-    const reviews = reviewsR.ok ? reviewsR.value : {};
-    const applied = appliedR.ok ? appliedR.value : [];
-    setAllJobs(jobs);
-    setAiReviews(reviews);
-    const byUrl = new Map(applied.map((e) => [e.url, e]));
-    const nextApplied: AppliedMap = {};
-    for (const j of jobs) {
-      const e = byUrl.get(j.url);
-      if (e) nextApplied[j.id] = e;
-    }
-    setAppliedById(nextApplied);
-  }, []);
+  // Status panels that don't justify their own hooks yet.
+  const [fetchInFlight, setFetchInFlight] = useState(false);
+  const [schedulerInstalled, setSchedulerInstalled] = useState<boolean | null>(null);
+  const [showOnboarding, setShowOnboarding] = useState<boolean | null>(null);
+  const [schedulerCompletedAt, setSchedulerCompletedAt] = useState(0);
 
   // POST /api/ai-apply — kicks off a background LLM run. The
   // <AiApplyProgress /> dock at root polls /api/ai-apply-progress for live
@@ -346,32 +199,32 @@ export function App() {
   );
 
   // Called by the AiApplyProgress dock when a run finishes.
-  const onAiApplyComplete = useCallback((dockState: DockState) => {
-    if (dockState.status === 'done' && dockState.jobId && dockState.path) {
-      setAiApplyResult({
-        jobId: dockState.jobId,
-        body: dockState.output,
-        path: dockState.path,
-      });
-      // Sync applied state without an extra round-trip.
-      if (dockState.applied) {
-        const appliedJobId = dockState.jobId;
-        const appliedEntry = dockState.applied;
-        setAppliedById((prev) => ({
-          ...prev,
-          [appliedJobId]: {
+  const onAiApplyComplete = useCallback(
+    (dockState: DockState) => {
+      if (dockState.status === 'done' && dockState.jobId && dockState.path) {
+        setAiApplyResult({
+          jobId: dockState.jobId,
+          body: dockState.output,
+          path: dockState.path,
+        });
+        // Sync applied state without an extra round-trip.
+        if (dockState.applied) {
+          const appliedJobId = dockState.jobId;
+          const appliedEntry = dockState.applied;
+          upsertApplied(appliedJobId, {
             url: appliedEntry.url,
             status: appliedEntry.status as ApplicationStatus,
             date: appliedEntry.date,
             ...(appliedEntry.notes ? { notes: appliedEntry.notes } : {}),
-          },
-        }));
+          });
+        }
+      } else if (dockState.status === 'error' && dockState.jobId && dockState.error) {
+        setAiApplyError({ jobId: dockState.jobId, error: dockState.error });
       }
-    } else if (dockState.status === 'error' && dockState.jobId && dockState.error) {
-      setAiApplyError({ jobId: dockState.jobId, error: dockState.error });
-    }
-    setAiApplyBusyId(null);
-  }, []);
+      setAiApplyBusyId(null);
+    },
+    [upsertApplied],
+  );
 
   // LOW-9: bookkeeping for the SchedulerProgress dock — Settings reads this
   // to know when to refresh its status panel after install/uninstall.
@@ -386,23 +239,19 @@ export function App() {
     if (!r.ok) setApiError(`fetch run failed: ${formatError(r.error)}`);
   }, []);
 
-  // Load jobs + AI reviews + applied state + preferences on mount.
+  // Onboarding probe: useJobsData handles its own mount-fetch; we just need
+  // the preferences stamp to decide whether to show the wizard.
   useEffect(() => {
     const ctrl = new AbortController();
     const load = async () => {
-      const [, prefsR] = await Promise.all([
-        reloadJobsAndReviews(ctrl.signal),
-        api.preferences.get({ signal: ctrl.signal }),
-      ]);
-      if (!prefsR.ok && prefsR.error.kind === 'abort') return;
-      const prefs = prefsR.ok ? prefsR.value : { provider: null, onboardedAt: null };
-      setDataLoading(false);
-      // First run = no `onboardedAt` stamp yet. Show the wizard.
+      const r = await api.preferences.get({ signal: ctrl.signal });
+      if (!r.ok && r.error.kind === 'abort') return;
+      const prefs = r.ok ? r.value : { provider: null, onboardedAt: null };
       setShowOnboarding(!prefs.onboardedAt);
     };
     void load();
     return () => ctrl.abort();
-  }, [reloadJobsAndReviews]);
+  }, []);
 
   // Load scheduler install state on mount and whenever an install/uninstall
   // op completes (Settings tab sets `schedulerCompletedAt`). Drives the
@@ -448,128 +297,11 @@ export function App() {
     };
   }, [allJobs]);
 
-  // Poll the apply-queue while the swipe deck or Settings tab is mounted.
-  // The two tabs are the only places the data is rendered, so other tabs
-  // skip the refresh to keep the dev server quiet.
-  useEffect(() => {
-    if (tab !== 'swipe' && tab !== 'settings') return;
-    const ctrl = new AbortController();
-    const tick = async () => {
-      await refreshApplyQueue(ctrl.signal);
-    };
-    void tick();
-    const id = window.setInterval(() => void tick(), 2500);
-    return () => {
-      window.clearInterval(id);
-      ctrl.abort();
-    };
-  }, [tab, refreshApplyQueue]);
-
-  // Sync state → URL via replaceState so the back button doesn't get spammed.
-  useEffect(() => {
-    const p = new URLSearchParams();
-    if (search) p.set('q', search);
-    if (category !== 'all') p.set('cat', category);
-    if (source !== 'all') p.set('src', source);
-    if (appliedOnly) p.set('applied', '1');
-    if (showSkipped) p.set('skipped', '1');
-    if (queuedOnly) p.set('queued', '1');
-    if (sortKey !== 'fitScore') p.set('sort', sortKey);
-    if (sortDir !== 'desc') p.set('dir', sortDir);
-    if (!groupByCompany) p.set('group', '0');
-    if (compact) p.set('compact', '1');
-    if (expanded) p.set('expanded', expanded);
-    if (expandedCompany) p.set('co', expandedCompany);
-    if (tab !== 'jobs') p.set('tab', tab);
-    const qs = p.toString();
-    const next = `${window.location.pathname}${qs ? `?${qs}` : ''}`;
-    if (next !== `${window.location.pathname}${window.location.search}`) {
-      window.history.replaceState(null, '', next);
-    }
-  }, [
-    search,
-    category,
-    source,
-    appliedOnly,
-    showSkipped,
-    queuedOnly,
-    sortKey,
-    sortDir,
-    groupByCompany,
-    compact,
-    expanded,
-    expandedCompany,
-    tab,
-  ]);
-
-  const setApplied = useCallback<SetApplied>(
-    async (job, status, notes) => {
-      // MED-8: read snapshot directly from closure instead of via a no-op
-      // state updater (which is unsound under StrictMode double-invocation).
-      const prevSnapshot = appliedById[job.id];
-
-      if (status === null) {
-        setAppliedById((prev) => {
-          const next = { ...prev };
-          delete next[job.id];
-          return next;
-        });
-        const r = await api.applied.clear(job.url);
-        if (!r.ok) {
-          setAppliedById((prev) => {
-            if (!prevSnapshot) return prev;
-            return { ...prev, [job.id]: prevSnapshot };
-          });
-          setApiError(`Failed to clear status: ${formatError(r.error)}`);
-        } else {
-          setApiError(null);
-        }
-        return;
-      }
-
-      const today = new Date().toISOString().slice(0, 10);
-      const finalNotes = notes !== undefined ? notes : prevSnapshot?.notes;
-      const optimistic: AppliedEntry = {
-        url: job.url,
-        status,
-        date: prevSnapshot?.date ?? today,
-        ...(finalNotes ? { notes: finalNotes } : {}),
-      };
-      setAppliedById((prev) => ({ ...prev, [job.id]: optimistic }));
-
-      const r = await api.applied.set(optimistic);
-      if (r.ok) {
-        setAppliedById((prev) => ({ ...prev, [job.id]: r.value }));
-        setApiError(null);
-      } else {
-        setAppliedById((prev) => {
-          const next = { ...prev };
-          if (prevSnapshot) next[job.id] = prevSnapshot;
-          else delete next[job.id];
-          return next;
-        });
-        setApiError(`Failed to save status: ${formatError(r.error)}`);
-      }
-    },
-    [appliedById],
-  );
-
   const sources = useMemo(() => {
     const s = new Set<Source>();
     for (const j of allJobs) s.add(j.source);
     return Array.from(s).sort();
   }, [allJobs]);
-
-  const queueStatusMap = useMemo<QueueStatusMap>(() => {
-    const map: QueueStatusMap = {};
-    if (!applyQueue) return map;
-    for (const row of applyQueue.rows) {
-      // Most recent row wins per jobId (queue can carry historical rows
-      // when a job has been re-enqueued after a previous done/failed run).
-      map[row.jobId] = row.status;
-    }
-    return map;
-  }, [applyQueue]);
 
   const visible = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -577,11 +309,7 @@ export function App() {
       if (category !== 'all' && j.category !== category) return false;
       if (source !== 'all' && j.source !== source) return false;
       if (appliedOnly && !appliedById[j.id]) return false;
-      if (!showSkipped) {
-        const aiSays = aiReviews[j.id]?.verdict === 'skip';
-        const effSkipped = swipeSkipIds.has(j.id) || (aiSays && !aiSkipOverrides.has(j.id));
-        if (effSkipped) return false;
-      }
+      if (!showSkipped && isJobSkipped(j.id)) return false;
       if (queuedOnly) {
         const qs = queueStatusMap[j.id];
         if (qs !== 'queued' && qs !== 'running') return false;
@@ -607,9 +335,7 @@ export function App() {
     source,
     appliedOnly,
     showSkipped,
-    swipeSkipIds,
-    aiSkipOverrides,
-    aiReviews,
+    isJobSkipped,
     queuedOnly,
     queueStatusMap,
     sortKey,
@@ -658,17 +384,6 @@ export function App() {
   }, [allJobs]);
 
   const appliedCount = useMemo(() => Object.keys(appliedById).length, [appliedById]);
-
-  // Derive the queue-status-by-jobId map and the set of jobIds with
-  // non-terminal queue rows. Both the Jobs-tab badge and the SwipeDeck
-  // filter use these.
-  const activeQueueJobIds = useMemo<Set<string>>(() => {
-    const ids = new Set<string>();
-    for (const [jobId, status] of Object.entries(queueStatusMap)) {
-      if (status === 'queued' || status === 'running') ids.add(jobId);
-    }
-    return ids;
-  }, [queueStatusMap]);
 
   const appliedJobIds = useMemo<Set<string>>(
     () => new Set(Object.keys(appliedById)),
