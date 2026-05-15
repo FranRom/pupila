@@ -1,5 +1,5 @@
 import clsx from 'clsx';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api, formatError } from './lib/api/index.ts';
 import { useLlmStream } from './lib/use-llm-stream.ts';
 import styles from './Onboarding.module.css';
@@ -365,24 +365,23 @@ export function Onboarding({ onComplete }: OnboardingProps) {
 // the end of the tagline. Falls back to instant render under
 // prefers-reduced-motion.
 const ASCII_HERO_LINES: readonly string[] = [
-  '                 _ _       ',
-  ' _ __  _   _ _ __(_) | __ _ ',
-  "| '_ \\| | | | '_ \\| | |/ _` |",
-  '| |_) | |_| | |_) | | | (_| |',
-  '| .__/ \\__,_| .__/|_|_|\\__,_|',
-  '|_|         |_|             ',
+  ' ____  _   _ ____ ___ _        _    ',
+  '|  _ \\| | | |  _ \\_ _| |      / \\   ',
+  '| |_) | | | | |_) | || |     / _ \\  ',
+  '|  __/| |_| |  __/| || |___ / ___ \\ ',
+  '|_|    \\___/|_|  |___|_____/_/   \\_\\',
 ];
 
 function AsciiHero() {
   return (
-    <div className={styles.asciiHero} role="img" aria-label="pupila">
+    <div className={styles.asciiHero} role="img" aria-label="PUPILA">
       {ASCII_HERO_LINES.map((line) => (
         <span key={line} className={styles.asciiLine}>
           {line}
         </span>
       ))}
       <span className={styles.asciiTag}>
-        &gt; watching for your next role across 13 sources
+        &gt; watching for your next role across several sources
         <span className={styles.asciiCursor} />
       </span>
     </div>
@@ -396,6 +395,7 @@ interface CvDropZoneProps {
 
 function CvDropZone({ busy, onFile }: CvDropZoneProps) {
   const [dragActive, setDragActive] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const onDrop = useCallback(
     (e: React.DragEvent<HTMLDivElement>) => {
       e.preventDefault();
@@ -421,24 +421,29 @@ function CvDropZone({ busy, onFile }: CvDropZoneProps) {
           <strong>Drop your CV here</strong> (.pdf / .docx / .md / .txt). The LLM CLI runs locally —
           no upload to any server.
         </div>
-        <label className={styles.cvDropActions}>
-          <input
-            type="file"
-            accept=".pdf,.docx,.md,.markdown,.txt"
-            style={{ display: 'none' }}
+        <div className={styles.cvDropActions}>
+          <button
+            type="button"
+            className={buttonStyles.secondary}
             disabled={busy}
-            onChange={(e) => {
-              const f = e.target.files?.[0];
-              if (f) onFile(f);
-              e.target.value = '';
-            }}
-          />
-          <span className={buttonStyles.secondary}>
+            onClick={() => fileInputRef.current?.click()}
+          >
             {busy && <span className={spinnerStyles.spinner} aria-hidden />}
             {busy ? 'Working…' : 'Choose file'}
-          </span>
-        </label>
+          </button>
+        </div>
       </div>
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".pdf,.docx,.md,.markdown,.txt"
+        style={{ display: 'none' }}
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          if (f) onFile(f);
+          e.target.value = '';
+        }}
+      />
     </section>
   );
 }
