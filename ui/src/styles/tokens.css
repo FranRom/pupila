@@ -22,12 +22,12 @@
   --border: rgb(38, 51, 40);
 
   /* ── Text ──────────────────────────────────────────────────────────────── */
-  --text: #fff7f9;
+  --text: var(--primary);
   --text-muted: #b9a6ad;
   --text-soft: #7e6972;
 
   /* ── Primary (brand CTA = pale ice blue) ──────────────────────────────── */
-  --primary: #d7f7ff;
+  --primary: rgb(228, 255, 215);
   --primary-fg: #071014;
   --primary-hover: color-mix(in srgb, var(--primary) 92%, var(--bg));
   --primary-soft: color-mix(in srgb, var(--primary) 12%, var(--surface));

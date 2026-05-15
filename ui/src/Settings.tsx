@@ -49,6 +49,9 @@ interface SettingsProps {
   applyQueue: ApplyQueueResponse | null;
   onCancelQueueRow: (jobId: string) => Promise<void>;
   onRefreshQueue: () => Promise<void>;
+  /** Called after any successful clean — re-probes preferences (so the
+   * wizard re-triggers after `--all` wipes them) and reloads jobs. */
+  onCleanComplete: () => Promise<void>;
 }
 
 export function Settings({
@@ -56,6 +59,7 @@ export function Settings({
   applyQueue,
   onCancelQueueRow,
   onRefreshQueue,
+  onCleanComplete,
 }: SettingsProps) {
   const [prefs, setPrefs] = useState<PreferencesResponse | null>(null);
   const [provider, setProvider] = useState<ProviderChoice>('auto');
@@ -184,9 +188,12 @@ export function Settings({
         return;
       }
       setCleanResult(r.value);
-      await loadAll();
+      // Refresh Settings-local panels (run summary, disk, env) AND App-level
+      // state (preferences probe + jobs reload). The latter is what routes
+      // the user back to the wizard after a destructive clean.
+      await Promise.all([loadAll(), onCleanComplete()]);
     },
-    [loadAll],
+    [loadAll, onCleanComplete],
   );
 
   const regenerateProfile = useCallback(async () => {

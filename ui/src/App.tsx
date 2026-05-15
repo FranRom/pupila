@@ -21,6 +21,7 @@ import { api, formatError } from './lib/api/index.ts';
 import { useApplied } from './lib/hooks/useApplied.ts';
 import { useApplyQueue } from './lib/hooks/useApplyQueue.ts';
 import { useJobsData } from './lib/hooks/useJobsData.ts';
+import { useOnboarding } from './lib/hooks/useOnboarding.ts';
 import { useSwipeSkips } from './lib/hooks/useSwipeSkips.ts';
 import { type SortDir, type SortKey, useUrlSyncedState } from './lib/hooks/useUrlSyncedState.ts';
 import { SchedulerProgress } from './SchedulerProgress.tsx';
@@ -173,10 +174,18 @@ export function App() {
     onError: onApiError,
   });
 
+  // First-run wizard gate. Owns its own mount-probe; exposes a reprobe()
+  // we plumb into the clean flow so a destructive reset routes back to
+  // onboarding without a hard refresh.
+  const {
+    showOnboarding,
+    reprobe: reprobeOnboarding,
+    dismiss: dismissOnboarding,
+  } = useOnboarding();
+
   // Status panels that don't justify their own hooks yet.
   const [fetchInFlight, setFetchInFlight] = useState(false);
   const [schedulerInstalled, setSchedulerInstalled] = useState<boolean | null>(null);
-  const [showOnboarding, setShowOnboarding] = useState<boolean | null>(null);
   const [schedulerCompletedAt, setSchedulerCompletedAt] = useState(0);
 
   // POST /api/ai-apply — kicks off a background LLM run. The
@@ -245,19 +254,13 @@ export function App() {
     if (!r.ok) setApiError(`fetch run failed: ${formatError(r.error)}`);
   }, []);
 
-  // Onboarding probe: useJobsData handles its own mount-fetch; we just need
-  // the preferences stamp to decide whether to show the wizard.
-  useEffect(() => {
-    const ctrl = new AbortController();
-    const load = async () => {
-      const r = await api.preferences.get({ signal: ctrl.signal });
-      if (!r.ok && r.error.kind === 'abort') return;
-      const prefs = r.ok ? r.value : { provider: null, onboardedAt: null };
-      setShowOnboarding(!prefs.onboardedAt);
-    };
-    void load();
-    return () => ctrl.abort();
-  }, []);
+  // Settings' Maintenance panel calls this after a clean completes. A
+  // destructive clean wipes preferences + jobs on disk; we need to re-probe
+  // both so the user lands on the wizard (or an empty Jobs view) instead of
+  // a stale in-memory snapshot.
+  const onCleanComplete = useCallback(async () => {
+    await Promise.all([reprobeOnboarding(), reloadJobsAndReviews(), refreshApplyQueue()]);
+  }, [reprobeOnboarding, reloadJobsAndReviews, refreshApplyQueue]);
 
   // Load scheduler install state on mount and whenever an install/uninstall
   // op completes (Settings tab sets `schedulerCompletedAt`). Drives the
@@ -417,7 +420,7 @@ export function App() {
         <Suspense fallback={<p className={styles.placeholder}>Loading…</p>}>
           <Onboarding
             onComplete={async () => {
-              setShowOnboarding(false);
+              dismissOnboarding();
               await reloadJobsAndReviews();
               // First-time user just finished onboarding and jobs.json is
               // still empty — kick off the first aggregator run automatically
@@ -459,6 +462,7 @@ export function App() {
             applyQueue={applyQueue}
             onCancelQueueRow={cancelQueueRow}
             onRefreshQueue={refreshApplyQueue}
+            onCleanComplete={onCleanComplete}
           />
         </Suspense>
       )}
@@ -648,22 +652,25 @@ function FetchCta({ onFetch }: FetchCtaProps) {
   return (
     <div className={styles.fetchCta}>
       <h2>No jobs yet</h2>
-      <p>
-        Run the aggregator to pull listings from 13 sources (Ashby, Greenhouse, Lever, Hacker News,
-        Web3 boards, etc.). Takes about 30–60 seconds.
-      </p>
+      <p>Run the aggregator to pull listings from all the sources.</p>
       <button
         type="button"
-        className={clsx(buttonStyles.secondary, buttonStyles.lg)}
+        className={clsx(buttonStyles.primary, buttonStyles.lg)}
         onClick={onFetch}
       >
-        ✨ Fetch jobs now
+        Fetch jobs now
       </button>
-      <p className={styles.fetchCtaHint}>
-        After the first run you can schedule daily fetches with{' '}
-        <code>scripts/install-launchd.sh</code> (macOS) or <code>scripts/install-cron.sh</code>{' '}
-        (Linux).
-      </p>
+      <div className={styles.fetchCtaHint}>
+        <p>After the first run you can also schedule daily fetches automatically with:</p>
+        <ul>
+          <li>
+            <code>scripts/install-launchd.sh</code> (macOS)
+          </li>
+          <li>
+            <code>scripts/install-cron.sh</code> (Linux)
+          </li>
+        </ul>
+      </div>
     </div>
   );
 }
@@ -743,7 +750,7 @@ const CompanyBlock = memo(function CompanyBlock({
         <td className={clsx(styles.score, SCORE_TIER_CLASS[scoreTier(group.topScore)])}>
           <div className={styles.scoreCell}>
             <span className={styles.caret} aria-hidden>
-              {isOpen ? '▾' : '▸'}
+              {isOpen ? '×' : '+'}
             </span>
             {group.topScore}
           </div>
