@@ -1,0 +1,63 @@
+/*
+ * ScoreBar: numeric score above a horizontal bar whose fill width tracks the
+ * value 0–100. Fill + number colour come from the tier modifier.
+ */
+
+.bar {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.3125rem;
+  vertical-align: middle;
+}
+
+.num {
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  font-size: 1.125rem;
+  line-height: 1;
+  letter-spacing: var(--tracking-tight);
+  text-align: left;
+}
+
+.numHigh {
+  color: var(--accent);
+}
+
+.numMid {
+  color: var(--score-mid);
+}
+
+.numLow {
+  color: var(--text-soft);
+}
+
+.track {
+  display: block;
+  width: 72px;
+  height: 6px;
+  background: var(--row-hover);
+  border-radius: 3px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+
+.fill {
+  display: block;
+  height: 100%;
+  border-radius: 2px;
+  background: var(--text-muted);
+  transition: width 0.2s ease;
+}
+
+.fillHigh {
+  background: var(--accent);
+}
+
+.fillMid {
+  background: var(--score-mid);
+}
+
+.fillLow {
+  background: var(--text-muted);
+}

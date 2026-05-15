@@ -1,0 +1,63 @@
+/*
+ * FitDonut: 48x48 SVG donut indicator on the swipe-card header.
+ * The arc starts at 3 o'clock and the outer wrapper rotates -90deg so 0%
+ * sits at 12 o'clock. Stroke colour matches the score tier.
+ */
+
+.donut {
+  position: relative;
+  width: 48px;
+  height: 48px;
+  flex-shrink: 0;
+}
+
+.donut svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  transform: rotate(-90deg);
+}
+
+.bg {
+  fill: none;
+  stroke: var(--row-hover);
+  stroke-width: 5;
+}
+
+.fg {
+  fill: none;
+  stroke: var(--text-muted);
+  stroke-width: 5;
+  stroke-linecap: round;
+  transition: stroke-dashoffset 0.3s ease;
+}
+
+.fgHigh {
+  stroke: var(--accent);
+}
+
+.fgMid {
+  stroke: var(--score-mid);
+}
+
+.fgLow {
+  stroke: var(--text-muted);
+}
+
+.label {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fg {
+    transition: none;
+  }
+}

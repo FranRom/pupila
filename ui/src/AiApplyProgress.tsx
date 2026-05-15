@@ -1,11 +1,13 @@
+import clsx from 'clsx';
 import { useEffect, useRef, useState } from 'react';
+import dockStyles from './styles/Dock.module.css';
 
 // Bottom-right docked card streaming the AI Apply LLM output. Polls
 // /api/ai-apply-progress every 1s while a run is in flight; auto-dismisses
 // 4s after success and notifies the parent so the inline AiApplyPanel can
 // show the final structured package. Mirrors FetchProgress / SchedulerProgress
-// visually via shared `.fetch-progress*` classes; stack offset (.fetch-progress-aiapply)
-// keeps it from overlapping when multiple docks are visible at once.
+// visually via shared Dock.module.css. Slightly wider (`dockWide`) so the
+// streaming log doesn't wrap too aggressively when multiple docks are visible.
 
 type RunStatus = 'idle' | 'running' | 'done' | 'error';
 
@@ -41,6 +43,13 @@ interface AiApplyProgressProps {
 const IDLE_POLL_MS = 5000;
 const ACTIVE_POLL_MS = 1000;
 const DISMISS_MS = 4000;
+
+const DOCK_VARIANT = {
+  idle: null,
+  running: dockStyles.dockRunning,
+  done: dockStyles.dockDone,
+  error: dockStyles.dockError,
+} as const;
 
 export function AiApplyProgress({ onComplete }: AiApplyProgressProps) {
   const [state, setState] = useState<AiApplyState | null>(null);
@@ -112,45 +121,43 @@ export function AiApplyProgress({ onComplete }: AiApplyProgressProps) {
 
   return (
     <aside
-      className={`fetch-progress fetch-progress-${state.status} fetch-progress-aiapply`}
+      className={clsx(dockStyles.dock, DOCK_VARIANT[state.status], dockStyles.dockWide)}
       role="status"
       aria-live="polite"
     >
-      <header className="fetch-progress-header">
-        <span className="fetch-progress-title">
+      <header className={dockStyles.header}>
+        <span className={dockStyles.title}>
           {state.status === 'running' && (
             <>
-              <span className="fetch-progress-spinner" aria-hidden />
+              <span className={dockStyles.spinner} aria-hidden />
               AI Apply ✨
             </>
           )}
           {state.status === 'done' && <>✓ AI Apply ready</>}
           {state.status === 'error' && <>✗ AI Apply failed</>}
         </span>
-        {state.provider && <span className="fetch-progress-count">{state.provider}</span>}
+        {state.provider && <span className={dockStyles.count}>{state.provider}</span>}
       </header>
 
-      <div className="fetch-progress-meta" title={titleLabel}>
+      <div className={dockStyles.meta} title={titleLabel}>
         {titleLabel}
       </div>
       {state.cvPath && (
-        <div className="fetch-progress-meta fetch-progress-meta-muted">
+        <div className={dockStyles.metaMuted}>
           Using CV: <code>{state.cvPath}</code>
         </div>
       )}
 
-      <pre className="fetch-progress-log">
-        {state.output.trim() || '(waiting for first token…)'}
-      </pre>
+      <pre className={dockStyles.log}>{state.output.trim() || '(waiting for first token…)'}</pre>
 
       {state.error && state.status === 'error' && (
-        <p className="fetch-progress-error" title={state.error}>
+        <p className={dockStyles.errorBlock} title={state.error}>
           {state.error.slice(0, 240)}
         </p>
       )}
 
       {(state.status === 'done' || state.status === 'error') && (
-        <button type="button" className="fetch-progress-dismiss" onClick={() => setHidden(true)}>
+        <button type="button" className={dockStyles.dismiss} onClick={() => setHidden(true)}>
           dismiss
         </button>
       )}

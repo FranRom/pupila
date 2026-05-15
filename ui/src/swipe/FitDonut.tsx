@@ -1,7 +1,10 @@
 // Tiny 48x48 SVG donut indicator used in the swipe-card header.
-// The wrapping <div className="fit-donut"> already has the -90deg
-// rotation in CSS — we draw the arc starting at the 3 o'clock position
-// and let the CSS rotation move 0% to the 12 o'clock position.
+// The wrapping <div> rotates -90deg via CSS so the arc starts at the
+// 12 o'clock position even though we draw it from 3 o'clock.
+
+import clsx from 'clsx';
+import type { ScoreTier } from '../jobs/ScoreBar.tsx';
+import styles from './FitDonut.module.css';
 
 interface FitDonutProps {
   score: number;
@@ -10,10 +13,16 @@ interface FitDonutProps {
 const RADIUS = 20;
 const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
 
-function tierClass(score: number): string {
-  if (score >= 80) return 'score-high';
-  if (score >= 50) return 'score-mid';
-  return 'score-low';
+const FG_TIER = {
+  high: styles.fgHigh,
+  mid: styles.fgMid,
+  low: styles.fgLow,
+} as const;
+
+function tier(score: number): ScoreTier {
+  if (score >= 80) return 'high';
+  if (score >= 50) return 'mid';
+  return 'low';
 }
 
 export function FitDonut({ score }: FitDonutProps) {
@@ -22,12 +31,12 @@ export function FitDonut({ score }: FitDonutProps) {
   const label = Math.round(clamped);
 
   return (
-    <div className="fit-donut">
+    <div className={styles.donut}>
       <svg viewBox="0 0 48 48" role="img" aria-label={`Fit score ${label} of 100`}>
         <title>{`Fit score ${label}`}</title>
-        <circle className="fit-donut-bg" cx="24" cy="24" r={RADIUS} />
+        <circle className={styles.bg} cx="24" cy="24" r={RADIUS} />
         <circle
-          className={`fit-donut-fg ${tierClass(clamped)}`}
+          className={clsx(styles.fg, FG_TIER[tier(clamped)])}
           cx="24"
           cy="24"
           r={RADIUS}
@@ -35,7 +44,7 @@ export function FitDonut({ score }: FitDonutProps) {
           strokeDashoffset={offset}
         />
       </svg>
-      <span className="fit-donut-label">{label}</span>
+      <span className={styles.label}>{label}</span>
     </div>
   );
 }

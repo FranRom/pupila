@@ -1,15 +1,16 @@
 import type { AiReview } from '../types.ts';
+import styles from './ReviewBody.module.css';
 
 export function ReviewBody({ review }: { review: AiReview }) {
   return (
-    <div className="review">
-      <p className="review-summary">{review.summary}</p>
+    <div>
+      <p className={styles.summary}>{review.summary}</p>
       {review.reason && (
-        <p className="review-reason">
+        <p className={styles.reason}>
           <strong>Verdict:</strong> {review.reason}
         </p>
       )}
-      <div className="review-cols">
+      <div className={styles.cols}>
         {review.wants.length > 0 && (
           <div>
             <h4>Wants</h4>
@@ -33,7 +34,7 @@ export function ReviewBody({ review }: { review: AiReview }) {
         {review.redFlags.length > 0 && (
           <div>
             <h4>Red flags</h4>
-            <ul className="red-flags">
+            <ul className={styles.redFlags}>
               {review.redFlags.map((r) => (
                 <li key={r}>{r}</li>
               ))}

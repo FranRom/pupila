@@ -2,7 +2,9 @@
 // placeholders, empty state, stat chip, provider chip, and the terminal
 // $ ... block used by the scheduler panel.
 
+import clsx from 'clsx';
 import type { ReactNode } from 'react';
+import styles from './settings.module.css';
 import type { ProviderChoice } from './types.ts';
 
 interface SectionProps {
@@ -16,31 +18,31 @@ interface SectionProps {
 
 export function Section({ index, title, subtitle, meta, action, children }: SectionProps) {
   return (
-    <section className="settings-section">
-      <header className="settings-section-header">
-        <div className="settings-section-titles">
-          <span className="settings-section-index">[{index}]</span>
+    <section className={styles.section}>
+      <header className={styles.sectionHeader}>
+        <div className={styles.sectionTitles}>
+          <span className={styles.sectionIndex}>[{index}]</span>
           <div>
             <h2>{title}</h2>
-            <p className="settings-section-subtitle">{subtitle}</p>
+            <p className={styles.sectionSubtitle}>{subtitle}</p>
           </div>
         </div>
-        <div className="settings-section-meta">
+        <div className={styles.sectionMeta}>
           {meta}
           {action}
         </div>
       </header>
-      <div className="settings-section-body">{children}</div>
+      <div className={styles.sectionBody}>{children}</div>
     </section>
   );
 }
 
 export function SkeletonRows({ count }: { count: number }) {
   return (
-    <div className="settings-skeleton" aria-hidden>
+    <div className={styles.skeleton} aria-hidden>
       {Array.from({ length: count }).map((_, i) => (
         // biome-ignore lint/suspicious/noArrayIndexKey: skeleton placeholders are static
-        <div key={i} className="settings-skeleton-row" />
+        <div key={i} className={styles.skeletonRow} />
       ))}
     </div>
   );
@@ -48,9 +50,9 @@ export function SkeletonRows({ count }: { count: number }) {
 
 export function EmptyState({ title, body }: { title: string; body: string }) {
   return (
-    <div className="settings-empty">
+    <div className={styles.empty}>
       <strong>{title}</strong>
-      <p className="muted">{body}</p>
+      <p>{body}</p>
     </div>
   );
 }
@@ -63,15 +65,15 @@ interface StatProps {
 
 export function Stat({ label, value, accent }: StatProps) {
   return (
-    <div className={`stat-chip ${accent ? 'stat-chip-accent' : ''}`}>
-      <span className="stat-label">{label}</span>
-      <span className="stat-value">{value}</span>
+    <div className={accent ? styles.statAccent : styles.stat}>
+      <span className={styles.statLabel}>{label}</span>
+      <span className={styles.statValue}>{value}</span>
     </div>
   );
 }
 
 export function ProviderChip({ provider }: { provider: ProviderChoice }) {
-  return <span className="settings-meta-pill settings-meta-pill-ok mono">{provider}</span>;
+  return <span className={clsx(styles.pillMono, styles.pillOk)}>{provider}</span>;
 }
 
 interface TerminalBlockProps {
@@ -96,15 +98,15 @@ export function TerminalBlock({
   danger,
 }: TerminalBlockProps) {
   return (
-    <div className={`terminal-block ${danger ? 'terminal-block-danger' : ''}`}>
-      <code className="terminal-block-line">
-        <span className="terminal-block-prompt">$</span>
-        <span className="terminal-block-cmd">{command}</span>
+    <div className={danger ? styles.terminalDanger : styles.terminal}>
+      <code className={styles.terminalLine}>
+        <span className={styles.terminalPrompt}>$</span>
+        <span className={styles.terminalCmd}>{command}</span>
       </code>
-      <div className="terminal-block-actions">
+      <div className={styles.terminalActions}>
         <button
           type="button"
-          className="terminal-block-copy"
+          className={styles.terminalCopy}
           onClick={() => onCopy(command)}
           title="Copy command"
         >
@@ -112,7 +114,7 @@ export function TerminalBlock({
         </button>
         <button
           type="button"
-          className={`terminal-block-run ${danger ? 'terminal-block-run-danger' : ''}`}
+          className={danger ? styles.terminalRunDanger : styles.terminalRun}
           disabled={disabled || busy}
           onClick={onRun}
         >
@@ -122,3 +124,7 @@ export function TerminalBlock({
     </div>
   );
 }
+
+// Re-export the styles object so panels can use shared classes (.actions,
+// .toast, .pill*, .stat etc.) without importing the .module.css themselves.
+export { styles as settingsStyles };

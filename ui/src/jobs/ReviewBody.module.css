@@ -1,0 +1,50 @@
+/*
+ * ReviewBody: AI verdict surface inside the row detail panel.
+ * Summary + reason at top, then a responsive 3-column grid (wants / offers /
+ * red flags). Red flags rendered in danger color via the `redFlags` modifier.
+ */
+
+.summary {
+  margin: 0 0 0.5rem 0;
+  font-size: 0.9375rem;
+  line-height: 1.45;
+}
+
+.reason {
+  margin: 0 0 0.75rem 0;
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+}
+
+.reason strong {
+  color: var(--text);
+}
+
+.cols {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 1rem;
+}
+
+.cols h4 {
+  margin: 0 0 0.25rem 0;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.cols ul {
+  margin: 0;
+  padding-left: 1.1rem;
+  font-size: 0.8125rem;
+}
+
+.cols li {
+  margin-bottom: 0.25rem;
+}
+
+.redFlags li {
+  color: var(--badge-rejected-fg);
+}

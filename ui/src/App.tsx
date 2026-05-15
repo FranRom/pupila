@@ -1,12 +1,14 @@
+import clsx from 'clsx';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { AiApplyProgress, type AiApplyState as DockState } from './AiApplyProgress.tsx';
+import styles from './App.module.css';
 import { FetchProgress } from './FetchProgress.tsx';
 import { relativeTime } from './format.ts';
 import { AppHeader } from './jobs/AppHeader.tsx';
 import { DetailPanel } from './jobs/DetailPanel.tsx';
 import { JobsFilters } from './jobs/JobsFilters.tsx';
 import { QueueBadge } from './jobs/QueueBadge.tsx';
-import { ScoreBar } from './jobs/ScoreBar.tsx';
+import { ScoreBar, type ScoreTier } from './jobs/ScoreBar.tsx';
 import { SignalChips } from './jobs/SignalChips.tsx';
 import {
   type AiApplyError,
@@ -19,6 +21,10 @@ import { Onboarding } from './Onboarding.tsx';
 import { Profile } from './Profile.tsx';
 import { SchedulerProgress } from './SchedulerProgress.tsx';
 import { Settings } from './Settings.tsx';
+import badgeStyles from './styles/Badge.module.css';
+import bannerStyles from './styles/Banner.module.css';
+import buttonStyles from './styles/Button.module.css';
+import dockStyles from './styles/Dock.module.css';
 import { SwipeDeck } from './swipe/SwipeDeck.tsx';
 import type {
   AiReview,
@@ -34,6 +40,27 @@ import type {
 } from './types.ts';
 
 type Tab = 'jobs' | 'swipe' | 'profile' | 'settings';
+
+const SCORE_TIER_CLASS = {
+  high: styles.scoreHigh,
+  mid: styles.scoreMid,
+  low: styles.scoreLow,
+} as const;
+
+const VERDICT_CLASS = {
+  'strong-match': styles.verdictStrongMatch,
+  match: styles.verdictMatch,
+  'weak-match': styles.verdictWeakMatch,
+  skip: styles.verdictSkip,
+} as const;
+
+const STATUS_BADGE_CLASS = {
+  applied: badgeStyles.applied,
+  interview: badgeStyles.interview,
+  offer: badgeStyles.offer,
+  rejected: badgeStyles.rejected,
+  withdrawn: badgeStyles.withdrawn,
+} as const;
 
 interface PreferencesResponse {
   provider: string | null;
@@ -744,14 +771,14 @@ export function App() {
 
   if (showOnboarding === null) {
     return (
-      <div className="app">
-        <p className="placeholder">Loading…</p>
+      <div className={styles.app}>
+        <p className={styles.placeholder}>Loading…</p>
       </div>
     );
   }
   if (showOnboarding) {
     return (
-      <div className="app">
+      <div className={styles.app}>
         <Onboarding
           onComplete={async () => {
             setShowOnboarding(false);
@@ -769,7 +796,7 @@ export function App() {
   }
 
   return (
-    <div className="app">
+    <div className={styles.app}>
       <AppHeader
         tab={tab}
         onTabChange={setTab}
@@ -801,8 +828,8 @@ export function App() {
       {tab === 'jobs' && (
         <>
           {apiError && (
-            <div className="api-error" role="alert">
-              {apiError}{' '}
+            <div className={bannerStyles.error} role="alert">
+              <span>{apiError}</span>
               <button type="button" onClick={() => setApiError(null)}>
                 dismiss
               </button>
@@ -853,10 +880,10 @@ export function App() {
             allJobs.length === 0 ? (
               <FetchCta onFetch={triggerFetch} />
             ) : (
-              <p className="empty">No jobs match the current filters.</p>
+              <p className={styles.empty}>No jobs match the current filters.</p>
             )
           ) : (
-            <table className={compact ? 'row-compact' : ''}>
+            <table className={clsx(styles.table, compact && styles.tableCompact)}>
               <JobsTableHead sortKey={sortKey} sortDir={sortDir} onToggleSort={toggleSort} />
               <tbody>
                 {groups
@@ -912,7 +939,7 @@ export function App() {
       {/* LOW-9: SchedulerProgress lifted from Settings to App root so it
           stays visible across tab changes and stacks predictably alongside
           the other two docks. CSS class .dock-stack handles layout. */}
-      <div className="dock-stack">
+      <div className={dockStyles.dockStack}>
         <FetchProgress onComplete={reloadJobsAndReviews} onStatusChange={onFetchStatusChange} />
         <AiApplyProgress onComplete={onAiApplyComplete} />
         <SchedulerProgress onComplete={onSchedulerComplete} />
@@ -935,27 +962,31 @@ function StalenessBanner({
   onOpenScheduler,
 }: StalenessBannerProps) {
   return (
-    <div className="staleness-banner" role="status">
-      <span className="staleness-banner-icon" aria-hidden>
+    <div className={styles.stalenessBanner} role="status">
+      <span className={styles.stalenessIcon} aria-hidden>
         ⏳
       </span>
-      <div className="staleness-banner-body">
+      <div className={styles.stalenessBody}>
         <strong>Your job data is stale.</strong>
-        <span className="muted">
+        <span className={styles.muted}>
           Last fetched {fetchedAt ? relativeTime(fetchedAt) : 'over 24h ago'}. The daily scheduler
           isn't installed yet, without it, jobs only refresh when you trigger a fetch manually.
         </span>
       </div>
-      <div className="staleness-banner-actions">
+      <div className={styles.stalenessActions}>
         <button
           type="button"
-          className="btn btn-secondary btn-sm"
+          className={clsx(buttonStyles.secondary, buttonStyles.sm)}
           onClick={onRefetch}
           disabled={isFetching}
         >
           {isFetching ? 'Fetching…' : 'Refetch now'}
         </button>
-        <button type="button" className="btn btn-primary btn-sm" onClick={onOpenScheduler}>
+        <button
+          type="button"
+          className={clsx(buttonStyles.primary, buttonStyles.sm)}
+          onClick={onOpenScheduler}
+        >
           Install daily scheduler →
         </button>
       </div>
@@ -969,16 +1000,20 @@ interface FetchCtaProps {
 
 function FetchCta({ onFetch }: FetchCtaProps) {
   return (
-    <div className="fetch-cta">
+    <div className={styles.fetchCta}>
       <h2>No jobs yet</h2>
       <p>
         Run the aggregator to pull listings from 13 sources (Ashby, Greenhouse, Lever, Hacker News,
         Web3 boards, etc.). Takes about 30–60 seconds.
       </p>
-      <button type="button" className="btn btn-secondary btn-lg" onClick={onFetch}>
+      <button
+        type="button"
+        className={clsx(buttonStyles.secondary, buttonStyles.lg)}
+        onClick={onFetch}
+      >
         ✨ Fetch jobs now
       </button>
-      <p className="muted fetch-cta-hint">
+      <p className={styles.fetchCtaHint}>
         After the first run you can schedule daily fetches with{' '}
         <code>scripts/install-launchd.sh</code> (macOS) or <code>scripts/install-cron.sh</code>{' '}
         (Linux).
@@ -1053,22 +1088,22 @@ function CompanyBlock({
   }
   return (
     <>
-      <tr className={`group-row ${isOpen ? 'open' : ''}`} onClick={onToggleCompany}>
-        <td className={`score ${scoreTier(group.topScore)}`}>
-          <div className="score-cell">
-            <span className="caret" aria-hidden>
+      <tr className={clsx(styles.groupRow, isOpen && styles.rowOpen)} onClick={onToggleCompany}>
+        <td className={clsx(styles.score, SCORE_TIER_CLASS[scoreTier(group.topScore)])}>
+          <div className={styles.scoreCell}>
+            <span className={styles.caret} aria-hidden>
               {isOpen ? '▾' : '▸'}
             </span>
             {group.topScore}
           </div>
         </td>
         <td colSpan={7}>
-          <span className="group-co">{group.display}</span>
-          <span className="group-count">
+          <span className={styles.groupCo}>{group.display}</span>
+          <span className={styles.groupCount}>
             {group.jobs.length} role{group.jobs.length === 1 ? '' : 's'}
           </span>
           {!isOpen && (
-            <span className="group-preview" title={group.topJob.title}>
+            <span className={styles.groupPreview} title={group.topJob.title}>
               {group.topJob.title}
             </span>
           )}
@@ -1141,15 +1176,12 @@ function FragmentRow({
   indent,
 }: FragmentRowProps) {
   const tier = scoreTier(job.fitScore);
-  const rowClass = [
-    applied ? 'applied' : '',
-    isSkipped ? 'skipped' : '',
-    isOpen ? 'open' : '',
-    indent ? 'indent' : '',
-    review ? `has-verdict verdict-stripe-${review.verdict}` : '',
-  ]
-    .filter(Boolean)
-    .join(' ');
+  const rowClass = clsx(
+    applied && styles.rowApplied,
+    isSkipped && styles.rowSkipped,
+    isOpen && styles.rowOpen,
+    indent && styles.indent,
+  );
   const isMine = aiApplyBusyId === job.id;
   const otherBusy = aiApplyBusyId !== null && aiApplyBusyId !== job.id;
   const myResult = aiApplyResult && aiApplyResult.jobId === job.id ? aiApplyResult : null;
@@ -1162,67 +1194,72 @@ function FragmentRow({
   return (
     <>
       <tr className={rowClass} onClick={onToggle}>
-        <td className={`score ${tier}`}>
-          <div className="score-cell">
-            <span className="caret" aria-hidden>
+        <td className={clsx(styles.score, SCORE_TIER_CLASS[tier])}>
+          <div className={styles.scoreCell}>
+            <span className={styles.caret} aria-hidden>
               {isOpen ? '▾' : '▸'}
             </span>
             <ScoreBar score={job.fitScore} tier={tier} />
           </div>
         </td>
-        <td className="title" title={titleTooltip}>
-          <span className="title-row">
+        <td className={styles.tdTitle} title={titleTooltip}>
+          <span className={styles.titleRow}>
             {applied && (
-              <span className={`badge badge-${applied.status}`} title={applied.notes}>
+              <span
+                className={clsx(badgeStyles.base, STATUS_BADGE_CLASS[applied.status])}
+                title={applied.notes}
+              >
                 {STATUS_EMOJI[applied.status]} {applied.status}
               </span>
             )}
             {isSkipped && !applied && (
-              <span className="badge badge-skipped" title="Skipped from Jinder">
+              <span className={badgeStyles.skipped} title="Skipped from Jinder">
                 skipped
               </span>
             )}
             {review && review.verdict !== 'skip' && (
-              <span className={`badge verdict-${review.verdict}`}>{review.verdict}</span>
+              <span className={clsx(badgeStyles.base, VERDICT_CLASS[review.verdict])}>
+                {review.verdict}
+              </span>
             )}
             <QueueBadge status={queueStatus} />
-            <span className="title-text">{job.title}</span>
+            <span className={styles.titleText}>{job.title}</span>
           </span>
           {job._signals && (
-            <div className="signal-chip-row">
+            <div className={styles.signalChipRow}>
               <SignalChips signals={job._signals} />
             </div>
           )}
-          {job.bodyPreview && <p className="body-preview">{job.bodyPreview}</p>}
+          {job.bodyPreview && <p className={styles.bodyPreview}>{job.bodyPreview}</p>}
         </td>
-        <td className="company" title={job.company ?? ''}>
-          <span className="clamp-2">{job.company ?? '—'}</span>
+        <td className={styles.tdCompany} title={job.company ?? ''}>
+          <span className={styles.clamp2}>{job.company ?? '—'}</span>
         </td>
-        <td className="location" title={job.location ?? ''}>
-          <span className="clamp-2">{formatLocation(job)}</span>
+        <td className={styles.tdLocation} title={job.location ?? ''}>
+          <span className={styles.clamp2}>{formatLocation(job)}</span>
         </td>
         <td>
-          <span className="source">{job.source}</span>
+          <span className={styles.source}>{job.source}</span>
         </td>
         <td>{job.salary ?? '—'}</td>
-        <td className="muted">{relativeTime(job.postedAt)}</td>
-        <td className="cell-actions">
-          <div className="row-actions">
+        <td className={styles.tdMuted}>{relativeTime(job.postedAt)}</td>
+        <td className={styles.tdActions}>
+          <div className={styles.rowActions}>
             <a
               href={job.url}
               target="_blank"
               rel="noopener noreferrer"
-              className="action-link"
+              className={styles.actionLink}
               onClick={(e) => e.stopPropagation()}
             >
               Apply
-              <span className="action-arrow" aria-hidden>
+              <span className={styles.actionArrow} aria-hidden>
                 ↗
               </span>
             </a>
             <button
               type="button"
-              className="action-link"
+              className={styles.actionLink}
               disabled={isMine || otherBusy}
               onClick={(e) => {
                 e.stopPropagation();
@@ -1240,7 +1277,7 @@ function FragmentRow({
         </td>
       </tr>
       {isOpen && (
-        <tr className="detail-row">
+        <tr className={styles.detailRow}>
           <td colSpan={8}>
             <DetailPanel
               job={job}
@@ -1273,7 +1310,7 @@ function SortableTh({ label, active, dir, onClick }: SortableThProps) {
   const arrow = active ? (dir === 'desc' ? ' ↓' : ' ↑') : '';
   return (
     <th>
-      <button type="button" className="sort" onClick={onClick}>
+      <button type="button" className={styles.sortButton} onClick={onClick}>
         {label}
         {arrow}
       </button>
@@ -1330,10 +1367,10 @@ function formatLocation(job: Job): string {
   return '—';
 }
 
-function scoreTier(score: number): 'score-high' | 'score-mid' | 'score-low' {
-  if (score >= 80) return 'score-high';
-  if (score >= 50) return 'score-mid';
-  return 'score-low';
+function scoreTier(score: number): ScoreTier {
+  if (score >= 80) return 'high';
+  if (score >= 50) return 'mid';
+  return 'low';
 }
 
 function sortValue(j: Job, key: SortKey): number {

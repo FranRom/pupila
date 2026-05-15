@@ -1,7 +1,9 @@
 // [04] Last run panel — stats parsed from data/jobs.json.
 
+import clsx from 'clsx';
 import { relativeTime } from '../format.ts';
-import { EmptyState, Section, SkeletonRows, Stat } from './shared.tsx';
+import styles from './LastRunPanel.module.css';
+import { EmptyState, Section, SkeletonRows, Stat, settingsStyles } from './shared.tsx';
 import type { RunSummary } from './types.ts';
 
 interface LastRunPanelProps {
@@ -9,6 +11,7 @@ interface LastRunPanelProps {
 }
 
 export function LastRunPanel({ runSummary }: LastRunPanelProps) {
+  const stale = runSummary?.ageHours !== null && (runSummary?.ageHours ?? 0) >= 24;
   return (
     <Section
       index="04"
@@ -17,14 +20,13 @@ export function LastRunPanel({ runSummary }: LastRunPanelProps) {
       meta={
         runSummary?.generatedAt ? (
           <span
-            className={`settings-meta-pill ${
-              runSummary.ageHours !== null && runSummary.ageHours >= 24
-                ? 'settings-meta-pill-warn'
-                : 'settings-meta-pill-ok'
-            }`}
+            className={clsx(
+              settingsStyles.pill,
+              stale ? settingsStyles.pillWarn : settingsStyles.pillOk,
+            )}
           >
             {relativeTime(runSummary.generatedAt)}
-            {runSummary.ageHours !== null && runSummary.ageHours >= 24 ? ' · stale' : ''}
+            {stale ? ' · stale' : ''}
           </span>
         ) : null
       }
@@ -33,20 +35,17 @@ export function LastRunPanel({ runSummary }: LastRunPanelProps) {
         <SkeletonRows count={3} />
       ) : runSummary.total > 0 ? (
         <>
-          <div className="run-summary-totals">
+          <div className={styles.totals}>
             <Stat label="Kept" value={runSummary.total.toLocaleString()} accent />
             {(['web3+ai', 'web3', 'ai', 'general'] as const).map((c) => (
               <Stat key={c} label={c} value={(runSummary.byCategory[c] ?? 0).toLocaleString()} />
             ))}
           </div>
-          <ul className="source-list">
+          <ul className={styles.sourceList}>
             {runSummary.bySource.map((s) => (
-              <li
-                key={s.name}
-                className={s.kept === 0 ? 'source-row source-row-empty' : 'source-row'}
-              >
-                <span className="source-name">{s.name}</span>
-                <span className="source-kept">{s.kept === 0 ? '🚨 0' : s.kept}</span>
+              <li key={s.name} className={s.kept === 0 ? styles.sourceRowEmpty : styles.sourceRow}>
+                <span className={styles.sourceName}>{s.name}</span>
+                <span className={styles.sourceKept}>{s.kept === 0 ? '🚨 0' : s.kept}</span>
               </li>
             ))}
           </ul>

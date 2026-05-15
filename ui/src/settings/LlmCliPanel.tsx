@@ -1,6 +1,9 @@
 // [01] LLM CLI panel — switch + test the configured provider.
 
-import { ProviderChip, Section, SkeletonRows } from './shared.tsx';
+import clsx from 'clsx';
+import buttonStyles from '../styles/Button.module.css';
+import styles from './LlmCliPanel.module.css';
+import { ProviderChip, Section, SkeletonRows, settingsStyles } from './shared.tsx';
 import {
   type EnvInfo,
   type LlmTestResult,
@@ -44,14 +47,14 @@ export function LlmCliPanel({
         prefs?.provider ? (
           <ProviderChip provider={prefs.provider} />
         ) : (
-          <span className="settings-meta-pill settings-meta-pill-warn">not set</span>
+          <span className={clsx(settingsStyles.pill, settingsStyles.pillWarn)}>not set</span>
         )
       }
     >
       {!envInfo ? (
         <SkeletonRows count={5} />
       ) : (
-        <ul className="provider-list">
+        <ul className={styles.providerList}>
           <li>
             <label>
               <input
@@ -62,7 +65,9 @@ export function LlmCliPanel({
                 onChange={() => onProviderChange('auto')}
               />
               <strong>Auto-detect</strong>
-              <span className="muted">— first installed in claude → codex → gemini → opencode</span>
+              <span className={styles.muted}>
+                — first installed in claude → codex → gemini → opencode
+              </span>
             </label>
           </li>
           {PROVIDERS.map((p) => (
@@ -77,7 +82,7 @@ export function LlmCliPanel({
                   disabled={!envInfo.providers[p]}
                 />
                 <strong>{p}</strong>
-                <span className={envInfo.providers[p] ? 'available' : 'unavailable'}>
+                <span className={envInfo.providers[p] ? styles.available : styles.unavailable}>
                   {envInfo.providers[p] ? '✓ installed' : '✗ not on PATH'}
                 </span>
               </label>
@@ -86,7 +91,7 @@ export function LlmCliPanel({
         </ul>
       )}
       {!detectedAny && envInfo && (
-        <p className="warn">
+        <p className={styles.warn}>
           No supported LLM CLI on PATH. Install one (e.g.{' '}
           <a
             href="https://docs.claude.com/en/docs/claude-code/quickstart"
@@ -98,10 +103,10 @@ export function LlmCliPanel({
           ) to enable AI features.
         </p>
       )}
-      <div className="settings-actions">
+      <div className={settingsStyles.actions}>
         <button
           type="button"
-          className="btn btn-secondary"
+          className={buttonStyles.secondary}
           disabled={savingProvider || !envInfo}
           onClick={onSave}
         >
@@ -109,13 +114,13 @@ export function LlmCliPanel({
         </button>
         <button
           type="button"
-          className="btn btn-primary"
+          className={buttonStyles.primary}
           disabled={llmTest.busy || !detectedAny}
           onClick={onTest}
         >
           {llmTest.busy ? 'Testing…' : 'Test connection'}
         </button>
-        {savedToastVisible && <span className="settings-toast">✓ saved</span>}
+        {savedToastVisible && <span className={settingsStyles.toast}>✓ saved</span>}
       </div>
       {llmTest.result && <LlmTestResultPanel result={llmTest.result} />}
     </Section>
@@ -123,25 +128,26 @@ export function LlmCliPanel({
 }
 
 function LlmTestResultPanel({ result }: { result: LlmTestResult }) {
-  const tier =
-    result.latencyMs <= 3000
-      ? 'llm-test-fast'
+  const tierClass = !result.ok
+    ? styles.resultFail
+    : result.latencyMs <= 3000
+      ? styles.resultFast
       : result.latencyMs <= 10_000
-        ? 'llm-test-mid'
-        : 'llm-test-slow';
+        ? styles.resultMid
+        : styles.resultSlow;
   return (
-    <div className={`llm-test-result ${result.ok ? tier : 'llm-test-fail'}`}>
+    <div className={tierClass}>
       {result.ok ? (
         <>
-          <div className="llm-test-result-head">
+          <div className={styles.resultHead}>
             <strong>✓ {result.provider}</strong>
-            <span className="muted">{result.latencyMs}ms</span>
+            <span className={styles.muted}>{result.latencyMs}ms</span>
           </div>
           <pre>{result.output}</pre>
         </>
       ) : (
         <>
-          <div className="llm-test-result-head">
+          <div className={styles.resultHead}>
             <strong>✗ {result.provider} failed</strong>
           </div>
           <pre>{result.error ?? 'unknown error'}</pre>

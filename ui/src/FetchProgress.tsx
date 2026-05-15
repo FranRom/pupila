@@ -1,4 +1,6 @@
+import clsx from 'clsx';
 import { useEffect, useRef, useState } from 'react';
+import dockStyles from './styles/Dock.module.css';
 
 // Bottom-right docked card that streams the aggregator's per-source progress.
 // Polls /api/fetch-jobs every ~1s while a run is in flight, auto-dismisses
@@ -53,6 +55,21 @@ function stateLabel(s: SourceState): string {
   if (s === 'partial') return '⚠';
   return '✗';
 }
+
+const ROW_CLASS = {
+  pending: dockStyles.row,
+  running: dockStyles.rowRunning,
+  done: dockStyles.rowDone,
+  partial: dockStyles.rowPartial,
+  error: dockStyles.rowError,
+} as const;
+
+const DOCK_VARIANT = {
+  idle: null,
+  running: dockStyles.dockRunning,
+  done: dockStyles.dockDone,
+  error: dockStyles.dockError,
+} as const;
 
 export function FetchProgress({ onComplete, onStatusChange }: FetchProgressProps) {
   const [state, setState] = useState<FetchJobsState | null>(null);
@@ -134,27 +151,27 @@ export function FetchProgress({ onComplete, onStatusChange }: FetchProgressProps
 
   return (
     <aside
-      className={`fetch-progress fetch-progress-${state.status}`}
+      className={clsx(dockStyles.dock, DOCK_VARIANT[state.status])}
       role="status"
       aria-live="polite"
     >
-      <header className="fetch-progress-header">
-        <span className="fetch-progress-title">
+      <header className={dockStyles.header}>
+        <span className={dockStyles.title}>
           {state.status === 'running' && (
             <>
-              <span className="fetch-progress-spinner" aria-hidden />
+              <span className={dockStyles.spinner} aria-hidden />
               Fetching jobs…
             </>
           )}
           {state.status === 'done' && <>✓ Done — {totalFetched} jobs</>}
           {state.status === 'error' && <>✗ Run failed</>}
         </span>
-        <span className="fetch-progress-count">
+        <span className={dockStyles.count}>
           {doneCount}/{total}
         </span>
       </header>
 
-      <ul className="fetch-progress-list">
+      <ul className={dockStyles.list}>
         {state.sources.map((s) => {
           const showCount =
             (s.state === 'done' || s.state === 'partial') && typeof s.fetched === 'number';
@@ -163,16 +180,12 @@ export function FetchProgress({ onComplete, onStatusChange }: FetchProgressProps
             ? `${s.fetched} fetched · ${s.errors} slug${s.errors === 1 ? '' : 's'} unavailable (stale or 404'd)`
             : undefined;
           return (
-            <li
-              key={s.name}
-              className={`fetch-progress-row fetch-progress-${s.state}`}
-              title={tooltip}
-            >
-              <span className="fetch-progress-name">{s.name}</span>
-              <span className="fetch-progress-state">
+            <li key={s.name} className={ROW_CLASS[s.state]} title={tooltip}>
+              <span>{s.name}</span>
+              <span className={dockStyles.state}>
                 {showCount ? `${stateLabel(s.state)} ${s.fetched}` : stateLabel(s.state)}
                 {showStaleSuffix && (
-                  <span className="fetch-progress-stale-suffix"> · {s.errors} stale</span>
+                  <span className={dockStyles.staleSuffix}> · {s.errors} stale</span>
                 )}
               </span>
             </li>
@@ -181,12 +194,12 @@ export function FetchProgress({ onComplete, onStatusChange }: FetchProgressProps
       </ul>
 
       {state.lastError && (
-        <p className="fetch-progress-error" title={state.lastError}>
+        <p className={dockStyles.errorBlock} title={state.lastError}>
           {state.lastError.slice(0, 200)}
         </p>
       )}
       {(state.status === 'done' || state.status === 'error') && (
-        <button type="button" className="fetch-progress-dismiss" onClick={() => setHidden(true)}>
+        <button type="button" className={dockStyles.dismiss} onClick={() => setHidden(true)}>
           dismiss
         </button>
       )}

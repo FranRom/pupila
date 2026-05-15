@@ -1,0 +1,67 @@
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+}
+
+.row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.5rem 0.75rem;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.head {
+  display: flex;
+  align-items: baseline;
+  gap: 0.625rem;
+}
+
+.label {
+  font-weight: 600;
+  font-size: 0.8125rem;
+  flex: 1;
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+
+.size {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  font-size: 0.875rem;
+}
+
+.files {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+}
+
+.bar {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--row-hover);
+  overflow: hidden;
+}
+
+.barFill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--primary), var(--applied-border));
+  border-radius: 2px;
+  transition: width 0.4s ease;
+}
+
+.note {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .barFill {
+    transition: none;
+  }
+}

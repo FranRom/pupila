@@ -1,3 +1,4 @@
+import chipStyles from '../styles/Chip.module.css';
 import type { JobSignals } from '../types.ts';
 
 // Short labels for the inline chips. Signals not in this map are skipped —
@@ -46,7 +47,7 @@ export function SignalChips({ signals, max = 3 }: SignalChipsProps) {
       {fired.map((s) => (
         <span
           key={s.key}
-          className="signal-chip"
+          className={chipStyles.signal}
           title={`${s.label} contributed +${s.value} to the fit score`}
         >
           {s.label} +{s.value}

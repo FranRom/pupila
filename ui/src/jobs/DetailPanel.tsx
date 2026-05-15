@@ -1,6 +1,8 @@
+import bannerStyles from '../styles/Banner.module.css';
 import type { AiReview, AppliedEntry, Job, QueueRowStatus } from '../types.ts';
 import { AiApplyPanel } from './AiApplyPanel.tsx';
 import { AppliedBar } from './AppliedBar.tsx';
+import styles from './DetailPanel.module.css';
 import { ReviewBody } from './ReviewBody.tsx';
 import { SignalsList } from './SignalsList.tsx';
 import type { AiApplyError, AiApplyResult, SetApplied } from './types.ts';
@@ -45,18 +47,18 @@ export function DetailPanel({
         enqueueJob={enqueueJob}
       />
       {aiApplyError && (
-        <div className="api-error" role="alert">
+        <div className={bannerStyles.error} role="alert">
           AI Apply failed: {aiApplyError.error}
         </div>
       )}
       {aiApplyResult && <AiApplyPanel body={aiApplyResult.body} path={aiApplyResult.path} />}
-      <div className="detail">
+      <div className={styles.detail}>
         <section>
           <h3>AI take</h3>
           {review ? (
             <ReviewBody review={review} />
           ) : (
-            <p className="placeholder">
+            <p className={styles.placeholder}>
               No AI review yet — run <code>pnpm run ai-review</code> after the next pipeline run.
             </p>
           )}
@@ -66,14 +68,14 @@ export function DetailPanel({
           {job._signals ? (
             <SignalsList signals={job._signals} />
           ) : (
-            <p className="placeholder">
+            <p className={styles.placeholder}>
               No <code>_signals</code> on this job (older entry).
             </p>
           )}
         </section>
         <section>
           <h3>Meta</h3>
-          <dl className="meta">
+          <dl className={styles.meta}>
             <dt>Location</dt>
             <dd>
               {job.location ?? '—'} {job.remote ? '· remote' : ''}
@@ -83,7 +85,7 @@ export function DetailPanel({
             <dt>Posted</dt>
             <dd>{job.postedAt ? new Date(job.postedAt).toLocaleDateString() : 'unknown'}</dd>
             <dt>ID</dt>
-            <dd className="mono">{job.id}</dd>
+            <dd className={styles.mono}>{job.id}</dd>
           </dl>
         </section>
       </div>
