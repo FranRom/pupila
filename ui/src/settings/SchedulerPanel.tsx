@@ -1,7 +1,9 @@
 // [02] Scheduler panel — read state + install/uninstall daily agents.
 
+import clsx from 'clsx';
 import { relativeTime } from '../format.ts';
-import { Section, SkeletonRows, TerminalBlock } from './shared.tsx';
+import styles from './SchedulerPanel.module.css';
+import { Section, SkeletonRows, settingsStyles, TerminalBlock } from './shared.tsx';
 import type { SchedulerStatus } from './types.ts';
 
 interface SchedulerPanelProps {
@@ -32,14 +34,14 @@ export function SchedulerPanel({
       title="Scheduler"
       subtitle="Run the daily aggregator and AI review without opening this UI."
       meta={
-        scheduler ? <span className="settings-meta-pill mono">{scheduler.platform}</span> : null
+        scheduler ? <span className={settingsStyles.pillMono}>{scheduler.platform}</span> : null
       }
     >
       {!scheduler ? (
         <SkeletonRows count={2} />
       ) : (
         <>
-          <div className="scheduler-grid">
+          <div className={styles.grid}>
             <SchedulerRow
               label="Aggregator"
               cmd="pnpm run dev"
@@ -55,7 +57,7 @@ export function SchedulerPanel({
           </div>
 
           {scheduler.platform === 'other' ? (
-            <p className="warn">
+            <p className={styles.warn}>
               Unknown platform — only macOS and Linux scheduler scripts are bundled.
             </p>
           ) : (
@@ -76,7 +78,7 @@ export function SchedulerPanel({
                     : 'Install'
                 }
               />
-              <label className="checkbox checkbox-inline">
+              <label className={clsx(styles.checkbox)}>
                 <input
                   type="checkbox"
                   checked={skipReview}
@@ -116,15 +118,15 @@ interface SchedulerRowProps {
 
 function SchedulerRow({ label, cmd, installed, lastRun }: SchedulerRowProps) {
   return (
-    <div className="scheduler-row">
-      <div className="scheduler-row-text">
-        <span className="scheduler-label">{label}</span>
-        <code className="scheduler-cmd">{cmd}</code>
+    <div className={styles.row}>
+      <div className={styles.rowText}>
+        <span className={styles.label}>{label}</span>
+        <code className={styles.cmd}>{cmd}</code>
       </div>
-      <span className={`scheduler-pill scheduler-pill-${installed ? 'on' : 'off'}`}>
+      <span className={installed ? styles.pillOn : styles.pillOff}>
         {installed ? 'loaded' : 'not loaded'}
       </span>
-      <span className="scheduler-lastrun">
+      <span className={styles.lastrun}>
         {lastRun ? `last run ${relativeTime(lastRun)}` : 'never run'}
       </span>
     </div>

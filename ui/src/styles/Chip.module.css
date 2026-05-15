@@ -1,0 +1,23 @@
+/*
+ * Shared chip system.
+ *
+ * `signal` is the warning-tinted monospace pill used to surface why a job
+ * scored well — used by both the Jobs table (SignalChips) and the Jinder
+ * swipe card. Single source of truth so the two surfaces can't drift.
+ */
+
+.signal {
+  display: inline-flex;
+  align-items: center;
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 0.625rem;
+  font-weight: 600;
+  padding: 0.0625rem 0.375rem;
+  border-radius: 999px;
+  background: var(--bg);
+  color: var(--warning);
+  border: 1px solid var(--warning);
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  line-height: 1.4;
+}

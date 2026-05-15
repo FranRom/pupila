@@ -1,0 +1,73 @@
+/*
+ * SwipeControls: two big icon buttons (✕ skip, ✓ apply) sitting under the
+ * swipe card. Mirror of the swipe gesture for users who'd rather click.
+ */
+
+.controls {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 1.25rem;
+  margin-top: 0.5rem;
+}
+
+.btn {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  border: 2px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  font-size: 1.5rem;
+  line-height: 1;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition:
+    border-color 0.15s,
+    color 0.15s,
+    transform 0.1s,
+    background 0.15s;
+}
+
+.btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+.btn:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.skip {
+  composes: btn;
+  border-color: var(--swipe-skip);
+  color: var(--swipe-skip);
+}
+
+.skip:hover:not(:disabled) {
+  background: var(--swipe-skip);
+  color: white;
+}
+
+.apply {
+  composes: btn;
+  border-color: var(--swipe-apply);
+  color: var(--swipe-apply);
+}
+
+.apply:hover:not(:disabled) {
+  background: var(--swipe-apply);
+  color: white;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .btn {
+    transition: none;
+  }
+}

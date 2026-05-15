@@ -1,6 +1,9 @@
+import clsx from 'clsx';
 import { relativeTime } from '../format.ts';
+import chipStyles from '../styles/Chip.module.css';
 import type { Job } from '../types.ts';
 import { FitDonut } from './FitDonut.tsx';
+import styles from './SwipeCard.module.css';
 import type { SwipeAction } from './types.ts';
 import { useSwipeGesture } from './useSwipeGesture.ts';
 
@@ -23,13 +26,19 @@ function pickDisplayBody(body: string, job: Job): string {
 }
 
 export function SwipeCard({ job, body, onSwipe, leaving }: SwipeCardProps) {
-  const { cardProps } = useSwipeGesture({
+  const { cardProps, dragging, direction } = useSwipeGesture({
     onSwipe,
     enabled: !leaving,
   });
 
-  const leavingClass = leaving ? `swipe-leaving-${leaving}` : '';
-  const className = ['swipe-card', cardProps.className, leavingClass].filter(Boolean).join(' ');
+  const className = clsx(
+    styles.card,
+    dragging && styles.isSwiping,
+    direction === 'left' && styles.directionLeft,
+    direction === 'right' && styles.directionRight,
+    leaving === 'left' && styles.leavingLeft,
+    leaving === 'right' && styles.leavingRight,
+  );
 
   const visibleTags = job.tags.slice(0, 6);
 
@@ -42,29 +51,29 @@ export function SwipeCard({ job, body, onSwipe, leaving }: SwipeCardProps) {
       onPointerUp={cardProps.onPointerUp}
       onPointerCancel={cardProps.onPointerCancel}
     >
-      <div className="swipe-stamp swipe-stamp-skip" aria-hidden>
+      <div className={styles.stampSkip} aria-hidden>
         SKIP
       </div>
 
-      <div className="swipe-card-header">
-        <div className="swipe-card-company">{job.company ?? '—'}</div>
+      <div className={styles.header}>
+        <div className={styles.company}>{job.company ?? '—'}</div>
         <FitDonut score={job.fitScore} />
       </div>
 
-      <h2 className="swipe-card-title">{job.title}</h2>
+      <h2 className={styles.title}>{job.title}</h2>
 
-      <div className="swipe-card-meta">
+      <div className={styles.meta}>
         {job.location ? <span>{job.location}</span> : null}
         <span>{job.source}</span>
         <span>{relativeTime(job.postedAt)}</span>
       </div>
 
-      <div className="swipe-card-body">{pickDisplayBody(body, job)}</div>
+      <div className={styles.body}>{pickDisplayBody(body, job)}</div>
 
       {visibleTags.length > 0 ? (
-        <div className="swipe-card-tags">
+        <div className={styles.tags}>
           {visibleTags.map((tag) => (
-            <span className="swipe-card-tag" key={tag}>
+            <span className={chipStyles.signal} key={tag}>
               {tag}
             </span>
           ))}

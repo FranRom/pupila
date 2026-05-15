@@ -1,9 +1,11 @@
 // [05] Disk usage panel — bytes/files for data/raw, data/applications,
 // data/archive.
 
+import clsx from 'clsx';
 import { useMemo } from 'react';
 import { formatBytes } from '../format.ts';
-import { Section, SkeletonRows } from './shared.tsx';
+import styles from './DiskUsagePanel.module.css';
+import { Section, SkeletonRows, settingsStyles } from './shared.tsx';
 import type { DiskBucket, DiskUsage } from './types.ts';
 
 interface DiskUsagePanelProps {
@@ -37,7 +39,7 @@ export function DiskUsagePanel({ disk }: DiskUsagePanelProps) {
       subtitle="Local artifacts under data/."
       meta={
         disk ? (
-          <span className="settings-meta-pill mono">
+          <span className={settingsStyles.pillMono}>
             {formatBytes(disk.total.bytes)} · {disk.total.files} files
           </span>
         ) : null
@@ -46,7 +48,7 @@ export function DiskUsagePanel({ disk }: DiskUsagePanelProps) {
       {!disk ? (
         <SkeletonRows count={3} />
       ) : (
-        <ul className="disk-list">
+        <ul className={styles.list}>
           {diskBuckets?.map((b) => (
             <DiskRow
               key={b.key}
@@ -72,16 +74,16 @@ interface DiskRowProps {
 function DiskRow({ label, bucket, note, totalBytes }: DiskRowProps) {
   const pct = totalBytes > 0 ? Math.max(2, Math.round((bucket.bytes / totalBytes) * 100)) : 0;
   return (
-    <li className="disk-row">
-      <div className="disk-row-head">
-        <span className="disk-label mono">{label}</span>
-        <span className="disk-size">{formatBytes(bucket.bytes)}</span>
-        <span className="disk-files muted">{bucket.files} files</span>
+    <li className={styles.row}>
+      <div className={styles.head}>
+        <span className={clsx(styles.label)}>{label}</span>
+        <span className={styles.size}>{formatBytes(bucket.bytes)}</span>
+        <span className={styles.files}>{bucket.files} files</span>
       </div>
-      <div className="disk-bar" aria-hidden>
-        <div className="disk-bar-fill" style={{ width: `${pct}%` }} />
+      <div className={styles.bar} aria-hidden>
+        <div className={styles.barFill} style={{ width: `${pct}%` }} />
       </div>
-      <span className="disk-note muted">{note}</span>
+      <span className={styles.note}>{note}</span>
     </li>
   );
 }

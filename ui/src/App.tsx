@@ -1,12 +1,14 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import clsx from 'clsx';
+import { lazy, memo, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { AiApplyProgress, type AiApplyState as DockState } from './AiApplyProgress.tsx';
+import styles from './App.module.css';
 import { FetchProgress } from './FetchProgress.tsx';
 import { relativeTime } from './format.ts';
 import { AppHeader } from './jobs/AppHeader.tsx';
 import { DetailPanel } from './jobs/DetailPanel.tsx';
 import { JobsFilters } from './jobs/JobsFilters.tsx';
 import { QueueBadge } from './jobs/QueueBadge.tsx';
-import { ScoreBar } from './jobs/ScoreBar.tsx';
+import { ScoreBar, type ScoreTier } from './jobs/ScoreBar.tsx';
 import { SignalChips } from './jobs/SignalChips.tsx';
 import {
   type AiApplyError,
@@ -15,17 +17,23 @@ import {
   type SetApplied,
   STATUS_EMOJI,
 } from './jobs/types.ts';
-import { Onboarding } from './Onboarding.tsx';
-import { Profile } from './Profile.tsx';
+import { api, formatError } from './lib/api/index.ts';
+import { useApplied } from './lib/hooks/useApplied.ts';
+import { useApplyQueue } from './lib/hooks/useApplyQueue.ts';
+import { useJobsData } from './lib/hooks/useJobsData.ts';
+import { useOnboarding } from './lib/hooks/useOnboarding.ts';
+import { useSwipeSkips } from './lib/hooks/useSwipeSkips.ts';
+import { type SortDir, type SortKey, useUrlSyncedState } from './lib/hooks/useUrlSyncedState.ts';
 import { SchedulerProgress } from './SchedulerProgress.tsx';
-import { Settings } from './Settings.tsx';
-import { SwipeDeck } from './swipe/SwipeDeck.tsx';
+import badgeStyles from './styles/Badge.module.css';
+import bannerStyles from './styles/Banner.module.css';
+import buttonStyles from './styles/Button.module.css';
+import dockStyles from './styles/Dock.module.css';
 import type {
   AiReview,
   AiReviews,
   ApplicationStatus,
   AppliedEntry,
-  ApplyQueueResponse,
   Category,
   Job,
   QueueRowStatus,
@@ -33,12 +41,36 @@ import type {
   Source,
 } from './types.ts';
 
-type Tab = 'jobs' | 'swipe' | 'profile' | 'settings';
+// Lazy-loaded tab subtrees. Each is its own bundle chunk so the initial Jobs
+// view doesn't ship Settings/Profile/Onboarding code the user may never open.
+// Wrap the named export as `default` to match `React.lazy()`'s required shape.
+const Onboarding = lazy(() => import('./Onboarding.tsx').then((m) => ({ default: m.Onboarding })));
+const Profile = lazy(() => import('./Profile.tsx').then((m) => ({ default: m.Profile })));
+const Settings = lazy(() => import('./Settings.tsx').then((m) => ({ default: m.Settings })));
+const SwipeDeck = lazy(() =>
+  import('./swipe/SwipeDeck.tsx').then((m) => ({ default: m.SwipeDeck })),
+);
 
-interface PreferencesResponse {
-  provider: string | null;
-  onboardedAt: string | null;
-}
+const SCORE_TIER_CLASS = {
+  high: styles.scoreHigh,
+  mid: styles.scoreMid,
+  low: styles.scoreLow,
+} as const;
+
+const VERDICT_CLASS = {
+  'strong-match': styles.verdictStrongMatch,
+  match: styles.verdictMatch,
+  'weak-match': styles.verdictWeakMatch,
+  skip: styles.verdictSkip,
+} as const;
+
+const STATUS_BADGE_CLASS = {
+  applied: badgeStyles.applied,
+  interview: badgeStyles.interview,
+  offer: badgeStyles.offer,
+  rejected: badgeStyles.rejected,
+  withdrawn: badgeStyles.withdrawn,
+} as const;
 
 const CATEGORY_OPTIONS: ReadonlyArray<Category | 'all'> = [
   'all',
@@ -47,9 +79,6 @@ const CATEGORY_OPTIONS: ReadonlyArray<Category | 'all'> = [
   'ai',
   'general',
 ];
-
-type SortKey = 'fitScore' | 'salaryMax' | 'postedAt';
-type SortDir = 'asc' | 'desc';
 
 interface CompanyGroup {
   /** lowercased — used as identity for expand state and grouping key */
@@ -61,277 +90,103 @@ interface CompanyGroup {
   topJob: Job;
 }
 
-function readUrl(): {
-  search: string;
-  category: Category | 'all';
-  source: Source | 'all';
-  appliedOnly: boolean;
-  showSkipped: boolean;
-  queuedOnly: boolean;
-  sortKey: SortKey;
-  sortDir: SortDir;
-  groupByCompany: boolean;
-  compact: boolean;
-  expanded: string | null;
-  expandedCompany: string | null;
-  tab: Tab;
-} {
-  const p = new URLSearchParams(window.location.search);
-  const cat = p.get('cat');
-  const sortKey = p.get('sort');
-  const sortDir = p.get('dir');
-  const tab = p.get('tab');
-  return {
-    search: p.get('q') ?? '',
-    category:
-      cat === 'web3+ai' || cat === 'web3' || cat === 'ai' || cat === 'general' ? cat : 'all',
-    source: (p.get('src') as Source | 'all' | null) ?? 'all',
-    appliedOnly: p.get('applied') === '1',
-    showSkipped: p.get('skipped') === '1',
-    queuedOnly: p.get('queued') === '1',
-    sortKey: sortKey === 'salaryMax' || sortKey === 'postedAt' ? sortKey : 'fitScore',
-    sortDir: sortDir === 'asc' ? 'asc' : 'desc',
-    groupByCompany: p.get('group') !== '0',
-    // Default OFF — only persisted in URL when explicitly enabled.
-    compact: p.get('compact') === '1',
-    expanded: p.get('expanded'),
-    expandedCompany: p.get('co'),
-    tab:
-      tab === 'profile'
-        ? 'profile'
-        : tab === 'settings'
-          ? 'settings'
-          : tab === 'swipe'
-            ? 'swipe'
-            : 'jobs',
-  };
-}
-
 export function App() {
-  const initial = useMemo(() => readUrl(), []);
-  const [search, setSearch] = useState(initial.search);
-  const [category, setCategory] = useState<Category | 'all'>(initial.category);
-  const [source, setSource] = useState<Source | 'all'>(initial.source);
-  const [appliedOnly, setAppliedOnly] = useState(initial.appliedOnly);
-  const [showSkipped, setShowSkipped] = useState(initial.showSkipped);
-  const [queuedOnly, setQueuedOnly] = useState(initial.queuedOnly);
-  const [sortKey, setSortKey] = useState<SortKey>(initial.sortKey);
-  const [sortDir, setSortDir] = useState<SortDir>(initial.sortDir);
-  const [groupByCompany, setGroupByCompany] = useState(initial.groupByCompany);
-  const [compact, setCompact] = useState(initial.compact);
-  const [expanded, setExpanded] = useState<string | null>(initial.expanded);
-  const [expandedCompany, setExpandedCompany] = useState<string | null>(initial.expandedCompany);
-  const [appliedById, setAppliedById] = useState<AppliedMap>({});
+  // URL-synced filter / sort / group / tab state — readUrl on mount, write
+  // back to history.replaceState on every change. See useUrlSyncedState.
+  const {
+    search,
+    category,
+    source,
+    appliedOnly,
+    showSkipped,
+    queuedOnly,
+    sortKey,
+    sortDir,
+    groupByCompany,
+    compact,
+    expanded,
+    expandedCompany,
+    tab,
+    setSearch,
+    setCategory,
+    setSource,
+    setAppliedOnly,
+    setShowSkipped,
+    setQueuedOnly,
+    setSortKey,
+    setSortDir,
+    setGroupByCompany,
+    setCompact,
+    setTab,
+    toggleExpanded,
+    toggleExpandedCompany,
+  } = useUrlSyncedState();
+
+  // Cross-cutting UI banner — shared by every async failure path.
   const [apiError, setApiError] = useState<string | null>(null);
+  const onApiError = useCallback((msg: string) => setApiError(msg), []);
+  const onApiSuccess = useCallback(() => setApiError(null), []);
+
   // Lifted AI Apply state — the dock at App root is the only source of
   // truth for "is something running"; FragmentRow reads {busyJobId, result,
   // error} to know what to render and whether to disable its button.
   const [aiApplyBusyId, setAiApplyBusyId] = useState<string | null>(null);
   const [aiApplyResult, setAiApplyResult] = useState<AiApplyResult | null>(null);
   const [aiApplyError, setAiApplyError] = useState<AiApplyError | null>(null);
-  const [tab, setTab] = useState<Tab>(initial.tab);
-  // jobs.json and ai-reviews.json are gitignored personal/AI artifacts —
-  // fetched at runtime from the dev-server middleware so a fresh clone
-  // works without those files existing.
-  const [allJobs, setAllJobs] = useState<Job[]>([]);
-  const [aiReviews, setAiReviews] = useState<AiReviews>({});
-  const [dataLoading, setDataLoading] = useState(true);
-  const [fetchInFlight, setFetchInFlight] = useState(false);
-  // null = not loaded yet (don't surface banner); false = scheduler not
-  // installed (the banner's "install daily scheduler" CTA makes sense).
-  const [schedulerInstalled, setSchedulerInstalled] = useState<boolean | null>(null);
-  // Onboarding state. `null` while we're still fetching /api/preferences;
-  // `false` once we've confirmed the user has finished onboarding (or
-  // they bypass via the Profile tab); `true` triggers the wizard.
-  const [showOnboarding, setShowOnboarding] = useState<boolean | null>(null);
-  // LOW-9: SchedulerProgress dock now lives at App root. Settings reads
-  // schedulerCompletedAt to know when to refresh its status panel.
-  const [schedulerCompletedAt, setSchedulerCompletedAt] = useState(0);
-  // Apply-queue state. Polled at App root so both the Jinder deck and the
-  // Settings panel see the same snapshot. Skipped when the relevant tabs
-  // aren't visible to keep the dev server quiet.
-  const [applyQueue, setApplyQueue] = useState<ApplyQueueResponse | null>(null);
-  const [swipeSkipIds, setSwipeSkipIds] = useState<Set<string>>(new Set());
-  // AI verdict 'skip' is treated as an implicit skip — but the user can
-  // override it. Stored in localStorage (UI-only visibility concern; doesn't
-  // belong in the file-based ledgers). The Set holds jobIds where the user
-  // has explicitly chosen to ignore the AI's skip recommendation.
-  const [aiSkipOverrides, setAiSkipOverrides] = useState<Set<string>>(() => {
-    try {
-      const raw = window.localStorage.getItem('jinder-ai-skip-overrides');
-      if (raw) return new Set(JSON.parse(raw) as string[]);
-    } catch {
-      // ignore — corrupt storage value, fall back to empty.
-    }
-    return new Set();
+
+  // jobs.json + ai-reviews.json — server snapshot.
+  const { allJobs, aiReviews, loading: dataLoading, reload: reloadJobsAndReviews } = useJobsData();
+
+  // applied tracking: jobId-keyed map reconciled against allJobs.
+  const {
+    appliedById,
+    setApplied,
+    upsertEntry: upsertApplied,
+  } = useApplied({
+    allJobs,
+    onError: onApiError,
+    onSuccess: onApiSuccess,
   });
-  useEffect(() => {
-    try {
-      window.localStorage.setItem('jinder-ai-skip-overrides', JSON.stringify([...aiSkipOverrides]));
-    } catch {
-      // localStorage may be full / disabled; behavior degrades to in-memory.
-    }
-  }, [aiSkipOverrides]);
 
-  const refreshApplyQueue = useCallback(async (signal?: AbortSignal) => {
-    try {
-      const [qr, sr] = await Promise.all([
-        fetch('/api/apply-queue', { signal }),
-        fetch('/api/apply-queue/skips', { signal }),
-      ]);
-      if (qr.ok) setApplyQueue((await qr.json()) as ApplyQueueResponse);
-      if (sr.ok) {
-        const body = (await sr.json()) as { skips: string[] };
-        setSwipeSkipIds(new Set(body.skips));
-      }
-    } catch (err) {
-      if (err instanceof Error && err.name === 'AbortError') return;
-      // other network blip — keep the previous snapshot
-    }
-  }, []);
+  // AI Apply queue: snapshot + mutations + derived helpers + tab-gated poll.
+  const {
+    queue: applyQueue,
+    swipeSkipIds,
+    statusMap: queueStatusMap,
+    activeJobIds: activeQueueJobIds,
+    refresh: refreshApplyQueue,
+    enqueue: enqueueJob,
+    cancel: cancelQueueRow,
+    addSkip,
+    removeSkip,
+  } = useApplyQueue({
+    pollEnabled: tab === 'swipe' || tab === 'settings',
+    onError: onApiError,
+  });
 
-  // Toggle skipped state for a job, unifying both sources:
-  //   - swipe-skips.json (persisted, written by Jinder swipes + this pill)
-  //   - aiSkipOverrides   (localStorage, only used to override AI verdict 'skip')
-  // The pill works regardless of why the job is currently skipped — including
-  // AI-driven skips, which previously had no user control.
-  // Unified "is this job effectively skipped?" — used by filter, badge, pill
-  // state, and row class. Sourced from either the persistent swipe-skips file
-  // or the AI verdict 'skip', minus any user override of the latter.
-  const isJobSkipped = useCallback(
-    (jobId: string): boolean =>
-      swipeSkipIds.has(jobId) ||
-      (aiReviews[jobId]?.verdict === 'skip' && !aiSkipOverrides.has(jobId)),
-    [swipeSkipIds, aiReviews, aiSkipOverrides],
-  );
+  // Unified skip predicate combining server skips + AI-verdict skips + local
+  // AI-override Set in localStorage.
+  const { isJobSkipped, toggleSkip } = useSwipeSkips({
+    swipeSkipIds,
+    aiReviews,
+    addSkip,
+    removeSkip,
+    onError: onApiError,
+  });
 
-  const toggleSkip = useCallback(
-    async (jobId: string): Promise<void> => {
-      const inSwipe = swipeSkipIds.has(jobId);
-      const aiSays = aiReviews[jobId]?.verdict === 'skip';
-      const overridden = aiSkipOverrides.has(jobId);
-      const effectivelySkipped = inSwipe || (aiSays && !overridden);
+  // First-run wizard gate. Owns its own mount-probe; exposes a reprobe()
+  // we plumb into the clean flow so a destructive reset routes back to
+  // onboarding without a hard refresh.
+  const {
+    showOnboarding,
+    reprobe: reprobeOnboarding,
+    dismiss: dismissOnboarding,
+  } = useOnboarding();
 
-      if (effectivelySkipped) {
-        // User wants to UNskip. Two stores might contribute; handle both.
-        if (aiSays && !overridden) {
-          setAiSkipOverrides((prev) => new Set([...prev, jobId]));
-        }
-        if (inSwipe) {
-          setSwipeSkipIds((prev) => {
-            const next = new Set(prev);
-            next.delete(jobId);
-            return next;
-          });
-          try {
-            const res = await fetch(`/api/apply-queue/${encodeURIComponent(jobId)}/skip`, {
-              method: 'DELETE',
-            });
-            if (!res.ok) throw new Error(`HTTP ${res.status}`);
-          } catch (err) {
-            // Rollback swipe-skip removal; the AI override (pure UI state) stays.
-            setSwipeSkipIds((prev) => new Set([...prev, jobId]));
-            setApiError(`Could not unskip: ${err instanceof Error ? err.message : String(err)}`);
-          }
-        }
-      } else {
-        // User wants to SKIP. If AI overrode is the only blocker, just lift it.
-        if (aiSays && overridden) {
-          setAiSkipOverrides((prev) => {
-            const next = new Set(prev);
-            next.delete(jobId);
-            return next;
-          });
-        } else {
-          setSwipeSkipIds((prev) => new Set([...prev, jobId]));
-          try {
-            const res = await fetch(`/api/apply-queue/${encodeURIComponent(jobId)}/skip`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-            });
-            if (!res.ok) throw new Error(`HTTP ${res.status}`);
-          } catch (err) {
-            setSwipeSkipIds((prev) => {
-              const next = new Set(prev);
-              next.delete(jobId);
-              return next;
-            });
-            setApiError(`Could not skip: ${err instanceof Error ? err.message : String(err)}`);
-          }
-        }
-      }
-    },
-    [swipeSkipIds, aiReviews, aiSkipOverrides],
-  );
-
-  const cancelQueueRow = useCallback(
-    async (jobId: string): Promise<void> => {
-      try {
-        await fetch(`/api/apply-queue/${encodeURIComponent(jobId)}`, { method: 'DELETE' });
-      } finally {
-        await refreshApplyQueue();
-      }
-    },
-    [refreshApplyQueue],
-  );
-
-  // Enqueue a job for AI Apply from the table — symmetric with the
-  // Jinder right-swipe. Backend already de-duplicates (409 on existing
-  // active rows) so we just surface that as a non-fatal error.
-  const enqueueJob = useCallback(
-    async (jobId: string): Promise<void> => {
-      try {
-        const res = await fetch('/api/apply-queue/enqueue', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ jobId }),
-        });
-        if (!res.ok && res.status !== 409) {
-          throw new Error(`HTTP ${res.status}`);
-        }
-      } catch (err) {
-        setApiError(`Could not queue job: ${err instanceof Error ? err.message : String(err)}`);
-      } finally {
-        await refreshApplyQueue();
-      }
-    },
-    [refreshApplyQueue],
-  );
-
-  // Re-fetch jobs + AI reviews + applied entries (e.g. after the fetch-jobs
-  // run completes, or after onboarding finishes). Reconciles applied
-  // status with the current jobs list so URL-keyed entries land on the
-  // right job ids. Optional signal lets the caller abort on unmount.
-  const reloadJobsAndReviews = useCallback(async (signal?: AbortSignal) => {
-    const fetchOrFallback = async <T,>(url: string, fallback: T): Promise<T> => {
-      try {
-        const r = await fetch(url, { signal });
-        return r.ok ? ((await r.json()) as T) : fallback;
-      } catch (err) {
-        if (err instanceof Error && err.name === 'AbortError') throw err;
-        return fallback;
-      }
-    };
-    try {
-      const [jobs, reviews, applied] = await Promise.all([
-        fetchOrFallback<Job[]>('/api/jobs', []),
-        fetchOrFallback<AiReviews>('/api/reviews', {}),
-        fetchOrFallback<AppliedEntry[]>('/api/applied', []),
-      ]);
-      setAllJobs(jobs);
-      setAiReviews(reviews);
-      const byUrl = new Map(applied.map((e) => [e.url, e]));
-      const nextApplied: AppliedMap = {};
-      for (const j of jobs) {
-        const e = byUrl.get(j.url);
-        if (e) nextApplied[j.id] = e;
-      }
-      setAppliedById(nextApplied);
-    } catch (err) {
-      if (err instanceof Error && err.name === 'AbortError') return;
-      throw err;
-    }
-  }, []);
+  // Status panels that don't justify their own hooks yet.
+  const [fetchInFlight, setFetchInFlight] = useState(false);
+  const [schedulerInstalled, setSchedulerInstalled] = useState<boolean | null>(null);
+  const [schedulerCompletedAt, setSchedulerCompletedAt] = useState(0);
 
   // POST /api/ai-apply — kicks off a background LLM run. The
   // <AiApplyProgress /> dock at root polls /api/ai-apply-progress for live
@@ -347,22 +202,11 @@ export function App() {
       setAiApplyBusyId(job.id);
       setAiApplyResult(null);
       setAiApplyError(null);
-      try {
-        const res = await fetch('/api/ai-apply', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ jobId: job.id }),
-        });
-        if (!res.ok && res.status !== 202) {
-          const errBody = (await res.json().catch(() => ({}))) as { error?: string };
-          throw new Error(errBody.error ?? `HTTP ${res.status}`);
-        }
-        // Don't wait for the body — the dock will stream it in.
-      } catch (err) {
-        setAiApplyError({
-          jobId: job.id,
-          error: err instanceof Error ? err.message : String(err),
-        });
+      const r = await api.aiApply.run(job.id);
+      // 202 Accepted is success: the dock will stream the body in.
+      // (request() treats 2xx as ok, so we just check r.ok here.)
+      if (!r.ok) {
+        setAiApplyError({ jobId: job.id, error: formatError(r.error) });
         setAiApplyBusyId(null);
       }
     },
@@ -370,32 +214,32 @@ export function App() {
   );
 
   // Called by the AiApplyProgress dock when a run finishes.
-  const onAiApplyComplete = useCallback((dockState: DockState) => {
-    if (dockState.status === 'done' && dockState.jobId && dockState.path) {
-      setAiApplyResult({
-        jobId: dockState.jobId,
-        body: dockState.output,
-        path: dockState.path,
-      });
-      // Sync applied state without an extra round-trip.
-      if (dockState.applied) {
-        const appliedJobId = dockState.jobId;
-        const appliedEntry = dockState.applied;
-        setAppliedById((prev) => ({
-          ...prev,
-          [appliedJobId]: {
+  const onAiApplyComplete = useCallback(
+    (dockState: DockState) => {
+      if (dockState.status === 'done' && dockState.jobId && dockState.path) {
+        setAiApplyResult({
+          jobId: dockState.jobId,
+          body: dockState.output,
+          path: dockState.path,
+        });
+        // Sync applied state without an extra round-trip.
+        if (dockState.applied) {
+          const appliedJobId = dockState.jobId;
+          const appliedEntry = dockState.applied;
+          upsertApplied(appliedJobId, {
             url: appliedEntry.url,
             status: appliedEntry.status as ApplicationStatus,
             date: appliedEntry.date,
             ...(appliedEntry.notes ? { notes: appliedEntry.notes } : {}),
-          },
-        }));
+          });
+        }
+      } else if (dockState.status === 'error' && dockState.jobId && dockState.error) {
+        setAiApplyError({ jobId: dockState.jobId, error: dockState.error });
       }
-    } else if (dockState.status === 'error' && dockState.jobId && dockState.error) {
-      setAiApplyError({ jobId: dockState.jobId, error: dockState.error });
-    }
-    setAiApplyBusyId(null);
-  }, []);
+      setAiApplyBusyId(null);
+    },
+    [upsertApplied],
+  );
 
   // LOW-9: bookkeeping for the SchedulerProgress dock — Settings reads this
   // to know when to refresh its status panel after install/uninstall.
@@ -406,44 +250,17 @@ export function App() {
   // POST /api/fetch-jobs — kicks off the aggregator. The FetchProgress
   // component handles its own polling + parent re-fetch on success.
   const triggerFetch = useCallback(async () => {
-    try {
-      const res = await fetch('/api/fetch-jobs', { method: 'POST' });
-      if (!res.ok && res.status !== 202) {
-        const errBody = (await res.json().catch(() => ({}))) as { error?: string };
-        setApiError(errBody.error ?? `fetch run failed: HTTP ${res.status}`);
-      }
-    } catch (err) {
-      setApiError(`fetch run failed: ${err instanceof Error ? err.message : String(err)}`);
-    }
+    const r = await api.fetchJobs.trigger();
+    if (!r.ok) setApiError(`fetch run failed: ${formatError(r.error)}`);
   }, []);
 
-  // Load jobs + AI reviews + applied state + preferences on mount.
-  useEffect(() => {
-    const ctrl = new AbortController();
-    const load = async () => {
-      const loadPrefs = async (): Promise<PreferencesResponse> => {
-        try {
-          const r = await fetch('/api/preferences', { signal: ctrl.signal });
-          if (r.ok) return (await r.json()) as PreferencesResponse;
-          return { provider: null, onboardedAt: null };
-        } catch (err) {
-          if (err instanceof Error && err.name === 'AbortError') throw err;
-          return { provider: null, onboardedAt: null };
-        }
-      };
-      try {
-        const [, prefs] = await Promise.all([reloadJobsAndReviews(ctrl.signal), loadPrefs()]);
-        setDataLoading(false);
-        // First run = no `onboardedAt` stamp yet. Show the wizard.
-        setShowOnboarding(!prefs.onboardedAt);
-      } catch (err) {
-        if (err instanceof Error && err.name === 'AbortError') return;
-        throw err;
-      }
-    };
-    void load();
-    return () => ctrl.abort();
-  }, [reloadJobsAndReviews]);
+  // Settings' Maintenance panel calls this after a clean completes. A
+  // destructive clean wipes preferences + jobs on disk; we need to re-probe
+  // both so the user lands on the wizard (or an empty Jobs view) instead of
+  // a stale in-memory snapshot.
+  const onCleanComplete = useCallback(async () => {
+    await Promise.all([reprobeOnboarding(), reloadJobsAndReviews(), refreshApplyQueue()]);
+  }, [reprobeOnboarding, reloadJobsAndReviews, refreshApplyQueue]);
 
   // Load scheduler install state on mount and whenever an install/uninstall
   // op completes (Settings tab sets `schedulerCompletedAt`). Drives the
@@ -452,18 +269,13 @@ export function App() {
   useEffect(() => {
     const ctrl = new AbortController();
     const load = async () => {
-      try {
-        const r = await fetch('/api/scheduler-status', { signal: ctrl.signal });
-        if (!r.ok) {
-          setSchedulerInstalled(false);
-          return;
-        }
-        const data = (await r.json()) as { installed?: { aggregate?: boolean } };
-        setSchedulerInstalled(Boolean(data.installed?.aggregate));
-      } catch (err) {
-        if (err instanceof Error && err.name === 'AbortError') return;
+      const r = await api.scheduler.status({ signal: ctrl.signal });
+      if (!r.ok) {
+        if (r.error.kind === 'abort') return;
         setSchedulerInstalled(false);
+        return;
       }
+      setSchedulerInstalled(Boolean(r.value.installed.aggregate));
     };
     void load();
     return () => ctrl.abort();
@@ -494,141 +306,11 @@ export function App() {
     };
   }, [allJobs]);
 
-  // Poll the apply-queue while the swipe deck or Settings tab is mounted.
-  // The two tabs are the only places the data is rendered, so other tabs
-  // skip the refresh to keep the dev server quiet.
-  useEffect(() => {
-    if (tab !== 'swipe' && tab !== 'settings') return;
-    const ctrl = new AbortController();
-    const tick = async () => {
-      await refreshApplyQueue(ctrl.signal);
-    };
-    void tick();
-    const id = window.setInterval(() => void tick(), 2500);
-    return () => {
-      window.clearInterval(id);
-      ctrl.abort();
-    };
-  }, [tab, refreshApplyQueue]);
-
-  // Sync state → URL via replaceState so the back button doesn't get spammed.
-  useEffect(() => {
-    const p = new URLSearchParams();
-    if (search) p.set('q', search);
-    if (category !== 'all') p.set('cat', category);
-    if (source !== 'all') p.set('src', source);
-    if (appliedOnly) p.set('applied', '1');
-    if (showSkipped) p.set('skipped', '1');
-    if (queuedOnly) p.set('queued', '1');
-    if (sortKey !== 'fitScore') p.set('sort', sortKey);
-    if (sortDir !== 'desc') p.set('dir', sortDir);
-    if (!groupByCompany) p.set('group', '0');
-    if (compact) p.set('compact', '1');
-    if (expanded) p.set('expanded', expanded);
-    if (expandedCompany) p.set('co', expandedCompany);
-    if (tab !== 'jobs') p.set('tab', tab);
-    const qs = p.toString();
-    const next = `${window.location.pathname}${qs ? `?${qs}` : ''}`;
-    if (next !== `${window.location.pathname}${window.location.search}`) {
-      window.history.replaceState(null, '', next);
-    }
-  }, [
-    search,
-    category,
-    source,
-    appliedOnly,
-    showSkipped,
-    queuedOnly,
-    sortKey,
-    sortDir,
-    groupByCompany,
-    compact,
-    expanded,
-    expandedCompany,
-    tab,
-  ]);
-
-  const setApplied = useCallback<SetApplied>(
-    async (job, status, notes) => {
-      // MED-8: read snapshot directly from closure instead of via a no-op
-      // state updater (which is unsound under StrictMode double-invocation).
-      const prevSnapshot = appliedById[job.id];
-
-      if (status === null) {
-        setAppliedById((prev) => {
-          const next = { ...prev };
-          delete next[job.id];
-          return next;
-        });
-        try {
-          const res = await fetch('/api/applied', {
-            method: 'DELETE',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ url: job.url }),
-          });
-          if (!res.ok) throw new Error(`HTTP ${res.status}`);
-          setApiError(null);
-        } catch (err) {
-          setAppliedById((prev) => {
-            if (!prevSnapshot) return prev;
-            return { ...prev, [job.id]: prevSnapshot };
-          });
-          setApiError(
-            `Failed to clear status: ${err instanceof Error ? err.message : String(err)}`,
-          );
-        }
-        return;
-      }
-
-      const today = new Date().toISOString().slice(0, 10);
-      const finalNotes = notes !== undefined ? notes : prevSnapshot?.notes;
-      const optimistic: AppliedEntry = {
-        url: job.url,
-        status,
-        date: prevSnapshot?.date ?? today,
-        ...(finalNotes ? { notes: finalNotes } : {}),
-      };
-      setAppliedById((prev) => ({ ...prev, [job.id]: optimistic }));
-
-      try {
-        const res = await fetch('/api/applied', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(optimistic),
-        });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const saved = (await res.json()) as AppliedEntry;
-        setAppliedById((prev) => ({ ...prev, [job.id]: saved }));
-        setApiError(null);
-      } catch (err) {
-        setAppliedById((prev) => {
-          const next = { ...prev };
-          if (prevSnapshot) next[job.id] = prevSnapshot;
-          else delete next[job.id];
-          return next;
-        });
-        setApiError(`Failed to save status: ${err instanceof Error ? err.message : String(err)}`);
-      }
-    },
-    [appliedById],
-  );
-
   const sources = useMemo(() => {
     const s = new Set<Source>();
     for (const j of allJobs) s.add(j.source);
     return Array.from(s).sort();
   }, [allJobs]);
-
-  const queueStatusMap = useMemo<QueueStatusMap>(() => {
-    const map: QueueStatusMap = {};
-    if (!applyQueue) return map;
-    for (const row of applyQueue.rows) {
-      // Most recent row wins per jobId (queue can carry historical rows
-      // when a job has been re-enqueued after a previous done/failed run).
-      map[row.jobId] = row.status;
-    }
-    return map;
-  }, [applyQueue]);
 
   const visible = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -636,11 +318,7 @@ export function App() {
       if (category !== 'all' && j.category !== category) return false;
       if (source !== 'all' && j.source !== source) return false;
       if (appliedOnly && !appliedById[j.id]) return false;
-      if (!showSkipped) {
-        const aiSays = aiReviews[j.id]?.verdict === 'skip';
-        const effSkipped = swipeSkipIds.has(j.id) || (aiSays && !aiSkipOverrides.has(j.id));
-        if (effSkipped) return false;
-      }
+      if (!showSkipped && isJobSkipped(j.id)) return false;
       if (queuedOnly) {
         const qs = queueStatusMap[j.id];
         if (qs !== 'queued' && qs !== 'running') return false;
@@ -666,9 +344,7 @@ export function App() {
     source,
     appliedOnly,
     showSkipped,
-    swipeSkipIds,
-    aiSkipOverrides,
-    aiReviews,
+    isJobSkipped,
     queuedOnly,
     queueStatusMap,
     sortKey,
@@ -718,17 +394,6 @@ export function App() {
 
   const appliedCount = useMemo(() => Object.keys(appliedById).length, [appliedById]);
 
-  // Derive the queue-status-by-jobId map and the set of jobIds with
-  // non-terminal queue rows. Both the Jobs-tab badge and the SwipeDeck
-  // filter use these.
-  const activeQueueJobIds = useMemo<Set<string>>(() => {
-    const ids = new Set<string>();
-    for (const [jobId, status] of Object.entries(queueStatusMap)) {
-      if (status === 'queued' || status === 'running') ids.add(jobId);
-    }
-    return ids;
-  }, [queueStatusMap]);
-
   const appliedJobIds = useMemo<Set<string>>(
     () => new Set(Object.keys(appliedById)),
     [appliedById],
@@ -744,32 +409,34 @@ export function App() {
 
   if (showOnboarding === null) {
     return (
-      <div className="app">
-        <p className="placeholder">Loading…</p>
+      <div className={styles.app}>
+        <p className={styles.placeholder}>Loading…</p>
       </div>
     );
   }
   if (showOnboarding) {
     return (
-      <div className="app">
-        <Onboarding
-          onComplete={async () => {
-            setShowOnboarding(false);
-            await reloadJobsAndReviews();
-            // First-time user just finished onboarding and jobs.json is
-            // still empty — kick off the first aggregator run automatically
-            // so they don't land on an empty table with no obvious next
-            // action. The FetchProgress card handles the live UI; the
-            // poller will call reloadJobsAndReviews when it finishes.
-            void triggerFetch();
-          }}
-        />
+      <div className={styles.app}>
+        <Suspense fallback={<p className={styles.placeholder}>Loading…</p>}>
+          <Onboarding
+            onComplete={async () => {
+              dismissOnboarding();
+              await reloadJobsAndReviews();
+              // First-time user just finished onboarding and jobs.json is
+              // still empty — kick off the first aggregator run automatically
+              // so they don't land on an empty table with no obvious next
+              // action. The FetchProgress card handles the live UI; the
+              // poller will call reloadJobsAndReviews when it finishes.
+              void triggerFetch();
+            }}
+          />
+        </Suspense>
       </div>
     );
   }
 
   return (
-    <div className="app">
+    <div className={styles.app}>
       <AppHeader
         tab={tab}
         onTabChange={setTab}
@@ -780,29 +447,41 @@ export function App() {
         visibleCount={visible.length}
       />
 
-      {tab === 'profile' && <Profile />}
+      {/* Each lazy tab needs a Suspense boundary; sharing one would unmount
+          and re-suspend on every tab swap. Per-tab fallbacks let the user
+          see they're loading the chunk on first open. */}
+      {tab === 'profile' && (
+        <Suspense fallback={<p className={styles.placeholder}>Loading profile…</p>}>
+          <Profile />
+        </Suspense>
+      )}
       {tab === 'settings' && (
-        <Settings
-          schedulerCompletedAt={schedulerCompletedAt}
-          applyQueue={applyQueue}
-          onCancelQueueRow={cancelQueueRow}
-          onRefreshQueue={refreshApplyQueue}
-        />
+        <Suspense fallback={<p className={styles.placeholder}>Loading settings…</p>}>
+          <Settings
+            schedulerCompletedAt={schedulerCompletedAt}
+            applyQueue={applyQueue}
+            onCancelQueueRow={cancelQueueRow}
+            onRefreshQueue={refreshApplyQueue}
+            onCleanComplete={onCleanComplete}
+          />
+        </Suspense>
       )}
       {tab === 'swipe' && (
-        <SwipeDeck
-          allJobs={allJobs}
-          appliedJobIds={appliedJobIds}
-          queueRowJobIds={activeQueueJobIds}
-          skippedJobIds={swipeSkipIds}
-          onQueueRefresh={refreshApplyQueue}
-        />
+        <Suspense fallback={<p className={styles.placeholder}>Loading Jinder…</p>}>
+          <SwipeDeck
+            allJobs={allJobs}
+            appliedJobIds={appliedJobIds}
+            queueRowJobIds={activeQueueJobIds}
+            skippedJobIds={swipeSkipIds}
+            onQueueRefresh={refreshApplyQueue}
+          />
+        </Suspense>
       )}
       {tab === 'jobs' && (
         <>
           {apiError && (
-            <div className="api-error" role="alert">
-              {apiError}{' '}
+            <div className={bannerStyles.error} role="alert">
+              <span>{apiError}</span>
               <button type="button" onClick={() => setApiError(null)}>
                 dismiss
               </button>
@@ -853,10 +532,10 @@ export function App() {
             allJobs.length === 0 ? (
               <FetchCta onFetch={triggerFetch} />
             ) : (
-              <p className="empty">No jobs match the current filters.</p>
+              <p className={styles.empty}>No jobs match the current filters.</p>
             )
           ) : (
-            <table className={compact ? 'row-compact' : ''}>
+            <table className={clsx(styles.table, compact && styles.tableCompact)}>
               <JobsTableHead sortKey={sortKey} sortDir={sortDir} onToggleSort={toggleSort} />
               <tbody>
                 {groups
@@ -878,10 +557,8 @@ export function App() {
                         aiApplyBusyId={aiApplyBusyId}
                         aiApplyResult={aiApplyResult}
                         aiApplyError={aiApplyError}
-                        onToggleCompany={() =>
-                          setExpandedCompany(expandedCompany === g.key ? null : g.key)
-                        }
-                        onToggleJob={(id) => setExpanded(expanded === id ? null : id)}
+                        onToggleCompany={toggleExpandedCompany}
+                        onToggleJob={toggleExpanded}
                       />
                     ))
                   : visible.map((j) => (
@@ -901,7 +578,7 @@ export function App() {
                         aiApplyBusyId={aiApplyBusyId}
                         aiApplyResult={aiApplyResult}
                         aiApplyError={aiApplyError}
-                        onToggle={() => setExpanded(expanded === j.id ? null : j.id)}
+                        onToggle={toggleExpanded}
                       />
                     ))}
               </tbody>
@@ -912,7 +589,7 @@ export function App() {
       {/* LOW-9: SchedulerProgress lifted from Settings to App root so it
           stays visible across tab changes and stacks predictably alongside
           the other two docks. CSS class .dock-stack handles layout. */}
-      <div className="dock-stack">
+      <div className={dockStyles.dockStack}>
         <FetchProgress onComplete={reloadJobsAndReviews} onStatusChange={onFetchStatusChange} />
         <AiApplyProgress onComplete={onAiApplyComplete} />
         <SchedulerProgress onComplete={onSchedulerComplete} />
@@ -935,27 +612,31 @@ function StalenessBanner({
   onOpenScheduler,
 }: StalenessBannerProps) {
   return (
-    <div className="staleness-banner" role="status">
-      <span className="staleness-banner-icon" aria-hidden>
+    <div className={styles.stalenessBanner} role="status">
+      <span className={styles.stalenessIcon} aria-hidden>
         ⏳
       </span>
-      <div className="staleness-banner-body">
+      <div className={styles.stalenessBody}>
         <strong>Your job data is stale.</strong>
-        <span className="muted">
+        <span className={styles.muted}>
           Last fetched {fetchedAt ? relativeTime(fetchedAt) : 'over 24h ago'}. The daily scheduler
           isn't installed yet, without it, jobs only refresh when you trigger a fetch manually.
         </span>
       </div>
-      <div className="staleness-banner-actions">
+      <div className={styles.stalenessActions}>
         <button
           type="button"
-          className="btn btn-secondary btn-sm"
+          className={clsx(buttonStyles.secondary, buttonStyles.sm)}
           onClick={onRefetch}
           disabled={isFetching}
         >
           {isFetching ? 'Fetching…' : 'Refetch now'}
         </button>
-        <button type="button" className="btn btn-primary btn-sm" onClick={onOpenScheduler}>
+        <button
+          type="button"
+          className={clsx(buttonStyles.primary, buttonStyles.sm)}
+          onClick={onOpenScheduler}
+        >
           Install daily scheduler →
         </button>
       </div>
@@ -969,20 +650,27 @@ interface FetchCtaProps {
 
 function FetchCta({ onFetch }: FetchCtaProps) {
   return (
-    <div className="fetch-cta">
+    <div className={styles.fetchCta}>
       <h2>No jobs yet</h2>
-      <p>
-        Run the aggregator to pull listings from 13 sources (Ashby, Greenhouse, Lever, Hacker News,
-        Web3 boards, etc.). Takes about 30–60 seconds.
-      </p>
-      <button type="button" className="btn btn-secondary btn-lg" onClick={onFetch}>
-        ✨ Fetch jobs now
+      <p>Run the aggregator to pull listings from all the sources.</p>
+      <button
+        type="button"
+        className={clsx(buttonStyles.primary, buttonStyles.lg)}
+        onClick={onFetch}
+      >
+        Fetch jobs now
       </button>
-      <p className="muted fetch-cta-hint">
-        After the first run you can schedule daily fetches with{' '}
-        <code>scripts/install-launchd.sh</code> (macOS) or <code>scripts/install-cron.sh</code>{' '}
-        (Linux).
-      </p>
+      <div className={styles.fetchCtaHint}>
+        <p>After the first run you can also schedule daily fetches automatically with:</p>
+        <ul>
+          <li>
+            <code>scripts/install-launchd.sh</code> (macOS)
+          </li>
+          <li>
+            <code>scripts/install-cron.sh</code> (Linux)
+          </li>
+        </ul>
+      </div>
     </div>
   );
 }
@@ -1003,11 +691,13 @@ interface CompanyBlockProps {
   aiApplyBusyId: string | null;
   aiApplyResult: AiApplyResult | null;
   aiApplyError: AiApplyError | null;
-  onToggleCompany: () => void;
+  /** Receives the company group key — App passes a stable functional-setState
+   *  toggle so React.memo on rows isn't defeated by per-render arrows. */
+  onToggleCompany: (key: string) => void;
   onToggleJob: (id: string) => void;
 }
 
-function CompanyBlock({
+const CompanyBlock = memo(function CompanyBlock({
   group,
   isOpen,
   expanded,
@@ -1047,28 +737,31 @@ function CompanyBlock({
         aiApplyBusyId={aiApplyBusyId}
         aiApplyResult={aiApplyResult}
         aiApplyError={aiApplyError}
-        onToggle={() => onToggleJob(job.id)}
+        onToggle={onToggleJob}
       />
     );
   }
   return (
     <>
-      <tr className={`group-row ${isOpen ? 'open' : ''}`} onClick={onToggleCompany}>
-        <td className={`score ${scoreTier(group.topScore)}`}>
-          <div className="score-cell">
-            <span className="caret" aria-hidden>
-              {isOpen ? '▾' : '▸'}
+      <tr
+        className={clsx(styles.groupRow, isOpen && styles.rowOpen)}
+        onClick={() => onToggleCompany(group.key)}
+      >
+        <td className={clsx(styles.score, SCORE_TIER_CLASS[scoreTier(group.topScore)])}>
+          <div className={styles.scoreCell}>
+            <span className={styles.caret} aria-hidden>
+              {isOpen ? '×' : '+'}
             </span>
             {group.topScore}
           </div>
         </td>
         <td colSpan={7}>
-          <span className="group-co">{group.display}</span>
-          <span className="group-count">
+          <span className={styles.groupCo}>{group.display}</span>
+          <span className={styles.groupCount}>
             {group.jobs.length} role{group.jobs.length === 1 ? '' : 's'}
           </span>
           {!isOpen && (
-            <span className="group-preview" title={group.topJob.title}>
+            <span className={styles.groupPreview} title={group.topJob.title}>
               {group.topJob.title}
             </span>
           )}
@@ -1094,14 +787,14 @@ function CompanyBlock({
               aiApplyBusyId={aiApplyBusyId}
               aiApplyResult={aiApplyResult}
               aiApplyError={aiApplyError}
-              onToggle={() => onToggleJob(j.id)}
+              onToggle={onToggleJob}
               indent
             />
           );
         })}
     </>
   );
-}
+});
 
 interface FragmentRowProps {
   job: Job;
@@ -1118,11 +811,13 @@ interface FragmentRowProps {
   aiApplyBusyId: string | null;
   aiApplyResult: AiApplyResult | null;
   aiApplyError: AiApplyError | null;
-  onToggle: () => void;
+  /** Receives the job id — App passes a stable functional-setState toggle so
+   *  this row component is React.memo-safe across keystrokes. */
+  onToggle: (id: string) => void;
   indent?: boolean;
 }
 
-function FragmentRow({
+const FragmentRow = memo(function FragmentRow({
   job,
   isOpen,
   review,
@@ -1141,15 +836,12 @@ function FragmentRow({
   indent,
 }: FragmentRowProps) {
   const tier = scoreTier(job.fitScore);
-  const rowClass = [
-    applied ? 'applied' : '',
-    isSkipped ? 'skipped' : '',
-    isOpen ? 'open' : '',
-    indent ? 'indent' : '',
-    review ? `has-verdict verdict-stripe-${review.verdict}` : '',
-  ]
-    .filter(Boolean)
-    .join(' ');
+  const rowClass = clsx(
+    applied && styles.rowApplied,
+    isSkipped && styles.rowSkipped,
+    isOpen && styles.rowOpen,
+    indent && styles.indent,
+  );
   const isMine = aiApplyBusyId === job.id;
   const otherBusy = aiApplyBusyId !== null && aiApplyBusyId !== job.id;
   const myResult = aiApplyResult && aiApplyResult.jobId === job.id ? aiApplyResult : null;
@@ -1161,68 +853,73 @@ function FragmentRow({
     : job.title;
   return (
     <>
-      <tr className={rowClass} onClick={onToggle}>
-        <td className={`score ${tier}`}>
-          <div className="score-cell">
-            <span className="caret" aria-hidden>
+      <tr className={rowClass} onClick={() => onToggle(job.id)}>
+        <td className={clsx(styles.score, SCORE_TIER_CLASS[tier])}>
+          <div className={styles.scoreCell}>
+            <span className={styles.caret} aria-hidden>
               {isOpen ? '▾' : '▸'}
             </span>
             <ScoreBar score={job.fitScore} tier={tier} />
           </div>
         </td>
-        <td className="title" title={titleTooltip}>
-          <span className="title-row">
+        <td className={styles.tdTitle} title={titleTooltip}>
+          <span className={styles.titleRow}>
             {applied && (
-              <span className={`badge badge-${applied.status}`} title={applied.notes}>
+              <span
+                className={clsx(badgeStyles.base, STATUS_BADGE_CLASS[applied.status])}
+                title={applied.notes}
+              >
                 {STATUS_EMOJI[applied.status]} {applied.status}
               </span>
             )}
             {isSkipped && !applied && (
-              <span className="badge badge-skipped" title="Skipped from Jinder">
+              <span className={badgeStyles.skipped} title="Skipped from Jinder">
                 skipped
               </span>
             )}
             {review && review.verdict !== 'skip' && (
-              <span className={`badge verdict-${review.verdict}`}>{review.verdict}</span>
+              <span className={clsx(badgeStyles.base, VERDICT_CLASS[review.verdict])}>
+                {review.verdict}
+              </span>
             )}
             <QueueBadge status={queueStatus} />
-            <span className="title-text">{job.title}</span>
+            <span className={styles.titleText}>{job.title}</span>
           </span>
           {job._signals && (
-            <div className="signal-chip-row">
+            <div className={styles.signalChipRow}>
               <SignalChips signals={job._signals} />
             </div>
           )}
-          {job.bodyPreview && <p className="body-preview">{job.bodyPreview}</p>}
+          {job.bodyPreview && <p className={styles.bodyPreview}>{job.bodyPreview}</p>}
         </td>
-        <td className="company" title={job.company ?? ''}>
-          <span className="clamp-2">{job.company ?? '—'}</span>
+        <td className={styles.tdCompany} title={job.company ?? ''}>
+          <span className={styles.clamp2}>{job.company ?? '—'}</span>
         </td>
-        <td className="location" title={job.location ?? ''}>
-          <span className="clamp-2">{formatLocation(job)}</span>
+        <td className={styles.tdLocation} title={job.location ?? ''}>
+          <span className={styles.clamp2}>{formatLocation(job)}</span>
         </td>
         <td>
-          <span className="source">{job.source}</span>
+          <span className={styles.source}>{job.source}</span>
         </td>
         <td>{job.salary ?? '—'}</td>
-        <td className="muted">{relativeTime(job.postedAt)}</td>
-        <td className="cell-actions">
-          <div className="row-actions">
+        <td className={styles.tdMuted}>{relativeTime(job.postedAt)}</td>
+        <td className={styles.tdActions}>
+          <div className={styles.rowActions}>
             <a
               href={job.url}
               target="_blank"
               rel="noopener noreferrer"
-              className="action-link"
+              className={styles.actionLink}
               onClick={(e) => e.stopPropagation()}
             >
               Apply
-              <span className="action-arrow" aria-hidden>
+              <span className={styles.actionArrow} aria-hidden>
                 ↗
               </span>
             </a>
             <button
               type="button"
-              className="action-link"
+              className={styles.actionLink}
               disabled={isMine || otherBusy}
               onClick={(e) => {
                 e.stopPropagation();
@@ -1240,7 +937,7 @@ function FragmentRow({
         </td>
       </tr>
       {isOpen && (
-        <tr className="detail-row">
+        <tr className={styles.detailRow}>
           <td colSpan={8}>
             <DetailPanel
               job={job}
@@ -1260,7 +957,7 @@ function FragmentRow({
       )}
     </>
   );
-}
+});
 
 interface SortableThProps {
   label: string;
@@ -1273,7 +970,7 @@ function SortableTh({ label, active, dir, onClick }: SortableThProps) {
   const arrow = active ? (dir === 'desc' ? ' ↓' : ' ↑') : '';
   return (
     <th>
-      <button type="button" className="sort" onClick={onClick}>
+      <button type="button" className={styles.sortButton} onClick={onClick}>
         {label}
         {arrow}
       </button>
@@ -1330,10 +1027,10 @@ function formatLocation(job: Job): string {
   return '—';
 }
 
-function scoreTier(score: number): 'score-high' | 'score-mid' | 'score-low' {
-  if (score >= 80) return 'score-high';
-  if (score >= 50) return 'score-mid';
-  return 'score-low';
+function scoreTier(score: number): ScoreTier {
+  if (score >= 80) return 'high';
+  if (score >= 50) return 'mid';
+  return 'low';
 }
 
 function sortValue(j: Job, key: SortKey): number {

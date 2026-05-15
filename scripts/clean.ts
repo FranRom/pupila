@@ -19,6 +19,9 @@ const FILES_GENERATED: readonly string[] = [
   'data/ai-reviews.json',
   'data/feed.xml',
   'data/jobs-bodies.json',
+  // Operational queue state — regenerated as soon as the worker runs.
+  'data/apply-queue.json',
+  'data/apply-worker.pid',
   'JOBS.md',
 ];
 
@@ -26,7 +29,17 @@ const DIRS_KEEP_GITKEEP: readonly string[] = ['data/archive', 'data/raw'];
 
 const LOG_PATTERNS: readonly RegExp[] = [/^launchd-.*\.log$/, /^cron-.*\.log$/];
 
-const FILES_PERSONAL: readonly string[] = ['config/candidate-brief.md', 'config/applied.json'];
+const FILES_PERSONAL: readonly string[] = [
+  'config/candidate-brief.md',
+  'config/applied.json',
+  // User-curated state from the Jinder swipe deck.
+  'data/swipe-skips.json',
+];
+
+// Directories whose entire contents (sans .gitkeep) are wiped by `--all`.
+// These hold user-curated artifacts that took LLM time to produce, so the
+// default clean preserves them.
+const DIRS_PERSONAL_KEEP_GITKEEP: readonly string[] = ['data/applications'];
 
 // Files wiped by `--onboarding` so the first-run wizard re-triggers.
 // Includes the preferences stamp (clearing onboardedAt), the LLM-generated
@@ -95,7 +108,10 @@ function main(): void {
     console.log('Default: wipes generated artifacts only. Keeps:');
     for (const f of FILES_PERSONAL) console.log(`  ${f}`);
     console.log('');
-    console.log('--all          also removes the personal files above (CV-derived brief, applied list).');
+    console.log('--all          fresh-clone reset: removes the personal files above (brief, applied list,');
+    console.log('               swipe-skips), the contents of data/applications/, AND the onboarding');
+    console.log('               state (preferences.json + raw CV). The first-run wizard will re-trigger');
+    console.log('               on next `pnpm run ui` load.');
     console.log('--onboarding   wipes ONLY onboarding state (preferences + brief + raw CV) so the');
     console.log('               first-run wizard re-triggers. Keeps jobs.json and applied.json.');
     return;
@@ -122,6 +138,16 @@ function main(): void {
       for (const f of FILES_PERSONAL) {
         tryRemove(path.join(REPO, f), f, removed);
       }
+      for (const dir of DIRS_PERSONAL_KEEP_GITKEEP) {
+        cleanGitkeepDir(dir, removed);
+      }
+      // --all = true "fresh clone" reset. Also drop the onboarding stamp +
+      // raw CV so the first-run wizard re-triggers on next UI load. Brief
+      // is already covered by FILES_PERSONAL above; the loop is a no-op
+      // for paths that overlap.
+      for (const f of FILES_ONBOARDING) {
+        tryRemove(path.join(REPO, f), f, removed);
+      }
     }
   }
 
@@ -132,7 +158,7 @@ function main(): void {
 
   for (const r of removed) console.log(`  removed ${r}`);
   console.log(`\n✓ Cleaned ${removed.length} item${removed.length === 1 ? '' : 's'}.`);
-  if (args.onboarding) {
+  if (args.onboarding || args.all) {
     console.log('  (onboarding wizard will re-trigger on next `pnpm run ui` load)');
   } else if (!args.all) {
     const kept = FILES_PERSONAL.filter((f) => existsSync(path.join(REPO, f)));

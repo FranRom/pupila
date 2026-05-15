@@ -1,3 +1,5 @@
+import { memo } from 'react';
+import chipStyles from '../styles/Chip.module.css';
 import type { JobSignals } from '../types.ts';
 
 // Short labels for the inline chips. Signals not in this map are skipped —
@@ -33,7 +35,7 @@ interface SignalChipsProps {
  * scored well" without expanding the row. Skips universal/freshness signals
  * (location, freshness, penalties) — they're noise at the row level.
  */
-export function SignalChips({ signals, max = 3 }: SignalChipsProps) {
+export const SignalChips = memo(function SignalChips({ signals, max = 3 }: SignalChipsProps) {
   if (!signals) return null;
   const fired = (Object.keys(CHIP_LABELS) as (keyof JobSignals)[])
     .map((k) => ({ key: k, label: CHIP_LABELS[k] as string, value: signals[k] as number }))
@@ -46,7 +48,7 @@ export function SignalChips({ signals, max = 3 }: SignalChipsProps) {
       {fired.map((s) => (
         <span
           key={s.key}
-          className="signal-chip"
+          className={chipStyles.signal}
           title={`${s.label} contributed +${s.value} to the fit score`}
         >
           {s.label} +{s.value}
@@ -54,4 +56,4 @@ export function SignalChips({ signals, max = 3 }: SignalChipsProps) {
       ))}
     </>
   );
-}
+});

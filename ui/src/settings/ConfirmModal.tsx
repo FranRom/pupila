@@ -8,6 +8,8 @@
 //   button. Shift+Tab from the first wraps to the last and vice versa.
 
 import { useEffect, useRef } from 'react';
+import buttonStyles from '../styles/Button.module.css';
+import styles from './ConfirmModal.module.css';
 import type { ConfirmDialog } from './types.ts';
 
 interface ConfirmModalProps {
@@ -65,7 +67,7 @@ export function ConfirmModal({ dialog, onClose }: ConfirmModalProps) {
 
   return (
     <div
-      className="confirm-overlay"
+      className={styles.overlay}
       role="dialog"
       aria-modal="true"
       aria-labelledby="confirm-modal-title"
@@ -73,28 +75,28 @@ export function ConfirmModal({ dialog, onClose }: ConfirmModalProps) {
       onMouseDown={onOverlayMouseDown}
       onKeyDown={onOverlayKeyDown}
     >
-      <div className={`confirm-modal ${dialog.destructive ? 'confirm-modal-danger' : ''}`}>
-        <header className="confirm-modal-header">
+      <div className={dialog.destructive ? styles.modalDanger : styles.modal}>
+        <header className={styles.header}>
           <h3 id="confirm-modal-title">{dialog.title}</h3>
           <button
             ref={firstFocusableRef}
             type="button"
-            className="confirm-modal-close"
+            className={styles.close}
             aria-label="Close"
             onClick={onClose}
           >
             ×
           </button>
         </header>
-        <p className="confirm-modal-body">{dialog.body}</p>
-        <div className="confirm-modal-actions">
-          <button type="button" className="btn btn-primary" onClick={onClose}>
+        <p className={styles.body}>{dialog.body}</p>
+        <div className={styles.actions}>
+          <button type="button" className={buttonStyles.primary} onClick={onClose}>
             Cancel
           </button>
           <button
             ref={lastFocusableRef}
             type="button"
-            className={`btn ${dialog.destructive ? 'btn-danger' : 'btn-secondary'}`}
+            className={dialog.destructive ? buttonStyles.danger : buttonStyles.secondary}
             onClick={dialog.onConfirm}
           >
             {dialog.confirmLabel}

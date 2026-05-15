@@ -1,0 +1,267 @@
+/*
+ * Shared dock affordance — the bottom-right floating cards used by
+ * FetchProgress, SchedulerProgress, and AiApplyProgress. Consumers import
+ * this and apply the variant classes via clsx. The cards stack inside
+ * .dockStack (rendered at App root). Cards themselves use position: static
+ * once inside the stack; that's why position is `fixed` here is gated to
+ * standalone cards (i.e. cards not reparented into the stack — currently
+ * none).
+ */
+
+/* The wrapper container — renders all docks in a flex-column-reverse so
+   the most recently mounted dock sits on top. Cards reset their own
+   `position: fixed` to static inside this stack via the !important
+   overrides below — necessary because each dock's `.dock` class is the
+   stable affordance the consumer applies; the stack is the layout wrapper. */
+.dockStack {
+  position: fixed;
+  right: 1rem;
+  bottom: 1rem;
+  z-index: 50;
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 0.75rem;
+  max-height: calc(100vh - 2rem);
+  pointer-events: none;
+}
+
+.dockStack > * {
+  /* biome-ignore lint/complexity/noImportantStyles: required to neutralize .dock { position: fixed } when nested inside .dockStack */
+  position: static !important;
+  pointer-events: auto;
+}
+
+@media (max-height: 720px) {
+  .dockStack {
+    max-height: calc(100vh - 1rem);
+    bottom: 0.5rem;
+  }
+  .dockStack > * {
+    max-height: 32vh;
+  }
+}
+
+@media (max-width: 480px) {
+  .dockStack {
+    left: 0.5rem;
+    right: 0.5rem;
+  }
+  .dockStack > * {
+    /* biome-ignore lint/complexity/noImportantStyles: required to override component-set width when reparented into .dockStack on narrow viewports */
+    width: auto !important;
+  }
+}
+
+/* Standalone dock card (e.g. FetchProgress). Cards are slightly different
+   widths — width is set by the consumer's own module on top. */
+.dock {
+  position: fixed;
+  right: 1rem;
+  bottom: 1rem;
+  width: 280px;
+  max-height: 70vh;
+  overflow-y: auto;
+  z-index: 50;
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: var(--shadow-lg);
+  font-size: 0.8125rem;
+  animation: dock-slide-in 0.25s ease-out;
+}
+
+.dockRunning {
+  border-color: var(--primary);
+}
+
+.dockDone {
+  border-color: var(--accent);
+}
+
+.dockError {
+  border-color: var(--badge-rejected-fg);
+}
+
+.dockWide {
+  width: 320px;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.625rem 0.875rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
+  border-radius: 10px 10px 0 0;
+}
+
+.title {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 600;
+  font-size: 0.8125rem;
+}
+
+.spinner {
+  display: inline-block;
+  width: 0.75rem;
+  height: 0.75rem;
+  border: 2px solid var(--border);
+  border-top-color: var(--primary);
+  border-radius: 50%;
+  animation: dock-spin 0.7s linear infinite;
+}
+
+.count {
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+}
+
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0.375rem 0;
+}
+
+.row {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.25rem 0.875rem;
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  transition: background 0.15s;
+}
+
+.rowRunning {
+  composes: row;
+  color: var(--text);
+  background: var(--row-hover);
+}
+
+.rowDone {
+  composes: row;
+  color: var(--accent);
+}
+
+.rowPartial {
+  composes: row;
+  color: var(--score-mid);
+}
+
+.rowError {
+  composes: row;
+  color: var(--badge-rejected-fg);
+}
+
+.staleSuffix {
+  opacity: 0.75;
+  margin-left: 0.125rem;
+  font-size: 0.7rem;
+}
+
+.state {
+  font-variant-numeric: tabular-nums;
+}
+
+.errorBlock {
+  margin: 0;
+  padding: 0.5rem 0.875rem;
+  font-size: 0.75rem;
+  color: var(--badge-rejected-fg);
+  border-top: 1px solid var(--border);
+  background: var(--badge-rejected-bg);
+  word-break: break-word;
+}
+
+.dismiss {
+  display: block;
+  width: 100%;
+  border: none;
+  border-top: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-muted);
+  padding: 0.5rem;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.75rem;
+  border-radius: 0 0 10px 10px;
+}
+
+.dismiss:hover {
+  background: var(--row-hover);
+  color: var(--text);
+}
+
+.log {
+  margin: 0;
+  padding: 0.5rem 0.875rem;
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 0.7rem;
+  line-height: 1.45;
+  color: var(--text-muted);
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.meta {
+  padding: 0.375rem 0.875rem;
+  font-size: 0.75rem;
+  color: var(--text);
+  border-top: 1px solid var(--border);
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.metaMuted {
+  composes: meta;
+  color: var(--text-muted);
+  border-top: none;
+}
+
+.meta:first-of-type {
+  border-top: none;
+}
+
+.meta code {
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 0.7rem;
+  background: var(--bg);
+  padding: 0.0625rem 0.3125rem;
+  border-radius: 3px;
+  border: 1px solid var(--border);
+}
+
+@keyframes dock-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes dock-slide-in {
+  from {
+    transform: translateY(8px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner {
+    animation: none;
+  }
+  .dock {
+    animation: none;
+  }
+}

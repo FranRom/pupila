@@ -1,0 +1,275 @@
+/*
+ * First-run onboarding wizard.
+ *
+ * Centered max-720px column with the ASCII hero, a 3-step progress
+ * indicator and the active step card. The ASCII hero types itself out via
+ * staggered keyframes; honours prefers-reduced-motion.
+ */
+
+.wizard {
+  max-width: 720px;
+  margin: 2rem auto;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.header h1 {
+  margin: 0 0 0.25rem;
+}
+
+.subtitle {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.8125rem;
+}
+
+.progress {
+  display: flex;
+  gap: 0.75rem;
+  list-style: none;
+  padding: 0;
+  margin: 0.75rem 0 0;
+  font-size: 0.875rem;
+  color: var(--text-muted);
+}
+
+.progressCurrent {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.progressDone {
+  color: var(--accent);
+}
+
+.step {
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.875rem;
+}
+
+.step h2 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.placeholder {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.8125rem;
+}
+
+.providerList {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+
+.providerList label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  cursor: pointer;
+  background: var(--bg);
+}
+
+.providerList input:disabled + strong {
+  opacity: 0.5;
+}
+
+.muted {
+  color: var(--text-muted);
+}
+
+.available {
+  color: var(--accent);
+  font-size: 0.8rem;
+  margin-left: auto;
+}
+
+.unavailable {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  margin-left: auto;
+}
+
+.warn {
+  background: var(--badge-interview-bg);
+  color: var(--badge-interview-fg);
+  border: 1px solid var(--badge-interview-fg);
+  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
+  font-size: 0.875rem;
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+/* Brief textarea — also used by Profile. Kept duplicated locally for
+   self-containment (the field reads identically in both surfaces and we
+   don't want cross-module composes). */
+.briefTextarea {
+  width: 100%;
+  font: inherit;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.85rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.625rem;
+  background: var(--bg);
+  color: var(--text);
+  resize: vertical;
+  box-sizing: border-box;
+}
+
+/* CV drop zone — used inside step 2. */
+.cvDrop {
+  border: 2px dashed var(--border);
+  border-radius: 8px;
+  padding: 1rem;
+  background: var(--surface-raised);
+  transition:
+    border-color 0.15s,
+    background 0.15s;
+}
+
+.cvDropActive {
+  composes: cvDrop;
+  border-color: var(--primary);
+  background: var(--applied-bg);
+}
+
+.cvDropBusy {
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+.cvDropRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.cvDropText {
+  flex: 1;
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
+.cvDropActions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+/* ── ASCII hero ── */
+.asciiHero {
+  display: block;
+  margin: 0.5rem 0 0.75rem;
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 0.78rem;
+  line-height: 1.05;
+  color: var(--accent);
+  white-space: pre;
+  overflow: hidden;
+  letter-spacing: 0;
+}
+
+.asciiLine {
+  display: block;
+  white-space: pre;
+  overflow: hidden;
+  width: 0;
+  animation: ascii-type 0.55s steps(40, end) forwards;
+}
+
+.asciiLine:nth-child(1) {
+  animation-delay: 0.05s;
+}
+.asciiLine:nth-child(2) {
+  animation-delay: 0.2s;
+}
+.asciiLine:nth-child(3) {
+  animation-delay: 0.35s;
+}
+.asciiLine:nth-child(4) {
+  animation-delay: 0.5s;
+}
+.asciiLine:nth-child(5) {
+  animation-delay: 0.65s;
+}
+.asciiLine:nth-child(6) {
+  animation-delay: 0.8s;
+}
+
+.asciiCursor {
+  display: inline-block;
+  width: 0.6em;
+  height: 1em;
+  vertical-align: text-bottom;
+  background: var(--accent);
+  margin-left: 0.15em;
+  animation: ascii-blink 1s steps(1, end) infinite;
+  opacity: 0;
+  animation-delay: 1s, 1.05s;
+  animation-name: ascii-fadein, ascii-blink;
+  animation-duration: 0.2s, 1s;
+  animation-fill-mode: forwards, none;
+  animation-iteration-count: 1, infinite;
+}
+
+.asciiTag {
+  display: block;
+  margin-top: 0.5rem;
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  opacity: 0;
+  animation: ascii-fadein 0.4s ease forwards;
+  animation-delay: 1.2s;
+}
+
+@keyframes ascii-type {
+  from {
+    width: 0;
+  }
+  to {
+    width: 100%;
+  }
+}
+@keyframes ascii-blink {
+  50% {
+    opacity: 0;
+  }
+}
+@keyframes ascii-fadein {
+  to {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .asciiLine,
+  .asciiCursor,
+  .asciiTag {
+    animation: none;
+    width: 100%;
+    opacity: 1;
+  }
+}

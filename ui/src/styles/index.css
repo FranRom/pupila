@@ -3,16 +3,16 @@
 
    The @layer declaration below pins the cascade order independent of import
    order: tokens are overridden by base styles, which are overridden by
-   components. Anything outside a layer (or in an unnamed layer) wins over all
-   of these, which is the intended escape hatch for one-off overrides.
+   per-component CSS Modules. Anything outside a layer (or in an unnamed
+   layer) wins over all of these, which is the intended escape hatch for
+   one-off overrides.
 
-   Adding a file: pick the right layer, import it here. Components that need
-   their own slice can co-locate a stylesheet and import it into the
-   components layer the same way.
+   Per-component styling now lives in co-located *.module.css files
+   imported from their consumer components — Vite hashes the class names
+   and scopes them automatically. No global components.css anymore.
    ========================================================================== */
 
-@layer tokens, base, components;
+@layer tokens, base;
 
 @import url("./tokens.css") layer(tokens);
 @import url("./base.css") layer(base);
-@import url("./components.css") layer(components);

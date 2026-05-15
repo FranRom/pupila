@@ -61,5 +61,29 @@
         "organizeImports": "on"
       }
     }
-  }
+  },
+  "overrides": [
+    {
+      "includes": [
+        "ui/src/**",
+        "!ui/src/lib/api/client.ts",
+        "!ui/src/**/*.test.ts",
+        "!ui/src/**/*.test.tsx"
+      ],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedGlobals": {
+              "level": "error",
+              "options": {
+                "deniedGlobals": {
+                  "fetch": "Use the typed api client at ui/src/lib/api/ — see ui/CLAUDE.md."
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
 }

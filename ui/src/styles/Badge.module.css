@@ -1,0 +1,75 @@
+/*
+ * Shared badge system.
+ *
+ * Status badges used in the Jobs table (applied / interview / offer / rejected
+ * / withdrawn / skipped / queued / running). `applied` doubles as the visual
+ * for `queued` since both convey "in the apply pipeline". `running` adds a
+ * pulse animation on top of `applied` to mark "in flight".
+ */
+
+.base {
+  display: inline-block;
+  padding: 0.0625rem 0.375rem;
+  border-radius: 4px;
+  font-size: 0.6875rem;
+  margin-right: 0.5rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-weight: 600;
+}
+
+.applied {
+  composes: base;
+  background: var(--badge-applied-bg);
+  color: var(--badge-applied-fg);
+}
+
+.interview {
+  composes: base;
+  background: var(--badge-interview-bg);
+  color: var(--badge-interview-fg);
+}
+
+.offer {
+  composes: base;
+  background: var(--badge-offer-bg);
+  color: var(--badge-offer-fg);
+}
+
+.rejected {
+  composes: base;
+  background: var(--badge-rejected-bg);
+  color: var(--badge-rejected-fg);
+}
+
+.withdrawn {
+  composes: base;
+  background: var(--badge-withdrawn-bg);
+  color: var(--badge-withdrawn-fg);
+}
+
+.skipped {
+  composes: base;
+  background: var(--badge-rejected-bg);
+  color: var(--badge-rejected-fg);
+}
+
+.running {
+  animation: queue-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes queue-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.55;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .running {
+    animation: none;
+  }
+}

@@ -1,0 +1,97 @@
+/*
+ * [01] LlmCliPanel — provider radio list + post-test result card.
+ */
+
+.providerList {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+
+.providerList label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  cursor: pointer;
+  background: var(--bg);
+}
+
+.providerList input:disabled + strong {
+  opacity: 0.5;
+}
+
+.available {
+  color: var(--accent);
+  font-size: 0.8rem;
+  margin-left: auto;
+}
+
+.unavailable {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  margin-left: auto;
+}
+
+.muted {
+  color: var(--text-muted);
+}
+
+.warn {
+  background: var(--badge-interview-bg);
+  color: var(--badge-interview-fg);
+  border: 1px solid var(--badge-interview-fg);
+  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
+  font-size: 0.875rem;
+}
+
+.result {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.625rem 0.875rem;
+  background: var(--bg);
+  font-size: 0.8125rem;
+}
+
+.result pre {
+  margin: 0.375rem 0 0;
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 0.75rem;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  color: var(--text-muted);
+}
+
+.resultHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+
+.resultFast {
+  composes: result;
+  border-color: var(--accent);
+}
+
+.resultMid {
+  composes: result;
+  border-color: var(--score-mid);
+}
+
+.resultSlow {
+  composes: result;
+  border-color: var(--badge-interview-fg);
+}
+
+.resultFail {
+  composes: result;
+  border-color: var(--badge-rejected-fg);
+  background: var(--badge-rejected-bg);
+  color: var(--badge-rejected-fg);
+}

@@ -1,0 +1,146 @@
+/*
+ * Profile tab — candidate-brief editor + CV upload zone.
+ */
+
+.tab {
+  max-width: 860px;
+  margin: 1.5rem auto;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.header h2 {
+  margin: 0 0 0.25rem;
+}
+
+.subtitle {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.8125rem;
+}
+
+.info {
+  background: var(--applied-bg);
+  border: 1px solid var(--applied-border);
+  color: var(--text);
+  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
+  font-size: 0.875rem;
+}
+
+.cvDrop {
+  border: 2px dashed var(--border);
+  border-radius: 8px;
+  padding: 1rem;
+  background: var(--surface-raised);
+  transition:
+    border-color 0.15s,
+    background 0.15s;
+}
+
+.cvDropActive {
+  composes: cvDrop;
+  border-color: var(--primary);
+  background: var(--applied-bg);
+}
+
+.cvDropBusy {
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+.cvDropRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.cvDropText {
+  flex: 1;
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
+.cvDropActions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.cvPaste {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.cvPaste textarea {
+  width: 100%;
+  font: inherit;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.85rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.625rem;
+  background: var(--bg);
+  color: var(--text);
+  resize: vertical;
+  box-sizing: border-box;
+}
+
+.cvPasteActions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.briefEditor {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.briefEditorHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+
+.briefEditorHeader h3 {
+  margin: 0;
+}
+
+.briefTextarea {
+  width: 100%;
+  font: inherit;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.85rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.625rem;
+  background: var(--bg);
+  color: var(--text);
+  resize: vertical;
+  box-sizing: border-box;
+}
+
+.briefActions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.dirtyTag {
+  color: var(--badge-interview-fg);
+  font-weight: 600;
+}
+
+.muted {
+  color: var(--text-muted);
+}
+
+.placeholder {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.8125rem;
+}

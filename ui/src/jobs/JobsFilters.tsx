@@ -1,4 +1,7 @@
+import clsx from 'clsx';
+import buttonStyles from '../styles/Button.module.css';
 import type { Category, Source } from '../types.ts';
+import styles from './JobsFilters.module.css';
 
 interface JobsFiltersProps {
   search: string;
@@ -55,15 +58,17 @@ export function JobsFilters({
     showSkipped ||
     queuedOnly;
   return (
-    <div className="filters">
+    <div className={styles.filters}>
       <input
         type="search"
+        className={styles.search}
         placeholder="Search title / company / location"
         value={search}
         onChange={(e) => onSearchChange(e.target.value)}
       />
 
       <select
+        className={styles.select}
         value={category}
         onChange={(e) => onCategoryChange(e.target.value as Category | 'all')}
       >
@@ -74,7 +79,11 @@ export function JobsFilters({
         ))}
       </select>
 
-      <select value={source} onChange={(e) => onSourceChange(e.target.value as Source | 'all')}>
+      <select
+        className={styles.select}
+        value={source}
+        onChange={(e) => onSourceChange(e.target.value as Source | 'all')}
+      >
         <option value="all">All sources</option>
         {sources.map((s) => (
           <option key={s} value={s}>
@@ -83,7 +92,7 @@ export function JobsFilters({
         ))}
       </select>
 
-      <label className="checkbox">
+      <label className={styles.checkbox}>
         <input
           type="checkbox"
           checked={appliedOnly}
@@ -92,7 +101,7 @@ export function JobsFilters({
         Applied only
       </label>
 
-      <label className="checkbox" title="Show jobs you left-swiped in Jinder">
+      <label className={styles.checkbox} title="Show jobs you left-swiped in Jinder">
         <input
           type="checkbox"
           checked={showSkipped}
@@ -101,7 +110,10 @@ export function JobsFilters({
         Show skipped
       </label>
 
-      <label className="checkbox" title="Show only jobs currently queued or running in AI Apply">
+      <label
+        className={styles.checkbox}
+        title="Show only jobs currently queued or running in AI Apply"
+      >
         <input
           type="checkbox"
           checked={queuedOnly}
@@ -110,7 +122,7 @@ export function JobsFilters({
         Queued only
       </label>
 
-      <label className="checkbox">
+      <label className={styles.checkbox}>
         <input
           type="checkbox"
           checked={groupByCompany}
@@ -119,7 +131,7 @@ export function JobsFilters({
         Group by company
       </label>
 
-      <label className="checkbox" title="Shrink row padding for higher density">
+      <label className={styles.checkbox} title="Shrink row padding for higher density">
         <input
           type="checkbox"
           checked={compact}
@@ -129,14 +141,18 @@ export function JobsFilters({
       </label>
 
       {hasActiveFilters && (
-        <button type="button" className="btn btn-secondary btn-sm reset" onClick={onReset}>
+        <button
+          type="button"
+          className={clsx(buttonStyles.secondary, buttonStyles.sm)}
+          onClick={onReset}
+        >
           Reset
         </button>
       )}
 
       <button
         type="button"
-        className="btn btn-primary btn-sm filters-refetch"
+        className={clsx(buttonStyles.primary, buttonStyles.sm, styles.refetch)}
         onClick={onRefetch}
         disabled={isFetching}
         title={isFetching ? 'A fetch run is already in flight' : 'Refetch jobs from all sources'}

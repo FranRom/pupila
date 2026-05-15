@@ -1,0 +1,305 @@
+/*
+ * Shared styles for the Settings tab.
+ *
+ * Used by every panel (LlmCli, Scheduler, LastRun, DiskUsage, Maintenance,
+ * Environment, ScoringProfile, ApplyQueue) via the Section/SkeletonRows/
+ * EmptyState/Stat/ProviderChip/TerminalBlock helpers in shared.tsx. Panel-
+ * specific styling lives in its own *.module.css.
+ */
+
+/* ── Section card ───────────────────────────────────────────────── */
+.section {
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 1.25rem 1.5rem 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  position: relative;
+}
+
+.sectionHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  padding-bottom: 0.875rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.sectionTitles {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.875rem;
+  min-width: 0;
+}
+
+.sectionIndex {
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--primary);
+  letter-spacing: 0.05em;
+  padding: 0.25rem 0.5rem;
+  border: 1px solid var(--primary);
+  border-radius: 4px;
+  background: var(--bg);
+  margin-top: 0.125rem;
+  flex-shrink: 0;
+}
+
+.section h2 {
+  margin: 0;
+  font-size: 1.05rem;
+  letter-spacing: -0.01em;
+}
+
+.sectionSubtitle {
+  margin: 0.125rem 0 0;
+  color: var(--text-muted);
+  font-size: 0.8125rem;
+  line-height: 1.4;
+}
+
+.sectionMeta {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+.sectionBody {
+  display: flex;
+  flex-direction: column;
+  gap: 0.875rem;
+}
+
+/* ── Meta pills (status indicators next to section titles) ─────── */
+.pill {
+  display: inline-block;
+  padding: 0.1875rem 0.625rem;
+  border-radius: 999px;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  background: var(--bg);
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+}
+
+.pillMono {
+  composes: pill;
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.pillOk {
+  background: var(--badge-offer-bg);
+  color: var(--badge-offer-fg);
+  border-color: var(--badge-offer-fg);
+}
+
+.pillWarn {
+  background: var(--badge-interview-bg);
+  color: var(--badge-interview-fg);
+  border-color: var(--badge-interview-fg);
+}
+
+.pillErr {
+  background: var(--badge-rejected-bg);
+  color: var(--badge-rejected-fg);
+  border-color: var(--badge-rejected-fg);
+}
+
+/* ── Action rows + toasts ──────────────────────────────────────── */
+.actions {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.toast {
+  color: var(--accent);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  animation: settings-fadeout 3s ease forwards;
+}
+
+@keyframes settings-fadeout {
+  0%,
+  60% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+/* ── Skeleton placeholders ─────────────────────────────────────── */
+.skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.skeletonRow {
+  height: 1.5rem;
+  border-radius: 4px;
+  background: linear-gradient(90deg, var(--bg) 0%, var(--row-hover) 50%, var(--bg) 100%);
+  background-size: 200% 100%;
+  animation: settings-skeleton-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes settings-skeleton-pulse {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+/* ── Empty state ───────────────────────────────────────────────── */
+.empty {
+  padding: 1.5rem;
+  text-align: center;
+  background: var(--bg);
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+}
+
+.empty p {
+  margin: 0.25rem 0 0;
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+}
+
+/* ── Stat chip ─────────────────────────────────────────────────── */
+.stat {
+  display: flex;
+  flex-direction: column;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  min-width: 5.5rem;
+}
+
+.statAccent {
+  composes: stat;
+  border-color: var(--primary);
+}
+
+.statLabel {
+  color: var(--text-muted);
+  font-size: 0.6875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.statValue {
+  font-size: 1.125rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.statAccent .statValue {
+  color: var(--primary);
+}
+
+/* ── Terminal block (runnable command + Copy/Run actions) ──────── */
+.terminal {
+  display: flex;
+  align-items: stretch;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  font-size: 0.8125rem;
+}
+
+.terminalDanger {
+  composes: terminal;
+  border-color: var(--badge-rejected-fg);
+}
+
+.terminalLine {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  padding: 0.625rem 0.875rem;
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  background: transparent;
+  min-width: 0;
+  overflow-x: auto;
+}
+
+.terminalPrompt {
+  color: var(--primary);
+  font-weight: 700;
+  user-select: none;
+  flex-shrink: 0;
+}
+
+.terminalCmd {
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.terminalActions {
+  display: flex;
+  border-left: 1px solid var(--border);
+  background: var(--surface-raised);
+}
+
+.terminalCopy,
+.terminalRun {
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  padding: 0 0.875rem;
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  transition:
+    background 0.15s,
+    color 0.15s;
+}
+
+.terminalCopy:hover {
+  background: var(--row-hover);
+  color: var(--text);
+}
+
+.terminalRun {
+  border-left: 1px solid var(--border);
+  color: var(--primary);
+}
+
+.terminalRun:hover:not(:disabled) {
+  background: var(--primary);
+  color: white;
+}
+
+.terminalRun:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.terminalRunDanger {
+  composes: terminalRun;
+  color: var(--badge-rejected-fg);
+}
+
+.terminalRunDanger:hover:not(:disabled) {
+  background: var(--badge-rejected-fg);
+  color: var(--bg);
+}

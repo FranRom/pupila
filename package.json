@@ -22,6 +22,8 @@
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.test.json && tsc --noEmit -p ui/tsconfig.json",
     "lint": "biome check",
     "lint:fix": "biome check --write",
+    "lint:ui-patterns": "bash scripts/check-ui-patterns.sh",
+    "lint:bundle-size": "bash scripts/check-bundle-size.sh",
     "format": "biome format --write",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -30,10 +32,11 @@
     "prepare": "simple-git-hooks"
   },
   "simple-git-hooks": {
-    "pre-commit": "pnpm run lint && pnpm run typecheck"
+    "pre-commit": "pnpm run lint && pnpm run typecheck && pnpm run lint:ui-patterns"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
+    "clsx": "^2.1.1",
     "fast-xml-parser": "^5.7.3",
     "mammoth": "^1.8.0",
     "pdfjs-dist": "^5.7.284",
@@ -42,11 +45,15 @@
   },
   "devDependencies": {
     "@biomejs/biome": "^2.4.14",
+    "@testing-library/dom": "^10.4.1",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
     "@types/node": "^22.10.0",
     "@types/proper-lockfile": "^4.1.4",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.1",
+    "jsdom": "^29.1.1",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
     "simple-git-hooks": "^2.13.1",

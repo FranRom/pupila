@@ -312,6 +312,8 @@ When tuning a regex or weight, update tests in the same commit.
 
 ## Local UI (`pnpm run ui`)
 
+> **UI rules live in [`ui/CLAUDE.md`](./ui/CLAUDE.md)** (nested context, auto-loaded by Claude Code when working in `ui/`). Two hard rules summarized: (1) every class comes from a co-located `*.module.css` import — never write a class name as a string literal; (2) every server call goes through `ui/src/lib/api/` — never write `fetch('/api/...')` at a call site. Both are also enforced by `pnpm run lint` + the pre-commit hook.
+
 Vite + React 19 dashboard at `ui/` that fetches `data/jobs.json` and `data/ai-reviews.json` from `/api/jobs` and `/api/reviews` (Vite middleware in `ui/vite.config.ts`) — those files are gitignored, so static imports would force them to exist at build time. **Local-only — no auth, no hosting, intentionally not exposed beyond `127.0.0.1:5173`** (user explicitly chose this over public Pages — a public dashboard surfacing applied-job statuses could be Google-indexed and visible to recruiters). **Don't add a `pnpm run ui:deploy`** without explicit instruction.
 
 Single-component MVP (no router, no state-management lib): filter chips for category/source/applied, search, sortable columns (score/salaryMax/postedAt), dark mode via `prefers-color-scheme`. Score cells tier-colored (green ≥80, gold 50-79, muted <50). Long company/title cells are 2-line clamped via `display: -webkit-box` on a `<span>` wrapper inside the `<td>` — applying directly on `<td>` breaks table-cell layout.

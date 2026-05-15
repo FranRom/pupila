@@ -1,0 +1,87 @@
+/*
+ * StreamingPanel — inline streaming-log card used during onboarding while
+ * an LLM is running. Lives inside the active wizard step (not a fixed-
+ * position dock like FetchProgress/AiApplyProgress).
+ */
+
+.panel {
+  margin: 0.75rem 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  font-size: 0.8125rem;
+  overflow: hidden;
+}
+
+.panelRunning {
+  composes: panel;
+  border-color: var(--primary);
+}
+
+.panelDone {
+  composes: panel;
+  border-color: var(--accent);
+}
+
+.panelError {
+  composes: panel;
+  border-color: var(--badge-rejected-fg);
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-raised);
+}
+
+.title {
+  display: inline-flex;
+  align-items: center;
+  font-weight: 600;
+  font-size: 0.8125rem;
+}
+
+.meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.meta code {
+  font-size: 0.75rem;
+  padding: 0.05rem 0.35rem;
+  border-radius: 4px;
+  background: var(--row-hover);
+}
+
+.log {
+  margin: 0;
+  padding: 0.625rem 0.75rem;
+  max-height: 220px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 0.75rem;
+  line-height: 1.45;
+  color: var(--text);
+  background: var(--bg);
+}
+
+.error {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  background: var(--badge-rejected-bg);
+  color: var(--badge-rejected-fg);
+  border-top: 1px solid var(--border);
+  font-size: 0.75rem;
+}

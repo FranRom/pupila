@@ -99,7 +99,7 @@ export const CLEAN_MODES: Record<CleanMode, CleanModeMeta> = {
     command: 'pnpm run clean',
     shortDesc: 'Wipe generated artifacts',
     longDesc:
-      'Removes data/jobs.json, JOBS.md, feed.xml, raw dumps, archive, and logs. Keeps your candidate brief and applied jobs.',
+      'Removes data/jobs.json, JOBS.md, feed.xml, raw dumps, archive, logs, and the apply-queue state. Keeps your candidate brief, applied jobs, swipe-skips, and generated application packages.',
     destructive: false,
   },
   onboarding: {
@@ -113,7 +113,7 @@ export const CLEAN_MODES: Record<CleanMode, CleanModeMeta> = {
     command: 'pnpm run clean -- --all',
     shortDesc: 'Full reset (destructive)',
     longDesc:
-      'Removes everything from "Wipe generated artifacts" PLUS your candidate brief AND your applied job history. This cannot be undone.',
+      'Fresh-clone reset. Removes everything from "Wipe generated artifacts" PLUS your candidate brief, applied job history, swipe-skips, generated application packages, preferences, and uploaded CV. The first-run wizard will re-trigger. This cannot be undone.',
     destructive: true,
   },
 };
