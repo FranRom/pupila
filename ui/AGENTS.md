@@ -334,6 +334,88 @@ pnpm run test:watch     # both projects in watch mode
 
 ---
 
+## 5. Performance: code-split tabs + memoize hot children
+
+**One golden rule:** the Jobs tab is the default landing surface; everything else loads on demand. Every code-split boundary needs a `React.lazy()` + a per-tab `<Suspense>` fallback. Every component rendered ~100+ times needs `React.memo` and stable-identity props from above.
+
+### Code-split boundaries
+
+```tsx
+// App.tsx — lazy import + named-export → default unwrap
+const Settings = lazy(() => import('./Settings.tsx').then((m) => ({ default: m.Settings })));
+
+// Per-tab Suspense boundary so a tab swap doesn't unmount + re-suspend siblings.
+{tab === 'settings' && (
+  <Suspense fallback={<p className={styles.placeholder}>Loading settings…</p>}>
+    <Settings ... />
+  </Suspense>
+)}
+```
+
+Current splits (`ui/src/App.tsx`): `Onboarding`, `Profile`, `Settings`, `SwipeDeck`. Each is its own bundle chunk. The Jobs view (default landing) loads only the main JS + CSS.
+
+### When to split
+
+- Subtree only rendered when a non-default tab is active.
+- One-shot UIs that hide forever after a flag flips (onboarding, modals).
+- Subtree >5 kB gzipped that imports its own heavy deps (chart libs, markdown renderers, etc.).
+
+### When NOT to split
+
+- Anything rendered on first paint (the Jobs table, AppHeader, filter bar). It would just add a flash of fallback.
+- Components shared across tabs (docks at App root: `FetchProgress`, `AiApplyProgress`, `SchedulerProgress`). They mount once and stay mounted.
+- Tiny components (<3 kB). Round-trip overhead outweighs the size saving.
+
+### `React.memo` for hot children
+
+Rule of thumb: components rendered N>50 times per parent render should be memoized. The biggest offender in this codebase is `FragmentRow` (~1k instances). Cell-level components (`ScoreBar`, `SignalChips`, `QueueBadge`) are children of every row and are memoized too — a row that *doesn't* re-render still doesn't pay for its cell re-renders.
+
+```tsx
+// Convert this:
+function FragmentRow({ ... }: FragmentRowProps) { ... }
+
+// To this:
+const FragmentRow = memo(function FragmentRow({ ... }: FragmentRowProps) { ... });
+```
+
+`memo()` does a shallow prop equality check. For it to actually skip renders, every prop must have stable identity across re-renders. That means:
+
+- **Callbacks**: never inline arrows in JSX. Use `useCallback` at the parent (and pass the arg into the callback at the leaf):
+  ```tsx
+  // ❌ defeats memo — new function every render
+  <FragmentRow onToggle={() => setExpanded(j.id === expanded ? null : j.id)} />
+
+  // ✅ stable across renders
+  // (toggleExpanded in useUrlSyncedState uses functional setState so its identity never changes)
+  <FragmentRow onToggle={toggleExpanded} /> // takes (id: string) => void
+  ```
+- **Toggles**: prefer functional setState inside a `useCallback(_, [])` so the callback identity never changes — not even when the underlying value changes. See `toggleExpanded` / `toggleExpandedCompany` in `ui/src/lib/hooks/useUrlSyncedState.ts`.
+- **Maps as props**: don't pass `appliedById` down to a memo'd row — its identity changes on every set/clear, defeating memo for every row. Pass the per-row entry instead: `applied={appliedById[j.id]}`.
+- **Sets as props**: same trap. If you must, ensure the parent doesn't recreate the set on every render (memoize it).
+
+### Bundle-size budget
+
+`.bundle-budget.json` caps the first-paint JS + CSS chunks. `pnpm run lint:bundle-size` runs `scripts/check-bundle-size.sh` after a build to enforce it. Lazy chunks are intentionally not gated — they grow with features.
+
+To raise the budget consciously: edit `.bundle-budget.json`, mention the reason in the PR.
+
+### Anti-patterns (don't do this)
+
+- ❌ `lazy()` without a `<Suspense>` fallback. Tab switch causes Error.
+- ❌ Sharing one `<Suspense>` across all tabs. Each tab swap re-suspends the whole subtree.
+- ❌ `memo(Component, (prev, next) => ...)` with a custom comparator unless you've measured. The default shallow comparison is usually right; a wrong comparator silently masks bugs.
+- ❌ `useMemo`/`useCallback` everywhere. They have their own cost. Only memoize what's measurably hot or what feeds a memoized child.
+- ❌ `useMemo` over a primitive (`useMemo(() => count > 0, [count])`). The hook overhead exceeds the saving.
+
+### Canonical examples to copy from
+
+- **Lazy tab subtree**: `ui/src/App.tsx` — the 4 `lazy(() => import(...).then(...))` declarations and matching per-tab `<Suspense>` blocks.
+- **Stable functional-setState toggle**: `ui/src/lib/hooks/useUrlSyncedState.ts` — `toggleExpanded` / `toggleExpandedCompany`.
+- **Memo'd row + cell components**: `ui/src/App.tsx` `CompanyBlock` / `FragmentRow`, plus `ui/src/jobs/{ScoreBar,SignalChips,QueueBadge}.tsx`.
+- **Memoized derivation**: `ui/src/App.tsx` `visible` / `groups` — every cross-cutting filter+sort lives in a `useMemo` with explicit deps.
+
+---
+
 ## React effects
 
 Project convention (pre-existing, restated here for context):
@@ -352,7 +434,8 @@ Documentation explains *why*; lint enforces *what*. Both rules above are gated a
 
 - **`fetch('/api/...')` outside `ui/src/lib/api/client.ts`** → Biome `noRestrictedGlobals` flags it at lint time. Configured in `biome.json` `overrides` (scoped to `ui/src/**` excluding `client.ts`). Test it: drop a `fetch(...)` into any UI file and run `pnpm run lint`.
 - **String-literal `className="..."`** → `scripts/check-ui-patterns.sh` flags it. Backstop also re-checks for inline /api fetches in case the Biome scope drifts. Runs via `pnpm run lint:ui-patterns`.
-- **Pre-commit hook** chains all three gates: `pnpm run lint && pnpm run typecheck && pnpm run lint:ui-patterns`. Bypass-able via `SKIP_SIMPLE_GIT_HOOKS=1 git commit ...` only for true emergencies.
+- **First-paint bundle size** → `scripts/check-bundle-size.sh` compares the built main JS + CSS chunks against `.bundle-budget.json`. Runs in CI after `pnpm run ui:build` via `pnpm run lint:bundle-size` (not in the pre-commit hook — needs a fresh build, too slow for every commit).
+- **Pre-commit hook** chains three gates: `pnpm run lint && pnpm run typecheck && pnpm run lint:ui-patterns`. Bypass-able via `SKIP_SIMPLE_GIT_HOOKS=1 git commit ...` only for true emergencies.
 
 If you add a new structural rule that's grep-able or AST-matchable, extend `scripts/check-ui-patterns.sh` or the Biome `overrides` block so it's enforced, not just documented.
 

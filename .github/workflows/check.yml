@@ -8,7 +8,8 @@ name: check
 #   5. The TypeScript build produces a dist/ output (catches issues that
 #      tsc --noEmit alone would miss, e.g. emit-only failures)
 #   6. The UI Vite build produces ui/dist/ (catches React/Vite breakage)
-#   7. No high-severity CVEs in production deps
+#   7. The first-paint chunks stay within the bundle-size budget
+#   8. No high-severity CVEs in production deps
 on:
   push:
     branches: [main]
@@ -55,6 +56,9 @@ jobs:
 
       - name: Vite — build UI bundle (ui/dist/)
         run: pnpm run ui:build
+
+      - name: Bundle-size budget (first-paint chunks)
+        run: pnpm run lint:bundle-size
 
       - name: Audit production deps
         run: pnpm audit --prod --audit-level high

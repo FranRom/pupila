@@ -6,6 +6,7 @@
 // The full lifecycle is visible in the [08] Apply queue settings panel.
 
 import clsx from 'clsx';
+import { memo } from 'react';
 import badgeStyles from '../styles/Badge.module.css';
 import type { QueueRowStatus } from '../types.ts';
 
@@ -13,7 +14,9 @@ interface QueueBadgeProps {
   status: QueueRowStatus | null;
 }
 
-export function QueueBadge({ status }: QueueBadgeProps) {
+// Rendered once per row (~1k instances). memo() skips re-render when the
+// row's queueStatus is unchanged, which is most of the time.
+export const QueueBadge = memo(function QueueBadge({ status }: QueueBadgeProps) {
   if (status === null) return null;
   if (status === 'done' || status === 'failed' || status === 'cancelled') return null;
   if (status === 'queued') {
@@ -28,4 +31,4 @@ export function QueueBadge({ status }: QueueBadgeProps) {
       ⚙️ applying
     </span>
   );
-}
+});

@@ -1,0 +1,5 @@
+{
+  "_comment": "Bundle-size budget for the UI's first-paint chunks. Enforced by scripts/check-bundle-size.sh after `pnpm run ui:build`. Bytes are pre-gzip. Lazy-loaded chunks (Onboarding/Profile/Settings/SwipeDeck) are intentionally NOT gated — they grow with features. Only the main chunks (loaded on first paint of the Jobs tab) are budgeted. Raise these consciously when a deliberate addition crosses the line.",
+  "mainJsBytes": 280000,
+  "mainCssBytes": 35000
+}

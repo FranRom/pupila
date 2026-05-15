@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import chipStyles from '../styles/Chip.module.css';
 import type { JobSignals } from '../types.ts';
 
@@ -34,7 +35,7 @@ interface SignalChipsProps {
  * scored well" without expanding the row. Skips universal/freshness signals
  * (location, freshness, penalties) — they're noise at the row level.
  */
-export function SignalChips({ signals, max = 3 }: SignalChipsProps) {
+export const SignalChips = memo(function SignalChips({ signals, max = 3 }: SignalChipsProps) {
   if (!signals) return null;
   const fired = (Object.keys(CHIP_LABELS) as (keyof JobSignals)[])
     .map((k) => ({ key: k, label: CHIP_LABELS[k] as string, value: signals[k] as number }))
@@ -55,4 +56,4 @@ export function SignalChips({ signals, max = 3 }: SignalChipsProps) {
       ))}
     </>
   );
-}
+});

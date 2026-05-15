@@ -95,4 +95,57 @@ describe('useUrlSyncedState', () => {
       expect(second.current.tab).toBe('swipe');
     });
   });
+
+  describe('toggle helpers', () => {
+    it('toggleExpanded flips the value (set → set again clears)', () => {
+      const { result } = renderHook(() => useUrlSyncedState());
+      expect(result.current.expanded).toBeNull();
+      act(() => {
+        result.current.toggleExpanded('jobA');
+      });
+      expect(result.current.expanded).toBe('jobA');
+      act(() => {
+        result.current.toggleExpanded('jobA');
+      });
+      expect(result.current.expanded).toBeNull();
+    });
+
+    it('toggleExpanded switches between two different ids', () => {
+      const { result } = renderHook(() => useUrlSyncedState());
+      act(() => {
+        result.current.toggleExpanded('jobA');
+      });
+      act(() => {
+        result.current.toggleExpanded('jobB');
+      });
+      expect(result.current.expanded).toBe('jobB');
+    });
+
+    it('toggleExpandedCompany mirrors the row toggle', () => {
+      const { result } = renderHook(() => useUrlSyncedState());
+      act(() => {
+        result.current.toggleExpandedCompany('acme');
+      });
+      expect(result.current.expandedCompany).toBe('acme');
+      act(() => {
+        result.current.toggleExpandedCompany('acme');
+      });
+      expect(result.current.expandedCompany).toBeNull();
+    });
+
+    it('toggle callbacks have stable identity across re-renders', () => {
+      // This is the load-bearing property: React.memo on the ~1k FragmentRow
+      // instances relies on `onToggle` keeping the same reference whenever
+      // any unrelated state changes (e.g. typing in the search box).
+      const { result, rerender } = renderHook(() => useUrlSyncedState());
+      const firstToggle = result.current.toggleExpanded;
+      const firstCompanyToggle = result.current.toggleExpandedCompany;
+      act(() => {
+        result.current.setSearch('react');
+      });
+      rerender();
+      expect(result.current.toggleExpanded).toBe(firstToggle);
+      expect(result.current.toggleExpandedCompany).toBe(firstCompanyToggle);
+    });
+  });
 });

@@ -11,7 +11,7 @@
  * from the URL, so a "clean" view leaves you with just `/`.
  */
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { Category, Source } from '../../types.ts';
 
 export type SortKey = 'fitScore' | 'salaryMax' | 'postedAt';
@@ -48,6 +48,11 @@ export interface UrlSyncedSetters {
   setExpanded: (v: string | null) => void;
   setExpandedCompany: (v: string | null) => void;
   setTab: (v: Tab) => void;
+  /** Toggle expand state for a job row. Stable across renders (uses functional
+   *  setState internally) so it doesn't defeat React.memo on the ~1k row
+   *  components. Caller passes only the id; closure-free. */
+  toggleExpanded: (id: string) => void;
+  toggleExpandedCompany: (key: string) => void;
 }
 
 export type UseUrlSyncedStateResult = UrlSyncedFilters & UrlSyncedSetters;
@@ -100,6 +105,17 @@ export function useUrlSyncedState(): UseUrlSyncedStateResult {
   const [expanded, setExpanded] = useState<string | null>(initial.expanded);
   const [expandedCompany, setExpandedCompany] = useState<string | null>(initial.expandedCompany);
   const [tab, setTab] = useState<Tab>(initial.tab);
+
+  // Functional-setState toggles: identity stable forever, never reads current
+  // value via closure. Key to React.memo(FragmentRow) actually skipping work —
+  // every row gets the SAME callback ref no matter how many other state
+  // changes happen.
+  const toggleExpanded = useCallback((id: string) => {
+    setExpanded((prev) => (prev === id ? null : id));
+  }, []);
+  const toggleExpandedCompany = useCallback((key: string) => {
+    setExpandedCompany((prev) => (prev === key ? null : key));
+  }, []);
 
   useEffect(() => {
     const p = new URLSearchParams();
@@ -164,5 +180,7 @@ export function useUrlSyncedState(): UseUrlSyncedStateResult {
     setExpanded,
     setExpandedCompany,
     setTab,
+    toggleExpanded,
+    toggleExpandedCompany,
   };
 }
