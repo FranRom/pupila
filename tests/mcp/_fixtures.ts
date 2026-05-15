@@ -3,6 +3,7 @@
 // runners can be exercised against deterministic data without touching the
 // real working tree.
 
+import { randomBytes } from 'node:crypto';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -11,6 +12,13 @@ import { normalizeUrl, sha1Hex } from '../../src/utils.js';
 
 export function jobIdFor(url: string): string {
   return sha1Hex(normalizeUrl(url));
+}
+
+// Crypto-random suffix instead of a module-level counter. The repo's
+// coding-style rule explicitly forbids module-level mutation, and a counter
+// also leaks across test files within a worker — both problems here.
+function uniqueSuffix(): string {
+  return randomBytes(6).toString('hex');
 }
 
 export interface JobOverrides {
@@ -33,15 +41,13 @@ export interface JobOverrides {
   remote?: boolean;
 }
 
-let counter = 0;
-
 export function makeJob(overrides: JobOverrides = {}): Job {
-  counter++;
-  const url = overrides.url ?? `https://example.com/jobs/${counter}`;
+  const suffix = uniqueSuffix();
+  const url = overrides.url ?? `https://example.com/jobs/${suffix}`;
   return {
     id: jobIdFor(url),
     source: overrides.source ?? 'ashby',
-    title: overrides.title ?? `Senior Frontend Engineer #${counter}`,
+    title: overrides.title ?? `Senior Frontend Engineer #${suffix}`,
     company: overrides.company ?? 'Acme Co',
     url,
     location: overrides.location ?? 'Remote',

@@ -1,7 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // The stdout-guard module patches console.* on import. We re-import it in
-// each test via vi.resetModules to validate the patch in isolation.
+// each test via vi.resetModules in afterEach so each test gets a fresh
+// import — order matters: console.* restoration happens in afterEach BEFORE
+// vi.resetModules, so the next test starts with pristine console methods.
+// If a future test calls console.* outside an it() block (e.g. in a
+// describe-scoped hook), the patch won't be active yet — keep that in mind.
 describe('stdout-guard', () => {
   let stderrWrites: string[];
   let stdoutWrites: string[];

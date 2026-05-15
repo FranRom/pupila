@@ -19,10 +19,17 @@ async function main(): Promise<void> {
 
   // Graceful shutdown — MCP clients send SIGTERM when the user removes the
   // server or the client process exits. SIGINT is for `Ctrl-C` when running
-  // standalone via `pnpm run mcp`.
+  // standalone via `pnpm run mcp`. Catch transport.close() rejections so
+  // we don't silently swallow shutdown errors and still always exit.
   const shutdown = (signal: NodeJS.Signals): void => {
     process.stderr.write(`[mcp] received ${signal}, shutting down\n`);
-    void transport.close().finally(() => process.exit(0));
+    transport
+      .close()
+      .catch((err: unknown) => {
+        const msg = err instanceof Error ? err.message : String(err);
+        process.stderr.write(`[mcp] transport close error: ${msg}\n`);
+      })
+      .finally(() => process.exit(0));
   };
   process.once('SIGINT', shutdown);
   process.once('SIGTERM', shutdown);

@@ -75,4 +75,18 @@ describe('safeHandler', () => {
     expect(result.isError).toBe(true);
     expect(result.content[0]?.text).toContain('Unexpected error');
   });
+
+  it('strips absolute filesystem paths from error messages before surfacing', async () => {
+    const handler = safeHandler('demo', async () => {
+      throw new Error(
+        "ENOENT: no such file or directory, open '/Users/alice/secret/config/profile.json'",
+      );
+    });
+    const result = await handler({});
+    expect(result.isError).toBe(true);
+    const text = result.content[0]?.text ?? '';
+    expect(text).not.toContain('/Users/alice');
+    expect(text).not.toContain('secret/config');
+    expect(text).toContain('<path>');
+  });
 });

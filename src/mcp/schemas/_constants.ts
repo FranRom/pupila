@@ -6,7 +6,7 @@
 // paths, the Zod version is the parsing entry point at the tool boundary.
 
 import { z } from 'zod';
-import { APPLICATION_STATUSES } from '../../types.js';
+import { APPLICATION_STATUSES, type Source } from '../../types.js';
 
 // sha1 hex — 40 lowercase hex chars. Same as `isValidJobId` in
 // src/lib/apply-queue.ts.
@@ -35,6 +35,16 @@ export const SOURCES = [
 ] as const;
 
 export const sourceEnum = z.enum(SOURCES);
+
+// Compile-time guard: if a new value is added to the `Source` union in
+// `src/types.ts` without being mirrored in `SOURCES` here, this expression
+// fails to compile. Forces the two lists to stay in sync.
+type _SourcesExhaustive =
+  Exclude<Source, (typeof SOURCES)[number]> extends never
+    ? true
+    : ['SOURCES tuple missing a Source value', Exclude<Source, (typeof SOURCES)[number]>];
+const _sourcesExhaustive: _SourcesExhaustive = true;
+void _sourcesExhaustive;
 
 export const CATEGORIES = ['web3', 'ai', 'web3+ai', 'general'] as const;
 export const categoryEnum = z.enum(CATEGORIES);

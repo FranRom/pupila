@@ -2,7 +2,7 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { loadAppliedMap } from '../../applied.js';
 import type { AiReviews, Job } from '../../types.js';
 import { readJsonOrNull } from '../../utils.js';
-import { safeHandler, toolError, toolJson } from '../errors.js';
+import { safeHandler, type ToolResult, toolError, toolJson } from '../errors.js';
 import { APPLIED_PATH, JOBS_BODIES_PATH, JOBS_PATH, REVIEWS_PATH } from '../paths.js';
 import { type GetJobDetailInput, getJobDetailInputSchema } from '../schemas/get-job-detail.js';
 
@@ -50,7 +50,7 @@ async function resolveBody(
 export async function runGetJobDetail(
   input: GetJobDetailInput,
   paths: GetJobDetailPaths = DEFAULT_DETAIL_PATHS,
-) {
+): Promise<ToolResult> {
   const jobs = (await readJsonOrNull<Job[]>(paths.jobsPath)) ?? [];
   const job = jobs.find((j) => j.id === input.jobId);
   if (!job) {
@@ -81,6 +81,6 @@ export function registerGetJobDetail(server: McpServer): void {
         'Return the full record for a single job: the slim row from data/jobs.json, the full body from the sidecar (or jobs.json/bodyPreview fallback), the AI review if one exists, and the applied entry if one exists. jobId is a 40-char sha1 hex string.',
       inputSchema: getJobDetailInputSchema,
     },
-    safeHandler('get_job_detail', async (args) => runGetJobDetail(args as GetJobDetailInput)),
+    safeHandler<GetJobDetailInput>('get_job_detail', (input) => runGetJobDetail(input)),
   );
 }

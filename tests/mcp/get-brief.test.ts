@@ -21,7 +21,9 @@ describe('runGetBrief', () => {
     const payload = parseToolJson(result.content) as BriefResponse;
     expect(payload.exists).toBe(false);
     expect(payload.body).toBeNull();
-    expect(payload.path).toBe(fx.briefPath);
+    // Response returns the repo-relative path, not the absolute tmpdir path
+    // — leaking $HOME to the client is the whole reason for the indirection.
+    expect(payload.path).toBe('config/candidate-brief.md');
   });
 
   it('returns the body between markers when present', async () => {

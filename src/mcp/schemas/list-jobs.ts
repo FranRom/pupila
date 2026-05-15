@@ -14,9 +14,11 @@ export const listJobsInputSchema = {
   applied: z.boolean().optional(),
   q: z.string().min(1).max(200).optional(),
   minScore: z.number().int().min(0).max(100).optional(),
-  sort: listJobsSortEnum.optional().default('fitScore'),
-  dir: z.enum(['asc', 'desc']).optional().default('desc'),
-  limit: z.number().int().min(1).max(500).optional().default(50),
+  // `.default()` already accepts undefined input; `.optional()` would be
+  // redundant. Output type is always defined after parse.
+  sort: listJobsSortEnum.default('fitScore'),
+  dir: z.enum(['asc', 'desc']).default('desc'),
+  limit: z.number().int().min(1).max(500).default(50),
 };
 
 export const listJobsInputObject = z.object(listJobsInputSchema);

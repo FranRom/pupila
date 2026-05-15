@@ -2,7 +2,7 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { loadAppliedMap } from '../../applied.js';
 import type { Job } from '../../types.js';
 import { readJsonOrNull } from '../../utils.js';
-import { safeHandler, toolJson } from '../errors.js';
+import { safeHandler, type ToolResult, toolJson } from '../errors.js';
 import { APPLIED_PATH, JOBS_PATH } from '../paths.js';
 import { type ListJobsInput, listJobsInputSchema } from '../schemas/list-jobs.js';
 
@@ -50,7 +50,7 @@ const DEFAULT_LIST_JOBS_PATHS: ListJobsPaths = {
 export async function runListJobs(
   input: ListJobsInput,
   paths: ListJobsPaths = DEFAULT_LIST_JOBS_PATHS,
-) {
+): Promise<ToolResult> {
   const jobs = (await readJsonOrNull<Job[]>(paths.jobsPath)) ?? [];
 
   // Only load applied.json when the filter is active — avoids unnecessary
@@ -62,13 +62,16 @@ export async function runListJobs(
   if (input.category) filtered = filtered.filter((j) => j.category === input.category);
   if (input.source) filtered = filtered.filter((j) => j.source === input.source);
   if (input.minScore !== undefined) {
-    filtered = filtered.filter((j) => j.fitScore >= input.minScore!);
+    // Capture in a local so the closure sees a narrowed `number`, not
+    // `number | undefined`. Avoids a `!` non-null assertion.
+    const minScore = input.minScore;
+    filtered = filtered.filter((j) => j.fitScore >= minScore);
   }
   if (input.q) {
     const q = input.q;
     filtered = filtered.filter((j) => matchesQuery(j, q));
   }
-  if (appliedMap !== null && input.applied !== undefined) {
+  if (appliedMap !== null) {
     filtered = filtered.filter((j) => appliedMap.has(j.id) === input.applied);
   }
 
@@ -78,11 +81,16 @@ export async function runListJobs(
   });
   const limited = sorted.slice(0, input.limit);
 
-  // Attach applied entry inline so the LLM sees status without a second call.
-  // Only when the applied map was already loaded for filtering — avoid the
-  // O(n) URL-hash work otherwise.
+  // Attach applied entry inline when present, so the LLM sees status without
+  // a second call. Conditional spread — never set `applied: undefined`,
+  // which would inject a misleading key for jobs with no application record.
   const enriched =
-    appliedMap !== null ? limited.map((j) => ({ ...j, applied: appliedMap.get(j.id) })) : limited;
+    appliedMap !== null
+      ? limited.map((j) => {
+          const entry = appliedMap.get(j.id);
+          return entry ? { ...j, applied: entry } : j;
+        })
+      : limited;
 
   return toolJson({
     total: jobs.length,
@@ -101,6 +109,6 @@ export function registerListJobs(server: McpServer): void {
         'List aggregated jobs from data/jobs.json with optional filters (category, source, applied?, q, minScore), sort (fitScore/salaryMax/postedAt/id), and limit (1-500, default 50). Returns slim job records including _signals; use get_job_detail for full body + AI review.',
       inputSchema: listJobsInputSchema,
     },
-    safeHandler('list_jobs', async (args) => runListJobs(args as ListJobsInput)),
+    safeHandler<ListJobsInput>('list_jobs', (input) => runListJobs(input)),
   );
 }

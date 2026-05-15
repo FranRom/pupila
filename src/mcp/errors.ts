@@ -14,9 +14,11 @@ export interface ToolContent {
   text: string;
 }
 
-// MCP's `CallToolResult` carries an index signature for forward-compat with
-// future content kinds. Matching that shape here lets `registerTool` accept
-// our handlers without an awkward cast at every call site.
+// MCP's `CallToolResult` schema has an open shape (`z.object(...).catchall(...)`)
+// that materializes in TypeScript as `[key: string]: unknown`. Without this
+// index signature here, `registerTool(name, config, handler)` rejects our
+// handlers with "Index signature for type 'string' is missing in type
+// 'ToolResult'". Keep it.
 export interface ToolResult {
   content: ToolContent[];
   isError?: boolean;
@@ -46,9 +48,17 @@ export function toolError(message: string): ToolResult {
   };
 }
 
+// Strip absolute filesystem paths from messages before returning them to the
+// MCP client. Defense-in-depth: if a future tool calls `readFile` without
+// catching internally, ENOENT-style messages would otherwise expose
+// $HOME/<full-path> to whichever LLM is driving the client.
+function sanitizePaths(message: string): string {
+  return message.replace(/\/(?:[\w.-]+\/)+[\w.-]+/g, '<path>');
+}
+
 function describeUnknown(err: unknown): string {
-  if (err instanceof Error) return err.message;
-  if (typeof err === 'string') return err;
+  if (err instanceof Error) return sanitizePaths(err.message);
+  if (typeof err === 'string') return sanitizePaths(err);
   return 'Unexpected error';
 }
 
@@ -58,17 +68,21 @@ function describeUnknown(err: unknown): string {
  * transport — writing there would corrupt framing), and returns a clean
  * error envelope.
  *
- * Use this around every tool handler. The MCP SDK's request-handler shape
- * varies slightly between versions, so this returns the inner handler with
- * an unknown-typed argument; cast at the registration site.
+ * Accepts a typed handler `(input: TInput) => Promise<ToolResult>` and
+ * returns an SDK-shaped `(args: unknown) => Promise<ToolResult>`. The
+ * `args -> TInput` cast happens ONCE here — safe because `registerTool`
+ * validates against the input schema before the SDK invokes the handler.
+ * Doing it at this boundary instead of every registration site means a
+ * schema change forces a TInput change forces a runner-signature change,
+ * with type errors propagating naturally.
  */
-export function safeHandler<TArgs, TResult extends ToolResult>(
+export function safeHandler<TInput>(
   toolName: string,
-  fn: (args: TArgs) => Promise<TResult>,
-): (args: TArgs) => Promise<TResult | ToolResult> {
-  return async (args: TArgs) => {
+  fn: (input: TInput) => Promise<ToolResult>,
+): (args: unknown) => Promise<ToolResult> {
+  return async (args: unknown): Promise<ToolResult> => {
     try {
-      return await fn(args);
+      return await fn(args as TInput);
     } catch (err) {
       // STDERR only — never console.log here.
       process.stderr.write(`[mcp:${toolName}] ${describeUnknown(err)}\n`);
