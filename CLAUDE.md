@@ -108,6 +108,19 @@ scripts/
   install-launchd.sh # macOS local scheduler — wraps `pnpm run daily`
   install-cron.sh    # Linux local scheduler — appends a crontab entry
   apply-worker.ts    # standalone Node poll-loop worker for the Jinder queue
+  install-mcp.sh     # one-command install for the MCP server (Claude Code / Desktop / Cursor)
+  _merge-mcp-config.mjs # Node helper invoked by install-mcp.sh to merge JSON config entries
+
+src/mcp/             # MCP server (Model Context Protocol) — fourth direct consumer of src/lib/*
+  index.ts           # stdio entrypoint; imports lib/stdout-guard.ts FIRST so console.* → stderr
+  server.ts          # createMcpServer() factory — registers every tool (17 in v1)
+  paths.ts           # mirror of ui/plugins/_paths.ts (REPO_ROOT via import.meta.url)
+  errors.ts          # safeHandler() wrapper + toolError/toolJson envelope helpers
+  lib/stdout-guard.ts # patches console.log/info/warn → stderr; stdio is the JSON-RPC channel
+  lib/worker-probe.ts # probes data/apply-worker.pid for liveness (used by queue tools)
+  lib/fetch-runner.ts # singleton state machine for trigger_fetch (spawns pnpm exec tsx)
+  schemas/*.ts       # Zod raw shapes — one per tool. _constants.ts hosts JOB_ID_REGEX
+  tools/*.ts         # one tool per file: each exports `run<Name>` + `register<Name>`
 
 tests/
   fixtures/test-profile.json  # frozen tuned profile for filters.test.ts
@@ -398,6 +411,43 @@ git commit -m "chore: daily run + ai reviews"
 ```
 
 `config/candidate-brief.md` is the only natural-language config in the repo (everything else is JSON/TS).
+
+## MCP server (`pnpm run mcp`)
+
+Exposes 17 typed tools to any MCP client (Claude Code / Claude Desktop / Cursor) so the daily pipeline can be driven from inside another agent's context. Lives at `src/mcp/`; entry point is `tsx src/mcp/index.ts`. The server is the **fourth direct consumer** of `src/lib/*` alongside the Vite middleware, the apply-worker, and `pnpm run ai-review`. **No HTTP shim, no CLI subprocess layer** — tools call into `src/lib/*` functions directly, same code path the UI uses.
+
+**Tools registered (read this for shape before adding more):**
+
+| Category | Names |
+|---|---|
+| Read | `list_jobs`, `get_job_detail`, `get_brief` |
+| Applied | `mark_applied`, `update_status`, `clear_applied` |
+| Queue | `enqueue_apply`, `cancel_apply`, `skip_job`, `queue_status`, `worker_status` |
+| Aux | `run_summary`, `get_ai_review`, `list_ai_reviews` |
+| Long-running | `trigger_fetch`, `get_fetch_status`, `regenerate_profile` |
+
+**Hard invariants. Do not break.**
+
+- **stdout is the JSON-RPC channel.** A single stray `console.log` corrupts the framing and the MCP client silently drops the connection. `src/mcp/lib/stdout-guard.ts` patches `console.log/info/warn` → stderr **on import**, BEFORE any other module loads (it's the first import in `index.ts`). Never write `console.log` in tool code. `process.stdout.write` is reserved for the SDK; any direct call from `src/lib/*` in a tool's code path will corrupt framing — audit if you import a lib that didn't exist when this was last verified.
+- **`JOB_ID_REGEX = /^[a-f0-9]{40}$/`** mirrors `isValidJobId` from `src/lib/apply-queue.ts` exactly. Every tool that accepts a `jobId` validates against this regex at the Zod schema layer. Same defense against path-traversal payloads (`data/applications/<jobId>.md` writes, etc.).
+- **`SOURCES` tuple is compile-time-exhaustive vs the `Source` union in `src/types.ts`.** Adding a new fetcher source without mirroring it in `src/mcp/schemas/_constants.ts` is a typecheck error — see `_SourcesExhaustive` at the bottom of that file.
+- **`APPLICATION_STATUSES` lives in `src/types.ts`** (single source of truth). `VALID_STATUSES` in `ui/plugins/_shared.ts` is a `ReadonlySet<string>` wrapping the same const tuple. Adding a new status: edit `types.ts`, both UI and MCP pick it up.
+- **Single-flight locks** on `trigger_fetch` (one aggregator run at a time, enforced in `src/lib/fetch-runner.ts`) and `regenerate_profile` (one LLM regen at a time, enforced at module scope in `src/mcp/tools/regenerate-profile.ts`). Second concurrent call returns an error envelope, not a queued/blocked promise.
+- **Worker-separation is load-bearing.** `enqueue_apply` adds a row to `data/apply-queue.json` but **does not** spawn the apply-worker — that's still `pnpm run apply-worker` in a separate terminal. If the worker isn't running, `enqueue_apply` returns a structured warning (NOT an error — the row is still queued, just won't drain). Don't refactor this. The decoupling is intentional: a crashed worker can't take down the MCP server.
+- **Error envelopes, never thrown rejections.** Zod validation failures, precondition failures, and unknown-tool calls all come back as `{ isError: true, content: [{ type: 'text', text: ... }] }`. `safeHandler()` in `src/mcp/errors.ts` wraps every handler; `describeUnknown()` sanitizes absolute filesystem paths from error messages before they hit the client (defense in depth against `$HOME` leakage).
+
+**Adding a new tool.** Three files + one registration:
+
+1. `src/mcp/schemas/<name>.ts` — Zod raw shape (input). Reuse `jobIdSchema` from `_constants.ts` for any jobId field.
+2. `src/mcp/tools/<name>.ts` — exports `run<Name>(input, paths?)` (the runner, dependency-injected paths for testability) and `register<Name>(server)` (the SDK wiring). Wrap the handler in `safeHandler<TInput>('<name>', (input) => run<Name>(input))`.
+3. `src/mcp/server.ts` — import and call `register<Name>(server)`.
+4. `tests/mcp/<name>.test.ts` — test `run<Name>` directly with the path-injection escape hatch. For full wire coverage, also add a case to `tests/mcp/integration.test.ts` (real SDK Client over `InMemoryTransport.createLinkedPair`).
+
+**README tool-reference table is hand-maintained.** Every tool change MUST also update the `## MCP server` section in `README.md`. There is no codegen for it. The OpenSpec proposal at `openspec/changes/mcp-server-readme-docs/` documents the obligation explicitly — keep that file in sync if the format ever changes.
+
+**Install path.** `scripts/install-mcp.sh` is the user-facing entry point. Prereq-checks node 22 / pnpm / git / at least one MCP client. Idempotent (re-run updates the entry). JSON merging via `scripts/_merge-mcp-config.mjs` (small Node helper — no hard `jq` dep). **Fails loudly on missing prereqs — never auto-installs Node.** `PUPILA_DRY_RUN=1` for a no-write rehearsal.
+
+**CI smoke check.** Not yet wired (DEV-84) — when added, it'll be `pnpm run mcp:smoke` running `node scripts/mcp-smoke.mjs`, which spawns `pnpm run mcp`, sends a `tools/list` JSON-RPC request, and asserts all 17 expected tools are present. See `openspec/changes/mcp-server-ci-dependabot/` for the spec.
 
 ## Pre-commit
 

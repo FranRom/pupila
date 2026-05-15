@@ -16,6 +16,7 @@ Optional layers, powered by your local LLM CLI (`claude` / `codex` / `gemini` / 
 - **AI per-job review** — a `strong-match` / `match` / `weak-match` / `skip` verdict with a one-line reason next to each title.
 - **Jinder** — a Tinder-style swipe deck for triaging the top matches in seconds: right-swipe to queue a role for application, left-swipe to skip it forever.
 - **AI Apply** — drafts a tailored cover letter + highlights + Q&A package from your CV and the posting for every job in the queue, while you do something else.
+- **MCP server** — exposes everything the UI can do (17 tools: query / detail / mark applied / enqueue / queue status / aggregator runs / profile regen) to any MCP client so you can drive Pupila from inside Claude Code, Claude Desktop, or Cursor. One-command install. [Jump to section ↓](#mcp-server--talk-to-your-data-from-an-ai-client)
 
 <p align="left">
   <img width="800" height="427" alt="Image" src="https://github.com/user-attachments/assets/abaeee2b-862e-4e30-a138-e628f877944b" />
@@ -32,6 +33,7 @@ The stuff that makes the daily routine actually pleasant:
 - **Source-health banner.** A 🚨 banner appears in `JOBS.md` when a fetcher returns zero items or errors, so silent upstream breakage isn't silent.
 - **Application tracking.** Click a status pill on any row (`📝 applied / 💬 interview / 🎯 offer / ❌ rejected / ⏸ withdrawn`) — saves to `config/applied.json` and feeds the "📋 Application status" section at the top of `JOBS.md`.
 - **8-panel Settings dashboard** — switch LLM CLI / install or remove the scheduler / regenerate scoring profile / inspect the last run / check disk usage / clean / view environment / monitor the apply queue, all from `pnpm run ui` → Settings.
+- **Talk to your data from an AI client.** Optional MCP server exposes every actionable UI surface (filter jobs, mark applied, enqueue AI Apply, trigger a refresh, regenerate the scoring profile) to Claude Code / Claude Desktop / Cursor via 17 typed tools. One command (`bash scripts/install-mcp.sh`) wires it in.
 - **RSS feed.** `data/feed.xml` gets every "✨ new" job — point any RSS reader at the local `file://` path.
 - **Local-first by design.** No API keys, no cloud, no hosted scheduler. The LLM features use *your* existing `claude` / `codex` / `gemini` / `opencode` subscription via the CLI. Your CV, brief, and applied list never leave the machine.
 
@@ -593,6 +595,118 @@ A small verdict badge (`strong-match` / `match` / `weak-match` / `skip`) also ap
 - The pipeline writes a sidecar `data/jobs-bodies.json` (gitignored) so the AI step has the full body to review — `data/jobs.json` itself stays slim. The sidecar is regenerated on every `pnpm run dev`, so don't expect bodies for jobs that aren't in today's run.
 - The parser ([`src/ai-review-parse.ts`](./src/ai-review-parse.ts)) strips markdown fences and falls back to safe defaults for missing/invalid fields rather than throwing. Tested in [`tests/ai-review-parse.test.ts`](./tests/ai-review-parse.test.ts).
 - `data/ai-reviews.json` **is** committed (so reviews persist across machines / pipeline runs and the UI works on a fresh clone). `data/jobs-bodies.json` is **not** (transient, regenerated daily).
+
+## MCP server — talk to your data from an AI client
+
+The MCP (Model Context Protocol) server exposes everything the local UI can do as a set of **17 typed tools** that any MCP client — Claude Code, Claude Desktop, Cursor — can call. Once installed, you can drive the daily pipeline from inside the same chat you're already using:
+
+> *"Show me senior frontend web3 roles with score > 70 that I haven't applied to yet."*
+> *"Mark this one as `interview`, note 'phone screen scheduled Tuesday'."*
+> *"Enqueue these three for AI Apply and start the worker."*
+> *"Run the daily aggregator and tell me when it's done."*
+> *"Regenerate my scoring profile from the updated brief."*
+
+The UI is still there for browsing; the MCP server is for **driving** Pupila from another agent's context.
+
+### Install (one command)
+
+```bash
+bash scripts/install-mcp.sh
+```
+
+The script prereq-checks Node 22 / pnpm / git / at least one MCP client (Claude Code, Claude Desktop, or Cursor), then registers a `pupila` MCP server in every client it detects. **Fails loudly on missing prereqs — never auto-installs Node.** Re-runnable: a second run updates the existing entry instead of duplicating.
+
+Env overrides:
+
+```bash
+PUPILA_HOME=~/code/pupila bash scripts/install-mcp.sh   # use a custom checkout location
+PUPILA_DRY_RUN=1 bash scripts/install-mcp.sh            # print intended actions, don't write anything
+```
+
+### Verify
+
+```bash
+claude mcp list                       # expect 'pupila' in the list
+                                      # restart Claude Desktop / Cursor to pick up the new entry
+```
+
+Inside Claude Desktop or Cursor, open the tools panel — you should see all 17 `pupila` tools.
+
+### Tool reference
+
+| Category | Tool | What it does |
+|---|---|---|
+| **Read** | `list_jobs` | Filter / sort / limit `data/jobs.json`. Supports `category`, `source`, `applied`, `q` (search), `minScore`, `sort`, `dir`, `limit`. |
+| | `get_job_detail` | Full record for one job: row + body + AI review + applied entry, merged. |
+| | `get_brief` | Return the candidate brief contents. |
+| **Applied tracking** | `mark_applied` | Upsert a row in `config/applied.json`. Defaults to `status: applied`. |
+| | `update_status` | Strict update — fails if the URL isn't already marked. Use for transitions like `applied → interview`. |
+| | `clear_applied` | Remove an applied entry. Idempotent. |
+| **Queue (Jinder)** | `enqueue_apply` | Add a job to the AI Apply queue. Warns (does not block) if the worker isn't running. |
+| | `cancel_apply` | Cancel a queued or running row. |
+| | `skip_job` | Persistent left-swipe — adds the jobId to `data/swipe-skips.json`. |
+| | `queue_status` | Full queue rows + worker liveness. |
+| | `worker_status` | Cheaper than `queue_status` — just `{ alive, pid, pidPath }`. |
+| **Aux** | `run_summary` | Aggregate stats over the last pipeline run (total, by category, by source, age in hours). |
+| | `get_ai_review` | AI verdict + reasoning for one job. |
+| | `list_ai_reviews` | All reviews, optionally filtered by verdict. |
+| **Long-running** | `trigger_fetch` | Kick off a fresh aggregator run (`pnpm run dev` equivalent). Returns immediately with a `runId`. |
+| | `get_fetch_status` | Poll a `runId` for live state — per-source progress, exit code, errors. |
+| | `regenerate_profile` | Re-run the LLM personalization on the brief and merge into `config/profile.json`. Blocks until done (10s–2min). |
+
+Every tool that accepts a `jobId` validates it against `/^[a-f0-9]{40}$/` (sha1 hex) — the same regex the apply-worker uses to gate path-traversal payloads. Inputs are Zod-checked at the boundary; validation failures come back as error envelopes, not thrown exceptions.
+
+### How it actually works
+
+The MCP server is the **fourth direct consumer** of `src/lib/*` alongside the Vite UI middleware, the standalone apply-worker, and the `pnpm run ai-review` script. No HTTP shim, no CLI subprocess layer — tools call into the same functions the UI uses. That means a `mark_applied` from inside Claude lands in `config/applied.json` the same way (with the same atomic write) as clicking a status pill in the UI.
+
+Lives at [`src/mcp/`](./src/mcp/):
+
+```
+src/mcp/
+  index.ts                # stdio transport entrypoint
+  server.ts               # createMcpServer() — registers every tool
+  paths.ts                # repo-relative paths (mirror of ui/plugins/_paths.ts)
+  errors.ts               # safeHandler() wrapper + error-envelope helpers
+  lib/stdout-guard.ts     # redirects console.log → stderr (stdio is the JSON-RPC channel)
+  lib/worker-probe.ts     # probes data/apply-worker.pid for liveness
+  lib/fetch-runner.ts     # singleton state machine for trigger_fetch
+  schemas/*.ts            # Zod input schema per tool
+  tools/*.ts              # one tool per file: { runX, registerX }
+```
+
+**Worker separation is preserved.** `enqueue_apply` adds a row to `data/apply-queue.json` but **does not** spawn the apply-worker — that's still a separate process you start with `pnpm run apply-worker`. If you `enqueue_apply` without the worker running, the tool returns a structured warning telling you to start it. The worker is intentionally decoupled so a crashed worker can't take down the MCP server (and vice versa).
+
+### Troubleshooting
+
+**`claude mcp list` doesn't show `pupila` after install.**
+For Claude Desktop and Cursor, you have to fully quit and relaunch the app — they only read the MCP config at startup. Claude Code picks it up on the next session.
+
+**`enqueue_apply` returns a "worker not running" warning.**
+Start the worker in another terminal:
+```bash
+pnpm run apply-worker
+```
+The row is already queued — it'll drain as soon as the worker starts. Re-running `enqueue_apply` would just return "already queued".
+
+**`regenerate_profile` returns a precondition error.**
+Means `config/candidate-brief.md` is missing or empty. Finish onboarding first:
+```bash
+pnpm run setup-brief --file ~/path/to/cv.pdf
+# or open the UI and use the Profile tab
+```
+
+**`list_jobs` returns `total: 0` on a fresh clone.**
+You haven't run the aggregator yet. The MCP server reads from `data/jobs.json`, which is generated by `pnpm run dev`:
+```bash
+pnpm run dev   # ~30-90s — fetches every source, writes data/jobs.json
+```
+
+**Your MCP client shows garbled output or "invalid JSON-RPC frame".**
+A tool somewhere wrote to stdout instead of stderr. stdio is the JSON-RPC channel; a stray `console.log` corrupts the framing. File a bug citing `src/mcp/lib/stdout-guard.ts` — that's the defense, and it has the audit responsibility.
+
+**`scripts/install-mcp.sh` exits with "missing prerequisite".**
+Install whichever prereq it called out (node 22+ via `nvm`/`fnm`/`asdf`, pnpm via `corepack enable`, git via your package manager) and re-run. The script never auto-installs system tools — too many ways to silently corrupt a user's environment.
 
 ## Tuning filters via `config/profile.json`
 
