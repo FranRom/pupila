@@ -42,7 +42,11 @@
     "weaviate",
     "morpho",
     "magiceden",
-    "li.fi"
+    "li.fi",
+    "eigen-labs",
+    "kalshi",
+    "wormholelabs",
+    "monad.foundation"
   ],
   "greenhouse": [
     "anthropic",
@@ -52,8 +56,20 @@
     "mercury",
     "coinbase",
     "uniswaplabs",
-    "mysten-labs"
+    "mysten-labs",
+    "fireblocks",
+    "kalshi",
+    "layerzerolabs",
+    "mesh"
   ],
-  "lever": ["ledger", "binance", "coingecko", "coinmarketcap", "safe", "arbitrumfoundation"],
+  "lever": [
+    "ledger",
+    "binance",
+    "coingecko",
+    "coinmarketcap",
+    "safe",
+    "arbitrumfoundation",
+    "celestia"
+  ],
   "ashbyPrivate": ["chainlink-labs"]
 }
