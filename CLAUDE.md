@@ -1,465 +1,157 @@
 # CLAUDE.md
 
-Guidance for future Claude Code sessions working in this repo.
+Guidance for future Claude Code sessions working in this repo. **Slim by design** — this file is loaded every turn. Subsystem details live next to the code that needs them; procedural how-tos live in skills.
+
+## Where things live
+
+| Topic | Source |
+|---|---|
+| Adding a fetcher / tier-S slug | `pupila-fetchers` skill |
+| Adding an MCP tool | `pupila-mcp-tools` skill |
+| Tuning filter weights / debugging `_signals` | `pupila-filters` skill |
+| AI review + AI Apply pipelines | `pupila-ai-review` skill |
+| UI patterns (CSS modules, `lib/api/`, hooks, perf) | `ui/CLAUDE.md` (auto-loaded in `ui/`) |
+| MCP server invariants | `src/mcp/CLAUDE.md` (auto-loaded in `src/mcp/`) |
+| Fetcher security checklist | `src/fetchers/CLAUDE.md` (auto-loaded in `src/fetchers/`) |
 
 ## Overview
 
-`pupila` is a **config-driven, forkable** daily job aggregator. It fetches listings from 13 public sources (3 ATS APIs — Ashby, Greenhouse, Lever — plus RSS, JSON boards, Hacker News, HTML scrapers, an Aave Next.js scraper, and `ashby-private` for orgs whose public posting-API is disabled), normalizes them, applies hard exclusion filters, computes a per-job `fitScore`, deduplicates, and writes `data/jobs.json`, an RSS feed at `data/feed.xml`, and an auto-regenerated `JOBS.md`. The hand-written `README.md` is **not** rewritten by the pipeline. No external services. No DB.
+`pupila` is a **config-driven, forkable** daily job aggregator. Fetches from 13 public sources (3 ATS APIs — Ashby, Greenhouse, Lever — plus RSS, JSON boards, Hacker News, HTML scrapers, an Aave Next.js scraper, and `ashby-private` for orgs whose public posting-API is disabled), normalizes them, applies hard exclusion filters, computes a per-job `fitScore`, deduplicates, and writes `data/jobs.json`, an RSS feed at `data/feed.xml`, and an auto-regenerated `JOBS.md`. **`README.md` is hand-maintained — never overwrite it from code.** No external services, no DB.
 
-`config/profile.json` is **gitignored** — it encodes personal scoring preferences (sectors, stack, specialties to avoid) generated from the candidate brief. The first time `pnpm run dev` or `pnpm run ui` runs, the file is auto-bootstrapped from the committed `config/profile.default.json` (universal scaffolding + zeroed personal weights + empty personal keyword arrays). After onboarding (CV upload → brief generation), `/api/profile-generate` shells out to the local LLM CLI and overlays personal keyword lists + weights on top. Re-runnable from Settings → Scoring profile → Regenerate. `config/slugs.json` (separate file, committed) ships the full ~50-company tier-S list.
+Cross-cutting invariants (apply repo-wide):
 
-**First-run UX**: a forker generates `config/candidate-brief.md` via `pnpm run setup-brief --file ~/cv.pdf` (or via the UI's Profile tab → drop a PDF/DOCX/MD CV). The CLI shells out to whichever local LLM CLI is installed (`claude`, `codex`, `gemini`, `opencode` — auto-detected, override via `JOB_HUNT_LLM=<provider>`).
+- **`config/profile.json` is gitignored** — encodes personal scoring preferences. Auto-bootstraps from committed `config/profile.default.json` on first `pnpm run dev` / `pnpm run ui` via `bootstrapProfileIfMissing()` (idempotent — `COPYFILE_EXCL` no-ops on the steady state). Don't bypass; don't commit personalized weights.
+- **Mandatory CV gate**: `pnpm run dev` checks for `config/candidate-brief.md` at startup and exits 1 if missing. Bypass with `JOB_HUNT_NO_BRIEF_CHECK=1` or `--no-brief-check`.
+- **`config/candidate-brief.md` is the only natural-language config** (gitignored). Generated via `pnpm run setup-brief --file ~/cv.pdf` or via the UI's Profile tab (drop PDF/DOCX/MD CV). CLI shells out to `claude`/`codex`/`gemini`/`opencode` — auto-detected, override `JOB_HUNT_LLM=<provider>`.
+- **Local-first scheduling**: daily aggregation runs via `scripts/install-launchd.sh` (macOS) or `scripts/install-cron.sh` (Linux), not GitHub Actions cron. CI runs only on push/PR for gates.
+- **`data/applied.json` source of truth** for application tracking (UI writes via Vite middleware). Commit manually to persist across machines. **Don't filter applied jobs out of the main list** — user explicitly wants them visible.
 
 ## Stack
 
-- Node 22 LTS, ESM, TypeScript 5.9 (NodeNext)
+- Node 22 LTS, ESM, TypeScript 6 (NodeNext)
 - Biome 2.4 (lint + format, single config in `biome.json`)
-- pnpm 11 (defaults to `minimumReleaseAge: 1d` and `strictDepBuilds: true` — supply-chain hardening)
-- Vitest 3 (tests in `tests/`, 192 cases)
-- simple-git-hooks (pre-commit `lint && typecheck`)
+- pnpm 11 (`minimumReleaseAge: 1d`, `strictDepBuilds: true` — supply-chain hardening)
+- Vitest 4 (tests in `tests/`, 330 cases)
+- simple-git-hooks (pre-commit `lint && typecheck && lint:ui-patterns`)
 - Runtime deps: `fast-xml-parser` (RSS), `mammoth` + `pdfjs-dist` (CV parsing), `proper-lockfile` (apply-queue R-M-W lock). Native `fetch` only — no HTTP client lib.
 
 ## Run locally
 
 ```bash
-pnpm install                # also installs the pre-commit hook
-pnpm run dev                # tsx, no build step (this is what the launchd/cron aggregate agent runs)
-pnpm start                  # built output (requires pnpm run build first)
-pnpm run typecheck          # tsc --noEmit on src/, then on src/+tests/ via tsconfig.test.json
-pnpm run lint[:fix]         # biome check [--write]
-pnpm test                   # vitest run
-pnpm run test:watch         # vitest watch
-pnpm run ui                 # local-only Vite dev server on http://127.0.0.1:5173
-pnpm run ai-review          # writes data/ai-reviews.json (flags: --top=N, --force, --ids=a,b)
-pnpm run apply-worker       # standalone Jinder queue consumer (separate terminal)
+pnpm install                          # also installs the pre-commit hook
+pnpm run dev                          # orchestrator (tsx, no build step) — what launchd/cron runs
+pnpm start                            # built output (requires pnpm run build)
+pnpm run typecheck                    # tsc --noEmit on src/, then src/+tests/ via tsconfig.test.json
+pnpm run lint[:fix]                   # biome check [--write]
+pnpm test                             # vitest run
+pnpm run test:watch                   # vitest watch
+pnpm run ui                           # local-only Vite dev server on 127.0.0.1:5173
+pnpm run ai-review                    # writes data/ai-reviews.json (--top=N, --force, --ids=a,b)
+pnpm run apply-worker                 # Jinder queue consumer (separate terminal)
 pnpm run setup-brief --file ~/cv.pdf  # generate config/candidate-brief.md from a CV
-pnpm run daily              # = dev && ai-review (morning routine)
-pnpm run clean [-- --all]   # wipe locally-generated artifacts (--all also wipes brief + applied)
+pnpm run daily                        # = dev && ai-review (morning routine)
+pnpm run clean [-- --all]             # wipe locally-generated artifacts
+pnpm run mcp                          # MCP server over stdio
 ```
 
-**Mandatory CV gate.** `pnpm run dev` checks for `config/candidate-brief.md` at startup and exits 1 if missing. Bypass with `JOB_HUNT_NO_BRIEF_CHECK=1` or `--no-brief-check`.
-
-**Profile auto-bootstrap.** Both `pnpm run dev` (via `ensureProfile()` in `src/index.ts`) and `pnpm run ui` (via the `profileApiPlugin` `configureServer` hook) call `bootstrapProfileIfMissing()` on startup, which `copyFile(... , COPYFILE_EXCL)`s `config/profile.default.json` → `config/profile.json` when the latter is missing. EEXIST is the steady-state no-op, so a personalized profile is never clobbered. The same call is repeated defensively inside `/api/profile-generate` in case the file gets removed mid-session.
-
-**First-run onboarding.** When `config/preferences.json` is missing or has `onboardedAt: null`, opening the UI shows a 3-step wizard (`ui/src/Onboarding.tsx`): pick LLM CLI → drop CV → confirm brief. POSTs `/api/preferences` with provider + today's date as `onboardedAt` — once stamped, the wizard never re-triggers even if the brief is later removed.
-
-**AI Apply (per-job).** UI rows have an `AI Apply ✨` button next to `Apply ↗`. POSTs `/api/ai-apply` with `{ jobId }` — runs the LLM CLI on (brief + posting + CV) and writes a tailored package to `data/applications/<jobId>.md`. Auto-marks as applied. Middleware: `aiApplyApiPlugin` in `ui/vite.config.ts`. The endpoint is a thin wrapper around `runAiApplyForJob` in `src/lib/ai-apply.ts` (same core used by the apply-worker — see below).
-
-**Jinder (swipe-to-apply).** A third tab in the UI. Right-swipe enqueues an AI Apply task; left-swipe records a persistent skip in `data/swipe-skips.json` so the card doesn't re-appear. Queued jobs are drained serially by a separate process — start it once per session with `pnpm run apply-worker` in another terminal. The Settings → panel [08] APPLY QUEUE shows worker liveness + per-row status + cancel. Architecture:
-
-- `data/apply-queue.json` (gitignored, `{ version: 1, rows: QueueRow[] }`) — single source of truth, written by both Vite middleware (enqueue/cancel) and the worker (claim/done/failed). Concurrent R-M-W guarded by **proper-lockfile** (the project's second runtime dep) wrapped in `withQueueLock` (`src/lib/apply-queue.ts`).
-- Queue row state machine: `queued → running → done|failed|cancelled`, plus `queued → cancelled` direct. UI cancel writes 'cancelled' to the row; the worker's sub-poll (`isCancelled` every 500ms while a job runs) translates that to an `AbortController.abort()`, which the LLM spawn handler escalates SIGTERM → 5s → SIGKILL. Partial output on cancel lands at `data/applications/<jobId>.cancelled.md` (separate filename — never masquerades as a finished package). No applied entry is written on cancel.
-- `recoverOrphanedRunning()` runs on worker startup and re-flags pre-existing `running` rows as `failed` with reason `orphaned: worker crashed mid-run` (no automatic retry — user may have a partial cancelled file).
-- Single-instance worker: PID file at `data/apply-worker.pid` (gitignored). On startup the worker `process.kill(pid, 0)`-checks the existing PID and exits if another instance is alive. Graceful SIGINT/SIGTERM clears the file; a second identical signal force-exits and leaves the file for the next startup to clean.
-- Queue-row statuses are a SEPARATE domain from `ApplicationStatus` (applied/interview/offer/rejected/withdrawn). Don't merge them — `config/applied.json` and `data/apply-queue.json` are different files with different validators (`VALID_STATUSES` in `ui/plugins/_shared.ts` for the former, `VALID_QUEUE_STATUSES` in `src/lib/apply-queue.ts` for the latter).
-- Defense-in-depth: every queue mutation entry point (POST `/enqueue`, DELETE `/:jobId`, POST `/:jobId/skip`) and `runAiApplyForJob` itself validate `jobId` against `/^[a-f0-9]{40}$/` (sha1 hex). Prevents path traversal via `data/applications/<jobId>.md` writes. Helper exported as `isValidJobId` from `src/lib/apply-queue.ts`.
-- Endpoints (all in `ui/plugins/applyQueue.ts` under prefix `/api/apply-queue`): `GET /` → `{ rows, worker: { alive, pid, pidPath } }`; `POST /enqueue` `{ jobId }`; `DELETE /:jobId` (cancel); `POST /:jobId/skip`; `GET /skips` → `{ skips: string[] }`. Job body for the swipe card comes from `GET /api/job-body/:jobId` (sidecar `data/jobs-bodies.json` with `data/jobs.json` fallback).
-- Worker polling: 1500ms interval, interruptible via signalPromise (graceful shutdown takes <1.5s).
-- The Jobs-tab QueueBadge (`ui/src/jobs/QueueBadge.tsx`) renders `⏳ queued` / `⚙️ applying` next to title; terminal statuses render nothing (the existing applied marker covers `done`). Queue is polled at App root every 2.5s ONLY while the user is on the swipe or settings tab — the Jobs tab badge can go briefly stale (acceptable: cosmetic only, not load-bearing).
-
-The pipeline writes `data/jobs.json` (slim — `body` stripped), `data/feed.xml`, `JOBS.md`, optionally `data/archive/<YYYY-MM>.json` on day 1 of the month, and per-source raw dumps in `data/raw/<source>-<YYYY-MM-DD>.json` (gitignored). **`README.md` is hand-maintained — never overwrite it from code.**
-
-Pre-commit runs `lint && typecheck`. Bypass with `SKIP_SIMPLE_GIT_HOOKS=1 git commit ...`.
-
-## Repo layout
+## Repo layout (high-level)
 
 ```
 src/
-  index.ts          # orchestrator
-  types.ts          # Job, Source, Category, ApplicationStatus, AppliedEntry, FetcherResult, Raw* shapes
-  lib/apply-queue.ts # Jinder queue mutators (enqueue/claim/markDone/cancel/recover) + proper-lockfile wrapper, VALID_QUEUE_STATUSES, isValidJobId
-  lib/swipe-skips.ts # data/swipe-skips.json reader+writer (add/has/list)
-  lib/ai-apply.ts    # extracted AI Apply core (prompt + spawn + write) — shared by /api/ai-apply and scripts/apply-worker.ts
-  utils.ts          # fetchWithTimeout (1-retry), isSafeUrl, sha1, stripHtml, readJsonOrNull, ...
-  rss.ts            # shared fast-xml-parser wrapper
-  normalize.ts      # one normalize<Source> per source -> Job (uses withSalary())
-  salary.ts         # parseSalary(): raw -> { min, max, currency } (annual integer, ISO code)
-  filters.ts        # createFilters(profile) factory + applyFilters. Hard excludes + scoring + category + _signals
-  applied.ts        # loads config/applied.json, attaches AppliedEntry to Job by URL hash
-  dedup.ts          # 2-pass dedup, priority-aware tiebreak; exports compareJobs comparator
-  render.ts         # JOBS.md markdown (applied, ✨ new, 🗑 removed, 🚨 source-health)
-  feed.ts           # RSS 2.0 generator -> data/feed.xml (top 50 ✨ new jobs)
-  setup-brief.ts    # CLI: parse CV (pdf/docx/md/txt) → LLM CLI → write config/candidate-brief.md
-  lib/
-    llm.ts            # detectLlmCli + runLlm — provider-agnostic shell-out
-    cv-parser.ts      # parseCvBuffer/parseCvFile (pdfjs-dist, mammoth, raw text)
-    brief-template.ts # readBriefBody/writeBriefBody — preserve preamble + markers
-  fetchers/
-    _shared.ts                           # fetchMultiSlug orchestration helper
-    ashby.ts greenhouse.ts lever.ts      # ATS APIs (public, multi-slug)
-    ashby-private.ts                     # multi-slug GraphQL for hidden Ashby orgs
-    aave.ts                              # first-party scraper (Next.js __NEXT_DATA__)
-    aijobsnet.ts cryptojobslist.ts web3career.ts  # boards / scrapers
-    hn-hiring.ts hn-jobs.ts              # Hacker News
-    remoteok.ts remotive.ts weworkremotely.ts
-
-config/
-  slugs.json                  # tier-S Ashby/Greenhouse/Lever slug arrays (committed)
-  profile.default.json        # committed — neutral baseline auto-copied to profile.json on first run
-  profile.json                # GITIGNORED — personal scoring weights + keyword lists, generated from brief
-  candidate-brief.md          # GITIGNORED — LLM-generated CV summary
-  candidate-brief.example.md  # committed template
-  applied.json                # GITIGNORED — UI writes here via /api/applied
-  applied.example.json        # committed template
-  preferences.json            # GITIGNORED — { provider, onboardedAt }
-  cv.{pdf,docx,md,txt}        # GITIGNORED — kept on disk so AI Apply can re-attach
-
-scripts/
-  install-launchd.sh # macOS local scheduler — wraps `pnpm run daily`
-  install-cron.sh    # Linux local scheduler — appends a crontab entry
-  apply-worker.ts    # standalone Node poll-loop worker for the Jinder queue
-  install-mcp.sh     # one-command install for the MCP server (Claude Code / Desktop / Cursor)
-  _merge-mcp-config.mjs # Node helper invoked by install-mcp.sh to merge JSON config entries
-
-src/mcp/             # MCP server (Model Context Protocol) — fourth direct consumer of src/lib/*
-  index.ts           # stdio entrypoint; imports lib/stdout-guard.ts FIRST so console.* → stderr
-  server.ts          # createMcpServer() factory — registers every tool (17 in v1)
-  paths.ts           # mirror of ui/plugins/_paths.ts (REPO_ROOT via import.meta.url)
-  errors.ts          # safeHandler() wrapper + toolError/toolJson envelope helpers
-  lib/stdout-guard.ts # patches console.log/info/warn → stderr; stdio is the JSON-RPC channel
-  lib/worker-probe.ts # probes data/apply-worker.pid for liveness (used by queue tools)
-  lib/fetch-runner.ts # singleton state machine for trigger_fetch (spawns pnpm exec tsx)
-  schemas/*.ts       # Zod raw shapes — one per tool. _constants.ts hosts JOB_ID_REGEX
-  tools/*.ts         # one tool per file: each exports `run<Name>` + `register<Name>`
-
-tests/
-  fixtures/test-profile.json  # frozen tuned profile for filters.test.ts
-  filters.test.ts (33), dedup.test.ts (10), applied.test.ts (4), salary.test.ts (15),
-  feed.test.ts (6), aave.test.ts (7), ashby-private.test.ts (9),
-  ai-review-parse.test.ts (9), normalize-hn.test.ts (7), utils.test.ts (20)
-
-ui/                 # local-only browser dashboard (Vite + React)
-  index.html, vite.config.ts (root via fileURLToPath), tsconfig.json
-  src/
-    main.tsx        # ReactDOM.createRoot
-    App.tsx         # filter + sort + table over data/jobs.json
-    Onboarding.tsx, Settings.tsx, FetchProgress.tsx, SchedulerProgress.tsx, format.ts
-    types.ts        # local copy of Job/Signals/AppliedEntry/AiReview
-    styles.css      # CSS vars + dark mode via prefers-color-scheme
-
-tsconfig.json       # rootDir=src/, strict NodeNext
-tsconfig.test.json  # extends above with rootDir=. so tests/ typecheck without leaking into the build
-
-.github/
-  workflows/check.yml  # PR/push: lint + typecheck + test + build + audit (only workflow)
-  dependabot.yml       # weekly grouped npm + github-actions PRs
+  index.ts          # orchestrator (filter + score + dedup + render + write)
+  types.ts          # Job, Source, ApplicationStatus, FetcherResult, ...
+  fetchers/         # one fetcher per source — see src/fetchers/CLAUDE.md
+  mcp/              # MCP server (17 tools) — see src/mcp/CLAUDE.md
+  lib/              # apply-queue, swipe-skips, ai-apply, llm, cv-parser, fetch-runner
+  filters.ts salary.ts dedup.ts applied.ts render.ts feed.ts normalize.ts
+  utils.ts          # fetchWithTimeout, isSafeUrl, sha1, stripHtml, readJsonOrNull
+  rss.ts            # fast-xml-parser wrapper
+  ai-review.ts ai-review-parse.ts setup-brief.ts
+config/             # slugs.json, profile.{default,}.json, applied.json, brief, preferences
+ui/                 # local-only React dashboard — see ui/CLAUDE.md
+scripts/            # apply-worker, installers (launchd/cron/mcp), clean
+tests/              # 192 vitest cases, fixtures in tests/fixtures/
+openspec/changes/   # OpenSpec proposals (committed)
+.claude/skills/     # project skills (pupila-*) ship; provider-generic skills are local-only
 ```
 
-> **CodeQL workflow removed.** Code Scanning isn't available on private repos without GitHub Advanced Security. Restore from commit `7397117` if the repo goes public.
+Code-level docs (subsystems documented in-file + tests; this CLAUDE.md doesn't restate them):
 
-## How to add a new fetcher
+- Dedup + final sort (`compareJobs` 4-key chain, source priority) → `src/dedup.ts` + `tests/dedup.test.ts`
+- Salary parsing (K/M suffix, currency, hourly→annual) → `src/salary.ts` + `tests/salary.test.ts`
+- RSS feed (top 50 new jobs, hand-rolled XML) → `src/feed.ts` + `tests/feed.test.ts`
+- Source-health alarms (🚨 banner) → `src/render.ts`
+- New-since / removed-since diff (top 20 / top 10) → `src/index.ts` (computed via `readJsonOrNull` before write)
+- Application-status emoji + summary → `src/applied.ts` + `tests/applied.test.ts`
 
-1. Add a Raw shape to `src/types.ts`.
-2. Create `src/fetchers/<name>.ts` exporting `fetch<Name>(): Promise<FetcherResult<Raw>>` (`{ items, errors }`). **Never throw** — catch internally and push to `errors`.
-   - Use `fetchWithTimeout` / `fetchJson` / `fetchText` from `utils.ts` (30s timeout, 1 retry on 5xx/network).
-   - Pass `JSON_HEADERS` or `RSS_HEADERS`.
-   - For multi-slug fetchers, **use `fetchMultiSlug` from `_shared.ts`** — it owns the Promise.all + per-slug try/catch + flatMap. The fetcher only owns per-slug extraction. See `ashby.ts`, `greenhouse.ts`, `lever.ts`.
-3. Add the literal source name to the `Source` union in `src/types.ts`.
-4. Add `normalize<Name>(items, fetchedAt): Job[]` to `src/normalize.ts`.
-5. Wire into `src/index.ts`: import + add a line to the `Promise.all` block via `processFetcher(...)`.
-6. Add the source to `SOURCE_PRIORITY` in `src/dedup.ts` and `SOURCES` in `src/render.ts`.
-7. Add at least one parser test in `tests/` for HTML scrapers.
+## Filter rules (overview)
 
-Smoke-test before wiring:
+`src/filters.ts` is a hard-drop chain → boilerplate strip → scoring (capped at 100) → optional -10 US-centric penalty → drop below `minScoreToKeep` (default 30) → category assignment (`web3+ai` / `web3` / `ai` / `general`).
 
-```bash
-npx tsx -e "import('./src/fetchers/<name>.ts').then(async m => { const r = await m.fetch<Name>(); console.log('count:', r.items.length, 'errors:', r.errors, 'first:', r.items[0]); })"
-```
-
-## How to add a tier-S company
-
-All slug arrays live in `config/slugs.json` — non-code edit. Pick the right ATS:
-
-| ATS | JSON key | URL pattern (find slug here) |
-|---|---|---|
-| Ashby | `ashby` | `jobs.ashbyhq.com/<slug>` |
-| Greenhouse | `greenhouse` | `boards.greenhouse.io/<slug>` |
-| Lever | `lever` | `jobs.lever.co/<slug>` |
-
-The `TIER_S_*_SLUGS` exports in fetcher files are thin re-exports of the JSON.
-
-Probe before adding:
-
-```bash
-curl -sI "https://api.ashbyhq.com/posting-api/job-board/<slug>?includeCompensation=true"
-curl -sI "https://boards-api.greenhouse.io/v1/boards/<slug>/jobs"
-curl -sI "https://api.lever.co/v0/postings/<slug>?mode=json"
-```
-
-404 slugs are logged and skipped silently — safe to leave a known-bad slug while waiting for upstream.
-
-If a target isn't on any of the three big ATSes, it might be on Ashby's hosted-board GraphQL with the public API disabled — try `https://jobs.ashbyhq.com/<slug>` in a browser. If it loads, append the slug to `config/slugs.json#ashbyPrivate`. Genuine custom ATSes need a per-company HTML scraper; `src/fetchers/aave.ts` is the canonical Next.js `__NEXT_DATA__` example.
-
-## Filter rules
-
-All in `src/filters.ts`. **Weights and keyword lists load from `config/profile.json` at runtime via `loadProfile()`** (NOT a static import — the file is gitignored; on a fresh clone or after deletion, `src/index.ts`'s `ensureProfile()` auto-bootstraps it from `config/profile.default.json` before calling `createFilters(profile)`). `compileKw()` joins each list with `|` and wraps in `\b...\b/i`. Adjusting weights/keywords is non-code.
-
-The hard-drop chain is a named-rule list (`HARD_RULES`). `applyFilters` runs `Array.find` over the rules, increments `droppedHard`, and tallies the rule name in `droppedByRule`. Breakdown surfaces in JOBS.md (e.g. `(missing_senior_req=812, ...)`). To add a rule: append a `{ name, test }` entry — no other plumbing.
-
-Order of operations:
-
-1. **Hard excludes** (drop entirely):
-   - URL is not http/https (security gate via `isSafeUrl`)
-   - Title contains junior/jr/intern/entry-level/associate/graduate/trainee/apprentice
-   - Title lacks a senior_req keyword (senior/sr/staff/principal/lead/head/director/engineer(s)/developer(s)/architect(s))
-   - Body matches a hard US-only/onsite pattern (uses **full body**, not the truncated scoring body)
-   - Title or body matches a non-engineering pattern AND title lacks an engineering keyword
-   - `TITLE_NON_ENG_COMPOUND`: customer support/success/sales/solutions engineer, devrel, field eng, business/sales/people ops, partner(ships) engineer, technical sourcer/recruiter, forward deployed/implementation/onboarding engineer, gtm
-   - `TITLE_NON_ENG_LEADERSHIP`: VP, CMO, CRO, CFO, COO
-   - `TITLE_NON_FRONTEND_ENG`: product security/data/devops/sre/infrastructure/platform/qa/network/firmware/embedded engineer (user is a frontend engineer)
-   - `TITLE_NON_ENG_ROLE`: lead/manager for client/account/customer/business/product/operations/regional/country
-   - `TITLE_NON_TECH_ROLE`: analyst, trader, scientist, researcher
-2. **Body preparation.** `preparedScoringBody()` strips boilerplate (EEO, privacy, accommodations, "About us") and truncates to `scoringBodyMaxChars` (default 1500). Keyword scoring runs against this — prevents footer text like "we use Anthropic Claude internally" from landing a +20 AI signal on a backend role. Hard-drops still see the **full** body.
-3. **Soft scoring** (additive, capped at `maxScore` = 100):
-   - Web3 (+20 title/body, +20 stack) — binary
-   - AI (+20 title/body, +20 stack) — binary
-   - Stack (+10 React/Next/TS, +5 RN/Expo, +5 GraphQL/Tailwind/Vite) — **tiered**
-   - Seniority (+15 lead/staff/principal/head, +10 senior/sr) — binary
-   - Frontend title (+10 if title contains frontend/fullstack/web/mobile) — binary
-   - Frontend body (+10 if body contains "design system" / "ship components" / "accessibility" etc.) — **tiered**
-   - Location (+10 remote/EMEA/CET/Spain/anywhere) — binary
-   - Freshness (+10 within 7d, +5 within 14d) — binary
-
-   **Tiered weighting** via `tieredWeight(count, baseWeight)`: 0 = 0, 1 = `floor(base * 0.5)`, 2–3 = base, 4+ = `floor(base * 1.5)`. Implemented with global-flag regexes (`STACK_PRIMARY_G`, `STACK_RN_G`, `STACK_OTHER_G`, `BODY_FRONTEND_KW_G`) + `countMatches`. Other signals stay binary.
-4. **Negative**: -10 if body hints US-centric without remote-worldwide language. Applied after capping.
-5. **Drop** anything with `fitScore < minScoreToKeep` (default 30).
-6. **Category**: `web3+ai` if both fired, else `web3`, `ai`, or `general`.
-
-Adjust a weight: edit `config/profile.json#weights.<field>`. Add a keyword: edit `config/profile.json#keywords.<list>`. New signal types or hard-drop branches: edit `applyFilters` directly.
-
-**Adding a new positive signal.** Append to `JobSignals` in `types.ts`, add weight to `config/profile.json#weights`, append one line to the `positives` object literal in `applyFilters`. Sum is via `Object.values(positives).reduce(...)` — auto-includes any new field.
-
-### Debugging fitScore via `_signals`
-
-Every kept job has a `_signals` object showing which scoring rules fired:
-
-```jsonc
-"_signals": {
-  "web3TitleBody": 0, "web3Stack": 20, "aiTitleBody": 20, "aiStack": 20,
-  "stackPrimary": 10, "stackRn": 0, "stackOther": 0,
-  "leadTitle": 0, "seniorTitle": 10,
-  "frontendTitle": 10, "frontendBody": 10, "locationRemote": 10,
-  "freshness7d": 10, "freshness14d": 0, "usCentricPenalty": 0,
-  "rawTotal": 110, "capped": true
-}
-```
-
-Run `pnpm run dev`, then `jq '.[0]._signals' data/jobs.json`. `rawTotal` is the un-capped positive sum; `capped: true` means positives summed > 100 before clamping; `usCentricPenalty` is applied after capping.
+Weights and keyword lists load at runtime from `config/profile.json`. **Adjusting weights/keywords is non-code.** Every kept job carries a `_signals` object showing which rules fired — see the **`pupila-filters` skill** for the tier multipliers, scoring catalog, debugging recipes, and how to add new positive signals or hard-drop rules.
 
 ## Application tracking
 
-`config/applied.json` is the source of truth for jobs you've applied to. Hand-editable, but day-to-day written by the UI via dev-server middleware. Schema in `src/types.ts`:
+`config/applied.json` is hand-editable but day-to-day written by the UI via dev-server middleware. Schema in `src/types.ts`:
 
 ```ts
 type ApplicationStatus = 'applied' | 'interview' | 'offer' | 'rejected' | 'withdrawn';
 interface AppliedEntry { url: string; status: ApplicationStatus; date: string; notes?: string }
 ```
 
-`src/applied.ts` exports `STATUS_EMOJI` (📝/💬/🎯/❌/⏸), `loadAppliedMap(path?)` (hashes URLs with the same identity as `Job.id`), and `summarizeApplied(entries)` (one-line header).
+`src/applied.ts` exports `STATUS_EMOJI` (📝/💬/🎯/❌/⏸), `loadAppliedMap` (hashes URLs with the same identity as `Job.id`), and `summarizeApplied`. Wired in `src/index.ts` after dedup+sort: every kept job gets `job.applied = appliedMap.get(job.id)` when matched.
 
-Wired in `src/index.ts` after dedup+sort: every kept job gets `job.applied = appliedMap.get(job.id)` when matched. `render.ts` then renders a "📋 Application status" section at the top of `JOBS.md` and prefixes title cells with the status emoji in every category section. **Don't filter applied jobs out of the main list** — user explicitly wants them visible (follow-up, dup comparison).
+## Local UI
 
-**Persistence.** UI edits go straight to disk; future `pnpm run dev` runs re-read it. No auto-commit (project is local-first). To preserve across machines, commit `config/applied.json` manually.
+`pnpm run ui` serves a Vite + React 19 dashboard at `127.0.0.1:5173`. **Local-only — no auth, no hosting, intentionally not exposed beyond 127.0.0.1** (a public dashboard surfacing applied-job statuses could be Google-indexed and visible to recruiters). **Don't add `pnpm run ui:deploy`** without explicit instruction.
 
-## Dedup
+Two hard rules (enforced by Biome + `scripts/check-ui-patterns.sh`, fully documented in `ui/CLAUDE.md`):
 
-`src/dedup.ts`:
-1. By `id` (sha1 of normalized URL).
-2. By `sha1(normalize(company) + '|' + normalize(title))`.
+1. Every class comes from a co-located `*.module.css` import — never write a class name as a string literal.
+2. Every server call goes through `ui/src/lib/api/` — never write `fetch('/api/...')` at a call site.
 
-Tiebreak: highest `fitScore` wins; on ties, source priority. Order: aave = ashby-private > ashby > lever > greenhouse > cryptojobslist > web3career > aijobsnet > hn-hiring > hn-jobs > remotive > weworkremotely > remoteok.
+Settings tab (eight panels), Jinder (swipe-to-apply queue), AI Apply (per-job tailored package), `useEffect` async style, feature hooks, code-splitting + memo perf rules: all in **`ui/CLAUDE.md`** (auto-loaded when working in `ui/`).
 
-## Final sort (`compareJobs`)
+## AI per-job review
 
-Exported from `src/dedup.ts`, used by orchestrator post-dedup:
+`pnpm run ai-review` is a **local-only** companion that augments selected jobs with an LLM review via `src/lib/llm.ts` (auto-detects `claude`/`codex`/`gemini`/`opencode`, override `JOB_HUNT_LLM`). Uses the local subscription — **not** an API key, so no per-token charges. Output: `data/ai-reviews.json`.
 
-1. `fitScore` desc
-2. `salaryMax` desc (`null` treated as 0 — unstated comp sinks below stated)
-3. `postedAt` desc
-4. `id` asc (deterministic tiebreak — stable day-over-day diffs)
+Daily workflow:
 
-## New-since / removed-since diff
-
-Right before writing `data/jobs.json`, the orchestrator reads the **previous** copy via `readJsonOrNull` and computes:
-
-- `newJobs = current − previous` → "✨ New since last run" (top 20 by `fitScore` desc, also drives `data/feed.xml`).
-- `removedJobs = previous − current` → "🗑 Removed since last run" (top 10 by previous `fitScore`).
-
-Both feed `RenderStats.newCount/removedCount` and `renderReadme(...)`. On first run (`previous === null`), diffs are empty — sections omitted entirely. **Don't change this** — prevents "all 900 jobs are new" on day one.
-
-The read happens **after** filter+dedup+sort but **before** `writeJson`, so the new file overwrites cleanly.
-
-## RSS feed
-
-[`src/feed.ts`](./src/feed.ts) emits hand-rolled RSS 2.0 to `data/feed.xml` with the top 50 `newJobs` by `fitScore`. XML is hand-built (we control the shape); `escapeXml` covers the five entity classes. Metadata overridable via `JOB_HUNT_FEED_TITLE` / `JOB_HUNT_FEED_DESC` / `JOB_HUNT_FEED_LINK`. Subscribe locally via `file://` path.
-
-## Salary parsing
-
-[`src/salary.ts`](./src/salary.ts) `parseSalary(raw)` returns `{ min, max, currency }` normalized to **annual integers**. Handles `$120K-$180K`, `€80,000 - €110,000`, `100K-150K USD`, hourly via 2080-hour annualization, M-suffixed, single values, currency code/symbol detection. Rejects sub-$1000 amounts. Returns `{ null, null, null }` for free-text. Hooked into `normalize.ts` via `withSalary()` spread.
-
-`Job.salary` (raw, for display) and `Job.salaryMin/salaryMax/salaryCurrency` (parsed) are both populated.
-
-## Source-health alarms
-
-`src/render.ts` flags fetchers with `fetched === 0` OR `errors > 0` in the current run: 🚨 banner above Stats, 🚨 prefix in by-source list. Single-run signal — no historical tracking. Catches silent breakage (web3career and aijobsnet markup changes have hit us before). A legitimately quiet source (e.g. cryptojobslist with upstream down) will alarm — that's still useful surfacing.
-
-## GitHub Actions
-
-One workflow only — project moved to local-first scheduling.
-
-- **`.github/workflows/check.yml`** — every push to `main` and PR. Six gates: Biome lint, typecheck (3 tsconfigs), Vitest, `tsc` build, Vite UI build, `pnpm audit`. `permissions: contents: read`.
-
-The previous `jobs.yml` (cron) and `keepalive.yml` were removed. Daily aggregation now runs locally via `scripts/install-launchd.sh` (macOS) or `scripts/install-cron.sh` (Linux), installing two agents: `pnpm run dev` and `pnpm run ai-review`.
-
-`.github/dependabot.yml` opens weekly grouped PRs.
-
-**Pinning.** All third-party actions referenced by full 40-char SHA with version in trailing comment. Update both when bumping. Dependabot keeps these current.
-
-## Tests
-
-Vitest, 120 cases across 10 files in `tests/` (`*.test.ts` glob). Run via `pnpm test` or `pnpm run test:watch`. Coverage spans: `utils` (URL safety, sha1, time math, formatters), `normalize-hn` (header parsing, plausible-company guard), `filters` (every hard-drop branch, scoring signals, tiered weighting, boilerplate stripping), `dedup` (id/title collapse, source priority, `compareJobs` 4-key chain), `applied` (`STATUS_EMOJI`, `summarizeApplied` ordering), `salary` (K/M suffix, currency detection, hourly→annual, free-text fallback), `feed` (RSS skeleton, escaping, sort, 50-cap), `aave` (`__NEXT_DATA__` extraction + normalize), `ashby-private` (GraphQL parsers + slug-to-company), `ai-review-parse` (markdown-fence stripping, invalid verdicts, dirty arrays).
-
-When tuning a regex or weight, update tests in the same commit.
-
-`tsconfig.test.json` extends `tsconfig.json` with `rootDir: "."` and `include: ["src/**/*", "tests/**/*"]`. `pnpm typecheck` runs both: production `tsconfig.json` first (catch issues that would block compilation), then `tsconfig.test.json` so tests don't leak into the build's `rootDir`.
-
-## Local UI (`pnpm run ui`)
-
-> **UI rules live in [`ui/CLAUDE.md`](./ui/CLAUDE.md)** (nested context, auto-loaded by Claude Code when working in `ui/`). Two hard rules summarized: (1) every class comes from a co-located `*.module.css` import — never write a class name as a string literal; (2) every server call goes through `ui/src/lib/api/` — never write `fetch('/api/...')` at a call site. Both are also enforced by `pnpm run lint` + the pre-commit hook.
-
-Vite + React 19 dashboard at `ui/` that fetches `data/jobs.json` and `data/ai-reviews.json` from `/api/jobs` and `/api/reviews` (Vite middleware in `ui/vite.config.ts`) — those files are gitignored, so static imports would force them to exist at build time. **Local-only — no auth, no hosting, intentionally not exposed beyond `127.0.0.1:5173`** (user explicitly chose this over public Pages — a public dashboard surfacing applied-job statuses could be Google-indexed and visible to recruiters). **Don't add a `pnpm run ui:deploy`** without explicit instruction.
-
-Single-component MVP (no router, no state-management lib): filter chips for category/source/applied, search, sortable columns (score/salaryMax/postedAt), dark mode via `prefers-color-scheme`. Score cells tier-colored (green ≥80, gold 50-79, muted <50). Long company/title cells are 2-line clamped via `display: -webkit-box` on a `<span>` wrapper inside the `<td>` — applying directly on `<td>` breaks table-cell layout.
-
-**Expandable rows.** Clicking a row opens a 3-column detail panel: AI take (when `data/ai-reviews.json` has an entry), `_signals` breakdown, meta (location/tags/posted/id). The Apply link uses `e.stopPropagation()`. Verdict badge (`strong-match`/`match`/`weak-match`/`skip`) appears next to title when an AI review exists.
-
-**Group by company (default on).** Folds by lower-cased `company`. Single-job groups render flat; multi-job groups get a collapsible header with top score + role count + top-role preview. Active sort key drives both within-group and inter-group order.
-
-**URL-encoded state.** All filter/sort/group/expand state syncs to `window.location.search` via `history.replaceState` (no back-button spam). Keys: `q`, `cat`, `src`, `applied=1`, `sort`, `dir=asc`, `group=0` (only when off), `expanded=<jobId>`, `co=<lowercased-company>`. Defaults omitted. Read URL once via `useMemo` lazy init; single `useEffect` writes back. **Don't use `pushState`** — every keystroke would create history entry.
-
-**Mark-as-applied from UI.** Detail panel has an "Applied" bar with status pills + notes input. Clicking a pill toggles; clicking active clears. Notes save on blur/Enter. Edits go through `appliedApiPlugin` (Vite middleware) — `GET/POST/DELETE /api/applied` reads/writes `config/applied.json` directly. Optimistic updates (rolls back on failure with banner). On mount, App fetches `/api/applied` and reconciles with baked-in `j.applied`. Middleware only runs under `pnpm run ui` — `ui:build` preview falls back to baked-in state. **User must `git add config/applied.json && git commit` manually** to persist across machines.
-
-`ui/src/types.ts` is a deliberate copy of the relevant subset of `src/types.ts`. Pipeline strips `body` from persisted `data/jobs.json`, but **`_signals` is kept** for UI rendering. **Don't rewrite `ui/src/types.ts` to import from `src/types.ts`** — that pulls in `with { type: 'json' }` config imports that don't resolve in the browser.
-
-HTML has `<meta name="robots" content="noindex,nofollow">` as belt-and-suspenders.
-
-`pnpm run typecheck` runs all three TS configs: `tsconfig.json`, `tsconfig.test.json`, `ui/tsconfig.json`.
-
-### Settings tab
-
-Settings is now the FOURTH tab (Jobs / Jinder / Profile / Settings — `ui/src/Settings.tsx`). Eight numbered panels (`[01]`..`[08]`, last is `[08] APPLY QUEUE`) — terminal-grade aesthetic. All backed by Vite middleware in `ui/vite.config.ts`:
-
-1. **LLM CLI** — switch provider (POST `/api/preferences`) + "Test connection" (POST `/api/llm-test`, 6-token prompt, 30s timeout, latency badge: green ≤3s/yellow ≤10s/red >10s).
-2. **Scheduler** — full lifecycle. GET `/api/scheduler-status` (`launchctl list` on darwin, `crontab -l` on linux) detects `dev.${USER}.job-hunt.aggregate`/`.review` + log mtimes for "last run X ago". POST `/api/scheduler-install` (body `{ skipReview }`) and `/api/scheduler-uninstall` shell out to bundled scripts. Both gated by in-app confirm modal. `<SchedulerProgress />` streams stdout; on completion pills auto-refresh. Single in-flight op enforced server-side.
-3. **Last run** — GET `/api/run-summary` parses `data/jobs.json` for total kept, by-category, per-source kept counts. Sources with `kept === 0` get 🚨. `generatedAt` from `max(job.fetchedAt)` with mtime fallback; `ageHours >= 24` shows "stale".
-4. **Disk usage** — GET `/api/disk-usage` walks `data/raw`, `data/applications`, `data/archive` (depth cap 4), returns `{ bytes, files }` per bucket. Proportional bars.
-5. **Maintenance** — three buttons POSTing `/api/clean` with `mode: 'default'|'all'|'onboarding'`. Each opens a styled confirm modal (Esc + click-outside dismissable). On success, panel auto-refreshes scheduler/run-summary/disk. Endpoint serializes runs (409 on conflict) and shells out to `pnpm exec tsx scripts/clean.ts` so CLI and UI share logic.
-6. **Environment** — GET `/api/env` returns `{ node, platform, repoRoot, briefPresent, cvPresent, providers, preferredProvider }`. "Refresh all" re-fetches every panel.
-7. **Apply queue [08]** — GET `/api/apply-queue` returns `{ rows, worker: { alive, pid, pidPath } }`. Renders worker-liveness banner with copy-paste `pnpm run apply-worker` snippet when the PID-check fails, counts row, filter chips (all/active/done/failed), per-row cancel button. Cancel sends DELETE `/api/apply-queue/:jobId`; 200 on ok, 404 on not-found, 409 on terminal. Polled by App root every 2.5s while swipe or settings tab is visible (no poll on Jobs or Profile tabs).
-
-**Long-running ops UX.** `/api/fetch-jobs` and `/api/scheduler-install` (+uninstall) both follow: POST starts → GET polls → in-memory state with single concurrent-run lock. UI renders a docked card via `FetchProgress.tsx` / `SchedulerProgress.tsx` (shared `.fetch-progress*` CSS). When both could appear simultaneously, scheduler dock stacks above via `.fetch-progress-scheduler { bottom: calc(1rem + 360px); }`.
-
-**Shared helpers.** `relativeTime` and `formatBytes` live in `ui/src/format.ts`, used by App/Settings/FetchProgress/SchedulerProgress. The previous inline `relativeTime` in `App.tsx` was extracted; granularity now reports `Nm ago`/`Nh ago` for sub-day diffs (deliberate improvement for Settings last-run case).
-
-### Async style
-
-`useEffect` callbacks can't themselves be `async` (they must return a cleanup function, not a Promise). Inside an effect, declare a named async arrow assigned to `const`, pass an `AbortController` signal to every `fetch`, and abort on cleanup:
-
-```ts
-useEffect(() => {
-  const ctrl = new AbortController();
-  const load = async () => {
-    try {
-      const r = await fetch('/api/foo', { signal: ctrl.signal });
-      if (!r.ok) return;
-      const data = (await r.json()) as Foo;
-      setFoo(data);
-    } catch (err) {
-      if (err instanceof Error && err.name === 'AbortError') return;
-      // handle other errors
-    }
-  };
-  void load();
-  return () => ctrl.abort();
-}, [deps]);
-```
-
-Same pattern for polling effects — replace the `cancelled` flag with the controller; the cleanup calls both `clearInterval` and `ctrl.abort()`. See `FetchProgress.tsx` (`tick`) and `AiApplyProgress.tsx` for the polling shape, `Onboarding.tsx` (`load`) for the one-shot shape. Use arrow-assigned-`const`, not `async function` declarations — keeps the style uniform with the rest of the UI's `useCallback` / `useMemo` patterns.
-
-For `useCallback`/event handlers (`triggerFetch`, `setApplied`, etc.), use plain `async`/`await` directly — no controller unless the operation is long-running and should be cancellable on unmount. When a `useCallback` is *also* called from a `useEffect`, accept an optional `signal?: AbortSignal` parameter so the effect can plumb cancellation through (`reloadJobsAndReviews`, `refreshApplyQueue`, `loadAll` follow this).
-
-No `.then`-chain `useEffect`s; no `let cancelled = false` flags. If you find either pattern, it's pre-convention and should be refactored.
-
-## AI per-job review (`pnpm run ai-review`)
-
-[`src/ai-review.ts`](./src/ai-review.ts) is a **local-only** companion that augments selected jobs with an LLM review via `src/lib/llm.ts` (auto-detects `claude`/`codex`/`gemini`/`opencode`, override `JOB_HUNT_LLM`). Uses the user's local subscription (e.g. Claude Max) — **not** an API key, so no per-token charges. The launchd/cron review agent runs daily at 07:15 by default. Without an LLM CLI, run `scripts/install-launchd.sh --no-review` (or cron equivalent).
-
-**Inputs:** `data/jobs.json` (slim list), `data/jobs-bodies.json` (sidecar with full bodies, regenerated by `pnpm run dev`), `data/ai-reviews.json` (existing reviews), `config/candidate-brief.md` (hand-edited natural-language description of who the candidate is and what they're avoiding — embedded verbatim; main lever for tuning match/skip).
-
-**Output:** `data/ai-reviews.json` as `Record<jobId, AiReview>`. Each carries one-sentence summary, 3 bullets each for `wants`/`offers`/`redFlags`, verdict (`strong-match | match | weak-match | skip`), and one-sentence `reason`. Writes after every successful review — a Ctrl-C or rate-limit kill leaves a partial-but-valid file.
-
-**Selection.** Default: top 20 by `fitScore` not already reviewed. Reviews for jobs no longer in `jobs.json` are pruned each run. Flags: `--top=N`, `--force`, `--ids=a,b,c`.
-
-**JSON parsing.** LLM occasionally wraps JSON in markdown fences; [`src/ai-review-parse.ts`](./src/ai-review-parse.ts) strips them and falls back to safe defaults rather than throwing — partial reviews are still useful.
-
-**Daily workflow:**
 ```bash
-pnpm run daily       # = `pnpm run dev && pnpm run ai-review`
+pnpm run daily       # = pnpm run dev && pnpm run ai-review
 pnpm run ui          # browse with verdicts + score breakdowns inline
 git add data/jobs.json data/feed.xml data/ai-reviews.json JOBS.md
 git commit -m "chore: daily run + ai reviews"
 ```
 
-`config/candidate-brief.md` is the only natural-language config in the repo (everything else is JSON/TS).
+`config/candidate-brief.md` is the main lever for tuning verdicts. See the **`pupila-ai-review` skill** for pipeline details, JSON-fence parsing quirks, AI Apply (per-job tailored package) architecture, and provider-switching.
 
-## MCP server (`pnpm run mcp`)
+## MCP server
 
-Exposes 17 typed tools to any MCP client (Claude Code / Claude Desktop / Cursor) so the daily pipeline can be driven from inside another agent's context. Lives at `src/mcp/`; entry point is `tsx src/mcp/index.ts`. The server is the **fourth direct consumer** of `src/lib/*` alongside the Vite middleware, the apply-worker, and `pnpm run ai-review`. **No HTTP shim, no CLI subprocess layer** — tools call into `src/lib/*` functions directly, same code path the UI uses.
+`pnpm run mcp` exposes 17 typed tools to MCP clients (Claude Code / Claude Desktop / Cursor). Lives at `src/mcp/`. **Fourth direct consumer of `src/lib/*`** alongside Vite middleware, apply-worker, and `pnpm run ai-review` — no HTTP shim, no CLI subprocess layer.
 
-**Tools registered (read this for shape before adding more):**
+Install: `scripts/install-mcp.sh` (idempotent prereq-checks, JSON merging via `scripts/_merge-mcp-config.mjs`). `PUPILA_DRY_RUN=1` for a no-write rehearsal.
 
-| Category | Names |
-|---|---|
-| Read | `list_jobs`, `get_job_detail`, `get_brief` |
-| Applied | `mark_applied`, `update_status`, `clear_applied` |
-| Queue | `enqueue_apply`, `cancel_apply`, `skip_job`, `queue_status`, `worker_status` |
-| Aux | `run_summary`, `get_ai_review`, `list_ai_reviews` |
-| Long-running | `trigger_fetch`, `get_fetch_status`, `regenerate_profile` |
+Hard invariants (stdout JSON-RPC, `JOB_ID_REGEX`, single-flight locks on `trigger_fetch` + `regenerate_profile`, worker-separation, error envelopes) live in **`src/mcp/CLAUDE.md`** (auto-loaded in `src/mcp/`). Adding a tool: **`pupila-mcp-tools` skill**.
 
-**Hard invariants. Do not break.**
+The README tool-reference table is hand-maintained — every tool change MUST also update `## MCP server` in `README.md`.
 
-- **stdout is the JSON-RPC channel.** A single stray `console.log` corrupts the framing and the MCP client silently drops the connection. `src/mcp/lib/stdout-guard.ts` patches `console.log/info/warn` → stderr **on import**, BEFORE any other module loads (it's the first import in `index.ts`). Never write `console.log` in tool code. `process.stdout.write` is reserved for the SDK; any direct call from `src/lib/*` in a tool's code path will corrupt framing — audit if you import a lib that didn't exist when this was last verified.
-- **`JOB_ID_REGEX = /^[a-f0-9]{40}$/`** mirrors `isValidJobId` from `src/lib/apply-queue.ts` exactly. Every tool that accepts a `jobId` validates against this regex at the Zod schema layer. Same defense against path-traversal payloads (`data/applications/<jobId>.md` writes, etc.).
-- **`SOURCES` tuple is compile-time-exhaustive vs the `Source` union in `src/types.ts`.** Adding a new fetcher source without mirroring it in `src/mcp/schemas/_constants.ts` is a typecheck error — see `_SourcesExhaustive` at the bottom of that file.
-- **`APPLICATION_STATUSES` lives in `src/types.ts`** (single source of truth). `VALID_STATUSES` in `ui/plugins/_shared.ts` is a `ReadonlySet<string>` wrapping the same const tuple. Adding a new status: edit `types.ts`, both UI and MCP pick it up.
-- **Single-flight locks** on `trigger_fetch` (one aggregator run at a time, enforced in `src/lib/fetch-runner.ts`) and `regenerate_profile` (one LLM regen at a time, enforced at module scope in `src/mcp/tools/regenerate-profile.ts`). Second concurrent call returns an error envelope, not a queued/blocked promise.
-- **Worker-separation is load-bearing.** `enqueue_apply` adds a row to `data/apply-queue.json` but **does not** spawn the apply-worker — that's still `pnpm run apply-worker` in a separate terminal. If the worker isn't running, `enqueue_apply` returns a structured warning (NOT an error — the row is still queued, just won't drain). Don't refactor this. The decoupling is intentional: a crashed worker can't take down the MCP server.
-- **Error envelopes, never thrown rejections.** Zod validation failures, precondition failures, and unknown-tool calls all come back as `{ isError: true, content: [{ type: 'text', text: ... }] }`. `safeHandler()` in `src/mcp/errors.ts` wraps every handler; `describeUnknown()` sanitizes absolute filesystem paths from error messages before they hit the client (defense in depth against `$HOME` leakage).
+## Tests
 
-**Adding a new tool.** Three files + one registration:
+Vitest, 330 cases across `tests/` (`*.test.ts` glob). Run via `pnpm test` or `pnpm run test:watch`. `tsconfig.test.json` extends `tsconfig.json` with `rootDir: "."` so tests/ don't leak into the build. When tuning a regex or weight, update tests in the same commit.
 
-1. `src/mcp/schemas/<name>.ts` — Zod raw shape (input). Reuse `jobIdSchema` from `_constants.ts` for any jobId field.
-2. `src/mcp/tools/<name>.ts` — exports `run<Name>(input, paths?)` (the runner, dependency-injected paths for testability) and `register<Name>(server)` (the SDK wiring). Wrap the handler in `safeHandler<TInput>('<name>', (input) => run<Name>(input))`.
-3. `src/mcp/server.ts` — import and call `register<Name>(server)`.
-4. `tests/mcp/<name>.test.ts` — test `run<Name>` directly with the path-injection escape hatch. For full wire coverage, also add a case to `tests/mcp/integration.test.ts` (real SDK Client over `InMemoryTransport.createLinkedPair`).
+## GitHub Actions
 
-**README tool-reference table is hand-maintained.** Every tool change MUST also update the `## MCP server` section in `README.md`. There is no codegen for it. The OpenSpec proposal at `openspec/changes/mcp-server-readme-docs/` documents the obligation explicitly — keep that file in sync if the format ever changes.
+One workflow only — `.github/workflows/check.yml` — every push to `main` and PR. Seven gates: Biome lint, typecheck (3 tsconfigs), Vitest, `tsc` build, Vite UI build, bundle-size budget, `pnpm audit`. Daily aggregation runs **locally** via launchd/cron (see `scripts/install-*.sh`).
 
-**Install path.** `scripts/install-mcp.sh` is the user-facing entry point. Prereq-checks node 22 / pnpm / git / at least one MCP client. Idempotent (re-run updates the entry). JSON merging via `scripts/_merge-mcp-config.mjs` (small Node helper — no hard `jq` dep). **Fails loudly on missing prereqs — never auto-installs Node.** `PUPILA_DRY_RUN=1` for a no-write rehearsal.
+Third-party actions pinned by 40-char SHA with version comment. Dependabot opens weekly grouped PRs.
 
-**CI smoke check.** Not yet wired (DEV-84) — when added, it'll be `pnpm run mcp:smoke` running `node scripts/mcp-smoke.mjs`, which spawns `pnpm run mcp`, sends a `tools/list` JSON-RPC request, and asserts all 17 expected tools are present. See `openspec/changes/mcp-server-ci-dependabot/` for the spec.
+> **CodeQL workflow removed** — Code Scanning isn't available on private repos without GitHub Advanced Security. Restore from commit `7397117` if the repo goes public.
 
 ## Pre-commit
 
-`simple-git-hooks` registered via the `prepare` lifecycle script. Runs `pnpm run lint && pnpm run typecheck`. Bypass with `SKIP_SIMPLE_GIT_HOOKS=1 git commit ...` for emergency WIP. Don't make a habit of it.
-
-## Security checklist for new fetchers / parsers
-
-- Use `fetchWithTimeout` from `utils.ts` (timeout + retry + abort built-in).
-- Don't embed user-controllable strings in HTML attributes; use `escapeHtmlAttr` in `render.ts`.
-- All scraped URLs flow through filter's `isSafeUrl` gate — don't bypass.
-- All scraped bodies flow through `stripHtml` before any regex/scoring.
-- New external HTTP endpoints get added to a tier-S slug list when applicable.
+`simple-git-hooks` registered via the `prepare` lifecycle script. Runs `pnpm run lint && pnpm run typecheck && pnpm run lint:ui-patterns`. Bypass with `SKIP_SIMPLE_GIT_HOOKS=1 git commit ...` for emergency WIP only. Don't make a habit of it.
 
 ## Conventional commits
 
@@ -469,10 +161,18 @@ Exposes 17 typed tools to any MCP client (Claude Code / Claude Desktop / Cursor)
 - `ci:` workflow changes
 - `docs:` README/CLAUDE.md changes
 
-## Known upstream issues (as of 2026-04)
+## When to update this doc
 
-- `cryptojobslist.com` is fully Cloudflare-challenged for HTML; the `api.cryptojobslist.com/jobs.rss` endpoint returns an empty channel. Fetcher returns `[]`; will pick up jobs again if upstream restores the feed.
-- **All 5 web3 holdouts now covered.** `morpho`, `magiceden`, `li.fi` were on public Ashby (added to `config/slugs.json#ashby`). `aave` scraped via Next.js `__NEXT_DATA__` (`src/fetchers/aave.ts`). `chainlink-labs` via Ashby's private `non-user-graphql` endpoint (`src/fetchers/ashby-private.ts`, slug list in `config/slugs.json#ashbyPrivate`). The Greenhouse stale-slug list was reduced 14 → 8. A 100-candidate sweep across web3/AI/dev-tools tier-S companies turned up no other Ashby-private orgs — chainlink-labs appears unique. The fetcher is config-driven anyway.
-- `web3.career` and `aijobs.net` (formerly `ai-jobs.net`) removed RSS — both scraped from HTML via small inline regex parsers; markup changes upstream silently break them. If a fetcher returns 0 for several days, eyeball the HTML for new selectors.
-- `aijobs.net` is dominated by spam-aggregator listings (one posting cloned to 50 cities). Fetcher dedups by base ID via `-idNNNNN-` slug pattern. Don't be alarmed at low kept count.
-- `hn-jobs` routinely keeps 0–2 entries because YC company posts rarely match senior+stack signal threshold. Working as intended.
+Root CLAUDE.md is **index + cross-cutting invariants**, not a reference manual. Add a section here only when:
+
+- A new cross-cutting invariant applies repo-wide (not subsystem-scoped).
+- A new top-level workflow (`pnpm run X`) is added.
+- A new structural convention spans more than one subsystem.
+
+Otherwise:
+
+- **Subsystem-specific** guidance → scoped `CLAUDE.md` (`ui/`, `src/mcp/`, `src/fetchers/`).
+- **Procedural how-to** → a skill (`.claude/skills/pupila-*/SKILL.md`).
+- **Code-level rules** → comments next to the code they govern.
+
+When in doubt, put it next to the code that needs it. Every byte added here costs every future session.
