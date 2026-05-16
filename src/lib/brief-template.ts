@@ -23,11 +23,19 @@ or open the local UI (\`pnpm run ui\`) and use the Profile tab.
  * Write a new candidate brief body, preserving the file's instructional
  * preamble and footer markers. If the existing file lacks the markers
  * (or doesn't exist), wraps the body in the canonical template.
+ *
+ * The optional `briefPath` argument lets non-cwd-bound callers (the MCP
+ * server, which is spawned with the MCP client's cwd) supply an absolute
+ * path. Defaults to the cwd-relative `BRIEF_PATH` for compatibility with
+ * existing call sites that run under `pnpm run …` from the repo root.
  */
-export async function writeBriefBody(newBody: string): Promise<void> {
+export async function writeBriefBody(
+  newBody: string,
+  briefPath: string = BRIEF_PATH,
+): Promise<void> {
   let existing = '';
   try {
-    existing = await readFile(BRIEF_PATH, 'utf-8');
+    existing = await readFile(briefPath, 'utf-8');
   } catch {
     // First-time setup — fall through to fresh template.
   }
@@ -39,7 +47,7 @@ export async function writeBriefBody(newBody: string): Promise<void> {
     const preamble = existing.trim() ? existing.split('\n\n').slice(0, 1).join('\n\n') : '';
     const head = preamble ? `${preamble}\n\n` : FALLBACK_PREAMBLE;
     await writeFile(
-      BRIEF_PATH,
+      briefPath,
       `${head}${BRIEF_START}\n\n${newBody.trim()}\n\n${BRIEF_END}\n`,
       'utf-8',
     );
@@ -48,18 +56,20 @@ export async function writeBriefBody(newBody: string): Promise<void> {
 
   const head = existing.slice(0, startIdx + BRIEF_START.length);
   const tail = existing.slice(endIdx);
-  await writeFile(BRIEF_PATH, `${head}\n\n${newBody.trim()}\n\n${tail}`, 'utf-8');
+  await writeFile(briefPath, `${head}\n\n${newBody.trim()}\n\n${tail}`, 'utf-8');
 }
 
 /**
  * Read the current candidate brief, stripping the preamble and markers
  * to return just the user-editable body. Returns null if the file doesn't
  * exist yet, or '' if it exists but the body block is empty.
+ *
+ * See `writeBriefBody` for the optional `briefPath` argument.
  */
-export async function readBriefBody(): Promise<string | null> {
+export async function readBriefBody(briefPath: string = BRIEF_PATH): Promise<string | null> {
   let existing: string;
   try {
-    existing = await readFile(BRIEF_PATH, 'utf-8');
+    existing = await readFile(briefPath, 'utf-8');
   } catch {
     return null;
   }

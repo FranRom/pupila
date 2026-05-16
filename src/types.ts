@@ -35,7 +35,18 @@ export interface JobSignals {
   capped: boolean;
 }
 
-export type ApplicationStatus = 'applied' | 'interview' | 'offer' | 'rejected' | 'withdrawn';
+// Source of truth for application-status values. Both the UI (`ui/plugins/_shared.ts`
+// for HTTP validation) and the MCP server (`src/mcp/schemas/_constants.ts` for
+// Zod enum) import from here so the literal list lives in one place.
+export const APPLICATION_STATUSES = [
+  'applied',
+  'interview',
+  'offer',
+  'rejected',
+  'withdrawn',
+] as const;
+
+export type ApplicationStatus = (typeof APPLICATION_STATUSES)[number];
 
 export type AiVerdict = 'strong-match' | 'match' | 'weak-match' | 'skip';
 
