@@ -4,13 +4,13 @@
 # the client config(s).
 #
 # Usage:
-#   curl -sSf https://raw.githubusercontent.com/ogarciarevett/job-hunt/main/scripts/install-mcp.sh | bash
+#   curl -sSf https://raw.githubusercontent.com/FranRom/pupila/main/scripts/install-mcp.sh | bash
 #   # or, if you've cloned the repo already:
 #   bash scripts/install-mcp.sh
 #
 # Env overrides:
 #   PUPILA_HOME    - install location (default: $HOME/.pupila)
-#   PUPILA_REPO    - git URL (default: https://github.com/ogarciarevett/job-hunt.git)
+#   PUPILA_REPO    - git URL (default: https://github.com/FranRom/pupila.git)
 #   PUPILA_REF     - branch/tag/commit to checkout (default: main)
 #   PUPILA_DRY_RUN - if set to 1, print intended actions and exit
 #
@@ -25,7 +25,7 @@
 set -euo pipefail
 
 PUPILA_HOME="${PUPILA_HOME:-$HOME/.pupila}"
-PUPILA_REPO="${PUPILA_REPO:-https://github.com/ogarciarevett/job-hunt.git}"
+PUPILA_REPO="${PUPILA_REPO:-https://github.com/FranRom/pupila.git}"
 PUPILA_REF="${PUPILA_REF:-main}"
 PUPILA_DRY_RUN="${PUPILA_DRY_RUN:-0}"
 
