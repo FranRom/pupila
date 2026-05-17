@@ -99,7 +99,7 @@ const PROFILE_PATH = 'config/profile.json';
 
 function ensureCandidateBrief(): void {
   if (existsSync(BRIEF_PATH)) return;
-  if (process.env.JOB_HUNT_NO_BRIEF_CHECK === '1') return;
+  if (process.env.PUPILA_NO_BRIEF_CHECK === '1') return;
   if (process.argv.includes('--no-brief-check')) return;
   console.error(`
 ✗ ${BRIEF_PATH} not found.
@@ -111,7 +111,7 @@ The aggregator expects you to set up your candidate profile first:
   pnpm run ui
 
 To skip this check (raw aggregation only, no AI review):
-  JOB_HUNT_NO_BRIEF_CHECK=1 pnpm run dev
+  PUPILA_NO_BRIEF_CHECK=1 pnpm run dev
 `);
   process.exit(1);
 }
