@@ -57,19 +57,9 @@ cleanup_cron() {
     return
   fi
 
-  # Strip both the tag line and the immediately-following cron line for each tag.
+  # Strip any cron line whose inline tag matches our agg/rev legacy tag.
   local filtered
-  filtered="$(printf '%s\n' "$current" \
-    | awk -v t1="$agg_tag" -v t2="$rev_tag" '
-        { lines[NR]=$0 }
-        END {
-          skip_next=0
-          for (i=1; i<=NR; i++) {
-            if (skip_next) { skip_next=0; continue }
-            if (lines[i]==t1 || lines[i]==t2) { skip_next=1; next }
-            print lines[i]
-          }
-        }')"
+  filtered="$(printf '%s\n' "$current" | grep -vF "$agg_tag" | grep -vF "$rev_tag" || true)"
 
   if [ "$current" != "$filtered" ]; then
     printf '%s\n' "$filtered" | crontab -
