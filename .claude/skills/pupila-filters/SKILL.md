@@ -2,7 +2,7 @@
 name: pupila-filters
 description: How to tune job filter scoring, hard-drop rules, or debug why a specific job was kept/dropped via _signals. Use when adjusting weights in config/profile.json, adding a hard-exclude rule, tuning keyword lists, debugging fitScore, or interpreting the per-job _signals breakdown.
 metadata:
-  scope: pupila / job-hunt
+  scope: pupila
 ---
 
 All filter logic lives in `src/filters.ts`. Weights + keyword lists load from `config/profile.json` at runtime via `loadProfile()` (NOT a static import — the file is gitignored and auto-bootstrapped from `config/profile.default.json` on first run). Adjusting weights or keywords is a **non-code edit** to `profile.json`.
