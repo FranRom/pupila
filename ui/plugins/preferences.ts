@@ -12,7 +12,7 @@ import {
 // supported list (plus `auto`) and stamps `onboardedAt` if not already set.
 export function preferencesApiPlugin(): Plugin {
   return {
-    name: 'job-hunt-preferences-api',
+    name: 'pupila-preferences-api',
     configureServer(server) {
       server.middlewares.use('/api/preferences', async (req, res) => {
         try {

@@ -23,7 +23,7 @@ function pathnameOf(rawUrl: string | undefined): string {
 
 export function jobBodyApiPlugin(): Plugin {
   return {
-    name: 'job-hunt-job-body-api',
+    name: 'pupila-job-body-api',
     configureServer(server) {
       server.middlewares.use('/api/job-body', async (req, res) => {
         try {

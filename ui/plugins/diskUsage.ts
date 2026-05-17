@@ -49,7 +49,7 @@ async function walkBucket(absDir: string): Promise<DiskBucket> {
 
 export function diskUsageApiPlugin(): Plugin {
   return {
-    name: 'job-hunt-disk-usage-api',
+    name: 'pupila-disk-usage-api',
     configureServer(server) {
       server.middlewares.use('/api/disk-usage', async (req, res) => {
         if (req.method !== 'GET') {

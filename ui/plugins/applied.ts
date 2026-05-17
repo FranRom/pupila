@@ -10,7 +10,7 @@ import {
 
 export function appliedApiPlugin(): Plugin {
   return {
-    name: 'job-hunt-applied-api',
+    name: 'pupila-applied-api',
     configureServer(server) {
       server.middlewares.use('/api/applied', async (req, res) => {
         try {

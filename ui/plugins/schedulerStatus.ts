@@ -19,7 +19,7 @@ interface SchedulerStatus {
 // Detect launchd/cron registration without modifying any system state.
 export function schedulerStatusApiPlugin(): Plugin {
   return {
-    name: 'job-hunt-scheduler-status-api',
+    name: 'pupila-scheduler-status-api',
     configureServer(server) {
       server.middlewares.use('/api/scheduler-status', async (req, res) => {
         if (req.method !== 'GET') {

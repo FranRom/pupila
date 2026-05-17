@@ -158,7 +158,7 @@ function pathnameOf(rawUrl: string | undefined): string {
 
 export function applyQueueApiPlugin(): Plugin {
   return {
-    name: 'job-hunt-apply-queue-api',
+    name: 'pupila-apply-queue-api',
     configureServer(server) {
       server.middlewares.use('/api/apply-queue', async (req, res) => {
         try {

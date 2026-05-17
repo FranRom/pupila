@@ -28,7 +28,7 @@ interface ProfileGenerateBody {
 export function profileApiPlugin(): Plugin {
   let inFlight = false;
   return {
-    name: 'job-hunt-profile-api',
+    name: 'pupila-profile-api',
     async configureServer(server) {
       // Bootstrap config/profile.json from config/profile.default.json the
       // first time `pnpm run ui` runs against a fresh clone (or after the

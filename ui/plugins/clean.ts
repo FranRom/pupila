@@ -16,7 +16,7 @@ export function cleanApiPlugin(): Plugin {
   // Boolean lock claimed sync (the proc reference isn't needed elsewhere).
   let inFlight = false;
   return {
-    name: 'job-hunt-clean-api',
+    name: 'pupila-clean-api',
     configureServer(server) {
       server.middlewares.use('/api/clean', async (req, res) => {
         if (req.method !== 'POST') {

@@ -102,7 +102,7 @@ export function fetchJobsApiPlugin(): Plugin {
   }
 
   return {
-    name: 'job-hunt-fetch-jobs-api',
+    name: 'pupila-fetch-jobs-api',
     configureServer(server) {
       server.middlewares.use('/api/fetch-jobs', async (req, res) => {
         try {

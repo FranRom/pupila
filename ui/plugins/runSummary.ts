@@ -21,7 +21,7 @@ interface RunSummary {
 // the pipeline.
 export function runSummaryApiPlugin(): Plugin {
   return {
-    name: 'job-hunt-run-summary-api',
+    name: 'pupila-run-summary-api',
     configureServer(server) {
       server.middlewares.use('/api/run-summary', async (req, res) => {
         if (req.method !== 'GET') {
