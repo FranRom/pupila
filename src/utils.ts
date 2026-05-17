@@ -237,7 +237,7 @@ export function uniq<T>(items: T[]): T[] {
 }
 
 export const DEFAULT_USER_AGENT =
-  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36 job-hunt-aggregator/0.1';
+  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36 pupila/0.1';
 
 export const RSS_HEADERS: Record<string, string> = {
   'User-Agent': DEFAULT_USER_AGENT,

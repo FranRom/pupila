@@ -5,7 +5,7 @@ import { availableProviders } from '../../src/lib/llm.js';
 // onboarding wizard to ✓/✗ each provider option.
 export function llmDetectApiPlugin(): Plugin {
   return {
-    name: 'job-hunt-llm-detect-api',
+    name: 'pupila-llm-detect-api',
     configureServer(server) {
       server.middlewares.use('/api/llm-detect', async (req, res) => {
         if (req.method !== 'GET') {

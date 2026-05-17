@@ -95,8 +95,8 @@ The repo ships with neutral defaults. To make it yours:
 ### 1. Clone or fork
 
 ```bash
-gh repo fork FranRom/job-hunt --clone
-cd job-hunt
+gh repo fork FranRom/pupila --clone
+cd pupila
 pnpm install
 ```
 
@@ -104,7 +104,7 @@ Or click "Fork" on GitHub, then `git clone <your-fork>`.
 
 ### 2. Generate your candidate brief (required)
 
-The brief at `config/candidate-brief.md` is the natural-language description of who you are, what you want, and what to avoid. **This step is mandatory** — `pnpm run dev` will refuse to start until the file exists. (Bypass with `JOB_HUNT_NO_BRIEF_CHECK=1` if you genuinely want raw aggregation with no AI review.)
+The brief at `config/candidate-brief.md` is the natural-language description of who you are, what you want, and what to avoid. **This step is mandatory** — `pnpm run dev` will refuse to start until the file exists. (Bypass with `PUPILA_NO_BRIEF_CHECK=1` if you genuinely want raw aggregation with no AI review.)
 
 **The file is gitignored** — it contains CV-derived personal information and should never be committed. setup-brief and the onboarding wizard write to the gitignored canonical path.
 
@@ -125,7 +125,7 @@ Or open the UI and use the Profile tab:
 pnpm run ui   # http://127.0.0.1:5173 → Profile tab → drop your CV
 ```
 
-The auto-detected provider order is `claude` → `codex` → `gemini` → `opencode` (whichever is on `PATH` first). Override with `JOB_HUNT_LLM=codex pnpm run setup-brief ...`. No API keys; uses your existing CLI subscription.
+The auto-detected provider order is `claude` → `codex` → `gemini` → `opencode` (whichever is on `PATH` first). Override with `PUPILA_LLM=codex pnpm run setup-brief ...`. No API keys; uses your existing CLI subscription.
 
 > **The two personalization layers, briefly:**
 > - `config/profile.json` (committed defaults) controls **what gets fetched + scored** (weights, keyword lists, tier-S slugs).
@@ -165,8 +165,8 @@ Two agents run on independent schedules so you can tune them separately:
 ./scripts/install-launchd.sh --review-time 09:00
 ./scripts/install-launchd.sh --no-review                  # aggregator only (no LLM CLI)
 ./scripts/install-launchd.sh --uninstall                  # remove both
-launchctl list | grep job-hunt                            # check status
-launchctl start dev.${USER}.job-hunt.aggregate            # trigger now
+launchctl list | grep pupila                               # check status
+launchctl start dev.${USER}.pupila.aggregate               # trigger now
 ```
 
 launchd's `StartCalendarInterval` catches up missed runs after wake — if your laptop was asleep at 7am, it runs once the lid opens.
@@ -548,7 +548,7 @@ The Jobs filter bar adds two unified-skip / unified-queue controls:
 
 [`src/ai-review.ts`](./src/ai-review.ts) is an **optional, local-only** companion that adds an LLM "second opinion" to selected jobs. Each job gets a structured review — summary, what they want, what they offer, red flags, and a verdict (`strong-match | match | weak-match | skip`) — so you can scan the day's matches in seconds instead of reading every posting.
 
-It shells out through [`src/lib/llm.ts`](./src/lib/llm.ts) to whichever local LLM CLI is available (`claude`, `codex`, `gemini`, or `opencode`; override with `JOB_HUNT_LLM=<provider>`). There are no project API keys and no per-token billing from this repo, but this cannot run in CI because the workflow runner is not authenticated as your local CLI user. Run it locally after the daily pipeline.
+It shells out through [`src/lib/llm.ts`](./src/lib/llm.ts) to whichever local LLM CLI is available (`claude`, `codex`, `gemini`, or `opencode`; override with `PUPILA_LLM=<provider>`). There are no project API keys and no per-token billing from this repo, but this cannot run in CI because the workflow runner is not authenticated as your local CLI user. Run it locally after the daily pipeline.
 
 ### One-time setup
 
@@ -733,7 +733,7 @@ Keyword arrays are joined with `|` and compiled into word-bounded, case-insensit
 <summary>Click to expand the full tree</summary>
 
 ```
-job-hunt/
+pupila/
 ├── .github/
 │   ├── workflows/
 │   │   └── check.yml          # PR/push: biome + typecheck + tests + build + audit
@@ -831,7 +831,7 @@ pnpm run clean:onboarding    # wipe only the onboarding state (preferences + bri
 pnpm run clean -- --all      # full fresh-clone reset (see "Reset to a clean slate" below)
 ```
 
-> **Heads up:** `pnpm run dev` refuses to start unless `config/candidate-brief.md` exists — set up your candidate brief first via `pnpm run setup-brief` or the UI Profile tab. Bypass with `JOB_HUNT_NO_BRIEF_CHECK=1` (or `--no-brief-check`) for raw aggregation without AI review.
+> **Heads up:** `pnpm run dev` refuses to start unless `config/candidate-brief.md` exists — set up your candidate brief first via `pnpm run setup-brief` or the UI Profile tab. Bypass with `PUPILA_NO_BRIEF_CHECK=1` (or `--no-brief-check`) for raw aggregation without AI review.
 
 The pre-commit hook runs `lint && typecheck` on every commit. To bypass it for an emergency commit: `SKIP_SIMPLE_GIT_HOOKS=1 git commit ...`.
 

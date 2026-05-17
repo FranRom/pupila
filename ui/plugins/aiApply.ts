@@ -117,7 +117,7 @@ export function aiApplyApiPlugin(): Plugin {
   let inFlight = false;
 
   return {
-    name: 'job-hunt-ai-apply-api',
+    name: 'pupila-ai-apply-api',
     configureServer(server) {
       server.middlewares.use('/api/ai-apply-progress', async (req, res) => {
         if (req.method !== 'GET') {

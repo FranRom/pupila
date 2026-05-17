@@ -12,8 +12,8 @@ import { APPLIED_PATH, CV_BASENAME, PREFERENCES_PATH } from './_paths.ts';
 export type { LlmProvider };
 
 // How many chars of the parsed CV we send to the LLM. Configurable via
-// JOB_HUNT_CV_MAX_CHARS for users hitting OOM kills on large CVs.
-export const CV_MAX_CHARS = Number(process.env.JOB_HUNT_CV_MAX_CHARS ?? '12000');
+// PUPILA_CV_MAX_CHARS for users hitting OOM kills on large CVs.
+export const CV_MAX_CHARS = Number(process.env.PUPILA_CV_MAX_CHARS ?? '12000');
 
 // Wrap the const tuple in a Set so call sites can keep using `.has(x)` for
 // O(1) lookups in middleware request validation. The literal list lives in

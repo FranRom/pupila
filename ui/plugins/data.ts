@@ -8,7 +8,7 @@ import { readJsonOrDefault } from './_shared.ts';
 // gets `[]` / `{}` and renders the empty state cleanly.
 export function dataApiPlugin(): Plugin {
   return {
-    name: 'job-hunt-data-api',
+    name: 'pupila-data-api',
     configureServer(server) {
       server.middlewares.use('/api/jobs', async (req, res) => {
         if (req.method !== 'GET') {

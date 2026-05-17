@@ -2,7 +2,7 @@
 name: pupila-fetchers
 description: How to add a new job-source fetcher (ATS API, RSS, scraper) or extend tier-S slug lists in this repo. Use when adding a new job board, integrating a new ATS, scraping a new careers site, registering a new company under Ashby/Greenhouse/Lever, or diagnosing a fetcher that returned zero items.
 metadata:
-  scope: pupila / job-hunt
+  scope: pupila
 ---
 
 The pipeline ingests from 13 public sources (3 ATS APIs + RSS, JSON boards, HN, HTML scrapers, an Aave Next.js scraper, and `ashby-private` for orgs whose public posting-API is disabled). Adding a source means: a fetcher, a normalizer, a `Source` literal, a slot in the orchestrator, and dedup/render wiring.

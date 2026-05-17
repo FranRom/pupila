@@ -12,7 +12,7 @@
 //   cat cv.txt | pnpm run setup-brief                # stdin
 //
 // Provider: auto-detects claude / codex / gemini / opencode on PATH (in that
-// order). Override with JOB_HUNT_LLM=<provider>.
+// order). Override with PUPILA_LLM=<provider>.
 
 import { existsSync } from 'node:fs';
 import { copyFile } from 'node:fs/promises';
@@ -21,8 +21,8 @@ import { detectFormat, parseCvFile } from './lib/cv-parser.js';
 import { detectLlmCli, runLlm } from './lib/llm.js';
 
 // How many chars of the parsed CV we send to the LLM. Configurable via
-// JOB_HUNT_CV_MAX_CHARS for users hitting OOM kills on large CVs.
-const MAX_CV_CHARS = Number(process.env.JOB_HUNT_CV_MAX_CHARS ?? '12000');
+// PUPILA_CV_MAX_CHARS for users hitting OOM kills on large CVs.
+const MAX_CV_CHARS = Number(process.env.PUPILA_CV_MAX_CHARS ?? '12000');
 const CV_DEST_BASENAME = 'config/cv';
 
 interface CliArgs {
@@ -92,7 +92,7 @@ async function main(): Promise<void> {
     console.log('  cat cv.txt | pnpm run setup-brief');
     console.log('');
     console.log('Provider: auto-detects claude/codex/gemini/opencode on PATH.');
-    console.log('Override with JOB_HUNT_LLM=<provider>.');
+    console.log('Override with PUPILA_LLM=<provider>.');
     return;
   }
 

@@ -16,6 +16,7 @@ import { fetchRemotive } from './fetchers/remotive.js';
 import { fetchWeb3Career } from './fetchers/web3career.js';
 import { fetchWeWorkRemotely } from './fetchers/weworkremotely.js';
 import { BOILERPLATE_HEADERS_RE, createFilters, loadProfile } from './filters.js';
+import { detectLegacyEnvVars } from './legacy-env.js';
 import { bootstrapProfileIfMissing } from './lib/profile-bootstrap.js';
 import {
   normalizeAave,
@@ -99,7 +100,7 @@ const PROFILE_PATH = 'config/profile.json';
 
 function ensureCandidateBrief(): void {
   if (existsSync(BRIEF_PATH)) return;
-  if (process.env.JOB_HUNT_NO_BRIEF_CHECK === '1') return;
+  if (process.env.PUPILA_NO_BRIEF_CHECK === '1') return;
   if (process.argv.includes('--no-brief-check')) return;
   console.error(`
 ✗ ${BRIEF_PATH} not found.
@@ -111,7 +112,7 @@ The aggregator expects you to set up your candidate profile first:
   pnpm run ui
 
 To skip this check (raw aggregation only, no AI review):
-  JOB_HUNT_NO_BRIEF_CHECK=1 pnpm run dev
+  PUPILA_NO_BRIEF_CHECK=1 pnpm run dev
 `);
   process.exit(1);
 }
@@ -126,6 +127,18 @@ async function ensureProfile(): Promise<void> {
 }
 
 async function main(): Promise<void> {
+  const legacy = detectLegacyEnvVars(process.env);
+  if (legacy.length > 0) {
+    console.error('❌ Legacy JOB_HUNT_* environment variables detected:');
+    for (const { old, replacement } of legacy) {
+      console.error(`   ${old} → rename to ${replacement}`);
+    }
+    console.error('\nThe project was renamed from job-hunt to pupila.');
+    console.error(
+      'Update your shell config (e.g. ~/.zshrc) and re-source it, or unset the old names.',
+    );
+    process.exit(1);
+  }
   ensureCandidateBrief();
   await ensureProfile();
 

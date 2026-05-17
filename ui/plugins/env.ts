@@ -17,7 +17,7 @@ interface EnvInfo {
 
 export function envApiPlugin(): Plugin {
   return {
-    name: 'job-hunt-env-api',
+    name: 'pupila-env-api',
     configureServer(server) {
       server.middlewares.use('/api/env', async (req, res) => {
         if (req.method !== 'GET') {

@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # Install two launchd agents on macOS:
 #
-#   1. dev.${USER}.job-hunt.aggregate — runs `pnpm run dev` (fetch + filter
+#   1. dev.${USER}.pupila.aggregate — runs `pnpm run dev` (fetch + filter
 #      + score + write data/jobs.json + JOBS.md + feed.xml). No LLM needed.
 #
-#   2. dev.${USER}.job-hunt.review    — runs `pnpm run ai-review` (per-job
+#   2. dev.${USER}.pupila.review    — runs `pnpm run ai-review` (per-job
 #      LLM verdict via your local CLI: claude / codex / gemini / opencode).
 #      Skipped via --no-review for users without an LLM CLI installed.
 #
@@ -20,7 +20,7 @@
 
 set -euo pipefail
 
-LABEL_BASE="dev.${USER}.job-hunt"
+LABEL_BASE="dev.${USER}.pupila"
 LAUNCH_DIR="$HOME/Library/LaunchAgents"
 AGG_LABEL="${LABEL_BASE}.aggregate"
 REV_LABEL="${LABEL_BASE}.review"
@@ -172,7 +172,7 @@ Trigger now:
   launchctl start ${REV_LABEL}
 
 Status:
-  launchctl list | grep job-hunt
+  launchctl list | grep pupila
 
 Uninstall:
   $0 --uninstall

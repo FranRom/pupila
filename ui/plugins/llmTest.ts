@@ -9,7 +9,7 @@ interface LlmTestPostBody {
 // Tiny prompt to confirm the chosen LLM CLI works end-to-end.
 export function llmTestApiPlugin(): Plugin {
   return {
-    name: 'job-hunt-llm-test-api',
+    name: 'pupila-llm-test-api',
     configureServer(server) {
       server.middlewares.use('/api/llm-test', async (req, res) => {
         if (req.method !== 'POST') {

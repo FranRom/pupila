@@ -20,8 +20,8 @@ import { detectLlmCli, type LlmProvider } from './llm.js';
 // ---------------------------------------------------------------------------
 
 // How many chars of the parsed CV we send to the LLM. Configurable via
-// JOB_HUNT_CV_MAX_CHARS for users hitting OOM kills on large CVs.
-export const CV_MAX_CHARS = Number(process.env.JOB_HUNT_CV_MAX_CHARS ?? '12000');
+// PUPILA_CV_MAX_CHARS for users hitting OOM kills on large CVs.
+export const CV_MAX_CHARS = Number(process.env.PUPILA_CV_MAX_CHARS ?? '12000');
 
 // This file lives at src/lib/ai-apply.ts, so ../../ resolves to repo root.
 const DEFAULT_REPO_ROOT = fileURLToPath(new URL('../..', import.meta.url));

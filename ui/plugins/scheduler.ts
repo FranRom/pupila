@@ -103,7 +103,7 @@ export function schedulerOpsApiPlugin(): Plugin {
   }
 
   return {
-    name: 'job-hunt-scheduler-ops-api',
+    name: 'pupila-scheduler-ops-api',
     configureServer(server) {
       server.middlewares.use('/api/scheduler-progress', async (req, res) => {
         if (req.method !== 'GET') {

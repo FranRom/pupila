@@ -19,8 +19,8 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-TAG_AGG="# job-hunt:aggregate:${REPO_ROOT}"
-TAG_REV="# job-hunt:review:${REPO_ROOT}"
+TAG_AGG="# pupila:aggregate:${REPO_ROOT}"
+TAG_REV="# pupila:review:${REPO_ROOT}"
 
 AGG_TIME="07:00"
 REV_TIME="07:15"
@@ -72,14 +72,14 @@ if [[ -z "$PNPM" ]]; then
   exit 1
 fi
 
-# Read current crontab (no error if empty), strip any existing job-hunt
+# Read current crontab (no error if empty), strip any existing pupila
 # entries for this repo so re-running is idempotent.
 CURRENT="$(crontab -l 2>/dev/null || true)"
 CLEANED="$(printf '%s\n' "$CURRENT" | grep -vF "$TAG_AGG" | grep -vF "$TAG_REV" || true)"
 
 if [[ "$UNINSTALL" == "1" ]]; then
   printf '%s\n' "$CLEANED" | crontab -
-  echo "✓ Removed job-hunt cron entries for $REPO_ROOT"
+  echo "✓ Removed pupila cron entries for $REPO_ROOT"
   exit 0
 fi
 

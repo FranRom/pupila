@@ -4,11 +4,11 @@
 // user's existing CLI subscription.
 //
 // Detection order:
-//   1. JOB_HUNT_LLM env var (claude | codex | gemini | opencode)
+//   1. PUPILA_LLM env var (claude | codex | gemini | opencode)
 //   2. First found on PATH in the order: claude > codex > gemini > opencode
 //
-// Override the exact CLI invocation per provider via `JOB_HUNT_LLM_FLAG`
-// (e.g. `JOB_HUNT_LLM_FLAG=--prompt`) if a CLI's flag syntax changes upstream.
+// Override the exact CLI invocation per provider via `PUPILA_LLM_FLAG`
+// (e.g. `PUPILA_LLM_FLAG=--prompt`) if a CLI's flag syntax changes upstream.
 //
 // Prompt delivery: we feed the prompt via STDIN, not argv. Three reasons:
 //   1. argv has a kernel-imposed size limit (ARG_MAX, ~1MB on macOS) and
@@ -195,7 +195,7 @@ export async function availableProviders(): Promise<Record<LlmProvider, boolean>
 }
 
 function buildSpec(provider: LlmProvider): ProviderSpec {
-  const flagOverride = process.env.JOB_HUNT_LLM_FLAG;
+  const flagOverride = process.env.PUPILA_LLM_FLAG;
   if (flagOverride) {
     return { args: [flagOverride] };
   }
@@ -203,21 +203,21 @@ function buildSpec(provider: LlmProvider): ProviderSpec {
 }
 
 /**
- * Resolve the LLM CLI to use, either from `JOB_HUNT_LLM` env var or by
+ * Resolve the LLM CLI to use, either from `PUPILA_LLM` env var or by
  * detecting which one is installed. Throws with a helpful message if none
  * are available.
  */
 export async function detectLlmCli(override?: LlmProvider): Promise<LlmInvocation> {
-  const requested = override ?? process.env.JOB_HUNT_LLM;
+  const requested = override ?? process.env.PUPILA_LLM;
   if (requested) {
     if (!isSupportedProvider(requested)) {
       throw new Error(
-        `JOB_HUNT_LLM="${requested}" is not supported. Use one of: ${SUPPORTED_PROVIDERS.join(', ')}.`,
+        `PUPILA_LLM="${requested}" is not supported. Use one of: ${SUPPORTED_PROVIDERS.join(', ')}.`,
       );
     }
     if (!(await commandExists(requested))) {
       throw new Error(
-        `JOB_HUNT_LLM="${requested}" was requested but the \`${requested}\` CLI is not on PATH.`,
+        `PUPILA_LLM="${requested}" was requested but the \`${requested}\` CLI is not on PATH.`,
       );
     }
     return { provider: requested, cmd: requested, argTemplate: buildSpec(requested).args };
@@ -233,7 +233,7 @@ export async function detectLlmCli(override?: LlmProvider): Promise<LlmInvocatio
   );
 }
 
-const RUN_TIMEOUT_MS = Number(process.env.JOB_HUNT_LLM_TIMEOUT_MS ?? '300000'); // 5 min default
+const RUN_TIMEOUT_MS = Number(process.env.PUPILA_LLM_TIMEOUT_MS ?? '300000'); // 5 min default
 
 interface RawRunResult {
   stdout: string;
@@ -271,7 +271,7 @@ function spawnAndPipe(
       proc.kill('SIGTERM');
       reject(
         new Error(
-          `${cmd} timed out after ${Math.round(RUN_TIMEOUT_MS / 1000)}s. Override with JOB_HUNT_LLM_TIMEOUT_MS=<ms>.`,
+          `${cmd} timed out after ${Math.round(RUN_TIMEOUT_MS / 1000)}s. Override with PUPILA_LLM_TIMEOUT_MS=<ms>.`,
         ),
       );
     }, RUN_TIMEOUT_MS);
@@ -397,9 +397,9 @@ export async function runLlm(
     lines.push('');
     lines.push('OR use a different LLM CLI for this run:');
     lines.push('');
-    lines.push('  JOB_HUNT_LLM=codex pnpm run ui      # if you have codex CLI');
-    lines.push('  JOB_HUNT_LLM=gemini pnpm run ui     # if you have gemini-cli');
-    lines.push('  JOB_HUNT_LLM=opencode pnpm run ui   # if you have opencode');
+    lines.push('  PUPILA_LLM=codex pnpm run ui      # if you have codex CLI');
+    lines.push('  PUPILA_LLM=gemini pnpm run ui     # if you have gemini-cli');
+    lines.push('  PUPILA_LLM=opencode pnpm run ui   # if you have opencode');
     lines.push('=========================================================================');
     lines.push('');
   }
@@ -432,12 +432,12 @@ export async function runLlm(
       lines.push('Most likely cause: out-of-memory while processing your prompt.');
       lines.push('Try (in order of effort):');
       lines.push(
-        `  1. Shrink the input. Lower JOB_HUNT_CV_MAX_CHARS (current default 12000) — try 6000 or 4000.`,
+        `  1. Shrink the input. Lower PUPILA_CV_MAX_CHARS (current default 12000) — try 6000 or 4000.`,
       );
       lines.push(
         `  2. Close memory-heavy apps (other Node servers, browsers with many tabs, Docker).`,
       );
-      lines.push(`  3. Switch provider for one run: JOB_HUNT_LLM=codex pnpm run ui`);
+      lines.push(`  3. Switch provider for one run: PUPILA_LLM=codex pnpm run ui`);
       lines.push(
         `  4. Run the same prompt outside the dev server: cat /tmp/prompt.txt | ${invocation.cmd} ${invocation.argTemplate.join(' ')}`,
       );
@@ -462,7 +462,7 @@ export async function runLlm(
       lines.push(`     Try running \`${invocation.cmd} --version\` directly in the same terminal.`);
       lines.push(`  3. macOS Memory Pressure Killer / sandbox kill. Check Console.app for entries`);
       lines.push(`     with subsystem "com.apple.kernel" around the time of the kill.`);
-      lines.push(`  4. Switch provider: JOB_HUNT_LLM=codex pnpm run ui`);
+      lines.push(`  4. Switch provider: PUPILA_LLM=codex pnpm run ui`);
     }
   }
 

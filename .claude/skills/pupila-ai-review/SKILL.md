@@ -2,10 +2,10 @@
 name: pupila-ai-review
 description: How the AI per-job review pipeline works in this repo - generating verdicts via local LLM CLI, parsing markdown-fenced JSON, the candidate brief lever, and the AI Apply tailored-package flow. Use when modifying src/ai-review.ts, src/lib/ai-apply.ts, tuning verdict prompts, debugging review output, editing the candidate brief, or wiring a new LLM provider.
 metadata:
-  scope: pupila / job-hunt
+  scope: pupila
 ---
 
-`pnpm run ai-review` is a **local-only** companion that augments selected jobs with an LLM review via `src/lib/llm.ts` (auto-detects `claude` / `codex` / `gemini` / `opencode`, override `JOB_HUNT_LLM`). Uses the user's local subscription (e.g. Claude Max) — NOT an API key, so no per-token charges.
+`pnpm run ai-review` is a **local-only** companion that augments selected jobs with an LLM review via `src/lib/llm.ts` (auto-detects `claude` / `codex` / `gemini` / `opencode`, override `PUPILA_LLM`). Uses the user's local subscription (e.g. Claude Max) — NOT an API key, so no per-token charges.
 
 The launchd/cron review agent runs daily at 07:15 by default. Without an LLM CLI, run `scripts/install-launchd.sh --no-review` (or cron equivalent).
 
@@ -54,7 +54,7 @@ Tests in `tests/ai-review-parse.test.ts` (9 cases) cover all the failure modes s
 
 ## The candidate brief
 
-`config/candidate-brief.md` is the **only natural-language config in the repo**. Hand-edited, gitignored. Generated via `pnpm run setup-brief --file ~/cv.pdf` (or via the UI's Profile tab → drop a PDF/DOCX/MD CV). The CLI shells out to whichever local LLM CLI is installed (`claude` / `codex` / `gemini` / `opencode` — auto-detected; override via `JOB_HUNT_LLM=<provider>`).
+`config/candidate-brief.md` is the **only natural-language config in the repo**. Hand-edited, gitignored. Generated via `pnpm run setup-brief --file ~/cv.pdf` (or via the UI's Profile tab → drop a PDF/DOCX/MD CV). The CLI shells out to whichever local LLM CLI is installed (`claude` / `codex` / `gemini` / `opencode` — auto-detected; override via `PUPILA_LLM=<provider>`).
 
 The brief is embedded **verbatim** in the review prompt — it's the main lever for tuning match/skip behaviour. To change verdicts at scale, edit the brief; to change individual scores, see the `pupila-filters` skill.
 

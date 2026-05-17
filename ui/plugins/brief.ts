@@ -38,7 +38,7 @@ ${cvText.slice(0, CV_MAX_CHARS)}`;
 
 export function briefApiPlugin(): Plugin {
   return {
-    name: 'job-hunt-brief-api',
+    name: 'pupila-brief-api',
     configureServer(server) {
       server.middlewares.use('/api/brief', async (req, res) => {
         try {
