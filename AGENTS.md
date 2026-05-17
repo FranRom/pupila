@@ -8,7 +8,7 @@ Guidance for future Codex sessions working in this repo.
 
 The repo ships a **neutral template** in `config/profile.json`. After onboarding (CV upload → brief generation), `/api/profile-generate` shells out to the local LLM CLI to fill in the personal keyword lists + weights based on the brief. Re-runnable from Settings → Scoring profile → Regenerate. `config/slugs.json` ships with the full ~50-company tier-S list (all public ATS URLs — non-personal data, edit by hand to add/remove companies).
 
-**First-run UX**: a forker generates their `config/candidate-brief.md` by running `pnpm run setup-brief --file ~/cv.pdf` (or via the UI's Profile tab → drop a PDF/DOCX/MD CV). That CLI shells out to whichever local LLM CLI is installed (`Codex`, `codex`, `gemini`, `opencode` — auto-detected, override via `JOB_HUNT_LLM=<provider>`).
+**First-run UX**: a forker generates their `config/candidate-brief.md` by running `pnpm run setup-brief --file ~/cv.pdf` (or via the UI's Profile tab → drop a PDF/DOCX/MD CV). That CLI shells out to whichever local LLM CLI is installed (`Codex`, `codex`, `gemini`, `opencode` — auto-detected, override via `PUPILA_LLM=<provider>`).
 
 ## Stack
 
@@ -279,7 +279,7 @@ The read happens **after** filter+dedup+sort but **before** `writeJson('data/job
 
 ## RSS feed
 
-[`src/feed.ts`](./src/feed.ts) emits a hand-rolled RSS 2.0 XML to `data/feed.xml` containing the top 50 `newJobs` by `fitScore`. The XML is hand-built (not via fast-xml-parser) because we control the content shape — `escapeXml` covers the five entity classes. The feed metadata (title, description, link) is overridable via `JOB_HUNT_FEED_TITLE` / `JOB_HUNT_FEED_DESC` / `JOB_HUNT_FEED_LINK` env vars. To subscribe locally, point your RSS reader at the `file://` path of `data/feed.xml`. (No remote URL anymore — the project is local-first.)
+[`src/feed.ts`](./src/feed.ts) emits a hand-rolled RSS 2.0 XML to `data/feed.xml` containing the top 50 `newJobs` by `fitScore`. The XML is hand-built (not via fast-xml-parser) because we control the content shape — `escapeXml` covers the five entity classes. The feed metadata (title, description, link) is overridable via `PUPILA_FEED_TITLE` / `PUPILA_FEED_DESC` / `PUPILA_FEED_LINK` env vars. To subscribe locally, point your RSS reader at the `file://` path of `data/feed.xml`. (No remote URL anymore — the project is local-first.)
 
 ## Salary parsing
 
@@ -345,7 +345,7 @@ The HTML has `<meta name="robots" content="noindex,nofollow">` as belt-and-suspe
 
 ## AI per-job review (`pnpm run ai-review`)
 
-[`src/ai-review.ts`](./src/ai-review.ts) is a **local-only** companion to the daily pipeline that augments selected jobs with an LLM review. It shells out via `src/lib/llm.ts` (auto-detects `Codex` / `codex` / `gemini` / `opencode` on PATH, override with `JOB_HUNT_LLM=<provider>`). The CLI uses the user's local subscription (e.g. Codex Max) — **not** an API key, so there are no per-token charges. With the new local-first scheduling, the launchd/cron review agent runs this every day at 07:15 by default. If you don't have an LLM CLI installed, run `scripts/install-launchd.sh --no-review` (or the cron equivalent) to skip the review step.
+[`src/ai-review.ts`](./src/ai-review.ts) is a **local-only** companion to the daily pipeline that augments selected jobs with an LLM review. It shells out via `src/lib/llm.ts` (auto-detects `Codex` / `codex` / `gemini` / `opencode` on PATH, override with `PUPILA_LLM=<provider>`). The CLI uses the user's local subscription (e.g. Codex Max) — **not** an API key, so there are no per-token charges. With the new local-first scheduling, the launchd/cron review agent runs this every day at 07:15 by default. If you don't have an LLM CLI installed, run `scripts/install-launchd.sh --no-review` (or the cron equivalent) to skip the review step.
 
 **Inputs:**
 - `data/jobs.json` — the slim list (committed)

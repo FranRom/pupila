@@ -20,8 +20,8 @@ Guidance for future Claude Code sessions working in this repo. **Slim by design*
 Cross-cutting invariants (apply repo-wide):
 
 - **`config/profile.json` is gitignored** — encodes personal scoring preferences. Auto-bootstraps from committed `config/profile.default.json` on first `pnpm run dev` / `pnpm run ui` via `bootstrapProfileIfMissing()` (idempotent — `COPYFILE_EXCL` no-ops on the steady state). Don't bypass; don't commit personalized weights.
-- **Mandatory CV gate**: `pnpm run dev` checks for `config/candidate-brief.md` at startup and exits 1 if missing. Bypass with `JOB_HUNT_NO_BRIEF_CHECK=1` or `--no-brief-check`.
-- **`config/candidate-brief.md` is the only natural-language config** (gitignored). Generated via `pnpm run setup-brief --file ~/cv.pdf` or via the UI's Profile tab (drop PDF/DOCX/MD CV). CLI shells out to `claude`/`codex`/`gemini`/`opencode` — auto-detected, override `JOB_HUNT_LLM=<provider>`.
+- **Mandatory CV gate**: `pnpm run dev` checks for `config/candidate-brief.md` at startup and exits 1 if missing. Bypass with `PUPILA_NO_BRIEF_CHECK=1` or `--no-brief-check`.
+- **`config/candidate-brief.md` is the only natural-language config** (gitignored). Generated via `pnpm run setup-brief --file ~/cv.pdf` or via the UI's Profile tab (drop PDF/DOCX/MD CV). CLI shells out to `claude`/`codex`/`gemini`/`opencode` — auto-detected, override `PUPILA_LLM=<provider>`.
 - **Local-first scheduling**: daily aggregation runs via `scripts/install-launchd.sh` (macOS) or `scripts/install-cron.sh` (Linux), not GitHub Actions cron. CI runs only on push/PR for gates.
 - **`data/applied.json` source of truth** for application tracking (UI writes via Vite middleware). Commit manually to persist across machines. **Don't filter applied jobs out of the main list** — user explicitly wants them visible.
 
@@ -79,7 +79,7 @@ pnpm run mcp                          # MCP server over stdio
 
 `pnpm run dev` → `tsx src/index.ts` is the main pipeline (what launchd/cron runs). Steps:
 
-1. **CV gate** — fail-fast if `config/candidate-brief.md` missing (bypass: `JOB_HUNT_NO_BRIEF_CHECK=1` or `--no-brief-check`).
+1. **CV gate** — fail-fast if `config/candidate-brief.md` missing (bypass: `PUPILA_NO_BRIEF_CHECK=1` or `--no-brief-check`).
 2. **Profile bootstrap** — `bootstrapProfileIfMissing()` copies `config/profile.default.json` → `profile.json` on first run.
 3. **Fetch** — all 13 sources in parallel via `processFetcher()` + `Promise.all`. Each fetcher returns `{ items, errors }` and **never throws** (a rejection would kill the whole run).
 4. **Normalize** — per-source `normalize<Source>()` → `Job[]`. Salary fields populated via `withSalary()` spread.
@@ -134,7 +134,7 @@ Settings tab (eight panels), Jinder (swipe-to-apply queue), AI Apply (per-job ta
 
 ## AI per-job review
 
-`pnpm run ai-review` is a **local-only** companion that augments selected jobs with an LLM review via `src/lib/llm.ts` (auto-detects `claude`/`codex`/`gemini`/`opencode`, override `JOB_HUNT_LLM`). Uses the local subscription — **not** an API key, so no per-token charges. Output: `data/ai-reviews.json`.
+`pnpm run ai-review` is a **local-only** companion that augments selected jobs with an LLM review via `src/lib/llm.ts` (auto-detects `claude`/`codex`/`gemini`/`opencode`, override `PUPILA_LLM`). Uses the local subscription — **not** an API key, so no per-token charges. Output: `data/ai-reviews.json`.
 
 Daily workflow:
 

@@ -124,7 +124,7 @@ export function fetchJobsApiPlugin(): Plugin {
             state.startedAt = new Date().toISOString();
 
             // tsx is in node_modules/.bin and resolved via pnpm exec. Inherit
-            // env so JOB_HUNT_* / PATH propagate to the fetchers.
+            // env so PUPILA_* / PATH propagate to the fetchers.
             const proc = spawn('pnpm', ['exec', 'tsx', 'src/index.ts'], {
               cwd: REPO_ROOT,
               env: process.env,
