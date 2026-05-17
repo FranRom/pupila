@@ -10,7 +10,7 @@ Guidance for future Claude Code sessions working in this repo. **Slim by design*
 | Tuning filter weights / debugging `_signals` | `pupila-filters` skill |
 | AI review + AI Apply pipelines | `pupila-ai-review` skill |
 | UI patterns (CSS modules, `lib/api/`, hooks, perf) | `ui/CLAUDE.md` (auto-loaded in `ui/`) |
-| MCP server invariants | `src/mcp/CLAUDE.md` (auto-loaded in `src/mcp/`) |
+| MCP server invariants + add-a-tool recipe | `src/mcp/CLAUDE.md` (auto-loaded in `src/mcp/`) |
 | Fetcher security checklist | `src/fetchers/CLAUDE.md` (auto-loaded in `src/fetchers/`) |
 
 ## Overview
@@ -27,12 +27,14 @@ Cross-cutting invariants (apply repo-wide):
 
 ## Stack
 
-- Node 22 LTS, ESM, TypeScript 6 (NodeNext)
-- Biome 2.4 (lint + format, single config in `biome.json`)
-- pnpm 11 (`minimumReleaseAge: 1d`, `strictDepBuilds: true` — supply-chain hardening)
-- Vitest 4 (tests in `tests/`, 330 cases)
-- simple-git-hooks (pre-commit `lint && typecheck && lint:ui-patterns`)
-- Runtime deps: `fast-xml-parser` (RSS), `mammoth` + `pdfjs-dist` (CV parsing), `proper-lockfile` (apply-queue R-M-W lock). Native `fetch` only — no HTTP client lib.
+| Component | Choice |
+|---|---|
+| Runtime / language | Node 22 LTS, ESM, TypeScript 6 (NodeNext) |
+| Linter / formatter | Biome 2.4 (single config in `biome.json`) |
+| Package manager | pnpm 11 (`minimumReleaseAge: 1d`, `strictDepBuilds: true` — supply-chain hardening) |
+| Test runner | Vitest 4 (`tests/`, 330 cases) |
+| Pre-commit | simple-git-hooks (`lint && typecheck && lint:ui-patterns`) |
+| Runtime deps | `fast-xml-parser` (RSS), `mammoth` + `pdfjs-dist` (CV parsing), `proper-lockfile` (apply-queue R-M-W lock). Native `fetch` only — no HTTP client lib. |
 
 ## Run locally
 
@@ -53,35 +55,54 @@ pnpm run clean [-- --all]             # wipe locally-generated artifacts
 pnpm run mcp                          # MCP server over stdio
 ```
 
-## Repo layout (high-level)
+## Repo layout
 
-```
-src/
-  index.ts          # orchestrator (filter + score + dedup + render + write)
-  types.ts          # Job, Source, ApplicationStatus, FetcherResult, ...
-  fetchers/         # one fetcher per source — see src/fetchers/CLAUDE.md
-  mcp/              # MCP server (17 tools) — see src/mcp/CLAUDE.md
-  lib/              # apply-queue, swipe-skips, ai-apply, llm, cv-parser, fetch-runner
-  filters.ts salary.ts dedup.ts applied.ts render.ts feed.ts normalize.ts
-  utils.ts          # fetchWithTimeout, isSafeUrl, sha1, stripHtml, readJsonOrNull
-  rss.ts            # fast-xml-parser wrapper
-  ai-review.ts ai-review-parse.ts setup-brief.ts
-config/             # slugs.json, profile.{default,}.json, applied.json, brief, preferences
-ui/                 # local-only React dashboard — see ui/CLAUDE.md
-scripts/            # apply-worker, installers (launchd/cron/mcp), clean
-tests/              # 192 vitest cases, fixtures in tests/fixtures/
-openspec/changes/   # OpenSpec proposals (committed)
-.claude/skills/     # project skills (pupila-*) ship; provider-generic skills are local-only
-```
+| Path | Purpose |
+|---|---|
+| `src/index.ts` | Orchestrator — fetch + filter + score + dedup + render + write |
+| `src/types.ts` | `Job`, `Source`, `ApplicationStatus`, `FetcherResult`, ... |
+| `src/fetchers/` | One fetcher per source (see `src/fetchers/CLAUDE.md`) |
+| `src/mcp/` | MCP server, 17 tools (see `src/mcp/CLAUDE.md`) |
+| `src/lib/` | `apply-queue`, `swipe-skips`, `ai-apply`, `llm`, `cv-parser`, `fetch-runner` |
+| `src/{filters,salary,dedup,applied,render,feed,normalize}.ts` | Pipeline stages |
+| `src/utils.ts` | `fetchWithTimeout`, `isSafeUrl`, `sha1`, `stripHtml`, `readJsonOrNull` |
+| `src/rss.ts` | `fast-xml-parser` wrapper |
+| `src/{ai-review,ai-review-parse,setup-brief}.ts` | AI review CLI + parsing + CV→brief |
+| `config/` | `slugs.json`, `profile.{default,}.json`, `applied.json`, brief, preferences |
+| `ui/` | Local-only React dashboard (see `ui/CLAUDE.md`) |
+| `scripts/` | Apply worker, installers (launchd/cron/mcp), clean |
+| `tests/` | 330 vitest cases, fixtures in `tests/fixtures/` |
+| `openspec/changes/` | OpenSpec proposals (committed) |
+| `.claude/skills/` | Project skills (`pupila-*`) ship; provider-generic skills are local-only |
 
-Code-level docs (subsystems documented in-file + tests; this CLAUDE.md doesn't restate them):
+## Orchestrator flow
 
-- Dedup + final sort (`compareJobs` 4-key chain, source priority) → `src/dedup.ts` + `tests/dedup.test.ts`
-- Salary parsing (K/M suffix, currency, hourly→annual) → `src/salary.ts` + `tests/salary.test.ts`
-- RSS feed (top 50 new jobs, hand-rolled XML) → `src/feed.ts` + `tests/feed.test.ts`
-- Source-health alarms (🚨 banner) → `src/render.ts`
-- New-since / removed-since diff (top 20 / top 10) → `src/index.ts` (computed via `readJsonOrNull` before write)
-- Application-status emoji + summary → `src/applied.ts` + `tests/applied.test.ts`
+`pnpm run dev` → `tsx src/index.ts` is the main pipeline (what launchd/cron runs). Steps:
+
+1. **CV gate** — fail-fast if `config/candidate-brief.md` missing (bypass: `JOB_HUNT_NO_BRIEF_CHECK=1` or `--no-brief-check`).
+2. **Profile bootstrap** — `bootstrapProfileIfMissing()` copies `config/profile.default.json` → `profile.json` on first run.
+3. **Fetch** — all 13 sources in parallel via `processFetcher()` + `Promise.all`. Each fetcher returns `{ items, errors }` and **never throws** (a rejection would kill the whole run).
+4. **Normalize** — per-source `normalize<Source>()` → `Job[]`. Salary fields populated via `withSalary()` spread.
+5. **Filter + score** — `applyFilters()` in `src/filters.ts`: hard drops → boilerplate strip → soft scoring (cap 100) → optional -10 US-centric penalty → drop below `minScoreToKeep` → category.
+6. **Dedup + sort** — `compareJobs` 4-key chain in `src/dedup.ts` (source-priority tiebreak).
+7. **Attach applied state** — `loadAppliedMap()` matches `Job.id` (sha1 of URL) to entries in `config/applied.json`; sets `job.applied`.
+8. **Diff** — compute new-since (top 20) / removed-since (top 10) vs previous `data/jobs.json` via `readJsonOrNull` before write.
+9. **Render + write** — regenerate `JOBS.md`, write `data/jobs.json` + `data/feed.xml`.
+
+Other top-level entry points (`pnpm run ai-review`, `apply-worker`, `mcp`, `ui`) have their own sections below.
+
+## Code-level docs
+
+Subsystems documented in-file + tests; this CLAUDE.md doesn't restate them:
+
+| Subsystem | Source | Tests |
+|---|---|---|
+| Dedup + final sort (`compareJobs` 4-key chain, source priority) | `src/dedup.ts` | `tests/dedup.test.ts` |
+| Salary parsing (K/M suffix, currency, hourly→annual) | `src/salary.ts` | `tests/salary.test.ts` |
+| RSS feed (top 50 new jobs, hand-rolled XML) | `src/feed.ts` | `tests/feed.test.ts` |
+| Source-health alarms (🚨 banner) | `src/render.ts` | — |
+| New-since / removed-since diff | `src/index.ts` (via `readJsonOrNull` before write) | — |
+| Application-status emoji + summary | `src/applied.ts` | `tests/applied.test.ts` |
 
 ## Filter rules (overview)
 
