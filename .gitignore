@@ -45,7 +45,13 @@ data/cron-*.log
 # but ignore the per-IDE integration files `openspec init` materializes
 # under .claude/.codebuddy/.continue/.junie/.kiro. Those are local tooling
 # for whichever editor each developer uses.
-.claude/
+.claude/*
+# Exception: project-specific Claude Code skills (`pupila-*`) ship with the
+# repo so contributors get the agent guidance automatically. Provider-generic
+# skills (vitest, vite, etc.) stay local-only.
+!.claude/skills/
+.claude/skills/*
+!.claude/skills/pupila-*/
 .codebuddy/
 .continue/
 .junie/
