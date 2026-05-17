@@ -7,7 +7,6 @@ Guidance for future Claude Code sessions working in this repo. **Slim by design*
 | Topic | Source |
 |---|---|
 | Adding a fetcher / tier-S slug | `pupila-fetchers` skill |
-| Adding an MCP tool | `pupila-mcp-tools` skill |
 | Tuning filter weights / debugging `_signals` | `pupila-filters` skill |
 | AI review + AI Apply pipelines | `pupila-ai-review` skill |
 | UI patterns (CSS modules, `lib/api/`, hooks, perf) | `ui/CLAUDE.md` (auto-loaded in `ui/`) |
@@ -133,7 +132,7 @@ git commit -m "chore: daily run + ai reviews"
 
 Install: `scripts/install-mcp.sh` (idempotent prereq-checks, JSON merging via `scripts/_merge-mcp-config.mjs`). `PUPILA_DRY_RUN=1` for a no-write rehearsal.
 
-Hard invariants (stdout JSON-RPC, `JOB_ID_REGEX`, single-flight locks on `trigger_fetch` + `regenerate_profile`, worker-separation, error envelopes) live in **`src/mcp/CLAUDE.md`** (auto-loaded in `src/mcp/`). Adding a tool: **`pupila-mcp-tools` skill**.
+Hard invariants (stdout JSON-RPC, `JOB_ID_REGEX`, single-flight locks on `trigger_fetch` + `regenerate_profile`, worker-separation, error envelopes) and the 4-step recipe for adding a new tool both live in **`src/mcp/CLAUDE.md`** (auto-loaded in `src/mcp/`).
 
 The README tool-reference table is hand-maintained — every tool change MUST also update `## MCP server` in `README.md`.
 
