@@ -432,7 +432,7 @@ export async function runLlm(
       lines.push('Most likely cause: out-of-memory while processing your prompt.');
       lines.push('Try (in order of effort):');
       lines.push(
-        `  1. Shrink the input. Lower JOB_HUNT_CV_MAX_CHARS (current default 12000) — try 6000 or 4000.`,
+        `  1. Shrink the input. Lower PUPILA_CV_MAX_CHARS (current default 12000) — try 6000 or 4000.`,
       );
       lines.push(
         `  2. Close memory-heavy apps (other Node servers, browsers with many tabs, Docker).`,

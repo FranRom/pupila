@@ -21,8 +21,8 @@ import { detectFormat, parseCvFile } from './lib/cv-parser.js';
 import { detectLlmCli, runLlm } from './lib/llm.js';
 
 // How many chars of the parsed CV we send to the LLM. Configurable via
-// JOB_HUNT_CV_MAX_CHARS for users hitting OOM kills on large CVs.
-const MAX_CV_CHARS = Number(process.env.JOB_HUNT_CV_MAX_CHARS ?? '12000');
+// PUPILA_CV_MAX_CHARS for users hitting OOM kills on large CVs.
+const MAX_CV_CHARS = Number(process.env.PUPILA_CV_MAX_CHARS ?? '12000');
 const CV_DEST_BASENAME = 'config/cv';
 
 interface CliArgs {
