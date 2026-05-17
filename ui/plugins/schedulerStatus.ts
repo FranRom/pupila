@@ -43,8 +43,8 @@ export function schedulerStatusApiPlugin(): Plugin {
           };
 
           if (platform === 'darwin') {
-            const aggLabel = `dev.${user}.job-hunt.aggregate`;
-            const revLabel = `dev.${user}.job-hunt.review`;
+            const aggLabel = `dev.${user}.pupila.aggregate`;
+            const revLabel = `dev.${user}.pupila.review`;
             try {
               const { stdout } = await execAsync('launchctl list', { timeout: 4000 });
               status.installed.aggregate = stdout.includes(aggLabel);
@@ -63,8 +63,8 @@ export function schedulerStatusApiPlugin(): Plugin {
           } else if (platform === 'linux') {
             try {
               const { stdout } = await execAsync('crontab -l', { timeout: 4000 });
-              status.installed.aggregate = stdout.includes(`# job-hunt:aggregate:${REPO_ROOT}`);
-              status.installed.review = stdout.includes(`# job-hunt:review:${REPO_ROOT}`);
+              status.installed.aggregate = stdout.includes(`# pupila:aggregate:${REPO_ROOT}`);
+              status.installed.review = stdout.includes(`# pupila:review:${REPO_ROOT}`);
             } catch {
               // no crontab → installed remains false
             }
