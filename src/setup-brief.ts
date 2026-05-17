@@ -12,7 +12,7 @@
 //   cat cv.txt | pnpm run setup-brief                # stdin
 //
 // Provider: auto-detects claude / codex / gemini / opencode on PATH (in that
-// order). Override with JOB_HUNT_LLM=<provider>.
+// order). Override with PUPILA_LLM=<provider>.
 
 import { existsSync } from 'node:fs';
 import { copyFile } from 'node:fs/promises';
@@ -92,7 +92,7 @@ async function main(): Promise<void> {
     console.log('  cat cv.txt | pnpm run setup-brief');
     console.log('');
     console.log('Provider: auto-detects claude/codex/gemini/opencode on PATH.');
-    console.log('Override with JOB_HUNT_LLM=<provider>.');
+    console.log('Override with PUPILA_LLM=<provider>.');
     return;
   }
 

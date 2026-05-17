@@ -168,7 +168,7 @@ async function main(): Promise<void> {
       const review: AiReview = {
         jobId: job.id,
         reviewedAt: new Date().toISOString(),
-        model: process.env.JOB_HUNT_LLM ?? 'claude',
+        model: process.env.PUPILA_LLM ?? 'claude',
         ...parsed,
       };
       reviews[job.id] = review;
