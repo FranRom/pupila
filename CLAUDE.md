@@ -72,7 +72,6 @@ pnpm run mcp                          # MCP server over stdio
 | `ui/` | Local-only React dashboard (see `ui/CLAUDE.md`) |
 | `scripts/` | Apply worker, installers (launchd/cron/mcp), clean |
 | `tests/` | 330 vitest cases, fixtures in `tests/fixtures/` |
-| `openspec/changes/` | OpenSpec proposals (committed) |
 | `.claude/skills/` | Project skills (`pupila-*`) ship; provider-generic skills are local-only |
 
 ## Orchestrator flow

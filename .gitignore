@@ -41,10 +41,11 @@ data/cron-*.log
 .env.*
 !.env.example
 
-# OpenSpec — keep the `openspec/` proposals + specs in version control,
-# but ignore the per-IDE integration files `openspec init` materializes
-# under .claude/.codebuddy/.continue/.junie/.kiro. Those are local tooling
-# for whichever editor each developer uses.
+# Local planning scratch — design proposals live in Linear, not the repo.
+openspec/
+
+# Per-IDE agent integration files — local tooling for whichever editor each
+# developer uses.
 .claude/*
 # Exception: project-specific Claude Code skills (`pupila-*`) ship with the
 # repo so contributors get the agent guidance automatically. Provider-generic

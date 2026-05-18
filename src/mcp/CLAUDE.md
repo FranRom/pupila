@@ -126,9 +126,8 @@ src/mcp/
 
 ## When something changes
 
-- **README tool-reference table is hand-maintained.** Every tool change MUST update the `## MCP server` section in `README.md`. There is no codegen. See `openspec/changes/mcp-server-readme-docs/`.
+- **README tool-reference table is hand-maintained.** Every tool change MUST update the `## MCP server` section in `README.md`. There is no codegen.
 - **Verify locally**: `pnpm run mcp` in one terminal, hit it from a connected client (Claude Code/Desktop/Cursor). Or use the in-process integration test.
-- **CI smoke check** (when DEV-84 lands): `pnpm run mcp:smoke` will spawn the server, send `tools/list`, assert all expected tools present.
 
 ## Related
 
