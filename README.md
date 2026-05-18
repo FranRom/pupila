@@ -1,7 +1,7 @@
-<p align="center">
+<p align="left">
   <img src="./assets/logo.svg" alt="pupila logo" height="60" align="middle" /><img src="./assets/pupila-ascii.svg" alt="pupila" height="60" align="middle" /></p>
 
-# PUPILA: An A-eye on every job board
+# PUPILA: A-eye on every job board
 
 <p align="center">
   <img src="./assets/readme/dashboard.jpg" alt="Local job matching dashboard with source feeds, scoring, and scheduled file output" width="100%" />
