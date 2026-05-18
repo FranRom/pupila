@@ -45,7 +45,7 @@ Examples of in-scope issues:
 - Issues that require the attacker to already have local code execution on your machine — at that point they own everything anyway.
 - Exposing the UI publicly. The dev server binds to `127.0.0.1:5173` by design; running it on a public interface is a configuration mistake, not a vulnerability.
 - Committing `config/applied.json` or `config/candidate-brief.md` to a public fork. Both are gitignored; the user has to explicitly opt in to track them.
-- Dependency CVEs already flagged by `pnpm audit` in CI — those are tracked in the open and Dependabot PRs.
+- Dependency CVEs already flagged by `pnpm audit` in CI — those are tracked in the open.
 
 ## Hall of fame
 
