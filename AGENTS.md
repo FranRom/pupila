@@ -113,8 +113,6 @@ tsconfig.test.json  # extends above with rootDir=. so tests/ typecheck without l
 .github/
   workflows/
     check.yml       # PR/push: biome + typecheck + tests + build + audit (only remaining workflow)
-    check.yml       # PR/push: lint + typecheck + test + audit
-  dependabot.yml    # weekly npm + github-actions PRs
 ```
 
 > **CodeQL workflow removed.** Code Scanning isn't available on private repos without GitHub Advanced Security. If the repo ever goes public, restore `.github/workflows/codeql.yml` from commit `7397117`.
@@ -299,9 +297,7 @@ One workflow only — the project moved to local-first scheduling.
 
 The previously included `jobs.yml` (daily aggregator cron) and `keepalive.yml` (cron-keepalive) workflows were removed. Daily aggregation now runs locally via `scripts/install-launchd.sh` (macOS) or `scripts/install-cron.sh` (Linux), which install two agents: one for `pnpm run dev`, one for `pnpm run ai-review`. See README "Schedule the daily run" for usage.
 
-`.github/dependabot.yml` opens weekly grouped PRs for npm + github-actions.
-
-**Pinning.** All third-party actions are referenced by full 40-char commit SHA, not a floating `@v4` / `@v5` tag, with the version in a trailing comment. When updating an action, replace both the SHA and the comment. Dependabot keeps these current via PRs.
+**Pinning.** All third-party actions are referenced by full 40-char commit SHA, not a floating `@v4` / `@v5` tag, with the version in a trailing comment. When updating an action, replace both the SHA and the comment manually.
 
 ## Tests
 

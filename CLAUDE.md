@@ -72,7 +72,6 @@ pnpm run mcp                          # MCP server over stdio
 | `ui/` | Local-only React dashboard (see `ui/CLAUDE.md`) |
 | `scripts/` | Apply worker, installers (launchd/cron/mcp), clean |
 | `tests/` | 330 vitest cases, fixtures in `tests/fixtures/` |
-| `openspec/changes/` | OpenSpec proposals (committed) |
 | `.claude/skills/` | Project skills (`pupila-*`) ship; provider-generic skills are local-only |
 
 ## Orchestrator flow
@@ -165,7 +164,7 @@ Vitest, 330 cases across `tests/` (`*.test.ts` glob). Run via `pnpm test` or `pn
 
 One workflow only — `.github/workflows/check.yml` — every push to `main` and PR. Seven gates: Biome lint, typecheck (3 tsconfigs), Vitest, `tsc` build, Vite UI build, bundle-size budget, `pnpm audit`. Daily aggregation runs **locally** via launchd/cron (see `scripts/install-*.sh`).
 
-Third-party actions pinned by 40-char SHA with version comment. Dependabot opens weekly grouped PRs.
+Third-party actions pinned by 40-char SHA with version comment. Bump manually when needed.
 
 > **CodeQL workflow removed** — Code Scanning isn't available on private repos without GitHub Advanced Security. Restore from commit `7397117` if the repo goes public.
 

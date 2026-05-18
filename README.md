@@ -1,7 +1,7 @@
 <p align="left">
   <img src="./assets/logo.svg" alt="pupila logo" height="60" align="middle" /><img src="./assets/pupila-ascii.svg" alt="pupila" height="60" align="middle" /></p>
 
-# PUPILA: A-eye on every job board
+# PUPILA: An A-Eye on every job board
 
 <p align="center">
   <img src="./assets/readme/dashboard.jpg" alt="Local job matching dashboard with source feeds, scoring, and scheduled file output" width="100%" />
@@ -236,7 +236,7 @@ Idempotent — running on an already-clean state prints `nothing to clean`. Afte
 | HTML scraping | Inline regex parsers (no cheerio/jsdom) |
 | Schedule | Local launchd (macOS) / cron (Linux), two agents: aggregator + AI review |
 | Output | Files in your local checkout (`data/jobs.json`, `data/feed.xml` RSS, `JOBS.md`, `data/archive/<YYYY-MM>.json` on month-start) |
-| Static analysis | Biome + tsc + build on every PR via `check.yml`; Dependabot for npm + GitHub Actions |
+| Static analysis | Biome + tsc + build on every PR via `check.yml` |
 
 ## Architecture
 
@@ -735,9 +735,8 @@ Keyword arrays are joined with `|` and compiled into word-bounded, case-insensit
 ```
 pupila/
 ├── .github/
-│   ├── workflows/
-│   │   └── check.yml          # PR/push: biome + typecheck + tests + build + audit
-│   └── dependabot.yml         # weekly npm + github-actions updates
+│   └── workflows/
+│       └── check.yml          # PR/push: biome + typecheck + tests + build + audit
 ├── assets/
 │   └── readme/
 │       └── dashboard.jpg      # README banner artwork
@@ -853,7 +852,7 @@ The previously included `jobs.yml` (daily aggregator cron) and `keepalive.yml` (
 
 > **Note on CodeQL.** A CodeQL workflow was previously included but removed because **Code Scanning isn't available on private repos for personal accounts** without GitHub Advanced Security.
 
-The remaining workflow pins third-party actions to **commit SHAs** (not floating `@v4` / `@v5` tags) for supply-chain safety. [`Dependabot`](./.github/dependabot.yml) opens weekly PRs to bump those SHAs and the npm deps; the `check.yml` workflow validates each PR before merge.
+The remaining workflow pins third-party actions to **commit SHAs** (not floating `@v4` / `@v5` tags) for supply-chain safety. Bump SHAs and npm deps manually (`pnpm update`, then refresh action SHAs from the upstream tag) when you want to update — `check.yml` gates the change like any other PR.
 
 ## Customization
 
@@ -903,7 +902,6 @@ Defense-in-depth measures, ranked from runtime to build-time:
 - **Tests** (`pnpm test`) — Vitest, extensive backend + UI suite covering security-sensitive code (URL safety, regex filters, dedup tiebreaks, applied-status grouping, salary parsing, RSS escaping, custom-ATS HTML/GraphQL parsers, AI Apply core, apply-queue mutators, swipe-skip storage, profile bootstrap) plus every UI hook + key components. Runs on every PR.
 - **`pnpm audit --prod --audit-level high`** in [`check.yml`](./.github/workflows/check.yml). Reports known CVEs in production deps.
 - **Pinned actions.** The remaining workflow references third-party actions by commit SHA, not floating tags. Defends against tag-hijacking.
-- **Dependabot** ([`dependabot.yml`](./.github/dependabot.yml)) — weekly PRs for npm + GitHub Actions. Each PR is gated by `check.yml`.
 - **Minimum permissions.** `check.yml` uses `contents: read` only — no workflow has write access to the repo.
 
 ## Known upstream issues (as of 2026-04)
