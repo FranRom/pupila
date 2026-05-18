@@ -7,7 +7,7 @@ This repo is a local-first, config-driven job aggregator. Contributions should p
 - Read [`README.md`](./README.md) for the product flow and [`AGENTS.md`](./AGENTS.md) for the detailed implementation rules.
 - Use Node 22 and pnpm 10.
 - Keep changes small and focused. Do not mix personal profile tuning, generated job output, and code changes unless the PR explicitly needs all of them.
-- The repo has no open-source license. These notes are a contribution workflow, not a redistribution grant.
+- The repo is MIT-licensed (see [`LICENSE`](./LICENSE)). Contributions are accepted under the same terms.
 
 ## Local Setup
 

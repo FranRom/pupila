@@ -928,4 +928,4 @@ These are currently affecting the data quality — they're documented here so th
 
 ## License
 
-Personal project — no license. Don't redistribute.
+MIT — see [`LICENSE`](./LICENSE). Fork it, run it locally, tune it to your stack. The only ask: keep the copyright notice in copies you redistribute.
