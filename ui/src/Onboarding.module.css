@@ -104,6 +104,34 @@
   margin-left: auto;
 }
 
+/* Per-provider Download link. Sits right after the right-aligned status
+   (which carries margin-left:auto), so both cluster at the row's right edge. */
+.installLink {
+  margin-left: 0.6rem;
+  font-size: 0.8rem;
+  white-space: nowrap;
+  color: var(--primary);
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.installLink:hover {
+  text-decoration: underline;
+}
+
+/* Disambiguation callout above the provider list — the crux of the fix:
+   non-technical users confuse the Claude desktop app with the Claude Code CLI. */
+.installHelp {
+  margin: 0;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface-raised);
+  color: var(--text-muted);
+  font-size: 0.8125rem;
+  line-height: 1.45;
+}
+
 .warn {
   background: var(--badge-interview-bg);
   color: var(--badge-interview-fg);

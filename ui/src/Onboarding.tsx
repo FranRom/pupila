@@ -4,6 +4,7 @@ import { api, formatError } from './lib/api/index.ts';
 import { useLlmStream } from './lib/use-llm-stream.ts';
 import styles from './Onboarding.module.css';
 import { StreamingPanel } from './StreamingPanel.tsx';
+import { PROVIDER_META, PROVIDERS, type Provider, type ProviderChoice } from './settings/types.ts';
 import bannerStyles from './styles/Banner.module.css';
 import buttonStyles from './styles/Button.module.css';
 import spinnerStyles from './styles/Spinner.module.css';
@@ -18,11 +19,6 @@ import spinnerStyles from './styles/Spinner.module.css';
 // chosen provider + today's date as `onboardedAt`. The wizard never
 // re-triggers after that, even if the brief gets removed (the regular
 // Profile-tab empty state handles re-setup).
-
-type Provider = 'claude' | 'codex' | 'gemini' | 'opencode';
-type ProviderChoice = Provider | 'auto';
-
-const PROVIDERS: readonly Provider[] = ['claude', 'codex', 'gemini', 'opencode'];
 
 type CvFormat = 'pdf' | 'docx' | 'md' | 'txt';
 
@@ -62,6 +58,10 @@ export function Onboarding({ onComplete }: OnboardingProps) {
   const [step, setStep] = useState<Step>('provider');
   const [available, setAvailable] = useState<Record<Provider, boolean> | null>(null);
   const [provider, setProvider] = useState<ProviderChoice>('auto');
+  // Set while /api/llm-detect is in flight. Drives the Re-check button label so
+  // a user who just installed a CLI in another terminal sees feedback without a
+  // page refresh.
+  const [probing, setProbing] = useState(false);
   const [busy, setBusy] = useState(false);
   // Separate `tuning` state so the button label can show what's actually
   // happening when we block on /api/profile-generate (which can take 10–20s).
@@ -79,11 +79,12 @@ export function Onboarding({ onComplete }: OnboardingProps) {
     keywordsChanged?: string[];
   }>({ url: '/api/profile-generate' });
 
-  // Load installed-CLI status on mount.
-  useEffect(() => {
-    const ctrl = new AbortController();
-    const load = async () => {
-      const r = await api.llm.detect({ signal: ctrl.signal });
+  // Probe installed-CLI status. Runs on mount and again whenever the user
+  // clicks "Re-check" after downloading/installing a CLI.
+  const probe = useCallback(async (signal?: AbortSignal) => {
+    setProbing(true);
+    try {
+      const r = await api.llm.detect({ signal });
       if (!r.ok) {
         if (r.error.kind === 'abort') return;
         setError(`Could not probe LLM CLIs: ${formatError(r.error)}`);
@@ -93,10 +94,16 @@ export function Onboarding({ onComplete }: OnboardingProps) {
       // Pre-select the first installed CLI as a sensible default.
       const firstInstalled = PROVIDERS.find((p) => r.value.available[p]);
       if (firstInstalled) setProvider(firstInstalled);
-    };
-    void load();
-    return () => ctrl.abort();
+    } finally {
+      setProbing(false);
+    }
   }, []);
+
+  useEffect(() => {
+    const ctrl = new AbortController();
+    void probe(ctrl.signal);
+    return () => ctrl.abort();
+  }, [probe]);
 
   const anyAvailable = useMemo(() => {
     if (!available) return false;
@@ -207,7 +214,14 @@ export function Onboarding({ onComplete }: OnboardingProps) {
           <h2>Pick your LLM CLI</h2>
           <p>
             Pupila shells out to a local LLM CLI (no API keys, uses your existing subscription) for
-            the CV summary, per-job AI review, and AI Apply. Pick whichever you have installed.
+            the CV summary, per-job AI review, and AI Apply. Pick whichever you have installed — or
+            download one below.
+          </p>
+          <p className={styles.installHelp}>
+            ⚠️ These are <strong>command-line tools</strong> you run in your terminal — not desktop
+            apps. In particular, <strong>Claude Code</strong> is the terminal tool, <em>not</em> the
+            Claude desktop app. Click <strong>Download</strong>, follow the install guide, then
+            press <strong>Re-check</strong>.
           </p>
           {!available ? (
             <p className={styles.placeholder}>Probing installed CLIs…</p>
@@ -228,40 +242,56 @@ export function Onboarding({ onComplete }: OnboardingProps) {
                   </span>
                 </label>
               </li>
-              {PROVIDERS.map((p) => (
-                <li key={p}>
-                  <label>
-                    <input
-                      type="radio"
-                      name="provider"
-                      value={p}
-                      checked={provider === p}
-                      onChange={() => setProvider(p)}
-                      disabled={!available[p]}
-                    />
-                    <strong>{p}</strong>
-                    <span className={available[p] ? styles.available : styles.unavailable}>
-                      {available[p] ? '✓ installed' : '✗ not on PATH'}
-                    </span>
-                  </label>
-                </li>
-              ))}
+              {PROVIDERS.map((p) => {
+                const installed = available[p];
+                const meta = PROVIDER_META[p];
+                return (
+                  <li key={p}>
+                    <label>
+                      <input
+                        type="radio"
+                        name="provider"
+                        value={p}
+                        checked={provider === p}
+                        onChange={() => setProvider(p)}
+                        disabled={!installed}
+                      />
+                      <strong>{meta.label}</strong>
+                      <span className={installed ? styles.available : styles.unavailable}>
+                        {installed ? '✓ installed' : '✗ not installed'}
+                      </span>
+                      {!installed && (
+                        <a
+                          className={styles.installLink}
+                          href={meta.installUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          Download ↗
+                        </a>
+                      )}
+                    </label>
+                  </li>
+                );
+              })}
             </ul>
           )}
           {!anyAvailable && available && (
             <p className={styles.warn}>
-              No supported CLI found on PATH. Install one before continuing — for example,{' '}
-              <a
-                href="https://docs.claude.com/en/docs/claude-code/quickstart"
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                Claude Code
-              </a>
-              .
+              No supported CLI found on PATH. Download one above (Claude Code is the easiest start),
+              install it, then press Re-check.
             </p>
           )}
           <div className={styles.actions}>
+            <button
+              type="button"
+              className={buttonStyles.primary}
+              disabled={probing || busy}
+              onClick={() => void probe()}
+            >
+              {probing && <span className={spinnerStyles.spinner} aria-hidden />}
+              {probing ? 'Re-checking…' : 'Re-check'}
+            </button>
             <button
               type="button"
               className={buttonStyles.secondary}
