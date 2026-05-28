@@ -47,7 +47,7 @@ describe('Onboarding — provider step', () => {
 
     const hrefs = downloadLinks().map((a) => a.getAttribute('href'));
     expect(hrefs).toEqual([
-      'https://docs.claude.com/en/docs/claude-code/quickstart',
+      'https://code.claude.com/docs/en/quickstart',
       'https://github.com/openai/codex',
       'https://github.com/google-gemini/gemini-cli',
       'https://opencode.ai/docs/',
@@ -68,7 +68,7 @@ describe('Onboarding — provider step', () => {
     expect(screen.getByRole('radio', { name: /claude code/i })).toBeEnabled();
     expect(downloadLinks()).toHaveLength(3);
     expect(downloadLinks().map((a) => a.getAttribute('href'))).not.toContain(
-      'https://docs.claude.com/en/docs/claude-code/quickstart',
+      'https://code.claude.com/docs/en/quickstart',
     );
   });
 

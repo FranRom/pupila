@@ -24,7 +24,7 @@ export interface ProviderMeta {
 export const PROVIDER_META: Record<Provider, ProviderMeta> = {
   claude: {
     label: 'Claude Code',
-    installUrl: 'https://docs.claude.com/en/docs/claude-code/quickstart',
+    installUrl: 'https://code.claude.com/docs/en/quickstart',
   },
   codex: {
     label: 'Codex CLI',
