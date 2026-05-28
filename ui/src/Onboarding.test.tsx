@@ -87,3 +87,33 @@ describe('Onboarding — provider step', () => {
     expect(screen.getByRole('radio', { name: /claude code/i })).toBeEnabled();
   });
 });
+
+describe('Onboarding — CV upload step', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  // Drive the wizard from the provider step (claude installed) onto step 2.
+  async function gotoCvStep() {
+    mockDetect(() => ({ ...NONE_INSTALLED, claude: true }));
+    render(<Onboarding onComplete={vi.fn()} />);
+    await waitFor(() => expect(screen.getByText('Auto-detect')).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: /next: upload cv/i }));
+    await waitFor(() => expect(screen.getByText(/Upload your CV/i)).toBeInTheDocument());
+  }
+
+  it('offers an optional LinkedIn import alongside the CV drop', async () => {
+    await gotoCvStep();
+    // The affordance is present but collapsed — instructions hidden until opened.
+    expect(screen.getByRole('button', { name: /import from linkedin/i })).toBeInTheDocument();
+    expect(screen.queryByText(/Save to PDF/i)).not.toBeInTheDocument();
+  });
+
+  it('reveals the Save-to-PDF steps and an upload control when expanded', async () => {
+    await gotoCvStep();
+    fireEvent.click(screen.getByRole('button', { name: /import from linkedin/i }));
+
+    expect(screen.getByText(/Save to PDF/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /upload linkedin pdf/i })).toBeInTheDocument();
+  });
+});

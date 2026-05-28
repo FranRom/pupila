@@ -250,11 +250,20 @@ export const api = {
   cv: {
     /**
      * Upload a CV (or pasted text) to regenerate the candidate brief. The
-     * server lives at POST /api/cv and accepts `{ format, data }` — `data` is
-     * either base64 (pdf/docx) or utf-8 text (md/txt). Returns the freshly
-     * generated brief in `body` (NOT just `{ ok: true }`).
+     * server lives at POST /api/cv and accepts `{ format, data, source? }` —
+     * `data` is either base64 (pdf/docx) or utf-8 text (md/txt). `source`
+     * defaults to 'cv'; pass 'linkedin' for a LinkedIn "Save to PDF" export so
+     * the LLM uses the LinkedIn-tuned prompt. Returns the freshly generated
+     * brief in `body` (NOT just `{ ok: true }`).
      */
-    upload: (input: { format: 'pdf' | 'docx' | 'md' | 'txt'; data: string }, opt: SignalOpt = {}) =>
+    upload: (
+      input: {
+        format: 'pdf' | 'docx' | 'md' | 'txt';
+        data: string;
+        source?: 'cv' | 'linkedin';
+      },
+      opt: SignalOpt = {},
+    ) =>
       request<BriefMutateResponse>('/api/cv', {
         method: 'POST',
         json: input,
