@@ -5,6 +5,41 @@ export type Provider = 'claude' | 'codex' | 'gemini' | 'opencode';
 export type ProviderChoice = Provider | 'auto';
 export const PROVIDERS: readonly Provider[] = ['claude', 'codex', 'gemini', 'opencode'];
 
+/**
+ * Per-provider display metadata for the LLM-CLI picker.
+ *
+ * `label` is the human-facing name and `installUrl` points at the official
+ * install/quickstart page where the copy-paste install command lives. These
+ * exist so the onboarding picker can show a friendly name + a Download link:
+ * non-technical users (e.g. recruiters) routinely confuse "Claude Code" (the
+ * terminal CLI this app shells out to) with the Claude desktop app, and end up
+ * installing the wrong thing. Aiming the Download button at the CLI docs fixes
+ * that at the source.
+ */
+export interface ProviderMeta {
+  label: string;
+  installUrl: string;
+}
+
+export const PROVIDER_META: Record<Provider, ProviderMeta> = {
+  claude: {
+    label: 'Claude Code',
+    installUrl: 'https://docs.claude.com/en/docs/claude-code/quickstart',
+  },
+  codex: {
+    label: 'Codex CLI',
+    installUrl: 'https://github.com/openai/codex',
+  },
+  gemini: {
+    label: 'Gemini CLI',
+    installUrl: 'https://github.com/google-gemini/gemini-cli',
+  },
+  opencode: {
+    label: 'opencode',
+    installUrl: 'https://opencode.ai/docs/',
+  },
+};
+
 export interface PreferencesResponse {
   provider: ProviderChoice | null;
   onboardedAt: string | null;
