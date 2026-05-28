@@ -21,6 +21,7 @@
 
 import { existsSync } from 'node:fs';
 import { copyFile } from 'node:fs/promises';
+import { basename } from 'node:path';
 import { type BriefSource, buildBriefPrompt } from './lib/brief-prompt.js';
 import { writeBriefBody } from './lib/brief-template.js';
 import { detectFormat, parseCvFile } from './lib/cv-parser.js';
@@ -70,7 +71,10 @@ function parseArgs(argv: string[]): CliArgs {
   }
   // Auto-detect a LinkedIn export passed via --file by its filename, so
   // `--file ~/Downloads/LinkedIn_Profile.pdf` still gets the tuned prompt.
-  if (source === 'cv' && file && /linkedin/i.test(file)) {
+  // Match only the basename — a directory like ~/linkedin-stuff/ shouldn't
+  // silently flip a regular CV to the LinkedIn prompt. The "Reading … (…,
+  // LinkedIn export)" log in main() surfaces the decision either way.
+  if (source === 'cv' && file && /linkedin/i.test(basename(file))) {
     source = 'linkedin';
   }
   return { file, source, help };

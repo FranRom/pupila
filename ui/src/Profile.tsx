@@ -86,19 +86,27 @@ export function Profile() {
     setBusy(true);
     setError(null);
     setInfo(`Parsing ${label} and running LLM CLI…`);
-    const data =
-      format === 'pdf' || format === 'docx' ? await fileToBase64(file) : await fileToText(file);
-    const r = await api.cv.upload({ format, data, source });
-    setBusy(false);
-    if (!r.ok) {
-      setError(`Brief generation failed: ${formatError(r.error)}`);
+    // try/finally so a throw in fileToBase64/fileToText (corrupt file, browser
+    // security error) can't leave `busy` stuck and disable the whole tab.
+    try {
+      const data =
+        format === 'pdf' || format === 'docx' ? await fileToBase64(file) : await fileToText(file);
+      const r = await api.cv.upload({ format, data, source });
+      if (!r.ok) {
+        setError(`Brief generation failed: ${formatError(r.error)}`);
+        setInfo(null);
+        return;
+      }
+      setBody(r.value.body);
+      setDraft(r.value.body);
+      setLinkedinMode(false);
+      setInfo(`✓ Brief regenerated from ${label}.`);
+    } catch (err) {
+      setError(`Brief generation failed: ${err instanceof Error ? err.message : String(err)}`);
       setInfo(null);
-      return;
+    } finally {
+      setBusy(false);
     }
-    setBody(r.value.body);
-    setDraft(r.value.body);
-    setLinkedinMode(false);
-    setInfo(`✓ Brief regenerated from ${label}.`);
   }, []);
 
   const summarizePasted = useCallback(async () => {
@@ -224,7 +232,11 @@ export function Profile() {
               type="button"
               className={clsx(buttonStyles.primary, buttonStyles.sm)}
               disabled={busy}
-              onClick={() => setPasteMode((m) => !m)}
+              onClick={() => {
+                // Mutually exclusive with the LinkedIn panel — only one open at a time.
+                setLinkedinMode(false);
+                setPasteMode((m) => !m);
+              }}
             >
               {pasteMode ? 'Cancel paste' : 'Paste text'}
             </button>
@@ -232,7 +244,10 @@ export function Profile() {
               type="button"
               className={clsx(buttonStyles.primary, buttonStyles.sm)}
               disabled={busy}
-              onClick={() => setLinkedinMode((m) => !m)}
+              onClick={() => {
+                setPasteMode(false);
+                setLinkedinMode((m) => !m);
+              }}
             >
               {linkedinMode ? 'Cancel LinkedIn' : 'From LinkedIn'}
             </button>

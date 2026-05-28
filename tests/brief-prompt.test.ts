@@ -20,8 +20,11 @@ describe('buildBriefPrompt', () => {
     const prompt = buildBriefPrompt(SAMPLE, 'cv', 12_000);
     expect(prompt).toContain('summarizing the following CV');
     expect(prompt).toContain('\nCV:\n');
-    // No LinkedIn-specific framing leaks into the CV prompt.
-    expect(prompt).not.toMatch(/LinkedIn/i);
+    // No LinkedIn-specific framing leaks into the CV prompt — check the exact
+    // LinkedIn copy, not just the word, so a partial bleed is caught.
+    expect(prompt).not.toContain('LINKEDIN PROFILE');
+    expect(prompt).not.toContain('Save to PDF');
+    expect(prompt).not.toContain('Ignore LinkedIn boilerplate');
   });
 
   it('adds LinkedIn-tuned framing for the linkedin source', () => {
