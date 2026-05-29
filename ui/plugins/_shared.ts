@@ -20,6 +20,9 @@ export const CV_MAX_CHARS = Number(process.env.PUPILA_CV_MAX_CHARS ?? '12000');
 // `src/types.ts` so the MCP server and the UI agree on the same values.
 export const VALID_STATUSES: ReadonlySet<string> = new Set<string>(APPLICATION_STATUSES);
 export const VALID_CV_FORMATS = new Set<CvFormat>(['pdf', 'docx', 'md', 'txt']);
+// Brief input source — 'cv' (a résumé/CV) or 'linkedin' (a LinkedIn
+// "Save to PDF" export). Only changes the LLM prompt framing.
+export const VALID_CV_SOURCES = new Set<string>(['cv', 'linkedin']);
 export const VALID_PROVIDER_OR_AUTO = new Set<string>([...SUPPORTED_PROVIDERS, 'auto']);
 
 const CV_EXTENSIONS: readonly CvFormat[] = ['pdf', 'docx', 'md', 'txt'];

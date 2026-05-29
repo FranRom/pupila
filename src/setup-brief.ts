@@ -5,17 +5,24 @@
 // keeping it sharp directly improves the per-job verdicts.
 //
 // CLI:
-//   pnpm run setup-brief --file path/to/cv.pdf       # parse PDF (via pdfjs-dist)
-//   pnpm run setup-brief --file path/to/cv.docx      # parse DOCX (via mammoth)
-//   pnpm run setup-brief --file path/to/cv.md        # plain markdown
-//   pnpm run setup-brief --file path/to/cv.txt       # plain text
-//   cat cv.txt | pnpm run setup-brief                # stdin
+//   pnpm run setup-brief --file path/to/cv.pdf           # parse PDF (via pdfjs-dist)
+//   pnpm run setup-brief --file path/to/cv.docx          # parse DOCX (via mammoth)
+//   pnpm run setup-brief --file path/to/cv.md            # plain markdown
+//   pnpm run setup-brief --file path/to/cv.txt           # plain text
+//   pnpm run setup-brief --linkedin path/to/profile.pdf  # LinkedIn "Save to PDF" export
+//   cat cv.txt | pnpm run setup-brief                    # stdin
+//
+// `--linkedin` is the same pipeline as `--file` but tells the LLM the input is
+// a LinkedIn profile export so it ignores LinkedIn's boilerplate. A `--file`
+// whose name contains "linkedin" is auto-treated as a LinkedIn source.
 //
 // Provider: auto-detects claude / codex / gemini / opencode on PATH (in that
 // order). Override with PUPILA_LLM=<provider>.
 
 import { existsSync } from 'node:fs';
 import { copyFile } from 'node:fs/promises';
+import { basename } from 'node:path';
+import { type BriefSource, buildBriefPrompt } from './lib/brief-prompt.js';
 import { writeBriefBody } from './lib/brief-template.js';
 import { detectFormat, parseCvFile } from './lib/cv-parser.js';
 import { detectLlmCli, runLlm } from './lib/llm.js';
@@ -27,11 +34,15 @@ const CV_DEST_BASENAME = 'config/cv';
 
 interface CliArgs {
   file: string | null;
+  source: BriefSource;
   help: boolean;
 }
 
 function parseArgs(argv: string[]): CliArgs {
   let file: string | null = null;
+  // Only flips to 'linkedin' when --linkedin is passed, or when a --file path
+  // looks like a LinkedIn export (see inference below).
+  let source: BriefSource = 'cv';
   let help = false;
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
@@ -44,11 +55,29 @@ function parseArgs(argv: string[]): CliArgs {
         file = next;
         i++;
       }
+    } else if (arg.startsWith('--linkedin=')) {
+      file = arg.slice(11);
+      source = 'linkedin';
+    } else if (arg === '--linkedin' && i + 1 < argv.length) {
+      const next = argv[i + 1];
+      if (next) {
+        file = next;
+        source = 'linkedin';
+        i++;
+      }
     } else if (arg === '--help' || arg === '-h') {
       help = true;
     }
   }
-  return { file, help };
+  // Auto-detect a LinkedIn export passed via --file by its filename, so
+  // `--file ~/Downloads/LinkedIn_Profile.pdf` still gets the tuned prompt.
+  // Match only the basename — a directory like ~/linkedin-stuff/ shouldn't
+  // silently flip a regular CV to the LinkedIn prompt. The "Reading … (…,
+  // LinkedIn export)" log in main() surfaces the decision either way.
+  if (source === 'cv' && file && /linkedin/i.test(basename(file))) {
+    source = 'linkedin';
+  }
+  return { file, source, help };
 }
 
 async function readStdin(): Promise<string> {
@@ -57,21 +86,6 @@ async function readStdin(): Promise<string> {
     chunks.push(typeof chunk === 'string' ? Buffer.from(chunk) : chunk);
   }
   return Buffer.concat(chunks).toString('utf-8');
-}
-
-function buildPrompt(cvText: string): string {
-  return `You are summarizing the following CV into a short candidate brief that will be sent to an LLM each time the candidate's job-matching tool evaluates a posting. The brief decides whether the LLM agrees with the rule-based fit score.
-
-Output ONLY three short paragraphs as plain markdown text. No preamble, no markdown fences, no headings, no commentary.
-
-PARAGRAPH 1 — Who they are: role, years of experience, primary location, primary stack/skills. Be concrete (frameworks, languages, tools they ship with regularly).
-PARAGRAPH 2 — What they're looking for: target seniority (senior / lead / staff / principal IC), domains/sectors of interest (web3, AI, fintech, etc.), location preference (remote-worldwide / remote-EMEA / hybrid in <city> / open to relocation).
-PARAGRAPH 3 — What to avoid: roles that look like a fit on paper but aren't. Examples: wrong specialty (backend if frontend, etc.), wrong level (junior, intern, exec), on-site only, US-only positions, support/solutions/devrel/GTM titles.
-
-Aim for 6-10 lines total. Drop anything that doesn't help a job-matching tool decide. Don't editorialize.
-
-CV:
-${cvText.slice(0, MAX_CV_CHARS)}`;
 }
 
 function stripMarkdownFences(text: string): string {
@@ -89,6 +103,7 @@ async function main(): Promise<void> {
     console.log('  pnpm run setup-brief --file path/to/cv.pdf');
     console.log('  pnpm run setup-brief --file path/to/cv.docx');
     console.log('  pnpm run setup-brief --file path/to/cv.md');
+    console.log('  pnpm run setup-brief --linkedin path/to/profile.pdf   # LinkedIn "Save to PDF"');
     console.log('  cat cv.txt | pnpm run setup-brief');
     console.log('');
     console.log('Provider: auto-detects claude/codex/gemini/opencode on PATH.');
@@ -103,7 +118,8 @@ async function main(): Promise<void> {
       process.exit(1);
     }
     const format = detectFormat(args.file);
-    console.log(`Reading ${args.file} (${format})...`);
+    const sourceLabel = args.source === 'linkedin' ? 'LinkedIn export' : 'CV';
+    console.log(`Reading ${args.file} (${format}, ${sourceLabel})...`);
     try {
       cvText = await parseCvFile(args.file);
     } catch (err) {
@@ -149,7 +165,7 @@ async function main(): Promise<void> {
     `Parsed ${cvText.length} chars. Running ${invocation.provider} (${invocation.cmd})...`,
   );
 
-  const prompt = buildPrompt(cvText);
+  const prompt = buildBriefPrompt(cvText, args.source, MAX_CV_CHARS);
   let raw: string;
   try {
     raw = await runLlm(prompt);

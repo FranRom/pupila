@@ -21,6 +21,9 @@ import spinnerStyles from './styles/Spinner.module.css';
 // Profile-tab empty state handles re-setup).
 
 type CvFormat = 'pdf' | 'docx' | 'md' | 'txt';
+// Mirrors BriefSource in src/lib/brief-prompt.ts — kept as a local literal so
+// the UI doesn't import server code. 'linkedin' just switches the LLM prompt.
+type BriefSource = 'cv' | 'linkedin';
 
 const FORMAT_BY_EXT: Record<string, CvFormat> = {
   pdf: 'pdf',
@@ -111,7 +114,7 @@ export function Onboarding({ onComplete }: OnboardingProps) {
   }, [available]);
 
   const uploadCv = useCallback(
-    async (file: File) => {
+    async (file: File, source: BriefSource = 'cv') => {
       const format = detectFormatFromName(file.name);
       if (!format) {
         setError(`Unsupported file: ${file.name}. Use .pdf, .docx, .md, or .txt.`);
@@ -122,7 +125,7 @@ export function Onboarding({ onComplete }: OnboardingProps) {
       try {
         const data =
           format === 'pdf' || format === 'docx' ? await fileToBase64(file) : await file.text();
-        const done = await cv.start({ format, data });
+        const done = await cv.start({ format, data, source });
         if (!done?.body) {
           // hook already set its own error+status; mirror it into the
           // wizard-level error banner so the user sees a single message.
@@ -312,7 +315,8 @@ export function Onboarding({ onComplete }: OnboardingProps) {
             candidate brief. The original file stays on disk at <code>config/cv.&lt;ext&gt;</code>{' '}
             (gitignored) so AI Apply can re-attach it later.
           </p>
-          <CvDropZone busy={busy} onFile={uploadCv} />
+          <CvDropZone busy={busy} onFile={(f) => uploadCv(f, 'cv')} />
+          <LinkedinImport busy={busy} onFile={(f) => uploadCv(f, 'linkedin')} />
           <StreamingPanel
             title={
               cv.stage === 'parsing-cv'
@@ -474,6 +478,71 @@ function CvDropZone({ busy, onFile }: CvDropZoneProps) {
           e.target.value = '';
         }}
       />
+    </section>
+  );
+}
+
+interface LinkedinImportProps {
+  busy: boolean;
+  onFile: (f: File) => void;
+}
+
+// Optional alternative to dropping a CV: import a LinkedIn profile. There's no
+// supported way to scrape LinkedIn (auth + ToS), so we use the self-serve
+// "Save to PDF" export — a 5-minute, no-login-needed action — and feed that PDF
+// through the same parse→LLM brief pipeline with a LinkedIn-tuned prompt.
+// Collapsed by default so it stays out of the way of the primary CV drop.
+function LinkedinImport({ busy, onFile }: LinkedinImportProps) {
+  const [open, setOpen] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  return (
+    <section className={styles.linkedin}>
+      <button
+        type="button"
+        className={styles.linkedinToggle}
+        aria-expanded={open}
+        disabled={busy}
+        onClick={() => setOpen((o) => !o)}
+      >
+        {open ? '▾' : '▸'} No recent CV? Import from LinkedIn instead{' '}
+        <span className={styles.muted}>(optional)</span>
+      </button>
+      {open && (
+        <div className={styles.linkedinBody}>
+          <p>
+            Haven't updated a CV in a while? Export your LinkedIn profile as a PDF and we'll build
+            the brief from that:
+          </p>
+          <ol className={styles.linkedinSteps}>
+            <li>
+              On your LinkedIn profile, click <strong>More</strong> → <strong>Save to PDF</strong>.
+            </li>
+            <li>Upload the downloaded PDF here.</li>
+          </ol>
+          <div className={styles.linkedinActions}>
+            <button
+              type="button"
+              className={buttonStyles.secondary}
+              disabled={busy}
+              onClick={() => fileInputRef.current?.click()}
+            >
+              {busy && <span className={spinnerStyles.spinner} aria-hidden />}
+              {busy ? 'Working…' : 'Upload LinkedIn PDF'}
+            </button>
+          </div>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".pdf"
+            style={{ display: 'none' }}
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) onFile(f);
+              e.target.value = '';
+            }}
+          />
+        </div>
+      )}
     </section>
   );
 }
