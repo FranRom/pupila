@@ -7,6 +7,7 @@ import {
   generateProfileFromBrief,
   mergeProfile,
   type ProfileShape,
+  sanitizeRoles,
 } from '../../src/lib/profile-generator.js';
 import { streamableResponse } from '../../src/lib/streamable-response.js';
 import { PROFILE_DEFAULT_PATH, PROFILE_PATH } from './_paths.ts';
@@ -65,6 +66,40 @@ export function profileApiPlugin(): Plugin {
           console.error('[profile api]', err);
           res.statusCode = 500;
           res.setHeader('Content-Type', 'application/json');
+          res.end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }));
+        }
+      });
+
+      // GET  /api/profile-roles → { roles } from config/profile.json
+      // PUT  /api/profile-roles → persist a user-edited roles[] (validated)
+      // Read-modify-write so all other profile fields are preserved.
+      server.middlewares.use('/api/profile-roles', async (req, res) => {
+        res.setHeader('Content-Type', 'application/json');
+        try {
+          if (req.method === 'GET') {
+            const profile = await readJsonOrDefault<ProfileShape | null>(PROFILE_PATH, null);
+            res.end(JSON.stringify({ roles: profile?.roles ?? [] }));
+            return;
+          }
+          if (req.method === 'PUT') {
+            const body = (await readBody(req)) as { roles?: unknown };
+            const roles = sanitizeRoles(body.roles);
+            const base = await readJsonOrDefault<ProfileShape | null>(PROFILE_PATH, null);
+            if (!base || typeof base !== 'object') {
+              res.statusCode = 500;
+              res.end(JSON.stringify({ error: 'config/profile.json is missing or unparseable.' }));
+              return;
+            }
+            const next: ProfileShape = { ...base, roles };
+            await writeFile(PROFILE_PATH, `${JSON.stringify(next, null, 2)}\n`, 'utf8');
+            res.end(JSON.stringify({ ok: true, roles }));
+            return;
+          }
+          res.statusCode = 405;
+          res.end();
+        } catch (err) {
+          console.error('[profile-roles api]', err);
+          res.statusCode = 500;
           res.end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }));
         }
       });
@@ -159,9 +194,17 @@ export function profileApiPlugin(): Plugin {
             );
             return;
           }
-          const { profile, weightsChanged, keywordsChanged } = mergeProfile(base, delta);
+          const { profile, weightsChanged, keywordsChanged, rolesChanged } = mergeProfile(
+            base,
+            delta,
+          );
           await writeFile(PROFILE_PATH, `${JSON.stringify(profile, null, 2)}\n`, 'utf8');
-          responder.finish({ weightsChanged, keywordsChanged, provider: provider ?? 'auto' });
+          responder.finish({
+            weightsChanged,
+            keywordsChanged,
+            rolesChanged,
+            provider: provider ?? 'auto',
+          });
         } catch (err) {
           console.error('[profile-generate api]', err);
           responder.fail(err instanceof Error ? err.message : String(err), 500);

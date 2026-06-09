@@ -35,6 +35,7 @@ import type {
   Job,
   JobBodyResponse,
   QueueRow,
+  RoleInterest,
 } from '../../types.ts';
 import { path, request } from './client.ts';
 
@@ -118,6 +119,15 @@ export interface ApplyQueueEnqueueResponse {
 
 export interface ProfileGenerateAccepted {
   ok: true;
+}
+
+export interface RolesResponse {
+  roles: RoleInterest[];
+}
+
+export interface RolesMutateResponse {
+  ok: true;
+  roles: RoleInterest[];
 }
 
 // ── Method types ────────────────────────────────────────────────────────────
@@ -277,6 +287,17 @@ export const api = {
     generate: (opt: SignalOpt = {}) =>
       request<ProfileGenerateResult | ProfileGenerateAccepted>('/api/profile-generate', {
         method: 'POST',
+        ...opt,
+      }),
+  },
+
+  // ── Role interests (target job titles) ───────────────────────────────────
+  roles: {
+    get: (opt: SignalOpt = {}) => request<RolesResponse>('/api/profile-roles', opt),
+    set: (roles: RoleInterest[], opt: SignalOpt = {}) =>
+      request<RolesMutateResponse>('/api/profile-roles', {
+        method: 'PUT',
+        json: { roles },
         ...opt,
       }),
   },
