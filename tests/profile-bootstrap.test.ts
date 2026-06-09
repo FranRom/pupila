@@ -81,12 +81,18 @@ describe('committed config/profile.default.json', () => {
       'stackPrimary',
       'stackRn',
       'stackOther',
-      'frontendTitle',
-      'frontendBody',
+      'roleTitle',
+      'roleBody',
     ] as const;
     for (const key of personal) {
       expect(profile.weights[key]).toBe(0);
     }
+  });
+
+  it('ships an empty roles array in the default', async () => {
+    await bootstrapProfileIfMissing({ defaultPath: REPO_DEFAULT, profilePath });
+    const profile = await loadProfile(profilePath);
+    expect(profile.roles).toEqual([]);
   });
 
   it('leaves every personal keyword array empty in the default', async () => {
@@ -100,8 +106,6 @@ describe('committed config/profile.default.json', () => {
       'stackPrimary',
       'stackRn',
       'stackOther',
-      'titleFrontend',
-      'bodyFrontend',
       'titleExcludedSpecialties',
     ] as const;
     for (const key of personal) {

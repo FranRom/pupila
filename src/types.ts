@@ -25,8 +25,10 @@ export interface JobSignals {
   stackOther: number;
   leadTitle: number;
   seniorTitle: number;
-  frontendTitle: number;
-  frontendBody: number;
+  /** Bonus when the title matches any configured role interest (see `Job.roleMatches`). */
+  roleTitle: number;
+  /** Tiered bonus for role-specific phrases in the body, across all role interests. */
+  roleBody: number;
   locationRemote: number;
   freshness7d: number;
   freshness14d: number;
@@ -95,8 +97,29 @@ export interface Job {
   fetchedAt: string;
   fitScore: number;
   category: Category;
+  /**
+   * IDs of the configured role interests whose `titleMatch` fired on this job's
+   * title (see `RoleInterest`), in role-list order. Empty when the title matches
+   * none. Set at the filter stage (like `_signals`); absent on pre-filter jobs.
+   * Drives the role badges and the Role filter in the UI.
+   */
+  roleMatches?: string[];
   _signals?: JobSignals;
   applied?: AppliedEntry;
+}
+
+/**
+ * A target job title the candidate is interested in (e.g. "Senior Frontend
+ * Engineer", "Product Engineer"). A job is tagged with a role when its title
+ * matches `titleMatch`; `bodyMatch` phrases contribute to the role-body score.
+ * Lives in `config/profile.json` under `roles[]`; per-match point values are
+ * the shared `weights.roleTitle` / `weights.roleBody`.
+ */
+export interface RoleInterest {
+  id: string;
+  label: string;
+  titleMatch: string[];
+  bodyMatch?: string[];
 }
 
 export interface RawRemoteOk {

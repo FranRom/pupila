@@ -141,9 +141,10 @@ The auto-detected provider order is `claude` → `codex` → `gemini` → `openc
 
 [`config/profile.json`](./config/profile.json) drives what gets scored. After onboarding finishes, `/api/profile-generate` runs your local LLM CLI on the brief and fills in:
 
-- **Weights**: non-zero values for stacks/domains the brief actually mentions (e.g. `stackPrimary: 10` if you work with React/Next/TypeScript daily).
-- **Keyword lists**: `stackPrimary`, `stackRn`, `stackOther`, `titleFrontend`, `bodyFrontend`, `w3*`, `ai*` — populated from your stack.
-- **`titleExcludedSpecialties`**: pulled from the brief's "what to avoid" paragraph. A frontend brief gets `(backend|data|devops|sre|...) engineers?` here so those titles hard-drop.
+- **Weights**: non-zero values for stacks/domains the brief actually mentions (e.g. `stackPrimary: 10` if you work with React/Next/TypeScript daily). `roleTitle` / `roleBody` price a role match.
+- **Keyword lists**: `stackPrimary`, `stackRn`, `stackOther`, `w3*`, `ai*` — populated from your stack.
+- **`roles`**: the target job titles you're after (e.g. *Senior Frontend Engineer* **and** *Product Engineer*). Each role's `titleMatch` tags a posting, earns the `roleTitle` bonus, and rescues it from the title-based hard drops. Edit them as chips under **Profile → Role interests**, or let regeneration re-derive them from the brief.
+- **`titleExcludedSpecialties`**: pulled from the brief's "what to avoid" paragraph. A frontend brief gets `(backend|data|devops|sre|...) engineers?` here so those titles hard-drop (unless a declared role rescues them).
 
 Universal hard-drop rules (junior/exec/sales/recruiter/support) and seniority weights stay at sensible defaults regardless of the brief.
 
@@ -407,12 +408,13 @@ URLs are canonicalized (`utm_*` stripped, trailing slash normalized) before hash
 {
   "title": "Senior Software Engineer, Fullstack (AI Advisor)",
   "fitScore": 100,
+  "roleMatches": ["frontend"],
   "_signals": {
     "web3TitleBody": 0,    "web3Stack": 20,
     "aiTitleBody": 20,     "aiStack": 20,
     "stackPrimary": 10,    "stackRn": 0,    "stackOther": 0,
     "leadTitle": 0,        "seniorTitle": 10,
-    "frontendTitle": 10,   "frontendBody": 10,
+    "roleTitle": 10,       "roleBody": 10,
     "locationRemote": 10,
     "freshness7d": 10,     "freshness14d": 0,
     "usCentricPenalty": 0,
@@ -720,13 +722,18 @@ Install whichever prereq it called out (node 22+ via `nvm`/`fnm`/`asdf`, pnpm vi
 ```jsonc
 {
   "scoring": { "minScoreToKeep": 30, "maxScore": 100, "scoringBodyMaxChars": 1500 },
-  "weights": { "web3TitleBody": 20, "aiStack": 20, "frontendBody": 10, ... },
+  "weights": { "web3TitleBody": 20, "aiStack": 20, "roleTitle": 10, "roleBody": 10, ... },
   "keywords": {
     "junior":      ["junior", "jr", "intern", "entry-?level", "associate", ...],
     "seniorReq":   ["senior", "sr", "staff", "principal", "lead", "head", ...],
-    "aiStack":     ["anthropic", "claude", "openai", ...],
-    "bodyFrontend":["design system", "ship components", "accessibility", ...]
-  }
+    "aiStack":     ["anthropic", "claude", "openai", ...]
+  },
+  "roles": [
+    { "id": "frontend", "label": "Senior Frontend Engineer",
+      "titleMatch": ["frontend", "fullstack", "web engineer"],
+      "bodyMatch": ["design system", "accessibility", "ssr"] },
+    { "id": "product", "label": "Product Engineer", "titleMatch": ["product engineer"] }
+  ]
 }
 ```
 
@@ -786,7 +793,7 @@ pupila/
 │   ├── ai-review-parse.ts     # pure parser for the LLM's JSON response (separate file → unit-testable)
 │   └── index.ts               # orchestrator
 ├── tests/
-│   ├── filters.test.ts             # 33 cases: hard drops, droppedByRule, scoring, plurals, frontendBody, boilerplate, tiered weighting
+│   ├── filters.test.ts             # hard drops, droppedByRule, scoring, plurals, role interests + rescue, boilerplate, tiered weighting
 │   ├── dedup.test.ts               # 10 cases: id/title collapse, priority, compareJobs salary/postedAt/id chain
 │   ├── applied.test.ts             # 4 cases: status emoji map, summary grouping/ordering
 │   ├── salary.test.ts              # 15 cases: K/M suffix, currency detection, hourly conversion, free-text

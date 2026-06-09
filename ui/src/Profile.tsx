@@ -1,7 +1,9 @@
 import clsx from 'clsx';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api, formatError } from './lib/api/index.ts';
+import { useRoles } from './lib/hooks/useRoles.ts';
 import styles from './Profile.module.css';
+import { RoleInterests } from './RoleInterests.tsx';
 import bannerStyles from './styles/Banner.module.css';
 import buttonStyles from './styles/Button.module.css';
 
@@ -41,7 +43,18 @@ async function fileToText(file: File): Promise<string> {
   return file.text();
 }
 
-export function Profile() {
+interface ProfileProps {
+  /** Called after a role-interest edit persists, so the app can flag a pending re-score. */
+  onRolesChanged?: () => void;
+  /** Whether roles were edited since the last fetch (drives the re-score button). */
+  rolesDirty?: boolean;
+  /** Trigger a full aggregator run to re-score jobs against the current roles. */
+  onRescore?: () => void;
+  /** Whether a fetch/re-score run is currently in flight. */
+  rescoring?: boolean;
+}
+
+export function Profile({ onRolesChanged, rolesDirty, onRescore, rescoring }: ProfileProps = {}) {
   const [loading, setLoading] = useState(true);
   const [body, setBody] = useState<string>('');
   const [draft, setDraft] = useState<string>('');
@@ -54,6 +67,24 @@ export function Profile() {
   const [dragActive, setDragActive] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const linkedinInputRef = useRef<HTMLInputElement>(null);
+  const onRolesError = useCallback((msg: string) => setError(msg), []);
+  const {
+    roles,
+    loading: rolesLoading,
+    saving: rolesSaving,
+    save: saveRoles,
+  } = useRoles({
+    onError: onRolesError,
+  });
+  // Persist the edit, then flag a pending re-score so the Jobs tab + this card
+  // can offer to re-run scoring against the new roles.
+  const handleSaveRoles = useCallback(
+    async (next: Parameters<typeof saveRoles>[0]) => {
+      await saveRoles(next);
+      onRolesChanged?.();
+    },
+    [saveRoles, onRolesChanged],
+  );
 
   useEffect(() => {
     const ctrl = new AbortController();
@@ -310,6 +341,16 @@ export function Profile() {
           </div>
         </section>
       )}
+
+      <RoleInterests
+        roles={roles}
+        loading={rolesLoading}
+        saving={rolesSaving}
+        onSave={handleSaveRoles}
+        dirty={rolesDirty}
+        onRescore={onRescore}
+        rescoring={rescoring}
+      />
 
       <section className={styles.briefEditor}>
         <header className={styles.briefEditorHeader}>

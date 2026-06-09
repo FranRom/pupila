@@ -267,7 +267,7 @@ export function Settings({
   const askToRegenerateProfile = () => {
     setConfirmDialog({
       title: 'Regenerate scoring profile',
-      body: 'This re-runs the local LLM CLI on your candidate brief and overwrites the personal weights + keyword arrays in config/profile.json (stackPrimary, titleFrontend, w3*, ai*, titleExcludedSpecialties, etc.). Universal rules (junior excludes, US-only filter, scoring config) are preserved. Takes 10–20 seconds.',
+      body: 'This re-runs the local LLM CLI on your candidate brief and overwrites the personal weights + keyword arrays + role interests in config/profile.json (stackPrimary, w3*, ai*, roles, titleExcludedSpecialties, etc.). Universal rules (junior excludes, US-only filter, scoring config) are preserved. Takes 10–20 seconds.',
       destructive: false,
       confirmLabel: 'Regenerate',
       onConfirm: () => {

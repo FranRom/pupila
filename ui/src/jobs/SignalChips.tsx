@@ -19,8 +19,8 @@ const CHIP_LABELS: Partial<Record<keyof JobSignals, string>> = {
   stackPrimary: 'react/ts',
   stackRn: 'rn',
   stackOther: 'gql/twcss',
-  frontendTitle: 'frontend',
-  frontendBody: 'frontend body',
+  roleTitle: 'role',
+  roleBody: 'role body',
 };
 
 interface SignalChipsProps {

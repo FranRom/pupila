@@ -20,6 +20,7 @@
 import { existsSync } from 'node:fs';
 import { readFile, writeFile } from 'node:fs/promises';
 import { parseReviewJson } from './ai-review-parse.js';
+import { loadProfile } from './filters.js';
 import { runLlm } from './lib/llm.js';
 import type { AiReview, AiReviews, Job } from './types.js';
 
@@ -27,6 +28,7 @@ const JOBS_PATH = 'data/jobs.json';
 const BODIES_PATH = 'data/jobs-bodies.json';
 const REVIEWS_PATH = 'data/ai-reviews.json';
 const BRIEF_PATH = 'config/candidate-brief.md';
+const PROFILE_PATH = 'config/profile.json';
 const BODY_MAX_CHARS = 3500;
 
 interface CliArgs {
@@ -65,7 +67,9 @@ async function readJsonOrDefault<T>(path: string, fallback: T): Promise<T> {
   }
 }
 
-function buildPrompt(brief: string, job: Job, body: string): string {
+function buildPrompt(brief: string, job: Job, body: string, matchedRoles: string[]): string {
+  const rolesLine =
+    matchedRoles.length > 0 ? matchedRoles.join(', ') : 'none of the candidate’s target roles';
   return `You are reviewing a job posting for the following candidate.
 Be skeptical and concise. Don't be sycophantic. Spot mismatches.
 
@@ -79,6 +83,7 @@ Location: ${job.location ?? 'not specified'}
 Salary: ${job.salary ?? 'not disclosed'}
 Source: ${job.source}
 Rule-based fit score: ${job.fitScore}/100 (category: ${job.category})
+Matched target role(s): ${rolesLine}
 
 POSTING BODY
 ${body.slice(0, BODY_MAX_CHARS)}
@@ -99,7 +104,9 @@ VERDICT GUIDANCE
 - strong-match: exactly what the candidate wants; senior+ IC role, stack matches deeply, remote-friendly
 - match: solid alignment, worth applying
 - weak-match: technically passes filters but the actual role is misaligned
-- skip: real mismatch hidden under matching keywords (wrong specialty, wrong level, on-site only, etc.)`;
+- skip: real mismatch hidden under matching keywords (wrong specialty, wrong level, on-site only, etc.)
+
+Note: "Matched target role(s)" above is what the rule engine matched against the candidate's stated target titles. If it says none matched, weigh whether this role is genuinely one the candidate wants before rating it highly.`;
 }
 
 async function main(): Promise<void> {
@@ -111,6 +118,17 @@ async function main(): Promise<void> {
   }
 
   const brief = await readFile(BRIEF_PATH, 'utf8');
+
+  // Resolve role ids on each job to their human labels for the prompt.
+  // Best-effort — a missing/unreadable profile just yields raw ids.
+  const roleLabels = new Map<string, string>();
+  try {
+    const profile = await loadProfile(PROFILE_PATH);
+    for (const role of profile.roles ?? []) roleLabels.set(role.id, role.label);
+  } catch {
+    // Leave the map empty; matched ids fall through as-is.
+  }
+
   const jobs = await readJsonOrDefault<Job[]>(JOBS_PATH, []);
   const bodies = await readJsonOrDefault<Record<string, string>>(BODIES_PATH, {});
   const reviews = await readJsonOrDefault<AiReviews>(REVIEWS_PATH, {});
@@ -163,7 +181,8 @@ async function main(): Promise<void> {
     process.stdout.write(`  ${tag}... `);
 
     try {
-      const raw = await runLlm(buildPrompt(brief, job, body));
+      const matchedRoles = (job.roleMatches ?? []).map((id) => roleLabels.get(id) ?? id);
+      const raw = await runLlm(buildPrompt(brief, job, body, matchedRoles));
       const parsed = parseReviewJson(raw);
       const review: AiReview = {
         jobId: job.id,

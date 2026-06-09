@@ -6,7 +6,7 @@ import { FetchProgress } from './FetchProgress.tsx';
 import { relativeTime } from './format.ts';
 import { AppHeader } from './jobs/AppHeader.tsx';
 import { DetailPanel } from './jobs/DetailPanel.tsx';
-import { JobsFilters } from './jobs/JobsFilters.tsx';
+import { JobsFilters, type RoleFilterOption } from './jobs/JobsFilters.tsx';
 import { QueueBadge } from './jobs/QueueBadge.tsx';
 import { ScoreBar, type ScoreTier } from './jobs/ScoreBar.tsx';
 import { SignalChips } from './jobs/SignalChips.tsx';
@@ -96,6 +96,7 @@ export function App() {
   const {
     search,
     category,
+    role,
     source,
     appliedOnly,
     showSkipped,
@@ -109,6 +110,7 @@ export function App() {
     tab,
     setSearch,
     setCategory,
+    setRole,
     setSource,
     setAppliedOnly,
     setShowSkipped,
@@ -187,6 +189,27 @@ export function App() {
   const [fetchInFlight, setFetchInFlight] = useState(false);
   const [schedulerInstalled, setSchedulerInstalled] = useState<boolean | null>(null);
   const [schedulerCompletedAt, setSchedulerCompletedAt] = useState(0);
+
+  // Timestamp of the last role-interest edit (persisted). Jobs are only
+  // re-scored against roles by a full aggregator run, so we compare this to the
+  // latest fetch time to know whether a re-score is pending. localStorage keeps
+  // it across reloads; it self-clears once a newer fetch lands (see rolesDirty).
+  const [rolesChangedAt, setRolesChangedAt] = useState<string | null>(() => {
+    try {
+      return localStorage.getItem('pupila:rolesChangedAt');
+    } catch {
+      return null;
+    }
+  });
+  const markRolesChanged = useCallback(() => {
+    const now = new Date().toISOString();
+    setRolesChangedAt(now);
+    try {
+      localStorage.setItem('pupila:rolesChangedAt', now);
+    } catch {
+      // best-effort persistence
+    }
+  }, []);
 
   // POST /api/ai-apply — kicks off a background LLM run. The
   // <AiApplyProgress /> dock at root polls /api/ai-apply-progress for live
@@ -306,6 +329,15 @@ export function App() {
     };
   }, [allJobs]);
 
+  // True when role interests were edited after the most recent fetch — i.e. the
+  // current jobs were NOT scored against the latest roles. Drives the re-score
+  // affordance in the Role interests card and the Jobs-tab banner.
+  const rolesDirty = useMemo(() => {
+    if (!rolesChangedAt) return false;
+    if (!latestFetchedAt) return true;
+    return Date.parse(latestFetchedAt) < Date.parse(rolesChangedAt);
+  }, [rolesChangedAt, latestFetchedAt]);
+
   const sources = useMemo(() => {
     const s = new Set<Source>();
     for (const j of allJobs) s.add(j.source);
@@ -316,6 +348,10 @@ export function App() {
     const q = search.trim().toLowerCase();
     const filtered = allJobs.filter((j) => {
       if (category !== 'all' && j.category !== category) return false;
+      if (role !== 'all') {
+        const matches = j.roleMatches ?? [];
+        if (role === '__none' ? matches.length > 0 : !matches.includes(role)) return false;
+      }
       if (source !== 'all' && j.source !== source) return false;
       if (appliedOnly && !appliedById[j.id]) return false;
       if (!showSkipped && isJobSkipped(j.id)) return false;
@@ -341,6 +377,7 @@ export function App() {
     allJobs,
     search,
     category,
+    role,
     source,
     appliedOnly,
     showSkipped,
@@ -390,6 +427,24 @@ export function App() {
     const counts: Record<Category, number> = { 'web3+ai': 0, web3: 0, ai: 0, general: 0 };
     for (const j of allJobs) counts[j.category]++;
     return counts;
+  }, [allJobs]);
+
+  // Role-filter options derived from the role ids actually present on jobs, so
+  // the dropdown only offers roles that match something. 'All roles' is always
+  // first; '(no role match)' appears only when some job matched no role.
+  const roleOptions = useMemo<RoleFilterOption[]>(() => {
+    const ids = new Set<string>();
+    let hasUnmatched = false;
+    for (const j of allJobs) {
+      const matches = j.roleMatches ?? [];
+      if (matches.length === 0) hasUnmatched = true;
+      for (const id of matches) ids.add(id);
+    }
+    if (ids.size === 0) return [];
+    const opts: RoleFilterOption[] = [{ value: 'all', label: 'All roles' }];
+    for (const id of [...ids].sort()) opts.push({ value: id, label: id });
+    if (hasUnmatched) opts.push({ value: '__none', label: 'No role match' });
+    return opts;
   }, [allJobs]);
 
   const appliedCount = useMemo(() => Object.keys(appliedById).length, [appliedById]);
@@ -452,7 +507,12 @@ export function App() {
           see they're loading the chunk on first open. */}
       {tab === 'profile' && (
         <Suspense fallback={<p className={styles.placeholder}>Loading profile…</p>}>
-          <Profile />
+          <Profile
+            onRolesChanged={markRolesChanged}
+            rolesDirty={rolesDirty}
+            onRescore={triggerFetch}
+            rescoring={fetchInFlight}
+          />
         </Suspense>
       )}
       {tab === 'settings' && (
@@ -491,6 +551,7 @@ export function App() {
           <JobsFilters
             search={search}
             category={category}
+            role={role}
             source={source}
             appliedOnly={appliedOnly}
             showSkipped={showSkipped}
@@ -499,8 +560,10 @@ export function App() {
             compact={compact}
             sources={sources}
             categoryOptions={CATEGORY_OPTIONS}
+            roleOptions={roleOptions}
             onSearchChange={setSearch}
             onCategoryChange={setCategory}
+            onRoleChange={setRole}
             onSourceChange={setSource}
             onAppliedOnlyChange={setAppliedOnly}
             onShowSkippedChange={setShowSkipped}
@@ -510,6 +573,7 @@ export function App() {
             onReset={() => {
               setSearch('');
               setCategory('all');
+              setRole('all');
               setSource('all');
               setAppliedOnly(false);
               setShowSkipped(false);
@@ -518,6 +582,10 @@ export function App() {
             onRefetch={triggerFetch}
             isFetching={fetchInFlight}
           />
+
+          {rolesDirty && allJobs.length > 0 && (
+            <RoleChangeBanner isFetching={fetchInFlight} onRescore={triggerFetch} />
+          )}
 
           {isStale && schedulerInstalled === false && (
             <StalenessBanner
@@ -638,6 +706,41 @@ function StalenessBanner({
           onClick={onOpenScheduler}
         >
           Install daily scheduler →
+        </button>
+      </div>
+    </div>
+  );
+}
+
+interface RoleChangeBannerProps {
+  isFetching: boolean;
+  onRescore: () => void;
+}
+
+// Shown on the Jobs tab when role interests were edited after the last fetch —
+// the listed jobs aren't yet scored against the new roles. Reuses the
+// staleness-banner styling.
+function RoleChangeBanner({ isFetching, onRescore }: RoleChangeBannerProps) {
+  return (
+    <div className={styles.stalenessBanner} role="status">
+      <span className={styles.stalenessIcon} aria-hidden>
+        🎯
+      </span>
+      <div className={styles.stalenessBody}>
+        <strong>Role interests changed.</strong>
+        <span className={styles.muted}>
+          These jobs were scored against your previous roles. Re-score to apply the change (rescues
+          previously-dropped jobs too).
+        </span>
+      </div>
+      <div className={styles.stalenessActions}>
+        <button
+          type="button"
+          className={clsx(buttonStyles.primary, buttonStyles.sm)}
+          onClick={onRescore}
+          disabled={isFetching}
+        >
+          {isFetching ? 'Re-scoring…' : 'Re-score jobs →'}
         </button>
       </div>
     </div>
@@ -882,6 +985,15 @@ const FragmentRow = memo(function FragmentRow({
                 {review.verdict}
               </span>
             )}
+            {job.roleMatches?.map((roleId) => (
+              <span
+                key={roleId}
+                className={badgeStyles.role}
+                title={`Matches your "${roleId}" role interest`}
+              >
+                {roleId}
+              </span>
+            ))}
             <QueueBadge status={queueStatus} />
             <span className={styles.titleText}>{job.title}</span>
           </span>

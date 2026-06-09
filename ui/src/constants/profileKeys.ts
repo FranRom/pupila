@@ -10,16 +10,14 @@ export const PERSONAL_WEIGHT_KEYS = [
   'stackPrimary',
   'stackRn',
   'stackOther',
-  'frontendTitle',
-  'frontendBody',
+  'roleTitle',
+  'roleBody',
 ] as const;
 
 export const PERSONAL_KEYWORD_KEYS = [
   'stackPrimary',
   'stackRn',
   'stackOther',
-  'titleFrontend',
-  'bodyFrontend',
   'w3TitleBody',
   'w3Stack',
   'aiTitleBody',

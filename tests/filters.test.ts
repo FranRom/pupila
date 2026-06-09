@@ -309,14 +309,14 @@ describe('applyFilters — scoring', () => {
     expect(r.kept[0]?._signals?.seniorTitle).toBe(10);
   });
 
-  it('awards +10 frontend title bonus', () => {
+  it('awards +10 role title bonus', () => {
     const r = applyFilters([
       makeJob({
         title: 'Senior Frontend Engineer',
         body: 'react typescript anthropic remote',
       }),
     ]);
-    expect(r.kept[0]?._signals?.frontendTitle).toBe(10);
+    expect(r.kept[0]?._signals?.roleTitle).toBe(10);
   });
 
   it('halves stackPrimary weight when only one stack keyword appears', () => {
@@ -341,44 +341,44 @@ describe('applyFilters — scoring', () => {
     expect(r.kept[0]?._signals?.stackPrimary).toBe(15);
   });
 
-  it('boosts frontendBody 1.5× on multiple role-specific phrases', () => {
+  it('boosts roleBody 1.5× on multiple role-specific phrases', () => {
     const r = applyFilters([
       makeJob({
         title: 'Senior Engineer',
         body: 'Own the design system, ship react components, drive accessibility, optimise web vitals, and mentor on responsive design. anthropic claude remote.',
       }),
     ]);
-    expect(r.kept[0]?._signals?.frontendBody).toBe(15);
+    expect(r.kept[0]?._signals?.roleBody).toBe(15);
   });
 
-  it('does not award frontend bonus to generic Software Engineer titles', () => {
+  it('does not award role title bonus to generic Software Engineer titles', () => {
     const r = applyFilters([
       makeJob({
         title: 'Senior Software Engineer',
         body: 'react typescript anthropic remote',
       }),
     ]);
-    expect(r.kept[0]?._signals?.frontendTitle).toBe(0);
+    expect(r.kept[0]?._signals?.roleTitle).toBe(0);
   });
 
-  it('awards +10 frontendBody bonus when body has role-specific frontend phrases', () => {
+  it('awards +10 roleBody bonus when body has role-specific frontend phrases', () => {
     const r = applyFilters([
       makeJob({
         title: 'Senior Software Engineer',
         body: 'You will ship react components and own our design system. Remote.',
       }),
     ]);
-    expect(r.kept[0]?._signals?.frontendBody).toBe(10);
+    expect(r.kept[0]?._signals?.roleBody).toBe(10);
   });
 
-  it('does not award frontendBody for generic backend body', () => {
+  it('does not award roleBody for generic backend body', () => {
     const r = applyFilters([
       makeJob({
         title: 'Senior Engineer',
         body: 'Build microservices in Go using gRPC and protobuf. anthropic claude remote.',
       }),
     ]);
-    expect(r.kept[0]?._signals?.frontendBody).toBe(0);
+    expect(r.kept[0]?._signals?.roleBody).toBe(0);
   });
 
   it('ignores AI/web3 keywords in company boilerplate at end of body', () => {
@@ -427,5 +427,74 @@ describe('applyFilters — title plurals', () => {
       }),
     ]);
     expect(r.kept).toHaveLength(1);
+  });
+});
+
+describe('applyFilters — role interests', () => {
+  // Build a profile variant that overrides only the role list, keeping the
+  // fixture's weights/keywords (so hard-drops and scoring are unchanged).
+  function withRoles(roles: FilterProfile['roles']): FilterProfile {
+    return { ...(testProfile as FilterProfile), roles };
+  }
+
+  it('records empty roleMatches for a non-role engineering title', () => {
+    const r = applyFilters([
+      makeJob({ title: 'Senior Software Engineer', body: 'java spring anthropic claude remote' }),
+    ]);
+    expect(r.kept[0]?.roleMatches).toEqual([]);
+  });
+
+  it('records the matched role id in roleMatches', () => {
+    const r = applyFilters([
+      makeJob({ title: 'Senior Frontend Engineer', body: 'react anthropic remote' }),
+    ]);
+    expect(r.kept[0]?.roleMatches).toEqual(['frontend']);
+  });
+
+  it('tags a job that matches multiple roles, in role-list order', () => {
+    const { applyFilters: applyMulti } = createFilters(
+      withRoles([
+        { id: 'frontend', label: 'Frontend Engineer', titleMatch: ['frontend', 'react'] },
+        { id: 'product', label: 'Product Engineer', titleMatch: ['product engineer'] },
+      ]),
+    );
+    const r = applyMulti([
+      makeJob({ title: 'Senior Frontend Product Engineer', body: 'anthropic claude remote' }),
+    ]);
+    expect(r.kept[0]?.roleMatches).toEqual(['frontend', 'product']);
+    expect(r.kept[0]?._signals?.roleTitle).toBe(10);
+  });
+
+  it('awards the role title bonus to a secondary role match', () => {
+    const { applyFilters: applyMulti } = createFilters(
+      withRoles([
+        { id: 'frontend', label: 'Frontend Engineer', titleMatch: ['frontend'] },
+        { id: 'product', label: 'Product Engineer', titleMatch: ['product engineer'] },
+      ]),
+    );
+    const r = applyMulti([
+      makeJob({ title: 'Senior Product Engineer', body: 'anthropic claude remote' }),
+    ]);
+    expect(r.kept[0]?.roleMatches).toEqual(['product']);
+    expect(r.kept[0]?._signals?.roleTitle).toBe(10);
+  });
+
+  it('rescues a title-matching role from the excluded-specialty hard drop', () => {
+    const { applyFilters: applyRescue } = createFilters(
+      withRoles([{ id: 'data', label: 'Data Engineer', titleMatch: ['data engineer'] }]),
+    );
+    const r = applyRescue([
+      makeJob({ title: 'Senior Data Engineer', body: 'python spark anthropic claude remote' }),
+    ]);
+    expect(r.kept).toHaveLength(1);
+    expect(r.kept[0]?.roleMatches).toEqual(['data']);
+  });
+
+  it('still drops an excluded specialty when no role matches it', () => {
+    const r = applyFilters([
+      makeJob({ title: 'Senior Data Engineer', body: 'python anthropic claude remote' }),
+    ]);
+    expect(r.kept).toHaveLength(0);
+    expect(r.droppedByRule.title_excluded_specialty).toBe(1);
   });
 });

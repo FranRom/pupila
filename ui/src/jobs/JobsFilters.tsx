@@ -3,9 +3,16 @@ import buttonStyles from '../styles/Button.module.css';
 import type { Category, Source } from '../types.ts';
 import styles from './JobsFilters.module.css';
 
+/** A selectable role-filter option: `value` is the role id ('all' / '__none' for the specials). */
+export interface RoleFilterOption {
+  value: string;
+  label: string;
+}
+
 interface JobsFiltersProps {
   search: string;
   category: Category | 'all';
+  role: string;
   source: Source | 'all';
   appliedOnly: boolean;
   showSkipped: boolean;
@@ -14,8 +21,10 @@ interface JobsFiltersProps {
   compact: boolean;
   sources: Source[];
   categoryOptions: ReadonlyArray<Category | 'all'>;
+  roleOptions: ReadonlyArray<RoleFilterOption>;
   onSearchChange: (v: string) => void;
   onCategoryChange: (v: Category | 'all') => void;
+  onRoleChange: (v: string) => void;
   onSourceChange: (v: Source | 'all') => void;
   onAppliedOnlyChange: (v: boolean) => void;
   onShowSkippedChange: (v: boolean) => void;
@@ -30,6 +39,7 @@ interface JobsFiltersProps {
 export function JobsFilters({
   search,
   category,
+  role,
   source,
   appliedOnly,
   showSkipped,
@@ -38,8 +48,10 @@ export function JobsFilters({
   compact,
   sources,
   categoryOptions,
+  roleOptions,
   onSearchChange,
   onCategoryChange,
+  onRoleChange,
   onSourceChange,
   onAppliedOnlyChange,
   onShowSkippedChange,
@@ -53,6 +65,7 @@ export function JobsFilters({
   const hasActiveFilters =
     Boolean(search) ||
     category !== 'all' ||
+    role !== 'all' ||
     source !== 'all' ||
     appliedOnly ||
     showSkipped ||
@@ -78,6 +91,20 @@ export function JobsFilters({
           </option>
         ))}
       </select>
+
+      {roleOptions.length > 0 && (
+        <select
+          className={styles.select}
+          value={role}
+          onChange={(e) => onRoleChange(e.target.value)}
+        >
+          {roleOptions.map((r) => (
+            <option key={r.value} value={r.value}>
+              {r.label}
+            </option>
+          ))}
+        </select>
+      )}
 
       <select
         className={styles.select}

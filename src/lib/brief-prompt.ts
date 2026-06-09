@@ -19,7 +19,7 @@ export type BriefSource = 'cv' | 'linkedin';
 const OUTPUT_CONTRACT = `Output ONLY three short paragraphs as plain markdown text. No preamble, no markdown fences, no headings, no commentary.
 
 PARAGRAPH 1 — Who they are: role, years of experience, primary location, primary stack/skills. Be concrete (frameworks, languages, tools they ship with regularly).
-PARAGRAPH 2 — What they're looking for: target seniority (senior / lead / staff / principal IC), domains/sectors of interest (web3, AI, fintech, etc.), location preference (remote-worldwide / remote-EMEA / hybrid in <city> / open to relocation).
+PARAGRAPH 2 — What they're looking for: the specific job title(s) they're targeting — name each one explicitly, and if they'd take more than one kind of role, list them all (e.g. "Senior Frontend Engineer or Product Engineer"). Also: target seniority (senior / lead / staff / principal IC), domains/sectors of interest (web3, AI, fintech, etc.), location preference (remote-worldwide / remote-EMEA / hybrid in <city> / open to relocation).
 PARAGRAPH 3 — What to avoid: roles that look like a fit on paper but aren't. Examples: wrong specialty (backend if frontend, etc.), wrong level (junior, intern, exec), on-site only, US-only positions, support/solutions/devrel/GTM titles.
 
 Aim for 6-10 lines total. Drop anything that doesn't help a job-matching tool decide. Don't editorialize.`;

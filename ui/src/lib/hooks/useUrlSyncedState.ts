@@ -21,6 +21,8 @@ export type Tab = 'jobs' | 'swipe' | 'profile' | 'settings';
 export interface UrlSyncedFilters {
   search: string;
   category: Category | 'all';
+  /** Role-interest id to filter by, or 'all'. '__none' = jobs matching no role. */
+  role: string;
   source: Source | 'all';
   appliedOnly: boolean;
   showSkipped: boolean;
@@ -37,6 +39,7 @@ export interface UrlSyncedFilters {
 export interface UrlSyncedSetters {
   setSearch: (v: string) => void;
   setCategory: (v: Category | 'all') => void;
+  setRole: (v: string) => void;
   setSource: (v: Source | 'all') => void;
   setAppliedOnly: (v: boolean) => void;
   setShowSkipped: (v: boolean) => void;
@@ -67,6 +70,7 @@ function readUrl(): UrlSyncedFilters {
     search: p.get('q') ?? '',
     category:
       cat === 'web3+ai' || cat === 'web3' || cat === 'ai' || cat === 'general' ? cat : 'all',
+    role: p.get('role') ?? 'all',
     source: (p.get('src') as Source | 'all' | null) ?? 'all',
     appliedOnly: p.get('applied') === '1',
     showSkipped: p.get('skipped') === '1',
@@ -94,6 +98,7 @@ export function useUrlSyncedState(): UseUrlSyncedStateResult {
 
   const [search, setSearch] = useState(initial.search);
   const [category, setCategory] = useState<Category | 'all'>(initial.category);
+  const [role, setRole] = useState<string>(initial.role);
   const [source, setSource] = useState<Source | 'all'>(initial.source);
   const [appliedOnly, setAppliedOnly] = useState(initial.appliedOnly);
   const [showSkipped, setShowSkipped] = useState(initial.showSkipped);
@@ -121,6 +126,7 @@ export function useUrlSyncedState(): UseUrlSyncedStateResult {
     const p = new URLSearchParams();
     if (search) p.set('q', search);
     if (category !== 'all') p.set('cat', category);
+    if (role !== 'all') p.set('role', role);
     if (source !== 'all') p.set('src', source);
     if (appliedOnly) p.set('applied', '1');
     if (showSkipped) p.set('skipped', '1');
@@ -140,6 +146,7 @@ export function useUrlSyncedState(): UseUrlSyncedStateResult {
   }, [
     search,
     category,
+    role,
     source,
     appliedOnly,
     showSkipped,
@@ -156,6 +163,7 @@ export function useUrlSyncedState(): UseUrlSyncedStateResult {
   return {
     search,
     category,
+    role,
     source,
     appliedOnly,
     showSkipped,
@@ -169,6 +177,7 @@ export function useUrlSyncedState(): UseUrlSyncedStateResult {
     tab,
     setSearch,
     setCategory,
+    setRole,
     setSource,
     setAppliedOnly,
     setShowSkipped,

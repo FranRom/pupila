@@ -13,8 +13,8 @@ const emptySignals: JobSignals = {
   stackOther: 0,
   leadTitle: 0,
   seniorTitle: 0,
-  frontendTitle: 0,
-  frontendBody: 0,
+  roleTitle: 0,
+  roleBody: 0,
   locationRemote: 0,
   freshness7d: 0,
   freshness14d: 0,
@@ -68,7 +68,7 @@ describe('SignalChips', () => {
           ...emptySignals,
           stackPrimary: 10,
           web3TitleBody: 20,
-          frontendBody: 5,
+          roleBody: 5,
         }}
       />,
     );
@@ -76,7 +76,7 @@ describe('SignalChips', () => {
     expect(chips).toHaveLength(3);
     expect(chips[0]?.textContent).toContain('web3 +20');
     expect(chips[1]?.textContent).toContain('react/ts +10');
-    expect(chips[2]?.textContent).toContain('frontend body +5');
+    expect(chips[2]?.textContent).toContain('role body +5');
   });
 
   it('truncates to the top `max` chips (default 3)', () => {

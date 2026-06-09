@@ -35,14 +35,24 @@ Worked example with `base = 10` (stackPrimary):
 | `stackOther` | **tiered** | 5/2/7 | GraphQL, Tailwind, Vite |
 | `leadTitle` | binary | 15 | lead/staff/principal/head/director |
 | `seniorTitle` | binary | 10 | senior/sr (matched only if `leadTitle` didn't fire) |
-| `frontendTitle` | binary | 10 | frontend / fullstack / web / mobile in title |
-| `frontendBody` | **tiered** | 10/5/15 | "design system", "ship components", "accessibility", "WCAG", "a11y" |
+| `roleTitle` | binary | 10 | title matches any configured role interest's `titleMatch` (see `profile.json#roles[].titleMatch`) |
+| `roleBody` | **tiered** | 10/5/15 | strongest role's body phrases (`profile.json#roles[].bodyMatch`), e.g. "design system", "accessibility", "a11y" |
 | `locationRemote` | binary | 10 | remote, EMEA, CET, Spain, anywhere, fully distributed |
 | `freshness7d` | binary | 10 | postedAt within 7 days |
 | `freshness14d` | binary | 5 | postedAt within 14 days (only if 7d didn't fire) |
 | `usCentricPenalty` | binary | **-10** | body hints US-centric without remote-worldwide language (applied AFTER capping) |
 
 The exact regex sources live in `config/profile.json#keywords.*`. The `_G` global-flag variants for tiered signals are built once at module scope from those lists via `compileKw(...kw, 'g')`.
+
+## Role interests (`profile.json#roles[]`)
+
+Each role is `{ id, label, titleMatch, bodyMatch? }`. The shared `roleTitle` / `roleBody` weights price a match; the role list defines *what* matches. Per job:
+
+- `job.roleMatches` = ids of roles whose `titleMatch` fired on the title (role-list order). Drives the UI role badges + Role filter.
+- A non-empty `roleMatches` **rescues** the job from the title-based hard drops `non_engineering`, `title_excluded_specialty`, and `title_non_eng_role` — so a declared secondary role (e.g. Product Engineer) survives even when the avoid-list would otherwise kill it. Person-level drops (junior, missing-senior, location, unsafe-url) still apply.
+- `roleBody` is the tiered weight of the single strongest role's `bodyMatch` count (max across roles), so overlapping role keywords don't double-count.
+
+Empty/absent `roles` → `roleTitle`/`roleBody` never fire and nothing is rescued (pre-feature behavior).
 
 ## Cap behavior
 

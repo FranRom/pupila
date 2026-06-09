@@ -59,7 +59,8 @@ Edit `config/profile.json#keywords.<list>`. `compileKw()` joins each list with `
 
 - `seniorReq`, `engineeringKw` (whitelists — kept jobs must match these)
 - `nonEngineering`, `nonFrontendEng`, `nonEngLeadership`, `nonEngCompound`, `nonEngRole`, `nonTechRole` (blacklists — drop on title match)
-- `stackPrimary`, `stackRn`, `stackOther`, `web3*`, `ai*`, `frontendBody`, `locationRemote` (scoring signals)
+- `stackPrimary`, `stackRn`, `stackOther`, `web3*`, `ai*`, `locationRemote` (scoring signals)
+- `profile.json#roles[]` — target job titles (`{ id, label, titleMatch, bodyMatch? }`); drive `roleTitle`/`roleBody` + `job.roleMatches` + the hard-drop rescue (see `references/scoring-tiers.md`)
 - `usCentric`, `usCentricRemoteAllow` (penalty calibration)
 
 ## Adding a hard-drop rule
@@ -92,7 +93,7 @@ Every kept job carries a `_signals` object showing which scoring rules fired:
   "web3TitleBody": 0, "web3Stack": 20, "aiTitleBody": 20, "aiStack": 20,
   "stackPrimary": 10, "stackRn": 0, "stackOther": 0,
   "leadTitle": 0, "seniorTitle": 10,
-  "frontendTitle": 10, "frontendBody": 10, "locationRemote": 10,
+  "roleTitle": 10, "roleBody": 10, "locationRemote": 10,
   "freshness7d": 10, "freshness14d": 0, "usCentricPenalty": 0,
   "rawTotal": 110, "capped": true
 }

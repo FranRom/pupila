@@ -1,5 +1,5 @@
 import { readFile } from 'node:fs/promises';
-import type { Category, Job, JobSignals } from './types.js';
+import type { Category, Job, JobSignals, RoleInterest } from './types.js';
 import { isSafeUrl, withinDays } from './utils.js';
 
 // Profile is loaded at runtime (not statically imported) so that:
@@ -24,8 +24,10 @@ export interface FilterWeights {
   stackPrimary: number;
   stackRn: number;
   stackOther: number;
-  frontendTitle: number;
-  frontendBody: number;
+  // Shared per-match bonus for any role interest (title match / body phrases).
+  // The role definitions themselves live in `FilterProfile.roles`.
+  roleTitle: number;
+  roleBody: number;
   leadTitle: number;
   seniorTitle: number;
   locationRemote: number;
@@ -40,6 +42,11 @@ export interface FilterProfile {
   // Keywords map allows `_comment_*` string keys alongside arrays — the
   // accessor in createFilters casts through unknown and only reads arrays.
   keywords: Record<string, readonly string[] | string | undefined>;
+  // Target job titles the candidate is interested in. A title matching any
+  // role's `titleMatch` earns the `roleTitle` bonus, is tagged in
+  // `Job.roleMatches`, and is rescued from the title-based hard drops.
+  // Optional so older/minimal profiles still load (treated as no roles).
+  roles?: readonly RoleInterest[];
 }
 
 /** Loads and parses config/profile.json. Throws ENOENT if missing — callers should gate. */
@@ -150,8 +157,14 @@ export function createFilters(profile: FilterProfile): FilterApi {
   const STACK_OTHER_G = compileKwGlobal(K.stackOther);
   const TITLE_LEAD = compileKw(K.titleLead);
   const TITLE_SENIOR = compileKw(K.titleSenior);
-  const TITLE_FRONTEND_KW = compileKw(K.titleFrontend);
-  const BODY_FRONTEND_KW_G = compileKwGlobal(K.bodyFrontend);
+  // Role interests: each carries its own title/body keyword lists. The shared
+  // `roleTitle` / `roleBody` weights price a match; the role list itself prices
+  // nothing. Inert when `roles` is empty (NEVER_MATCH regexes).
+  const ROLES = (profile.roles ?? []).map((role) => ({
+    id: role.id,
+    title: compileKw(role.titleMatch),
+    body: compileKwGlobal(role.bodyMatch),
+  }));
   const LOC_REMOTE = compileKw(K.locationRemote);
   const REMOTE_WORLD = compileKw(K.remoteWorld);
   const US_CENTRIC_SOFT = compileKw(K.usCentricSoft);
@@ -193,6 +206,16 @@ export function createFilters(profile: FilterProfile): FilterApi {
     { name: 'title_non_tech_role', test: (job) => TITLE_NON_TECH_ROLE.test(job.title) },
   ];
 
+  // Hard-drops that a declared role interest overrides: if the title matches a
+  // role the candidate is targeting, these title-based exclusions don't apply
+  // (so e.g. a "Product Engineer" survives even when "product" looks non-eng).
+  // Person-level drops (junior, missing-senior, location, unsafe-url) always apply.
+  const ROLE_RESCUABLE_RULES = new Set([
+    'non_engineering',
+    'title_excluded_specialty',
+    'title_non_eng_role',
+  ]);
+
   function applyFilters(jobs: Job[]): FilterResult {
     let droppedHard = 0;
     let droppedScore = 0;
@@ -203,7 +226,14 @@ export function createFilters(profile: FilterProfile): FilterApi {
       const title = job.title;
       const body = job.body;
 
-      const violated = HARD_RULES.find((rule) => rule.test(job));
+      // Role interests whose title pattern fires on this title (role-list order).
+      // Computed up front because it both scores and rescues from hard drops.
+      const roleMatches = ROLES.filter((r) => r.title.test(title)).map((r) => r.id);
+      const rescued = roleMatches.length > 0;
+
+      const violated = HARD_RULES.find((rule) =>
+        rescued && ROLE_RESCUABLE_RULES.has(rule.name) ? false : rule.test(job),
+      );
       if (violated) {
         droppedHard++;
         droppedByRule[violated.name] = (droppedByRule[violated.name] ?? 0) + 1;
@@ -215,6 +245,12 @@ export function createFilters(profile: FilterProfile): FilterApi {
       const locText = `${job.location ?? ''} ${scoringBody}`;
       const fresh7 = withinDays(job.postedAt, 7);
 
+      // Strongest role-body keyword count across all roles (priced by roleBody).
+      const roleBodyCount = ROLES.reduce(
+        (max, r) => Math.max(max, countMatches(r.body, scoringBody)),
+        0,
+      );
+
       const positives = {
         web3TitleBody: W3_TITLE_BODY.test(scoringTitleAndBody) ? W.web3TitleBody : 0,
         web3Stack: W3_STACK.test(scoringBody) ? W.web3Stack : 0,
@@ -225,8 +261,8 @@ export function createFilters(profile: FilterProfile): FilterApi {
         stackOther: tieredWeight(countMatches(STACK_OTHER_G, scoringBody), W.stackOther),
         leadTitle: TITLE_LEAD.test(title) ? W.leadTitle : 0,
         seniorTitle: TITLE_SENIOR.test(title) ? W.seniorTitle : 0,
-        frontendTitle: TITLE_FRONTEND_KW.test(title) ? W.frontendTitle : 0,
-        frontendBody: tieredWeight(countMatches(BODY_FRONTEND_KW_G, scoringBody), W.frontendBody),
+        roleTitle: roleMatches.length > 0 ? W.roleTitle : 0,
+        roleBody: tieredWeight(roleBodyCount, W.roleBody),
         locationRemote: LOC_REMOTE.test(locText) ? W.locationRemote : 0,
         freshness7d: fresh7 ? W.freshness7d : 0,
         freshness14d: !fresh7 && withinDays(job.postedAt, 14) ? W.freshness14d : 0,
@@ -260,7 +296,7 @@ export function createFilters(profile: FilterProfile): FilterApi {
       else if (web3) category = 'web3';
       else if (ai) category = 'ai';
 
-      kept.push({ ...job, fitScore: score, category, _signals: signals });
+      kept.push({ ...job, fitScore: score, category, roleMatches, _signals: signals });
     }
 
     return { kept, droppedHard, droppedScore, droppedByRule };

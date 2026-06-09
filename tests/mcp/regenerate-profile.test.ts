@@ -14,6 +14,7 @@ interface RegenSuccess {
   provider: string;
   weightsChanged: string[];
   keywordsChanged: string[];
+  rolesChanged: boolean;
 }
 
 function baseProfile(): ProfileShape {
@@ -108,6 +109,30 @@ describe('regenerate_profile', () => {
     const written = JSON.parse(await readFile(deps.profilePath, 'utf8')) as ProfileShape;
     expect(written.weights.web3TitleBody).toBe(20);
     expect(written.keywords.w3TitleBody).toEqual(['web3', 'defi']);
+  });
+
+  it('merges roles[] from the delta and reports rolesChanged', async () => {
+    fx = await buildFixture({ brief: 'Senior FE engineer + Product Engineer · remote' });
+    const deps = depsWith(
+      fx,
+      stubGenerate({
+        weights: {},
+        keywords: {},
+        roles: [
+          { id: 'frontend', label: 'Frontend Engineer', titleMatch: ['frontend'] },
+          { id: 'product', label: 'Product Engineer', titleMatch: ['product engineer'] },
+        ],
+      }),
+    );
+    await writeFile(deps.profilePath, JSON.stringify(baseProfile()), 'utf8');
+
+    const result = await runRegenerateProfile({}, deps);
+    expect(result.isError).toBeUndefined();
+    const payload = parseToolJson(result.content) as RegenSuccess;
+    expect(payload.rolesChanged).toBe(true);
+
+    const written = JSON.parse(await readFile(deps.profilePath, 'utf8')) as ProfileShape;
+    expect(written.roles?.map((r) => r.id)).toEqual(['frontend', 'product']);
   });
 
   it('passes a non-auto provider through to the generator', async () => {
