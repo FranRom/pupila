@@ -11,6 +11,7 @@
 //      etc.) stay frozen — the LLM only ever fills personal stuff.
 //   3. The merge step is pure, side-effect-free, and easy to test.
 
+import type { RoleInterest } from '../types.js';
 import { type LlmProvider, runLlm } from './llm.js';
 
 // ── Public types ────────────────────────────────────────────────────────────
@@ -24,8 +25,8 @@ export interface PersonalizationDelta {
     stackPrimary: number;
     stackRn: number;
     stackOther: number;
-    frontendTitle: number;
-    frontendBody: number;
+    roleTitle: number;
+    roleBody: number;
   }>;
   keywords: Partial<{
     w3TitleBody: string[];
@@ -35,10 +36,11 @@ export interface PersonalizationDelta {
     stackPrimary: string[];
     stackRn: string[];
     stackOther: string[];
-    titleFrontend: string[];
-    bodyFrontend: string[];
     titleExcludedSpecialties: string[];
   }>;
+  // Target job titles the candidate wants (e.g. Senior Frontend Engineer,
+  // Product Engineer). Omitted when the brief names no clear roles.
+  roles?: RoleInterest[];
 }
 
 // NOTE: These are duplicated in ui/src/constants/profileKeys.ts because the
@@ -52,8 +54,8 @@ const PERSONAL_WEIGHT_KEYS: ReadonlyArray<keyof PersonalizationDelta['weights']>
   'stackPrimary',
   'stackRn',
   'stackOther',
-  'frontendTitle',
-  'frontendBody',
+  'roleTitle',
+  'roleBody',
 ];
 
 const PERSONAL_KEYWORD_KEYS: ReadonlyArray<keyof PersonalizationDelta['keywords']> = [
@@ -64,10 +66,12 @@ const PERSONAL_KEYWORD_KEYS: ReadonlyArray<keyof PersonalizationDelta['keywords'
   'stackPrimary',
   'stackRn',
   'stackOther',
-  'titleFrontend',
-  'bodyFrontend',
   'titleExcludedSpecialties',
 ];
+
+// Bound the role list the LLM can emit (defense-in-depth, same spirit as the
+// keyword caps below).
+const MAX_ROLES = 8;
 
 // ── Prompt + parsing ────────────────────────────────────────────────────────
 
@@ -86,8 +90,8 @@ SCHEMA (every field is OPTIONAL — only include what applies to this candidate)
     "stackPrimary":   10,    // primary framework/language match in body
     "stackRn":        10,    // mobile-specific match
     "stackOther":     5,     // adjacent/supporting tech
-    "frontendTitle":  10,    // when title is frontend/fullstack/web/mobile
-    "frontendBody":   10,    // when body uses frontend-specific phrases
+    "roleTitle":      10,    // when the title matches one of the target roles below
+    "roleBody":       10,    // when the body uses phrases specific to a target role
     "web3TitleBody":  20,    // candidate cares about crypto/blockchain
     "web3Stack":      20,
     "aiTitleBody":    20,    // candidate cares about AI/LLM/agents
@@ -99,8 +103,6 @@ SCHEMA (every field is OPTIONAL — only include what applies to this candidate)
     "stackPrimary":             ["react", "next\\\\.?js", "typescript"],
     "stackRn":                  ["react.?native", "expo"],
     "stackOther":               ["graphql", "tailwind", "vite"],
-    "titleFrontend":            ["frontend", "fullstack", "web", "mobile"],
-    "bodyFrontend":             ["design system", "spa", "ssr", "accessibility"],
     "w3TitleBody":              ["web3", "blockchain", "smart contract", "ethereum"],
     "w3Stack":                  ["solidity", "ethers", "viem", "wagmi"],
     "aiTitleBody":              ["ai", "llm", "agent", "rag"],
@@ -110,17 +112,37 @@ SCHEMA (every field is OPTIONAL — only include what applies to this candidate)
       "site reliability", "platform engineers?", "infrastructure engineers?",
       "qa engineers?", "embedded", "firmware", "ml engineers?", "machine learning"
     ]
-  }
+  },
+  "roles": [
+    // One entry per DISTINCT job title the candidate is targeting. A title
+    // matching any role's titleMatch earns the roleTitle bonus, is tagged on the
+    // job, and is rescued from the title-based hard drops (incl. titleExcludedSpecialties).
+    {
+      "id": "frontend",                 // short kebab-case slug, unique
+      "label": "Senior Frontend Engineer", // human-readable, shown in the UI
+      "titleMatch": ["frontend", "front.end", "fullstack", "web engineer"],
+      "bodyMatch": ["design system", "component library", "ssr", "accessibility"]
+    },
+    {
+      "id": "product",
+      "label": "Product Engineer",
+      "titleMatch": ["product engineer"]
+    }
+  ]
 }
 
 RULES
 1. Read the brief's "what they're looking for" and "what to avoid" paragraphs carefully.
 2. titleExcludedSpecialties is the killer feature — list every specialty the candidate
    wants to AVOID. Each entry hard-drops matching titles (e.g. "Java Backend Engineer").
-3. If the candidate isn't interested in a domain (e.g. no web3 mention), OMIT that
+3. roles: create ONE entry per distinct target title named in the brief (the candidate may
+   want several, e.g. "Senior Frontend Engineer" AND "Product Engineer"). Each needs a unique
+   "id", a human "label", and a "titleMatch" regex list; "bodyMatch" is optional. Do NOT add a
+   titleExcludedSpecialties entry that would contradict a target role.
+4. If the candidate isn't interested in a domain (e.g. no web3 mention), OMIT that
    weight and keyword group entirely (don't write empty arrays).
-4. Use lowercase, regex-safe strings. No unanchored single letters.
-5. Be specific to the brief — do not invent stacks the candidate didn't mention.
+5. Use lowercase, regex-safe strings. No unanchored single letters.
+6. Be specific to the brief — do not invent stacks or roles the candidate didn't mention.
 
 CANDIDATE BRIEF
 ${brief.trim()}`;
@@ -181,6 +203,39 @@ function isFiniteNumber(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value);
 }
 
+// Validate + sanitize an arbitrary `roles` value (LLM output or a UI edit) into
+// safe RoleInterest[]. Drops malformed roles, caps the count. Shared by the
+// LLM-parse path and the UI's PUT /api/profile-roles endpoint.
+export function sanitizeRoles(value: unknown): RoleInterest[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map(sanitizeRole)
+    .filter((r): r is RoleInterest => r !== null)
+    .slice(0, MAX_ROLES);
+}
+
+function isNonEmptyString(value: unknown): value is string {
+  return typeof value === 'string' && value.trim().length > 0;
+}
+
+// Validate + sanitize one LLM-proposed role. Returns null when it lacks a
+// usable id/label or has no safe titleMatch fragment (mirrors the keyword
+// sanitization so a malformed role can't crash compileKw at runtime).
+function sanitizeRole(value: unknown): RoleInterest | null {
+  if (typeof value !== 'object' || value === null) return null;
+  const r = value as Record<string, unknown>;
+  if (!isNonEmptyString(r.id) || !isNonEmptyString(r.label)) return null;
+  if (!isStringArray(r.titleMatch)) return null;
+  const titleMatch = sanitizeKeywords(r.titleMatch);
+  if (titleMatch.length === 0) return null;
+  const role: RoleInterest = { id: r.id.trim(), label: r.label.trim(), titleMatch };
+  if (isStringArray(r.bodyMatch)) {
+    const bodyMatch = sanitizeKeywords(r.bodyMatch);
+    if (bodyMatch.length > 0) role.bodyMatch = bodyMatch;
+  }
+  return role;
+}
+
 // Parse the LLM response into a strictly-typed delta. Unknown keys are
 // dropped, malformed values are skipped (never throws on bad sub-fields —
 // returns whatever we could safely extract).
@@ -224,6 +279,9 @@ export function parsePersonalizationDelta(raw: string): PersonalizationDelta {
     }
   }
 
+  const roles = sanitizeRoles(root.roles);
+  if (roles.length > 0) delta.roles = roles;
+
   return delta;
 }
 
@@ -250,6 +308,7 @@ export async function generateProfileFromBrief(
 export interface ProfileShape {
   weights: Record<string, number>;
   keywords: Record<string, string[] | undefined>;
+  roles?: RoleInterest[];
   [key: string]: unknown;
 }
 
@@ -257,6 +316,7 @@ export interface MergeResult {
   profile: ProfileShape;
   weightsChanged: string[];
   keywordsChanged: string[];
+  rolesChanged: boolean;
 }
 
 export function mergeProfile(base: ProfileShape, delta: PersonalizationDelta): MergeResult {
@@ -288,5 +348,15 @@ export function mergeProfile(base: ProfileShape, delta: PersonalizationDelta): M
     next.keywords[key] = value;
   }
 
-  return { profile: next, weightsChanged, keywordsChanged };
+  // Roles are replaced wholesale (not merged) when the delta carries any — the
+  // LLM re-derives the full target-role set from the brief each regeneration.
+  let rolesChanged = false;
+  if (delta.roles && delta.roles.length > 0) {
+    const before = JSON.stringify(next.roles ?? []);
+    const after = JSON.stringify(delta.roles);
+    if (before !== after) rolesChanged = true;
+    next.roles = delta.roles;
+  }
+
+  return { profile: next, weightsChanged, keywordsChanged, rolesChanged };
 }
