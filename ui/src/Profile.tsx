@@ -1,7 +1,9 @@
 import clsx from 'clsx';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api, formatError } from './lib/api/index.ts';
+import { useRoles } from './lib/hooks/useRoles.ts';
 import styles from './Profile.module.css';
+import { RoleInterests } from './RoleInterests.tsx';
 import bannerStyles from './styles/Banner.module.css';
 import buttonStyles from './styles/Button.module.css';
 
@@ -54,6 +56,15 @@ export function Profile() {
   const [dragActive, setDragActive] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const linkedinInputRef = useRef<HTMLInputElement>(null);
+  const onRolesError = useCallback((msg: string) => setError(msg), []);
+  const {
+    roles,
+    loading: rolesLoading,
+    saving: rolesSaving,
+    save: saveRoles,
+  } = useRoles({
+    onError: onRolesError,
+  });
 
   useEffect(() => {
     const ctrl = new AbortController();
@@ -310,6 +321,8 @@ export function Profile() {
           </div>
         </section>
       )}
+
+      <RoleInterests roles={roles} loading={rolesLoading} saving={rolesSaving} onSave={saveRoles} />
 
       <section className={styles.briefEditor}>
         <header className={styles.briefEditorHeader}>
