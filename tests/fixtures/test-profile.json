@@ -14,8 +14,8 @@
     "stackOther": 5,
     "leadTitle": 15,
     "seniorTitle": 10,
-    "frontendTitle": 10,
-    "frontendBody": 10,
+    "roleTitle": 10,
+    "roleBody": 10,
     "locationRemote": 10,
     "freshness7d": 10,
     "freshness14d": 5,
@@ -196,43 +196,6 @@
     "stackOther": ["graphql", "tailwind", "vite"],
     "titleLead": ["lead", "staff", "principal", "head"],
     "titleSenior": ["senior", "sr"],
-    "titleFrontend": [
-      "frontend",
-      "front-end",
-      "fullstack",
-      "full-stack",
-      "full stack",
-      "mobile",
-      "web",
-      "ui",
-      "ux",
-      "react"
-    ],
-    "bodyFrontend": [
-      "react components?",
-      "design system",
-      "ship (the )?ui",
-      "frontend codebase",
-      "single[- ]page application",
-      "spa",
-      "pixel[- ]perfect",
-      "responsive design",
-      "user interface",
-      "accessibility",
-      "a11y",
-      "css-in-js",
-      "web vitals",
-      "core web vitals",
-      "browser performance",
-      "hydration",
-      "server[- ]side rendering",
-      "ssr",
-      "csr",
-      "client[- ]side rendering",
-      "component library",
-      "storybook",
-      "figma"
-    ],
     "locationRemote": [
       "remote",
       "worldwide",
@@ -251,5 +214,48 @@
       "US-based only",
       "must be (located|authorized) in (the )?(united states|US|america)"
     ]
-  }
+  },
+  "roles": [
+    {
+      "id": "frontend",
+      "label": "Frontend Engineer",
+      "titleMatch": [
+        "frontend",
+        "front-end",
+        "fullstack",
+        "full-stack",
+        "full stack",
+        "mobile",
+        "web",
+        "ui",
+        "ux",
+        "react"
+      ],
+      "bodyMatch": [
+        "react components?",
+        "design system",
+        "ship (the )?ui",
+        "frontend codebase",
+        "single[- ]page application",
+        "spa",
+        "pixel[- ]perfect",
+        "responsive design",
+        "user interface",
+        "accessibility",
+        "a11y",
+        "css-in-js",
+        "web vitals",
+        "core web vitals",
+        "browser performance",
+        "hydration",
+        "server[- ]side rendering",
+        "ssr",
+        "csr",
+        "client[- ]side rendering",
+        "component library",
+        "storybook",
+        "figma"
+      ]
+    }
+  ]
 }
