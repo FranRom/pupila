@@ -34,8 +34,8 @@ export interface JobSignals {
   stackOther: number;
   leadTitle: number;
   seniorTitle: number;
-  frontendTitle: number;
-  frontendBody: number;
+  roleTitle: number;
+  roleBody: number;
   locationRemote: number;
   freshness7d: number;
   freshness14d: number;
@@ -83,8 +83,26 @@ export interface Job {
   fetchedAt: string;
   fitScore: number;
   category: Category;
+  /**
+   * IDs of the configured role interests this job's title matched, in role-list
+   * order (mirror of `Job.roleMatches` in src/types.ts). Drives the role badges
+   * and the Role filter. Optional — absent on pre-filter / legacy jobs.
+   */
+  roleMatches?: string[];
   applied?: AppliedEntry;
   _signals?: JobSignals;
+}
+
+/**
+ * A target job title the candidate is interested in (UI mirror of
+ * `RoleInterest` in src/types.ts). `titleMatch` / `bodyMatch` are regex
+ * fragment lists; the UI edits them as plain comma-free chips by `label`.
+ */
+export interface RoleInterest {
+  id: string;
+  label: string;
+  titleMatch: string[];
+  bodyMatch?: string[];
 }
 
 /* ──────────────────────────────────────────────────────────────────

@@ -54,6 +54,17 @@
   color: var(--badge-rejected-fg);
 }
 
+/* Role-interest tag: which target role a job's title matched. Deliberately
+ * quiet (neutral border, no uppercase) so it reads as metadata, not status. */
+.role {
+  composes: base;
+  background: var(--surface);
+  color: var(--text-soft);
+  border: 1px solid var(--border-strong);
+  text-transform: none;
+  letter-spacing: 0;
+}
+
 .running {
   animation: queue-pulse 1.4s ease-in-out infinite;
 }
