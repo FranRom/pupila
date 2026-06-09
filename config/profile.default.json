@@ -14,8 +14,9 @@
     "stackPrimary": 0,
     "stackRn": 0,
     "stackOther": 0,
-    "frontendTitle": 0,
-    "frontendBody": 0,
+    "_comment_role": "Shared per-match bonus for any target role (see `roles` below). roleTitle fires when the title matches a role; roleBody for role-specific phrases in the body.",
+    "roleTitle": 0,
+    "roleBody": 0,
     "_comment_seniority": "Seniority — kept on by default since the senior-req hard-drop already filters out junior roles.",
     "leadTitle": 15,
     "seniorTitle": 10,
@@ -167,8 +168,6 @@
     "_comment_seniority_kw": "Seniority signals — used for the +leadTitle / +seniorTitle bonuses.",
     "titleLead": ["lead", "staff", "principal", "head"],
     "titleSenior": ["senior", "sr"],
-    "titleFrontend": [],
-    "bodyFrontend": [],
     "_comment_location_kw": "Location signals. Add region-specific terms (e.g. 'emea', 'cet', 'spain') if you want a regional bonus.",
     "locationRemote": ["remote", "worldwide", "global", "anywhere"],
     "remoteWorld": ["remote", "worldwide", "global", "anywhere"],
@@ -179,5 +178,7 @@
       "US-based only",
       "must be (located|authorized) in (the )?(united states|US|america)"
     ]
-  }
+  },
+  "_comment_roles": "Personal — empty in the default. The target job titles you're interested in (e.g. Senior Frontend Engineer, Product Engineer). Filled automatically from the brief during Regenerate, or edited via Profile → Role interests. A title matching any role's `titleMatch` earns the roleTitle bonus, is tagged on the job, and is rescued from the title-based hard drops.",
+  "roles": []
 }
