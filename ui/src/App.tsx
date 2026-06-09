@@ -190,6 +190,27 @@ export function App() {
   const [schedulerInstalled, setSchedulerInstalled] = useState<boolean | null>(null);
   const [schedulerCompletedAt, setSchedulerCompletedAt] = useState(0);
 
+  // Timestamp of the last role-interest edit (persisted). Jobs are only
+  // re-scored against roles by a full aggregator run, so we compare this to the
+  // latest fetch time to know whether a re-score is pending. localStorage keeps
+  // it across reloads; it self-clears once a newer fetch lands (see rolesDirty).
+  const [rolesChangedAt, setRolesChangedAt] = useState<string | null>(() => {
+    try {
+      return localStorage.getItem('pupila:rolesChangedAt');
+    } catch {
+      return null;
+    }
+  });
+  const markRolesChanged = useCallback(() => {
+    const now = new Date().toISOString();
+    setRolesChangedAt(now);
+    try {
+      localStorage.setItem('pupila:rolesChangedAt', now);
+    } catch {
+      // best-effort persistence
+    }
+  }, []);
+
   // POST /api/ai-apply — kicks off a background LLM run. The
   // <AiApplyProgress /> dock at root polls /api/ai-apply-progress for live
   // state. We just need to bookmark which jobId we asked for so per-row
@@ -307,6 +328,15 @@ export function App() {
       isStale: maxMs > 0 && Date.now() - maxMs > 24 * 60 * 60 * 1000,
     };
   }, [allJobs]);
+
+  // True when role interests were edited after the most recent fetch — i.e. the
+  // current jobs were NOT scored against the latest roles. Drives the re-score
+  // affordance in the Role interests card and the Jobs-tab banner.
+  const rolesDirty = useMemo(() => {
+    if (!rolesChangedAt) return false;
+    if (!latestFetchedAt) return true;
+    return Date.parse(latestFetchedAt) < Date.parse(rolesChangedAt);
+  }, [rolesChangedAt, latestFetchedAt]);
 
   const sources = useMemo(() => {
     const s = new Set<Source>();
@@ -477,7 +507,12 @@ export function App() {
           see they're loading the chunk on first open. */}
       {tab === 'profile' && (
         <Suspense fallback={<p className={styles.placeholder}>Loading profile…</p>}>
-          <Profile />
+          <Profile
+            onRolesChanged={markRolesChanged}
+            rolesDirty={rolesDirty}
+            onRescore={triggerFetch}
+            rescoring={fetchInFlight}
+          />
         </Suspense>
       )}
       {tab === 'settings' && (
@@ -547,6 +582,10 @@ export function App() {
             onRefetch={triggerFetch}
             isFetching={fetchInFlight}
           />
+
+          {rolesDirty && allJobs.length > 0 && (
+            <RoleChangeBanner isFetching={fetchInFlight} onRescore={triggerFetch} />
+          )}
 
           {isStale && schedulerInstalled === false && (
             <StalenessBanner
@@ -667,6 +706,41 @@ function StalenessBanner({
           onClick={onOpenScheduler}
         >
           Install daily scheduler →
+        </button>
+      </div>
+    </div>
+  );
+}
+
+interface RoleChangeBannerProps {
+  isFetching: boolean;
+  onRescore: () => void;
+}
+
+// Shown on the Jobs tab when role interests were edited after the last fetch —
+// the listed jobs aren't yet scored against the new roles. Reuses the
+// staleness-banner styling.
+function RoleChangeBanner({ isFetching, onRescore }: RoleChangeBannerProps) {
+  return (
+    <div className={styles.stalenessBanner} role="status">
+      <span className={styles.stalenessIcon} aria-hidden>
+        🎯
+      </span>
+      <div className={styles.stalenessBody}>
+        <strong>Role interests changed.</strong>
+        <span className={styles.muted}>
+          These jobs were scored against your previous roles. Re-score to apply the change (rescues
+          previously-dropped jobs too).
+        </span>
+      </div>
+      <div className={styles.stalenessActions}>
+        <button
+          type="button"
+          className={clsx(buttonStyles.primary, buttonStyles.sm)}
+          onClick={onRescore}
+          disabled={isFetching}
+        >
+          {isFetching ? 'Re-scoring…' : 'Re-score jobs →'}
         </button>
       </div>
     </div>

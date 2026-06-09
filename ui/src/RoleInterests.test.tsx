@@ -34,6 +34,32 @@ describe('RoleInterests', () => {
     expect(onSave).toHaveBeenCalledWith([]);
   });
 
+  it('shows a re-score button only when dirty, and fires onRescore', () => {
+    const onRescore = vi.fn();
+    const { rerender } = render(
+      <RoleInterests
+        roles={[FE]}
+        loading={false}
+        saving={false}
+        onSave={vi.fn()}
+        onRescore={onRescore}
+      />,
+    );
+    expect(screen.queryByText('Re-score jobs →')).not.toBeInTheDocument();
+    rerender(
+      <RoleInterests
+        roles={[FE]}
+        loading={false}
+        saving={false}
+        onSave={vi.fn()}
+        dirty
+        onRescore={onRescore}
+      />,
+    );
+    fireEvent.click(screen.getByText('Re-score jobs →'));
+    expect(onRescore).toHaveBeenCalledTimes(1);
+  });
+
   it('does not add a duplicate role id', () => {
     const onSave = vi.fn();
     render(<RoleInterests roles={[FE]} loading={false} saving={false} onSave={onSave} />);

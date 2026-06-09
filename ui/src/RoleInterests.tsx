@@ -39,6 +39,12 @@ interface RoleInterestsProps {
   loading: boolean;
   saving: boolean;
   onSave: (roles: RoleInterest[]) => void;
+  /** Roles were edited since the last fetch — show the re-score prompt. */
+  dirty?: boolean;
+  /** Trigger a full re-score (aggregator run) against the current roles. */
+  onRescore?: () => void;
+  /** A re-score run is in flight. */
+  rescoring?: boolean;
 }
 
 /**
@@ -46,7 +52,15 @@ interface RoleInterestsProps {
  * persist the whole list via `onSave`. The chip text doubles as the title-match
  * phrase (see roleFromLabel).
  */
-export function RoleInterests({ roles, loading, saving, onSave }: RoleInterestsProps) {
+export function RoleInterests({
+  roles,
+  loading,
+  saving,
+  onSave,
+  dirty,
+  onRescore,
+  rescoring,
+}: RoleInterestsProps) {
   const [draft, setDraft] = useState<RoleInterest[]>(roles);
   const [adding, setAdding] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -173,6 +187,22 @@ export function RoleInterests({ roles, loading, saving, onSave }: RoleInterestsP
             Editing here changes what counts as a match. Regenerate from your brief (Settings →
             Scoring profile) for richer keyword matching.
           </p>
+
+          {dirty && onRescore && (
+            <div className={styles.rescore}>
+              <span className={styles.muted}>
+                Roles changed — re-score jobs to apply (re-runs the aggregator).
+              </span>
+              <button
+                type="button"
+                className={clsx(buttonStyles.primary, buttonStyles.sm)}
+                onClick={onRescore}
+                disabled={rescoring}
+              >
+                {rescoring ? 'Re-scoring…' : 'Re-score jobs →'}
+              </button>
+            </div>
+          )}
         </>
       )}
     </section>
