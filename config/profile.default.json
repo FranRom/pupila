@@ -129,12 +129,14 @@
       "on-?site only",
       "in[- ]office only",
       "in[- ]office",
-      "must (be|work|reside|live)",
-      "(based|located|reside|residing) (in|at|within|out of)",
-      "relocat(e|ion|ing)",
+      "(must|need to|required to|have to|expected to) (be )?(based|located|situated|residing|reside)",
+      "to be (based|located|situated) (in|out of)",
       "(authoriz(e|ed|ation)|eligib(le|ility)) to work",
       "work authorization",
-      "visa sponsorship",
+      "right to work",
+      "work permit",
+      "visa (sponsorship|sponsor|required|status)",
+      "relocat(e|ion|ing)",
       "(time ?zone|gmt|utc|est|pst|cst|mst|cet|cest|eastern|pacific|central|mountain) (time ?zone|time|zone|hours)? ?(only|required|preferred|overlap|mandatory)"
     ],
     "onsiteOnly": [

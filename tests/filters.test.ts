@@ -124,6 +124,39 @@ describe('applyFilters — hard excludes', () => {
     ]);
     expect(r.droppedHard).toBe(0);
   });
+
+  it('keeps a "Remote - US" posting whose body welcomes Europe (label ≠ requirement)', () => {
+    const r = applyFilters([
+      makeJob({
+        title: 'Senior Frontend Engineer',
+        location: 'Remote - US',
+        body: 'We are US-based but hire across Europe and EMEA. react typescript remote',
+      }),
+    ]);
+    expect(r.droppedHard).toBe(0);
+  });
+
+  it('does not drop a remote posting over an incidental, non-geographic "must be"', () => {
+    const r = applyFilters([
+      makeJob({
+        title: 'Senior Frontend Engineer',
+        location: 'Remote',
+        body: 'You must be a strong communicator and team player. react typescript remote',
+      }),
+    ]);
+    expect(r.droppedHard).toBe(0);
+  });
+
+  it('drops a posting that requires US work authorization (a real requirement)', () => {
+    const r = applyFilters([
+      makeJob({
+        location: 'Remote',
+        body: 'Must be authorized to work in the United States. react typescript remote',
+      }),
+    ]);
+    expect(r.droppedHard).toBe(1);
+    expect(r.droppedByRule.hard_location_incompatible).toBe(1);
+  });
 });
 
 // The bias the old hard_us_or_onsite rule baked in: it dropped US/onsite jobs

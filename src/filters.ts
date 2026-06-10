@@ -259,10 +259,16 @@ export function createFilters(profile: FilterProfile): FilterApi {
 
         // Region gate — opt-in, and only when a region preference exists.
         if (!hasRegionPrefs || !loc.excludeOutsideAcceptedRegions) return false;
-        // (a) the stated location names a specific place we don't accept
+        // Rescue first: if the posting names a region we accept (or is
+        // worldwide-remote) ANYWHERE in its text, keep it — even if a label like
+        // "Remote - US" also appears. A US-based company that hires across Europe
+        // is a job we want. This is the key: drop only genuine *requirements*.
+        if (regionAccepted(haystack)) return false;
+        // No accepted region anywhere. Drop when the posting is geo-constrained:
+        // (a) its stated location names a specific place, or
+        // (b) its body declares a real location/authorization/timezone requirement.
         if (locationFieldOutOfRegion(job.location)) return true;
-        // (b) the body declares a geo/timezone lock to a place we don't accept
-        if (LOCATION_LOCK.test(haystack) && !regionAccepted(haystack)) return true;
+        if (LOCATION_LOCK.test(haystack)) return true;
         return false;
       },
     },
@@ -368,9 +374,11 @@ export function createFilters(profile: FilterProfile): FilterApi {
       // opted in, such postings were already hard-dropped above.)
       if (loc && hasRegionPrefs && !loc.excludeOutsideAcceptedRegions) {
         const haystack = `${job.location ?? ''}\n${body}`;
+        // Same rescue-first logic as the hard rule: only penalize a posting that
+        // names no accepted region AND is geo-constrained elsewhere.
         const outOfRegion =
-          locationFieldOutOfRegion(job.location) ||
-          (LOCATION_LOCK.test(haystack) && !regionAccepted(haystack));
+          !regionAccepted(haystack) &&
+          (locationFieldOutOfRegion(job.location) || LOCATION_LOCK.test(haystack));
         if (outOfRegion) {
           signals.outOfRegionPenalty = W.outOfRegionPenalty;
           score += W.outOfRegionPenalty;
