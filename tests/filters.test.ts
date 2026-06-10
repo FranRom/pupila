@@ -157,6 +157,38 @@ describe('applyFilters — hard excludes', () => {
     expect(r.droppedHard).toBe(1);
     expect(r.droppedByRule.hard_location_incompatible).toBe(1);
   });
+
+  it('keeps a plain "Remote" posting with no region named (company location is irrelevant)', () => {
+    const r = applyFilters([
+      makeJob({ location: 'Remote', body: 'react typescript next.js remote' }),
+    ]);
+    expect(r.droppedHard).toBe(0);
+    expect(r.kept).toHaveLength(1);
+  });
+
+  it('keeps generic remote/worldwide synonyms even without an accepted-region word', () => {
+    const locations = [
+      'Global',
+      'Worldwide',
+      'Distributed',
+      'Fully remote',
+      'Remote anywhere',
+      'Remote (Anywhere)',
+      'Remote - Global',
+    ];
+    for (const location of locations) {
+      const r = applyFilters([makeJob({ location, body: 'react typescript remote' })]);
+      expect(r.droppedHard, `expected "${location}" to be kept`).toBe(0);
+    }
+  });
+
+  it('drops a non-US out-of-region label too (LATAM) — the rule is not US-specific', () => {
+    const r = applyFilters([
+      makeJob({ location: 'Remote - LATAM', body: 'react typescript remote' }),
+    ]);
+    expect(r.droppedHard).toBe(1);
+    expect(r.droppedByRule.hard_location_incompatible).toBe(1);
+  });
 });
 
 // The bias the old hard_us_or_onsite rule baked in: it dropped US/onsite jobs
