@@ -7,20 +7,26 @@ export interface AppliedEntry {
   notes?: string;
 }
 
+// UI-side mirror of the canonical `Source` union in src/types.ts (same boundary
+// pattern as WorkType / LocationProfile / QueueRow below — the client build
+// stays decoupled, so we DON'T import from src/* here). Kept in sync by
+// `tests/source-lists.test.ts`, which fails if this list and the backend's
+// canonical `SOURCES` ever diverge. Add a source in src/types.ts, then here.
 export type Source =
-  | 'aave'
-  | 'ashby-private'
-  | 'ashby'
-  | 'lever'
-  | 'greenhouse'
+  | 'remoteok'
+  | 'remotive'
+  | 'weworkremotely'
   | 'cryptojobslist'
   | 'web3career'
   | 'aijobsnet'
   | 'hn-hiring'
   | 'hn-jobs'
-  | 'remotive'
-  | 'weworkremotely'
-  | 'remoteok';
+  | 'greenhouse'
+  | 'ashby'
+  | 'lever'
+  | 'aave'
+  | 'ashby-private'
+  | 'bluedoor';
 
 export type Category = 'web3+ai' | 'web3' | 'ai' | 'general';
 

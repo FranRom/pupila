@@ -15,6 +15,10 @@ const SOURCE_PRIORITY: Record<Source, number> = {
   remotive: 3,
   weworkremotely: 2,
   remoteok: 1,
+  // Lowest priority: bluedoor re-carries many curated-ATS jobs, so on any
+  // company+title overlap the dedicated fetcher's copy must win. bluedoor's
+  // unique long-tail (providers we can't reach directly) survives.
+  bluedoor: 0,
 };
 
 // Comparator for the post-dedup orchestrator sort. Order:

@@ -20,9 +20,9 @@ A single stray `console.log` corrupts the framing and the MCP client silently dr
 
 `JOB_ID_REGEX = /^[a-f0-9]{40}$/` in `src/mcp/schemas/_constants.ts` mirrors `isValidJobId` from `src/lib/apply-queue.ts` exactly. Use `jobIdSchema` from `_constants.ts` for every `jobId` field. Defense against path-traversal payloads — `data/applications/<jobId>.md` writes are real.
 
-### 3. `SOURCES` tuple is compile-time-exhaustive
+### 3. `SOURCES` derives from the canonical tuple in `src/types.ts`
 
-`SOURCES` in `src/mcp/schemas/_constants.ts` must match the `Source` union in `src/types.ts`. Adding a new fetcher source without mirroring it here is a typecheck error — see `_SourcesExhaustive` at the bottom of that file. **Do not delete that assertion** — it's the only thing keeping the two in sync.
+`src/types.ts` is the **single source of truth**: `export const SOURCES = [...] as const` and `type Source = (typeof SOURCES)[number]`. `_constants.ts` re-exports that tuple and builds `sourceEnum = z.enum(SOURCES)` from it — there is no local copy to keep in sync (the old `_SourcesExhaustive` assertion is gone). Adding a fetcher source is a one-line edit in `src/types.ts`; the MCP enum, the fetch-progress panels (`KNOWN_SOURCES`), and dedup all follow automatically. Hand-written copies that *can't* be type-linked (the UI client union, the render display order) are guarded by `tests/source-lists.test.ts` + a `satisfies` exhaustiveness check in `src/render.ts`. **Don't reintroduce a literal `SOURCES` tuple here** — import it from `../../types.js`.
 
 ### 4. `APPLICATION_STATUSES` lives in `src/types.ts`
 
@@ -118,7 +118,7 @@ src/mcp/
     worker-probe.ts   # probes data/apply-worker.pid for liveness
     fetch-runner.ts   # singleton state machine for trigger_fetch
   schemas/
-    _constants.ts     # JOB_ID_REGEX, SOURCES exhaustive tuple, jobIdSchema
+    _constants.ts     # JOB_ID_REGEX, SOURCES (re-exported from src/types.ts), jobIdSchema
     <name>.ts         # per-tool raw shape
   tools/
     <name>.ts         # run<Name> + register<Name>

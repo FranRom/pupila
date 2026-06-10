@@ -1,5 +1,6 @@
 import { spawn } from 'node:child_process';
 import type { Plugin } from 'vite';
+import { SOURCES } from '../../src/types.js';
 import { REPO_ROOT } from './_paths.ts';
 
 // `/api/fetch-jobs` — manual trigger for the aggregator pipeline. Spawns
@@ -16,21 +17,9 @@ type RunStatus = 'idle' | 'running' | 'done' | 'error';
 // intentional per CLAUDE.md (kept as a watchlist for upstream restoration),
 // so the surfacing here matters.
 type SourceState = 'pending' | 'running' | 'done' | 'partial' | 'error';
-const KNOWN_SOURCES: readonly string[] = [
-  'remoteok',
-  'remotive',
-  'weworkremotely',
-  'cryptojobslist',
-  'web3career',
-  'aijobsnet',
-  'hn-hiring',
-  'hn-jobs',
-  'greenhouse',
-  'ashby',
-  'lever',
-  'aave',
-  'ashby-private',
-];
+// Canonical source list (single source of truth in src/types.ts) — the panel
+// pre-seeds these as `pending`, so a new source can never silently go missing.
+const KNOWN_SOURCES: readonly string[] = SOURCES;
 
 interface SourceEntry {
   name: string;

@@ -6,6 +6,7 @@ import { fetchAave } from './fetchers/aave.js';
 import { fetchAiJobsNet } from './fetchers/aijobsnet.js';
 import { fetchAshby } from './fetchers/ashby.js';
 import { fetchAshbyPrivate } from './fetchers/ashby-private.js';
+import { fetchBluedoor } from './fetchers/bluedoor.js';
 import { fetchCryptoJobsList } from './fetchers/cryptojobslist.js';
 import { fetchGreenhouse } from './fetchers/greenhouse.js';
 import { fetchHnHiring } from './fetchers/hn-hiring.js';
@@ -23,6 +24,7 @@ import {
   normalizeAiJobsNet,
   normalizeAshby,
   normalizeAshbyPrivate,
+  normalizeBluedoor,
   normalizeCryptoJobsList,
   normalizeGreenhouse,
   normalizeHnHiring,
@@ -174,6 +176,13 @@ async function main(): Promise<void> {
     processFetcher('lever', fetchLever, normalizeLever, fetchedAt, today),
     processFetcher('aave', fetchAave, normalizeAave, fetchedAt, today),
     processFetcher('ashby-private', fetchAshbyPrivate, normalizeAshbyPrivate, fetchedAt, today),
+    processFetcher(
+      'bluedoor',
+      () => fetchBluedoor(profile.location),
+      normalizeBluedoor,
+      fetchedAt,
+      today,
+    ),
   ]);
 
   const allJobs = tasks.flatMap((t) => t.jobs);

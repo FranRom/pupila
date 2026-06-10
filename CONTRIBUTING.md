@@ -42,13 +42,13 @@ If a filter regex, hard-drop rule, or scoring behavior changes, update the match
 
 ## Adding A Source
 
-1. Add the raw source shape and source literal in [`src/types.ts`](./src/types.ts).
+1. Add the raw source shape and the source name to the canonical `SOURCES` tuple in [`src/types.ts`](./src/types.ts) (single source of truth — the MCP enum, fetch-progress panels, and `KNOWN_SOURCES` all derive from it).
 2. Create `src/fetchers/<name>.ts` returning `Promise<FetcherResult<Raw>>`.
 3. Catch fetcher errors internally and return `{ items: [], errors: [...] }`; fetchers should not throw.
 4. Use `fetchWithTimeout`, `fetchJson`, `fetchText`, and the shared request headers from [`src/utils.ts`](./src/utils.ts).
 5. For multi-slug fetchers, use `fetchMultiSlug` from [`src/fetchers/_shared.ts`](./src/fetchers/_shared.ts).
 6. Add `normalize<Name>` in [`src/normalize.ts`](./src/normalize.ts).
-7. Wire it into [`src/index.ts`](./src/index.ts), [`src/dedup.ts`](./src/dedup.ts), and [`src/render.ts`](./src/render.ts).
+7. Wire it into [`src/index.ts`](./src/index.ts), [`src/dedup.ts`](./src/dedup.ts), [`src/render.ts`](./src/render.ts), and the UI client mirror in [`ui/src/types.ts`](./ui/src/types.ts). The dedup/render entries are compile-enforced; the UI mirror is checked by `tests/source-lists.test.ts` (it fails with a clear diff if you miss it).
 8. Add focused parser/normalizer tests, especially for HTML or GraphQL scrapers.
 
 Smoke-test before wiring the source into the orchestrator:

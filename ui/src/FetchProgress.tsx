@@ -8,7 +8,7 @@ import dockStyles from './styles/Dock.module.css';
 // 3s after a successful run, and calls onComplete() so the parent can
 // re-fetch /api/jobs + /api/reviews to swap empty state for the real table.
 //
-// Polling beats SSE here because the run is short (30-60s for 13 sources)
+// Polling beats SSE here because the run is short (30-60s for 14 sources)
 // and the polling code lives entirely in this component.
 
 // FetchJobsState + FetchJobsSourceEntry now live in ui/src/lib/api/index.ts

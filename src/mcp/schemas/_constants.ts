@@ -6,7 +6,7 @@
 // paths, the Zod version is the parsing entry point at the tool boundary.
 
 import { z } from 'zod';
-import { APPLICATION_STATUSES, type Source } from '../../types.js';
+import { APPLICATION_STATUSES, SOURCES } from '../../types.js';
 
 // sha1 hex — 40 lowercase hex chars. Same as `isValidJobId` in
 // src/lib/apply-queue.ts.
@@ -16,35 +16,11 @@ export const jobIdSchema = z
   .string()
   .regex(JOB_ID_REGEX, 'jobId must be a 40-char lowercase sha1 hex string');
 
-// Mirrors the Source union in src/types.ts. Kept as an explicit tuple so a
-// new source must be added in two places (compile-time prompt).
-export const SOURCES = [
-  'remoteok',
-  'remotive',
-  'weworkremotely',
-  'cryptojobslist',
-  'web3career',
-  'aijobsnet',
-  'hn-hiring',
-  'hn-jobs',
-  'greenhouse',
-  'ashby',
-  'lever',
-  'aave',
-  'ashby-private',
-] as const;
-
+// Source enum derives directly from the canonical `SOURCES` tuple in
+// `src/types.ts` — re-exported here so MCP schema consumers have a single import
+// site. No local copy can drift out of sync.
+export { SOURCES };
 export const sourceEnum = z.enum(SOURCES);
-
-// Compile-time guard: if a new value is added to the `Source` union in
-// `src/types.ts` without being mirrored in `SOURCES` here, this expression
-// fails to compile. Forces the two lists to stay in sync.
-type _SourcesExhaustive =
-  Exclude<Source, (typeof SOURCES)[number]> extends never
-    ? true
-    : ['SOURCES tuple missing a Source value', Exclude<Source, (typeof SOURCES)[number]>];
-const _sourcesExhaustive: _SourcesExhaustive = true;
-void _sourcesExhaustive;
 
 export const CATEGORIES = ['web3', 'ai', 'web3+ai', 'general'] as const;
 export const categoryEnum = z.enum(CATEGORIES);

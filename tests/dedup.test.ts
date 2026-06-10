@@ -55,6 +55,10 @@ describe('dedupe', () => {
       ['ashby', 'greenhouse', 'ashby'],
       ['greenhouse', 'remoteok', 'greenhouse'],
       ['lever', 'web3career', 'lever'],
+      // bluedoor is lowest priority: on a company+title overlap with any curated
+      // source, the curated copy wins (bluedoor re-carries other ATS jobs).
+      ['greenhouse', 'bluedoor', 'greenhouse'],
+      ['remoteok', 'bluedoor', 'remoteok'],
     ];
     for (const [a, b, winner] of cases) {
       const r = dedupe([
