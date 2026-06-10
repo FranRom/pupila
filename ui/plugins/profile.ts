@@ -7,6 +7,7 @@ import {
   generateProfileFromBrief,
   mergeProfile,
   type ProfileShape,
+  sanitizeLocation,
   sanitizeRoles,
 } from '../../src/lib/profile-generator.js';
 import { streamableResponse } from '../../src/lib/streamable-response.js';
@@ -104,6 +105,40 @@ export function profileApiPlugin(): Plugin {
         }
       });
 
+      // GET  /api/profile-location → { location } from config/profile.json
+      // PUT  /api/profile-location → persist a user-edited location (sanitized)
+      // Read-modify-write so all other profile fields are preserved.
+      server.middlewares.use('/api/profile-location', async (req, res) => {
+        res.setHeader('Content-Type', 'application/json');
+        try {
+          if (req.method === 'GET') {
+            const profile = await readJsonOrDefault<ProfileShape | null>(PROFILE_PATH, null);
+            res.end(JSON.stringify({ location: profile?.location ?? null }));
+            return;
+          }
+          if (req.method === 'PUT') {
+            const body = (await readBody(req)) as { location?: unknown };
+            const location = sanitizeLocation(body.location);
+            const base = await readJsonOrDefault<ProfileShape | null>(PROFILE_PATH, null);
+            if (!base || typeof base !== 'object') {
+              res.statusCode = 500;
+              res.end(JSON.stringify({ error: 'config/profile.json is missing or unparseable.' }));
+              return;
+            }
+            const next: ProfileShape = { ...base, location };
+            await writeFile(PROFILE_PATH, `${JSON.stringify(next, null, 2)}\n`, 'utf8');
+            res.end(JSON.stringify({ ok: true, location }));
+            return;
+          }
+          res.statusCode = 405;
+          res.end();
+        } catch (err) {
+          console.error('[profile-location api]', err);
+          res.statusCode = 500;
+          res.end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }));
+        }
+      });
+
       server.middlewares.use('/api/profile-generate', async (req, res) => {
         if (req.method !== 'POST') {
           res.statusCode = 405;
@@ -194,15 +229,14 @@ export function profileApiPlugin(): Plugin {
             );
             return;
           }
-          const { profile, weightsChanged, keywordsChanged, rolesChanged } = mergeProfile(
-            base,
-            delta,
-          );
+          const { profile, weightsChanged, keywordsChanged, rolesChanged, locationChanged } =
+            mergeProfile(base, delta);
           await writeFile(PROFILE_PATH, `${JSON.stringify(profile, null, 2)}\n`, 'utf8');
           responder.finish({
             weightsChanged,
             keywordsChanged,
             rolesChanged,
+            locationChanged,
             provider: provider ?? 'auto',
           });
         } catch (err) {

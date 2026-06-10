@@ -11,7 +11,7 @@
 //      etc.) stay frozen — the LLM only ever fills personal stuff.
 //   3. The merge step is pure, side-effect-free, and easy to test.
 
-import type { RoleInterest } from '../types.js';
+import { type LocationProfile, type RoleInterest, WORK_TYPES } from '../types.js';
 import { type LlmProvider, runLlm } from './llm.js';
 
 // ── Public types ────────────────────────────────────────────────────────────
@@ -41,6 +41,9 @@ export interface PersonalizationDelta {
   // Target job titles the candidate wants (e.g. Senior Frontend Engineer,
   // Product Engineer). Omitted when the brief names no clear roles.
   roles?: RoleInterest[];
+  // Candidate location preferences derived from the brief. Omitted when the
+  // brief gives no usable location signal.
+  location?: LocationProfile;
 }
 
 // NOTE: These are duplicated in ui/src/constants/profileKeys.ts because the
@@ -128,7 +131,15 @@ SCHEMA (every field is OPTIONAL — only include what applies to this candidate)
       "label": "Product Engineer",
       "titleMatch": ["product engineer"]
     }
-  ]
+  ],
+  "location": {
+    // Where the candidate lives + the geography they'll work in. Persona-neutral:
+    // do NOT privilege any country — read it from the brief.
+    "basedIn": "Spain",                              // the country (or city) the candidate lives in
+    "workTypes": ["remote", "hybrid"],               // subset of "remote" | "hybrid" | "onsite" they accept
+    "acceptedRegions": ["europe", "emea", "spain"],  // lowercase region/market terms they can work in
+    "excludeOutsideAcceptedRegions": true            // true if they ONLY want jobs in those regions
+  }
 }
 
 RULES
@@ -143,6 +154,12 @@ RULES
    weight and keyword group entirely (don't write empty arrays).
 5. Use lowercase, regex-safe strings. No unanchored single letters.
 6. Be specific to the brief — do not invent stacks or roles the candidate didn't mention.
+7. location: read paragraph 1 (primary location) + paragraph 2 (location preference). Set "basedIn"
+   to where they live. "workTypes" lists the arrangements they accept (omit "onsite" if they want
+   remote/hybrid only). "acceptedRegions" lists the markets they can work in (e.g. a Europe-based
+   remote candidate → ["europe","emea"]; add their country). Set "excludeOutsideAcceptedRegions": true
+   only when the brief says they want jobs ONLY in those regions; otherwise false. If the brief is
+   silent on geography, OMIT the whole "location" object.
 
 CANDIDATE BRIEF
 ${brief.trim()}`;
@@ -218,6 +235,43 @@ function isNonEmptyString(value: unknown): value is string {
   return typeof value === 'string' && value.trim().length > 0;
 }
 
+const MAX_BASED_IN_LENGTH = 80;
+const MAX_ACCEPTED_REGIONS = 30;
+const MAX_REGION_LENGTH = 60;
+
+// Validate + coerce an arbitrary `location` value (LLM output or a UI edit) into
+// a safe LocationProfile with neutral defaults. Always returns a usable object
+// (never throws) — shared by the LLM-parse path and PUT /api/profile-location.
+export function sanitizeLocation(value: unknown): LocationProfile {
+  const v = (typeof value === 'object' && value !== null ? value : {}) as Record<string, unknown>;
+  const basedIn =
+    typeof v.basedIn === 'string' ? v.basedIn.trim().slice(0, MAX_BASED_IN_LENGTH) : '';
+  const workTypes = Array.isArray(v.workTypes)
+    ? WORK_TYPES.filter((t) => (v.workTypes as unknown[]).includes(t))
+    : [];
+  const acceptedRegions = isStringArray(v.acceptedRegions)
+    ? Array.from(
+        new Set(
+          v.acceptedRegions
+            .map((s) => s.trim().toLowerCase())
+            .filter((s) => s.length > 0 && s.length <= MAX_REGION_LENGTH),
+        ),
+      ).slice(0, MAX_ACCEPTED_REGIONS)
+    : [];
+  return {
+    basedIn,
+    workTypes,
+    acceptedRegions,
+    excludeOutsideAcceptedRegions: v.excludeOutsideAcceptedRegions === true,
+  };
+}
+
+// True when a sanitized location carries any signal worth persisting (vs the
+// empty neutral default the LLM should have omitted).
+function locationHasSignal(loc: LocationProfile): boolean {
+  return loc.basedIn.length > 0 || loc.workTypes.length > 0 || loc.acceptedRegions.length > 0;
+}
+
 // Validate + sanitize one LLM-proposed role. Returns null when it lacks a
 // usable id/label or has no safe titleMatch fragment (mirrors the keyword
 // sanitization so a malformed role can't crash compileKw at runtime).
@@ -282,6 +336,11 @@ export function parsePersonalizationDelta(raw: string): PersonalizationDelta {
   const roles = sanitizeRoles(root.roles);
   if (roles.length > 0) delta.roles = roles;
 
+  if (root.location !== undefined) {
+    const location = sanitizeLocation(root.location);
+    if (locationHasSignal(location)) delta.location = location;
+  }
+
   return delta;
 }
 
@@ -309,6 +368,7 @@ export interface ProfileShape {
   weights: Record<string, number>;
   keywords: Record<string, string[] | undefined>;
   roles?: RoleInterest[];
+  location?: LocationProfile;
   [key: string]: unknown;
 }
 
@@ -317,6 +377,7 @@ export interface MergeResult {
   weightsChanged: string[];
   keywordsChanged: string[];
   rolesChanged: boolean;
+  locationChanged: boolean;
 }
 
 export function mergeProfile(base: ProfileShape, delta: PersonalizationDelta): MergeResult {
@@ -358,5 +419,15 @@ export function mergeProfile(base: ProfileShape, delta: PersonalizationDelta): M
     next.roles = delta.roles;
   }
 
-  return { profile: next, weightsChanged, keywordsChanged, rolesChanged };
+  // Location is replaced wholesale when the delta carries one — the LLM
+  // re-derives the candidate's full location preference from the brief.
+  let locationChanged = false;
+  if (delta.location) {
+    const before = JSON.stringify(next.location ?? {});
+    const after = JSON.stringify(delta.location);
+    if (before !== after) locationChanged = true;
+    next.location = delta.location;
+  }
+
+  return { profile: next, weightsChanged, keywordsChanged, rolesChanged, locationChanged };
 }
