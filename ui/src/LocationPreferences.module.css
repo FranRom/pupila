@@ -81,6 +81,31 @@
   color: var(--bg);
 }
 
+.regionsPreview {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--text);
+}
+
+.customize {
+  margin-top: 0.5rem;
+}
+
+.summary {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  cursor: pointer;
+  width: fit-content;
+}
+
+.summary:hover {
+  color: var(--accent);
+}
+
+.customize[open] .summary {
+  margin-bottom: 0.5rem;
+}
+
 .chips {
   display: flex;
   flex-wrap: wrap;

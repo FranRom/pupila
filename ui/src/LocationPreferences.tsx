@@ -27,9 +27,14 @@ interface LocationPreferencesProps {
 
 /**
  * Editable location preferences: where the candidate lives (single country,
- * combobox with free-text fallback), the work arrangements they accept, and the
- * regions they'll work in. Drives the persona-neutral geo filter. Picking a
- * country seeds default accepted-region chips when none are set yet.
+ * combobox with free-text fallback) and the work arrangements they accept.
+ * Drives the persona-neutral geo filter.
+ *
+ * Based-in is the primary control: setting/changing it auto-derives the
+ * `acceptedRegions` (e.g. Spain → europe / emea / eu / spain). Those regions are
+ * what the filter actually matches on, but most users never need to touch them —
+ * they live behind a collapsed "Customize" disclosure for the cases where reach
+ * differs from country (e.g. also open to US-remote, or a specific timezone).
  */
 export function LocationPreferences({
   location,
@@ -56,15 +61,17 @@ export function LocationPreferences({
     onSave(next);
   };
 
-  // Commit basedIn on blur / selection. Seed accepted-region chips from the
-  // country when the user hasn't set any yet (they can edit afterwards).
+  // Commit basedIn on blur / selection. Changing your country re-derives the
+  // accepted regions from it (Based-in is the primary control); custom tweaks in
+  // the "Customize" disclosure are intentionally reset on a country change.
   const commitBasedIn = () => {
     const basedIn = basedInInput.trim();
     if (basedIn === draft.basedIn) return;
-    const seeded =
-      draft.acceptedRegions.length === 0 ? regionsForCountry(basedIn) : draft.acceptedRegions;
-    commit({ ...draft, basedIn, acceptedRegions: seeded });
+    commit({ ...draft, basedIn, acceptedRegions: regionsForCountry(basedIn) });
   };
+
+  const resetRegionsFromCountry = () =>
+    commit({ ...draft, acceptedRegions: regionsForCountry(draft.basedIn) });
 
   const toggleWorkType = (t: WorkType) => {
     const has = draft.workTypes.includes(t);
@@ -146,56 +153,76 @@ export function LocationPreferences({
                 ariaLabel="About accepted regions"
                 content={
                   <>
-                    Regions you'll work in. A job tied to a specific place is kept only if its
-                    location matches one of these (or is worldwide-remote); otherwise it's dropped
-                    when “Only show jobs in my accepted regions” is on, or score-penalized when it's
-                    off. Add terms like <strong>Europe</strong>, <strong>EMEA</strong>, a country,
-                    or <strong>Remote</strong>.
+                    The regions a job can be tied to and still match you — derived from your
+                    country. A location-restricted job is kept only if it names one of these (or is
+                    worldwide-remote); otherwise it's dropped when “Only show jobs in my accepted
+                    regions” is on, or score-penalized when off. Customize below if your reach
+                    differs from your country (e.g. also open to <strong>US</strong>, or a specific
+                    timezone like <strong>CET</strong>).
                   </>
                 }
               />
             </span>
-            <div className={styles.chips}>
-              {draft.acceptedRegions.length === 0 && (
+            <p className={styles.regionsPreview}>
+              {draft.acceptedRegions.length > 0 ? (
+                draft.acceptedRegions.join(', ')
+              ) : (
                 <span className={styles.muted}>
-                  None — add a region, or pick a country above to seed them.
+                  None — set a country above, or customize below.
                 </span>
               )}
-              {draft.acceptedRegions.map((r) => (
-                <span key={r} className={styles.chip}>
-                  <span className={styles.chipLabel}>{r}</span>
-                  <button
-                    type="button"
-                    className={styles.chipRemove}
-                    onClick={() => removeRegion(r)}
-                    aria-label={`Remove ${r}`}
-                    title="Remove"
-                  >
-                    ×
-                  </button>
-                </span>
-              ))}
-            </div>
-            <div className={styles.addRow}>
-              <input
-                className={styles.addInput}
-                placeholder="Add a region (e.g. Europe, EMEA, Remote)"
-                value={addingRegion}
-                onChange={(e) => setAddingRegion(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') addRegion();
-                }}
-              />
-              <button
-                type="button"
-                className={clsx(buttonStyles.secondary, buttonStyles.sm)}
-                disabled={!addingRegion.trim()}
-                onClick={addRegion}
-              >
-                Add region
-              </button>
-              {saving && <span className={styles.muted}>Saving…</span>}
-            </div>
+            </p>
+
+            <details className={styles.customize}>
+              <summary className={styles.summary}>
+                Customize regions ({draft.acceptedRegions.length})
+              </summary>
+              <div className={styles.chips}>
+                {draft.acceptedRegions.map((r) => (
+                  <span key={r} className={styles.chip}>
+                    <span className={styles.chipLabel}>{r}</span>
+                    <button
+                      type="button"
+                      className={styles.chipRemove}
+                      onClick={() => removeRegion(r)}
+                      aria-label={`Remove ${r}`}
+                      title="Remove"
+                    >
+                      ×
+                    </button>
+                  </span>
+                ))}
+              </div>
+              <div className={styles.addRow}>
+                <input
+                  className={styles.addInput}
+                  placeholder="Add a region (e.g. Europe, EMEA, US, Remote)"
+                  value={addingRegion}
+                  onChange={(e) => setAddingRegion(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') addRegion();
+                  }}
+                />
+                <button
+                  type="button"
+                  className={clsx(buttonStyles.secondary, buttonStyles.sm)}
+                  disabled={!addingRegion.trim()}
+                  onClick={addRegion}
+                >
+                  Add region
+                </button>
+                <button
+                  type="button"
+                  className={clsx(buttonStyles.primary, buttonStyles.sm)}
+                  disabled={!draft.basedIn.trim()}
+                  onClick={resetRegionsFromCountry}
+                  title="Replace with the defaults for your country"
+                >
+                  ↺ Reset from country
+                </button>
+                {saving && <span className={styles.muted}>Saving…</span>}
+              </div>
+            </details>
           </div>
 
           <label className={styles.toggleRow}>
