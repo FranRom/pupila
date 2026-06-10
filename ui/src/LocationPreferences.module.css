@@ -34,6 +34,17 @@
   margin-bottom: 0.35rem;
 }
 
+.labelRow {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-bottom: 0.35rem;
+}
+
+.labelRow .label {
+  margin-bottom: 0;
+}
+
 .textInput {
   width: 100%;
   max-width: 22rem;

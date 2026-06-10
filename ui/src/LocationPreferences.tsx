@@ -1,5 +1,6 @@
 import clsx from 'clsx';
 import { useEffect, useId, useState } from 'react';
+import { InfoTooltip } from './components/InfoTooltip.tsx';
 import { COUNTRIES, regionsForCountry } from './constants/countries.ts';
 import styles from './LocationPreferences.module.css';
 import buttonStyles from './styles/Button.module.css';
@@ -139,7 +140,21 @@ export function LocationPreferences({
           </div>
 
           <div className={styles.field}>
-            <span className={styles.label}>Accepted regions</span>
+            <span className={styles.labelRow}>
+              <span className={styles.label}>Accepted regions</span>
+              <InfoTooltip
+                ariaLabel="About accepted regions"
+                content={
+                  <>
+                    Regions you'll work in. A job tied to a specific place is kept only if its
+                    location matches one of these (or is worldwide-remote); otherwise it's dropped
+                    when “Only show jobs in my accepted regions” is on, or score-penalized when it's
+                    off. Add terms like <strong>Europe</strong>, <strong>EMEA</strong>, a country,
+                    or <strong>Remote</strong>.
+                  </>
+                }
+              />
+            </span>
             <div className={styles.chips}>
               {draft.acceptedRegions.length === 0 && (
                 <span className={styles.muted}>
