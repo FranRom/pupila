@@ -1,6 +1,8 @@
 import clsx from 'clsx';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { LocationPreferences } from './LocationPreferences.tsx';
 import { api, formatError } from './lib/api/index.ts';
+import { useLocation } from './lib/hooks/useLocation.ts';
 import { useRoles } from './lib/hooks/useRoles.ts';
 import styles from './Profile.module.css';
 import { RoleInterests } from './RoleInterests.tsx';
@@ -84,6 +86,21 @@ export function Profile({ onRolesChanged, rolesDirty, onRescore, rescoring }: Pr
       onRolesChanged?.();
     },
     [saveRoles, onRolesChanged],
+  );
+  const {
+    location,
+    loading: locationLoading,
+    saving: locationSaving,
+    save: saveLocation,
+  } = useLocation({ onError: onRolesError });
+  // Location edits change scoring inputs just like role edits, so reuse the
+  // same pending-re-score signal (onRolesChanged) and dirty/rescore plumbing.
+  const handleSaveLocation = useCallback(
+    async (next: Parameters<typeof saveLocation>[0]) => {
+      await saveLocation(next);
+      onRolesChanged?.();
+    },
+    [saveLocation, onRolesChanged],
   );
 
   useEffect(() => {
@@ -347,6 +364,16 @@ export function Profile({ onRolesChanged, rolesDirty, onRescore, rescoring }: Pr
         loading={rolesLoading}
         saving={rolesSaving}
         onSave={handleSaveRoles}
+        dirty={rolesDirty}
+        onRescore={onRescore}
+        rescoring={rescoring}
+      />
+
+      <LocationPreferences
+        location={location}
+        loading={locationLoading}
+        saving={locationSaving}
+        onSave={handleSaveLocation}
         dirty={rolesDirty}
         onRescore={onRescore}
         rescoring={rescoring}

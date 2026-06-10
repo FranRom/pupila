@@ -34,6 +34,7 @@ import type {
   ApplyQueueResponse,
   Job,
   JobBodyResponse,
+  LocationProfile,
   QueueRow,
   RoleInterest,
 } from '../../types.ts';
@@ -128,6 +129,15 @@ export interface RolesResponse {
 export interface RolesMutateResponse {
   ok: true;
   roles: RoleInterest[];
+}
+
+export interface LocationResponse {
+  location: LocationProfile | null;
+}
+
+export interface LocationMutateResponse {
+  ok: true;
+  location: LocationProfile;
 }
 
 // ── Method types ────────────────────────────────────────────────────────────
@@ -298,6 +308,17 @@ export const api = {
       request<RolesMutateResponse>('/api/profile-roles', {
         method: 'PUT',
         json: { roles },
+        ...opt,
+      }),
+  },
+
+  // ── Location preferences (where + how the candidate works) ───────────────
+  location: {
+    get: (opt: SignalOpt = {}) => request<LocationResponse>('/api/profile-location', opt),
+    set: (location: LocationProfile, opt: SignalOpt = {}) =>
+      request<LocationMutateResponse>('/api/profile-location', {
+        method: 'PUT',
+        json: { location },
         ...opt,
       }),
   },
