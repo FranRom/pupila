@@ -28,7 +28,7 @@ const DECK_CAP = 50;
 const EXIT_ANIMATION_MS = 220;
 
 // Pretty labels for the _signals fields that are interesting to show.
-// We only surface positive-contributing signals; usCentricPenalty is the
+// We only surface positive-contributing signals; outOfRegionPenalty is the
 // one signed field but we still include it so the user understands a
 // suppressed score. rawTotal/capped are summarised separately.
 const SIGNAL_LABELS: Record<keyof Omit<JobSignals, 'rawTotal' | 'capped'>, string> = {
@@ -46,7 +46,7 @@ const SIGNAL_LABELS: Record<keyof Omit<JobSignals, 'rawTotal' | 'capped'>, strin
   locationRemote: 'remote / EMEA / CET',
   freshness7d: 'posted ≤ 7d',
   freshness14d: 'posted ≤ 14d',
-  usCentricPenalty: 'US-centric penalty',
+  outOfRegionPenalty: 'out-of-region penalty',
 };
 
 export function SwipeDeck({

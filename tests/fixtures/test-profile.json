@@ -19,7 +19,7 @@
     "locationRemote": 10,
     "freshness7d": 10,
     "freshness14d": 5,
-    "usCentricPenalty": -10
+    "outOfRegionPenalty": -10
   },
   "keywords": {
     "junior": [
@@ -118,38 +118,39 @@
       "researcher",
       "economist"
     ],
-    "bodyHardUsOrOnsite": [
-      "must be (authorized|located)[\\s\\S]{0,40}(united states|US only|US-based only|US citizen)",
+    "locationLock": [
       "onsite only",
-      "on-site only",
-      "in-office only",
-      "relocate to (san francisco|new york|nyc)",
-      "US[ -]?only",
-      "USA[ -]?only",
-      "United States[ -]?only",
-      "North America[ -]?only",
-      "US[ -]?based",
-      "USA[ -]?based",
-      "must (be|work|reside|live) (in|located in|based in) (the )?(US|USA|United States|North America)",
-      "(authoriz(e|ed|ation) to work in|work authorization in) (the )?(US|USA|United States)",
-      "(EST|PST|CST|MST) (timezone|time zone|zone) (only|required|preferred)",
-      "(EST|PST|CST|MST) (only|required|preferred)",
-      "eastern (time|standard) (zone )?(only|required|preferred)",
-      "remote[\\s,\\-—()]+(US|USA|United States|North America)( only)?",
-      "remote (in )?(US|USA|United States|North America)( only)?",
-      "(US|USA|United States) (work )?authorization (required|needed)"
+      "on-?site only",
+      "in[- ]office only",
+      "in[- ]office",
+      "must (be|work|reside|live)",
+      "(based|located|reside|residing) (in|at|within|out of)",
+      "relocat(e|ion|ing)",
+      "(authoriz(e|ed|ation)|eligib(le|ility)) to work",
+      "work authorization",
+      "visa sponsorship",
+      "(time ?zone|gmt|utc|est|pst|cst|mst|cet|cest|eastern|pacific|central|mountain) (time ?zone|time|zone|hours)? ?(only|required|preferred|overlap|mandatory)"
     ],
-    "nonUsRescue": [
+    "onsiteOnly": [
+      "onsite only",
+      "on-?site only",
+      "in[- ]office only",
+      "in office only",
+      "relocat(e|ion) required",
+      "on-?site position"
+    ],
+    "worldwideRemote": [
       "worldwide",
+      "world ?wide",
       "globally",
+      "global remote",
       "anywhere",
-      "emea",
-      "europe",
-      "european",
-      "EMEA-friendly",
-      "remote-emea",
       "any timezone",
-      "all timezones?"
+      "all timezones?",
+      "fully remote",
+      "remote[- ]first",
+      "remote anywhere",
+      "work from anywhere"
     ],
     "w3TitleBody": [
       "web3",
@@ -205,15 +206,13 @@
       "spain",
       "global",
       "anywhere"
-    ],
-    "remoteWorld": ["remote", "worldwide", "emea", "europe", "cet", "global", "anywhere"],
-    "usCentricSoft": [
-      "EST hours required",
-      "US-only",
-      "US only",
-      "US-based only",
-      "must be (located|authorized) in (the )?(united states|US|america)"
     ]
+  },
+  "location": {
+    "basedIn": "Spain",
+    "workTypes": ["remote", "hybrid"],
+    "acceptedRegions": ["europe", "european", "emea", "eu", "cet", "spain", "united kingdom", "uk"],
+    "excludeOutsideAcceptedRegions": true
   },
   "roles": [
     {

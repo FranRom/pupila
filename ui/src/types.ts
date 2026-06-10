@@ -39,7 +39,7 @@ export interface JobSignals {
   locationRemote: number;
   freshness7d: number;
   freshness14d: number;
-  usCentricPenalty: number;
+  outOfRegionPenalty: number;
   rawTotal: number;
   capped: boolean;
 }
@@ -103,6 +103,22 @@ export interface RoleInterest {
   label: string;
   titleMatch: string[];
   bodyMatch?: string[];
+}
+
+/** Work arrangements a candidate accepts (UI mirror of WorkType in src/types.ts). */
+export const WORK_TYPES = ['remote', 'hybrid', 'onsite'] as const;
+export type WorkType = (typeof WORK_TYPES)[number];
+
+/**
+ * Candidate location preferences (UI mirror of `LocationProfile` in
+ * src/types.ts). Edited on the Profile tab; persisted via PUT
+ * /api/profile-location. Do NOT import from src/* here.
+ */
+export interface LocationProfile {
+  basedIn: string;
+  workTypes: WorkType[];
+  acceptedRegions: string[];
+  excludeOutsideAcceptedRegions: boolean;
 }
 
 /* ──────────────────────────────────────────────────────────────────
