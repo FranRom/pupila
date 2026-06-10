@@ -148,6 +148,23 @@ The auto-detected provider order is `claude` → `codex` → `gemini` → `openc
 
 Universal hard-drop rules (junior/exec/sales/recruiter/support) and seniority weights stay at sensible defaults regardless of the brief.
 
+**Location & work preferences (Profile → Location).** This decides which jobs are a geographic fit for you. You set three things:
+
+- **Based in** — the country you live in (e.g. *Spain*). This is the only field most people need. Setting it automatically fills in the regions you can work in (Spain → *Europe, EMEA, EU, Spain*).
+- **Work types** — *Remote*, *Hybrid*, *On-site*. If you don't pick On-site, jobs that are strictly on-site get dropped.
+- **Accepted regions** (advanced, optional) — the regions a job can be tied to and still match you. Auto-derived from your country; only open the *Customize* panel if your reach is different (e.g. based in Spain but also open to US-remote, or a specific timezone like CET).
+
+How the matching works, in plain terms — **a remote job is kept unless it *requires* a location you can't be in**:
+
+| The job says… | Result |
+|---|---|
+| `Remote`, `Worldwide`, `Global`, `Anywhere` (no specific place) | **Kept** — where the company is doesn't matter |
+| A region you accept (`Europe`, `EMEA`, your country) | **Kept** |
+| `Remote - US` but the description welcomes Europe | **Kept** — the label isn't a hard requirement |
+| `Remote - US`, `Remote (US only)`, "must be based in / authorized to work in the US" | **Dropped** — a real requirement you can't meet |
+
+This is **fully neutral** — no country is special. A Spain-based profile drops US-only jobs; a US-based profile drops Europe-only jobs; both run the same code. The **"Only show jobs in my accepted regions"** toggle controls strictness: on = drop out-of-region jobs; off = keep them but rank them lower.
+
 Re-run after editing the brief by going to **Settings → Scoring profile → Regenerate** (or POST `/api/profile-generate`). To hand-tune, edit `config/profile.json` directly — your edits won't be overwritten unless you regenerate.
 
 Tweak, run `pnpm run dev`, inspect `JOBS.md`, repeat.
