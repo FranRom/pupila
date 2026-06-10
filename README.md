@@ -391,10 +391,10 @@ URLs are canonicalized (`utm_*` stripped, trailing slash normalized) before hash
 | Senior title — title contains `senior\|sr` | +10 |
 | Frontend title — title contains `frontend\|front-end\|fullstack\|full-stack\|web\|mobile` | +10 |
 | Frontend body — body contains role-specific frontend phrases (design system, ship components, accessibility, etc.) (tiered) | +10 base |
-| Location — location or body contains `remote\|worldwide\|emea\|europe\|cet\|spain\|global\|anywhere` | +10 |
+| Location — job matches an accepted region / is remote (driven by the `location` profile block) | +10 |
 | Freshness — `postedAt` within 7 days | +10 |
 | Freshness — `postedAt` within 14 days (and not within 7) | +5 |
-| **Penalty** — body US-centric without remote-worldwide language | **-10** |
+| **Penalty** — job region-locked outside accepted regions (when not hard-excluding) | **-10** |
 
 **Tiered keyword weighting.** The four "stack/frontend body" signals (rows marked _tiered_ above) count occurrences instead of doing a binary match: 1 mention earns half-weight, 2–3 the listed base weight, and 4+ a 1.5× boost. This lets a posting that mentions "react" eight times in concrete role context outscore one that drops it once in a "nice to have" footer. Web3, AI, title, location, and freshness signals stay binary because they're inherently low-cardinality and cheating them with repetition isn't a real concern.
 
@@ -417,7 +417,7 @@ URLs are canonicalized (`utm_*` stripped, trailing slash normalized) before hash
     "roleTitle": 10,       "roleBody": 10,
     "locationRemote": 10,
     "freshness7d": 10,     "freshness14d": 0,
-    "usCentricPenalty": 0,
+    "outOfRegionPenalty": 0,
     "rawTotal": 110,       "capped": true
   }
 }

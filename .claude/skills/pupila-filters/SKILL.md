@@ -19,7 +19,7 @@ All filter logic lives in `src/filters.ts`. Weights + keyword lists load from `c
 
 ## Order of operations (in `applyFilters`)
 
-1. **Hard excludes** — URL safety, junior/intern titles, US-only/onsite, non-engineering compounds, leadership, non-frontend eng (since user is a frontend engineer), non-tech roles.
+1. **Hard excludes** — URL safety, junior/intern titles, location-incompatible (persona-neutral — see "Location & work type" below), non-engineering compounds, leadership, non-frontend eng (since user is a frontend engineer), non-tech roles.
 2. **Body preparation** — `preparedScoringBody()` strips boilerplate (EEO, privacy, "About us") and truncates to `scoringBodyMaxChars` (default 1500). Keyword scoring runs against this — prevents footer text like "we use Anthropic Claude internally" from landing a +20 AI signal on a backend role. **Hard-drops still see the full body.**
 3. **Soft scoring** — additive, capped at `maxScore` (100):
    - Web3 (+20 title/body, +20 stack) — binary
@@ -28,9 +28,9 @@ All filter logic lives in `src/filters.ts`. Weights + keyword lists load from `c
    - Seniority (+15 lead/staff/principal/head, +10 senior/sr) — binary
    - Frontend title (+10) — binary
    - Frontend body (+10) — **tiered**
-   - Location (+10 remote/EMEA/CET/Spain/anywhere) — binary
+   - Location (+10 when the job matches an accepted region / is remote — driven by the `location` block) — binary
    - Freshness (+10 within 7d, +5 within 14d) — binary
-4. **Negative** — -10 if body hints US-centric without remote-worldwide language. Applied **after** capping.
+4. **Negative** — `outOfRegionPenalty` (default -10) if the job is region-locked outside the candidate's accepted regions and they haven't opted into hard-excluding. Applied **after** capping. (Persona-neutral; replaced the old US-centric penalty.)
 5. **Drop** — anything with `fitScore < minScoreToKeep` (default 30).
 6. **Category** — `web3+ai` if both fired, else `web3`, `ai`, or `general`.
 
@@ -59,9 +59,10 @@ Edit `config/profile.json#keywords.<list>`. `compileKw()` joins each list with `
 
 - `seniorReq`, `engineeringKw` (whitelists — kept jobs must match these)
 - `nonEngineering`, `nonFrontendEng`, `nonEngLeadership`, `nonEngCompound`, `nonEngRole`, `nonTechRole` (blacklists — drop on title match)
-- `stackPrimary`, `stackRn`, `stackOther`, `web3*`, `ai*`, `locationRemote` (scoring signals)
+- `stackPrimary`, `stackRn`, `stackOther`, `web3*`, `ai*` (scoring signals)
 - `profile.json#roles[]` — target job titles (`{ id, label, titleMatch, bodyMatch? }`); drive `roleTitle`/`roleBody` + `job.roleMatches` + the hard-drop rescue (see `references/scoring-tiers.md`)
-- `usCentric`, `usCentricRemoteAllow` (penalty calibration)
+- `locationLock`, `onsiteOnly`, `worldwideRemote` — persona-neutral geo *extraction* groups (no country names); the keep/drop decision compares them against `profile.json#location` (see "Location & work type" below)
+- `locationRemote` — fallback remote signal only used when a profile has no `location` block
 
 ## Adding a hard-drop rule
 
@@ -84,6 +85,34 @@ No other plumbing — just append.
 
 The sum is `Object.values(positives).reduce(...)` — auto-includes any new field. **No need to update the sum site.**
 
+## Location & work type (persona-neutral geo)
+
+Geo handling is driven entirely by the `location` block in `config/profile.json` — **no country is privileged** (a US-based and an EU-based profile get opposite outcomes from the same code; see the symmetry test in `tests/filters.test.ts`). Editable on the Profile tab (`ui/src/LocationPreferences.tsx`) or derived from the brief during Regenerate.
+
+```jsonc
+"location": {
+  "basedIn": "Spain",                              // where the candidate lives (single)
+  "workTypes": ["remote", "hybrid"],               // accepted arrangements: remote | hybrid | onsite
+  "acceptedRegions": ["europe", "emea", "eu", "spain"], // region terms they'll work in (lowercased)
+  "excludeOutsideAcceptedRegions": true            // true = hard-drop out-of-region; false = soft-penalize
+}
+```
+
+**How `hard_location_incompatible` decides (rescue-first):**
+
+1. **Work-type gate** — if the candidate doesn't accept `onsite`, the job isn't remote, and the text matches `onsiteOnly` → drop.
+2. **Region gate** (only when `excludeOutsideAcceptedRegions` *and* a region preference exists):
+   - **Rescue first** — if the posting names an accepted region / `basedIn` / `worldwideRemote` *anywhere*, **keep** it (a "Remote - US" label whose body welcomes Europe survives). `regionAccepted()` deliberately does NOT treat a bare "remote" as a region.
+   - Else **drop** if the stated location names a specific non-accepted place (`locationFieldOutOfRegion()` — strips generic-remote tokens; "Remote" alone → empty residual → kept; "Remote, US" → "us" → dropped) **or** the body declares a real lock (`locationLock` — work authorization / must-be-based-in / timezone-required).
+
+Key invariants:
+- `workTypes` is only *lightly* wired: `onsite` controls the drop gate, `remote` feeds the `+locationRemote` bonus. **`hybrid` is currently inert** (captured but unused).
+- Bare "Remote"/"Worldwide"/"Global"/"Distributed" are always kept — a job does NOT need a region word to survive. Only an explicit non-accepted location requirement drops it.
+- Empty `acceptedRegions` + empty `basedIn` → region logic is inert (a fresh fork drops nothing on geography).
+- `locationLock`/`onsiteOnly`/`worldwideRemote` are neutral *extraction* groups; tune the *candidate's* preference in the `location` block, not those lists.
+
+UI/data plumbing: `useLocation` hook + `api.location` ↔ `GET/PUT /api/profile-location` (`ui/plugins/profile.ts`); `sanitizeLocation()` validates both LLM and UI input (`src/lib/profile-generator.ts`).
+
 ## Debugging via `_signals`
 
 Every kept job carries a `_signals` object showing which scoring rules fired:
@@ -94,14 +123,14 @@ Every kept job carries a `_signals` object showing which scoring rules fired:
   "stackPrimary": 10, "stackRn": 0, "stackOther": 0,
   "leadTitle": 0, "seniorTitle": 10,
   "roleTitle": 10, "roleBody": 10, "locationRemote": 10,
-  "freshness7d": 10, "freshness14d": 0, "usCentricPenalty": 0,
+  "freshness7d": 10, "freshness14d": 0, "outOfRegionPenalty": 0,
   "rawTotal": 110, "capped": true
 }
 ```
 
 - `rawTotal` is the un-capped positive sum.
 - `capped: true` means positives summed > 100 before clamping.
-- `usCentricPenalty` is applied **after** capping.
+- `outOfRegionPenalty` is applied **after** capping.
 
 ### Inspecting in-place
 

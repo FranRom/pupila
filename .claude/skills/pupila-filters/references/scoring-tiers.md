@@ -37,10 +37,10 @@ Worked example with `base = 10` (stackPrimary):
 | `seniorTitle` | binary | 10 | senior/sr (matched only if `leadTitle` didn't fire) |
 | `roleTitle` | binary | 10 | title matches any configured role interest's `titleMatch` (see `profile.json#roles[].titleMatch`) |
 | `roleBody` | **tiered** | 10/5/15 | strongest role's body phrases (`profile.json#roles[].bodyMatch`), e.g. "design system", "accessibility", "a11y" |
-| `locationRemote` | binary | 10 | remote, EMEA, CET, Spain, anywhere, fully distributed |
+| `locationRemote` | binary | 10 | job matches an accepted region (`profile.json#location.acceptedRegions` / `basedIn`) or is remote |
 | `freshness7d` | binary | 10 | postedAt within 7 days |
 | `freshness14d` | binary | 5 | postedAt within 14 days (only if 7d didn't fire) |
-| `usCentricPenalty` | binary | **-10** | body hints US-centric without remote-worldwide language (applied AFTER capping) |
+| `outOfRegionPenalty` | binary | **-10** | job region-locked outside accepted regions, when not hard-excluding (applied AFTER capping; persona-neutral — see the `pupila-filters` "Location & work type" section) |
 
 The exact regex sources live in `config/profile.json#keywords.*`. The `_G` global-flag variants for tiered signals are built once at module scope from those lists via `compileKw(...kw, 'g')`.
 
@@ -56,7 +56,7 @@ Empty/absent `roles` → `roleTitle`/`roleBody` never fire and nothing is rescue
 
 ## Cap behavior
 
-`maxScore = 100`. Positives sum first, then clamp, then apply `usCentricPenalty`. So a job with rawTotal 120 and US-centric body lands at `100 - 10 = 90`, not `120 - 10 = 110` clamped.
+`maxScore = 100`. Positives sum first, then clamp, then apply `outOfRegionPenalty`. So a job with rawTotal 120 that's region-locked out lands at `100 - 10 = 90`, not `120 - 10 = 110` clamped.
 
 ## Boilerplate stripping (in `preparedScoringBody`)
 

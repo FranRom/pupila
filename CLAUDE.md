@@ -82,7 +82,7 @@ pnpm run mcp                          # MCP server over stdio
 2. **Profile bootstrap** — `bootstrapProfileIfMissing()` copies `config/profile.default.json` → `profile.json` on first run.
 3. **Fetch** — all 13 sources in parallel via `processFetcher()` + `Promise.all`. Each fetcher returns `{ items, errors }` and **never throws** (a rejection would kill the whole run).
 4. **Normalize** — per-source `normalize<Source>()` → `Job[]`. Salary fields populated via `withSalary()` spread.
-5. **Filter + score** — `applyFilters()` in `src/filters.ts`: hard drops → boilerplate strip → soft scoring (cap 100) → optional -10 US-centric penalty → drop below `minScoreToKeep` → category.
+5. **Filter + score** — `applyFilters()` in `src/filters.ts`: hard drops → boilerplate strip → soft scoring (cap 100) → optional out-of-region penalty → drop below `minScoreToKeep` → category. Geo handling is persona-neutral, driven by the `location` block in `config/profile.json` (see `pupila-filters` skill).
 6. **Dedup + sort** — `compareJobs` 4-key chain in `src/dedup.ts` (source-priority tiebreak).
 7. **Attach applied state** — `loadAppliedMap()` matches `Job.id` (sha1 of URL) to entries in `config/applied.json`; sets `job.applied`.
 8. **Diff** — compute new-since (top 20) / removed-since (top 10) vs previous `data/jobs.json` via `readJsonOrNull` before write.
@@ -105,7 +105,9 @@ Subsystems documented in-file + tests; this CLAUDE.md doesn't restate them:
 
 ## Filter rules (overview)
 
-`src/filters.ts` is a hard-drop chain → boilerplate strip → scoring (capped at 100) → optional -10 US-centric penalty → drop below `minScoreToKeep` (default 30) → category assignment (`web3+ai` / `web3` / `ai` / `general`).
+`src/filters.ts` is a hard-drop chain → boilerplate strip → scoring (capped at 100) → optional out-of-region penalty → drop below `minScoreToKeep` (default 30) → category assignment (`web3+ai` / `web3` / `ai` / `general`).
+
+Geo filtering is **persona-neutral** — no country is privileged. Where/how the candidate works lives in the `location` block of `config/profile.json` (`basedIn`, `workTypes`, `acceptedRegions`, `excludeOutsideAcceptedRegions`), editable on the Profile tab. See the **`pupila-filters` skill** for the `hard_location_incompatible` rule and the rescue-first matching.
 
 Weights and keyword lists load at runtime from `config/profile.json`. **Adjusting weights/keywords is non-code.** Every kept job carries a `_signals` object showing which rules fired — see the **`pupila-filters` skill** for the tier multipliers, scoring catalog, debugging recipes, and how to add new positive signals or hard-drop rules.
 
