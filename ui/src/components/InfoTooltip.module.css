@@ -16,7 +16,7 @@
   background: var(--bg);
   color: var(--text-muted);
   font-size: 0.7rem;
-  font-style: italic;
+  font-style: normal;
   font-weight: 600;
   line-height: 1;
   cursor: help;
