@@ -17,7 +17,7 @@ const SIGNAL_LABELS: Record<keyof JobSignals, string> = {
   locationRemote: 'remote-friendly',
   freshness7d: 'fresh ≤7d',
   freshness14d: 'fresh ≤14d',
-  usCentricPenalty: 'US-centric penalty',
+  outOfRegionPenalty: 'out-of-region penalty',
   rawTotal: '',
   capped: '',
 };

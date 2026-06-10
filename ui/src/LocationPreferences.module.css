@@ -1,0 +1,182 @@
+.card {
+  margin: 1rem 0;
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.header {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.header h3 {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.muted {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+.field {
+  margin-bottom: 0.9rem;
+}
+
+.label {
+  display: block;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin-bottom: 0.35rem;
+}
+
+.labelRow {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-bottom: 0.35rem;
+}
+
+.labelRow .label {
+  margin-bottom: 0;
+}
+
+.textInput {
+  width: 100%;
+  max-width: 22rem;
+  font: inherit;
+  font-size: 0.85rem;
+  padding: 0.35rem 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text);
+}
+
+.workTypes {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.workType {
+  font: inherit;
+  font-size: 0.8rem;
+  padding: 0.3rem 0.75rem;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  background: var(--bg);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.workTypeActive {
+  composes: workType;
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--bg);
+}
+
+.regionsPreview {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--text);
+}
+
+.customize {
+  margin-top: 0.5rem;
+}
+
+.summary {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  cursor: pointer;
+  width: fit-content;
+}
+
+.summary:hover {
+  color: var(--accent);
+}
+
+.customize[open] .summary {
+  margin-bottom: 0.5rem;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  min-height: 1.75rem;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  background: var(--bg);
+  overflow: hidden;
+}
+
+.chipLabel {
+  color: var(--text);
+  font-size: 0.8rem;
+  padding: 0.25rem 0.5rem 0.25rem 0.75rem;
+}
+
+.chipRemove {
+  border: none;
+  background: none;
+  color: var(--text-muted);
+  font-size: 1rem;
+  line-height: 1;
+  padding: 0.25rem 0.6rem 0.25rem 0.35rem;
+  cursor: pointer;
+}
+
+.chipRemove:hover {
+  color: var(--danger);
+}
+
+.addRow {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.addInput {
+  flex: 1;
+  max-width: 22rem;
+  font: inherit;
+  font-size: 0.85rem;
+  padding: 0.35rem 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text);
+}
+
+.toggleRow {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.rescore {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--border);
+}

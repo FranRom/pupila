@@ -1,6 +1,11 @@
 import { readFile } from 'node:fs/promises';
-import type { Category, Job, JobSignals, RoleInterest } from './types.js';
+import type { Category, Job, JobSignals, LocationProfile, RoleInterest } from './types.js';
 import { isSafeUrl, withinDays } from './utils.js';
+
+/** Escape a plain location term so it's safe to drop into a regex alternation. */
+function escapeRegExp(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
 
 // Profile is loaded at runtime (not statically imported) so that:
 //   (a) config/profile.json can be gitignored — it's personal data
@@ -33,7 +38,9 @@ export interface FilterWeights {
   locationRemote: number;
   freshness7d: number;
   freshness14d: number;
-  usCentricPenalty: number;
+  // Negative penalty for a job region-locked outside the candidate's accepted
+  // regions (persona-neutral; replaces the old US-centric penalty).
+  outOfRegionPenalty: number;
 }
 
 export interface FilterProfile {
@@ -47,6 +54,10 @@ export interface FilterProfile {
   // `Job.roleMatches`, and is rescued from the title-based hard drops.
   // Optional so older/minimal profiles still load (treated as no roles).
   roles?: readonly RoleInterest[];
+  // Candidate location preferences. When present, drives the persona-neutral
+  // geo filter + location scoring. Optional so older/minimal profiles still
+  // load (the geo hard-drop is inert without it).
+  location?: LocationProfile;
 }
 
 /** Loads and parses config/profile.json. Throws ENOENT if missing — callers should gate. */
@@ -61,6 +72,12 @@ export async function loadProfile(path = 'config/profile.json'): Promise<FilterP
 // special-casing.
 const NEVER_MATCH = /(?!)/;
 const NEVER_MATCH_GLOBAL = /(?!)/g;
+
+// Neutral, universal vocabulary for "this is a remote/flexible arrangement"
+// rather than a place. Stripped from a job's stated location to decide whether
+// what remains names a specific region. Persona-agnostic — not a preference.
+const GENERIC_REMOTE_TOKENS =
+  /\b(remote|worldwide|world ?wide|global|globally|anywhere|hybrid|on[- ]?site|onsite|distributed|flexible|work from home|wfh|n\/?a|tbd|various|multiple|locations?)\b/gi;
 
 // Defensive compile — a single bad regex fragment (likely from an
 // LLM-generated profile.json) would otherwise crash `pnpm run dev` at
@@ -146,8 +163,6 @@ export function createFilters(profile: FilterProfile): FilterApi {
   const TITLE_EXCLUDED_SPECIALTIES = compileKw(K.titleExcludedSpecialties);
   const TITLE_NON_ENG_ROLE = compileKw(K.titleNonEngRole);
   const TITLE_NON_TECH_ROLE = compileKw(K.titleNonTechRole);
-  const BODY_HARD_US_OR_ONSITE = compileKw(K.bodyHardUsOrOnsite);
-  const NON_US_RESCUE = compileKw(K.nonUsRescue);
   const W3_TITLE_BODY = compileKw(K.w3TitleBody);
   const W3_STACK = compileKw(K.w3Stack);
   const AI_TITLE_BODY = compileKw(K.aiTitleBody);
@@ -165,9 +180,55 @@ export function createFilters(profile: FilterProfile): FilterApi {
     title: compileKw(role.titleMatch),
     body: compileKwGlobal(role.bodyMatch),
   }));
+  // ── Persona-neutral geo signals ──────────────────────────────────────────
+  // Neutral, country-agnostic *extraction* groups (universal, in profile.json):
+  //   locationLock    — "this posting is geographically constrained" (onsite-only,
+  //                      must-be-located/authorized-in, timezone-required, …)
+  //   onsiteOnly      — the subset of locks that mean strictly on-site
+  //   worldwideRemote — "open to anyone anywhere" (worldwide / global / anywhere)
+  // The keep/drop *decision* compares those against the candidate's profile:
+  //   acceptedRegions / basedIn supply the rescue terms; workTypes gate on-site.
+  const LOCATION_LOCK = compileKw(K.locationLock);
+  const ONSITE_ONLY = compileKw(K.onsiteOnly);
+  const WORLDWIDE_REMOTE = compileKw(K.worldwideRemote);
+  const loc = profile.location;
+  // acceptedRegions / basedIn are plain location names → escape before joining
+  // so a stray metachar can't break (or widen) the compiled alternation.
+  const ACCEPTED_REGIONS = compileKw(loc?.acceptedRegions?.map(escapeRegExp));
+  const BASED_IN = compileKw(loc?.basedIn?.trim() ? [escapeRegExp(loc.basedIn.trim())] : undefined);
+  const acceptsOnsite = loc?.workTypes?.includes('onsite') ?? false;
+  const acceptsRemote = loc?.workTypes?.includes('remote') ?? true;
+  // No region preference expressed → region drops/penalties stay inert (a fresh
+  // fork accepts everywhere until the candidate sets regions). The work-type
+  // gate still applies independently.
+  const hasRegionPrefs = (loc?.acceptedRegions?.length ?? 0) > 0 || !!loc?.basedIn?.trim();
+  // Fallback remote group for profiles with no `location` block (back-compat).
   const LOC_REMOTE = compileKw(K.locationRemote);
-  const REMOTE_WORLD = compileKw(K.remoteWorld);
-  const US_CENTRIC_SOFT = compileKw(K.usCentricSoft);
+
+  // A job's haystack names a region the candidate will work in: an accepted
+  // region, their home country, or open-to-anywhere remote. Deliberately does
+  // NOT treat a bare "remote" as accepted — a remote-friendly posting can still
+  // carry an incompatible lock (e.g. "remote, EST hours required").
+  function regionAccepted(haystack: string): boolean {
+    return (
+      WORLDWIDE_REMOTE.test(haystack) || ACCEPTED_REGIONS.test(haystack) || BASED_IN.test(haystack)
+    );
+  }
+
+  // True when the job's *stated location* names a specific place the candidate
+  // doesn't accept. Generic-remote tokens are neutral vocabulary (not a region),
+  // so "Remote" alone → residual empty → not out-of-region; "Remote, USA" →
+  // residual "usa" → out-of-region unless USA is an accepted region.
+  function locationFieldOutOfRegion(location: string | null): boolean {
+    if (!location) return false;
+    if (regionAccepted(location)) return false;
+    const residual = location
+      .toLowerCase()
+      .replace(GENERIC_REMOTE_TOKENS, ' ')
+      .replace(/[^a-z]+/g, ' ')
+      .trim();
+    return residual.length > 0;
+  }
 
   function preparedScoringBody(rawBody: string): string {
     const stripped = rawBody.replace(BOILERPLATE_HEADERS_RE, '').trim();
@@ -179,15 +240,36 @@ export function createFilters(profile: FilterProfile): FilterApi {
     { name: 'junior_title', test: (job) => TITLE_JUNIOR.test(job.title) },
     { name: 'missing_senior_req', test: (job) => !TITLE_SENIOR_REQ.test(job.title) },
     {
-      // Includes job.location so a posting whose body never mentions geography
-      // but whose location field says "United States" still drops. The rescue
-      // skips the drop if the same haystack also mentions a non-US region the
-      // candidate can target (worldwide / EMEA / Europe).
-      name: 'hard_us_or_onsite',
+      // Persona-neutral geo drop. No country is privileged — "US" is just one
+      // possible region the candidate may or may not accept. Inert without a
+      // `location` profile (older/minimal profiles still load). Two ways to
+      // drop, both driven entirely by the candidate's profile:
+      //   1. Work-type: the posting is strictly on-site and the candidate
+      //      doesn't accept on-site work (and it isn't flagged remote).
+      //   2. Region: the posting is geo-constrained to somewhere outside the
+      //      candidate's accepted regions and isn't worldwide-remote — only
+      //      when they've opted into hard-excluding (excludeOutsideAcceptedRegions).
+      name: 'hard_location_incompatible',
       test: (job) => {
+        if (!loc) return false;
         const haystack = `${job.location ?? ''}\n${job.body}`;
-        if (!BODY_HARD_US_OR_ONSITE.test(haystack)) return false;
-        return !NON_US_RESCUE.test(haystack);
+
+        // Work-type gate: a strictly on-site posting the candidate won't take.
+        if (!acceptsOnsite && !job.remote && ONSITE_ONLY.test(haystack)) return true;
+
+        // Region gate — opt-in, and only when a region preference exists.
+        if (!hasRegionPrefs || !loc.excludeOutsideAcceptedRegions) return false;
+        // Rescue first: if the posting names a region we accept (or is
+        // worldwide-remote) ANYWHERE in its text, keep it — even if a label like
+        // "Remote - US" also appears. A US-based company that hires across Europe
+        // is a job we want. This is the key: drop only genuine *requirements*.
+        if (regionAccepted(haystack)) return false;
+        // No accepted region anywhere. Drop when the posting is geo-constrained:
+        // (a) its stated location names a specific place, or
+        // (b) its body declares a real location/authorization/timezone requirement.
+        if (locationFieldOutOfRegion(job.location)) return true;
+        if (LOCATION_LOCK.test(haystack)) return true;
+        return false;
       },
     },
     {
@@ -263,7 +345,13 @@ export function createFilters(profile: FilterProfile): FilterApi {
         seniorTitle: TITLE_SENIOR.test(title) ? W.seniorTitle : 0,
         roleTitle: roleMatches.length > 0 ? W.roleTitle : 0,
         roleBody: tieredWeight(roleBodyCount, W.roleBody),
-        locationRemote: LOC_REMOTE.test(locText) ? W.locationRemote : 0,
+        locationRemote: (
+          loc
+            ? regionAccepted(locText) || (job.remote && acceptsRemote)
+            : LOC_REMOTE.test(locText)
+        )
+          ? W.locationRemote
+          : 0,
         freshness7d: fresh7 ? W.freshness7d : 0,
         freshness14d: !fresh7 && withinDays(job.postedAt, 14) ? W.freshness14d : 0,
       };
@@ -274,16 +362,27 @@ export function createFilters(profile: FilterProfile): FilterApi {
 
       const signals: JobSignals = {
         ...positives,
-        usCentricPenalty: 0,
+        outOfRegionPenalty: 0,
         rawTotal: positiveSum,
         capped: positiveSum > S.maxScore,
       };
 
       let score = Math.min(positiveSum, S.maxScore);
 
-      if (US_CENTRIC_SOFT.test(body) && !REMOTE_WORLD.test(body)) {
-        signals.usCentricPenalty = W.usCentricPenalty;
-        score += W.usCentricPenalty;
+      // Out-of-region soft penalty: a geo-locked posting outside the accepted
+      // regions that the candidate hasn't opted to hard-exclude. (When they HAVE
+      // opted in, such postings were already hard-dropped above.)
+      if (loc && hasRegionPrefs && !loc.excludeOutsideAcceptedRegions) {
+        const haystack = `${job.location ?? ''}\n${body}`;
+        // Same rescue-first logic as the hard rule: only penalize a posting that
+        // names no accepted region AND is geo-constrained elsewhere.
+        const outOfRegion =
+          !regionAccepted(haystack) &&
+          (locationFieldOutOfRegion(job.location) || LOCATION_LOCK.test(haystack));
+        if (outOfRegion) {
+          signals.outOfRegionPenalty = W.outOfRegionPenalty;
+          score += W.outOfRegionPenalty;
+        }
       }
 
       if (score < S.minScoreToKeep) {

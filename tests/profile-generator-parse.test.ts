@@ -3,6 +3,7 @@ import {
   mergeProfile,
   type ProfileShape,
   parsePersonalizationDelta,
+  sanitizeLocation,
 } from '../src/lib/profile-generator.js';
 
 describe('parsePersonalizationDelta MED-6 complexity guard', () => {
@@ -115,5 +116,91 @@ describe('mergeProfile — roles', () => {
     const out = mergeProfile(base, { weights: {}, keywords: {} });
     expect(out.profile.roles).toEqual([{ id: 'fe', label: 'FE', titleMatch: ['frontend'] }]);
     expect(out.rolesChanged).toBe(false);
+  });
+});
+
+describe('sanitizeLocation', () => {
+  it('coerces a valid location, lowercasing + de-duping regions', () => {
+    const loc = sanitizeLocation({
+      basedIn: '  Spain ',
+      workTypes: ['remote', 'hybrid', 'bogus'],
+      acceptedRegions: ['Europe', 'EUROPE', ' EMEA '],
+      excludeOutsideAcceptedRegions: true,
+    });
+    expect(loc).toEqual({
+      basedIn: 'Spain',
+      workTypes: ['remote', 'hybrid'],
+      acceptedRegions: ['europe', 'emea'],
+      excludeOutsideAcceptedRegions: true,
+    });
+  });
+
+  it('returns a neutral default for garbage input', () => {
+    expect(sanitizeLocation(undefined)).toEqual({
+      basedIn: '',
+      workTypes: [],
+      acceptedRegions: [],
+      excludeOutsideAcceptedRegions: false,
+    });
+  });
+
+  it('drops unknown workTypes and non-boolean exclude flag', () => {
+    const loc = sanitizeLocation({ workTypes: ['onsite'], excludeOutsideAcceptedRegions: 'yes' });
+    expect(loc.workTypes).toEqual(['onsite']);
+    expect(loc.excludeOutsideAcceptedRegions).toBe(false);
+  });
+});
+
+describe('parsePersonalizationDelta — location', () => {
+  it('extracts a location with signal', () => {
+    const raw = JSON.stringify({
+      location: { basedIn: 'Spain', workTypes: ['remote'], acceptedRegions: ['Europe'] },
+    });
+    const out = parsePersonalizationDelta(raw);
+    expect(out.location).toEqual({
+      basedIn: 'Spain',
+      workTypes: ['remote'],
+      acceptedRegions: ['europe'],
+      excludeOutsideAcceptedRegions: false,
+    });
+  });
+
+  it('omits an empty/signal-less location object', () => {
+    const raw = JSON.stringify({ location: { basedIn: '', workTypes: [], acceptedRegions: [] } });
+    expect(parsePersonalizationDelta(raw).location).toBeUndefined();
+  });
+});
+
+describe('mergeProfile — location', () => {
+  it('replaces location from the delta and reports the change', () => {
+    const base: ProfileShape = { weights: {}, keywords: {} };
+    const out = mergeProfile(base, {
+      weights: {},
+      keywords: {},
+      location: {
+        basedIn: 'Spain',
+        workTypes: ['remote'],
+        acceptedRegions: ['europe'],
+        excludeOutsideAcceptedRegions: true,
+      },
+    });
+    expect(out.profile.location?.basedIn).toBe('Spain');
+    expect(out.locationChanged).toBe(true);
+  });
+
+  it('leaves location untouched when the delta carries none', () => {
+    const base: ProfileShape = {
+      weights: {},
+      keywords: {},
+      location: {
+        basedIn: 'Spain',
+        workTypes: ['remote'],
+        acceptedRegions: ['europe'],
+        excludeOutsideAcceptedRegions: true,
+      },
+    };
+    const out = mergeProfile(base, { weights: {}, keywords: {} });
+    expect(out.profile.location?.basedIn).toBe('Spain');
+    expect(out.locationChanged).toBe(false);
   });
 });

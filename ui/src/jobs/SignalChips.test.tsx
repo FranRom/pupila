@@ -18,7 +18,7 @@ const emptySignals: JobSignals = {
   locationRemote: 0,
   freshness7d: 0,
   freshness14d: 0,
-  usCentricPenalty: 0,
+  outOfRegionPenalty: 0,
   rawTotal: 0,
   capped: false,
 };
@@ -47,7 +47,7 @@ describe('SignalChips', () => {
           locationRemote: 10,
           freshness7d: 10,
           freshness14d: 5,
-          usCentricPenalty: -10,
+          outOfRegionPenalty: -10,
           rawTotal: 40,
         }}
       />,

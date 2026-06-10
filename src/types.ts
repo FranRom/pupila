@@ -15,6 +15,36 @@ export type Source =
 
 export type Category = 'web3' | 'ai' | 'web3+ai' | 'general';
 
+/** The work arrangements a candidate will accept (and a job can offer). */
+export const WORK_TYPES = ['remote', 'hybrid', 'onsite'] as const;
+export type WorkType = (typeof WORK_TYPES)[number];
+
+/**
+ * The candidate's location preferences — where they live, the work
+ * arrangements they accept, and the regions a job may be tied to. Drives the
+ * persona-neutral geo filter (`hard_location_incompatible`) and the location
+ * scoring in `src/filters.ts`, and (separately) location-scoped fetch queries.
+ * Lives in `config/profile.json` under `location`. Editable on the Profile tab.
+ */
+export interface LocationProfile {
+  /** Where the candidate lives — a single country (or free-text) anchor. */
+  basedIn: string;
+  /** Accepted work arrangements. A job whose only arrangement is excluded drops. */
+  workTypes: WorkType[];
+  /**
+   * Region/location terms the candidate will work in (e.g. "Europe", "EMEA",
+   * "Remote"). Used as the rescue list for region-locked jobs — the
+   * persona-neutral replacement for the old hardcoded non-US rescue.
+   */
+  acceptedRegions: string[];
+  /**
+   * When true, a job region-locked to somewhere outside `acceptedRegions`
+   * (and not worldwide-remote) is hard-dropped. When false, it's only
+   * soft-penalized so it can still surface lower down.
+   */
+  excludeOutsideAcceptedRegions: boolean;
+}
+
 export interface JobSignals {
   web3TitleBody: number;
   web3Stack: number;
@@ -32,7 +62,12 @@ export interface JobSignals {
   locationRemote: number;
   freshness7d: number;
   freshness14d: number;
-  usCentricPenalty: number;
+  /**
+   * Negative penalty for a job region-locked outside the candidate's accepted
+   * regions (persona-neutral; replaces the old US-centric penalty). Only fires
+   * when the candidate hasn't opted into hard-excluding such jobs.
+   */
+  outOfRegionPenalty: number;
   rawTotal: number;
   capped: boolean;
 }

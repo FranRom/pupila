@@ -148,6 +148,23 @@ The auto-detected provider order is `claude` → `codex` → `gemini` → `openc
 
 Universal hard-drop rules (junior/exec/sales/recruiter/support) and seniority weights stay at sensible defaults regardless of the brief.
 
+**Location & work preferences (Profile → Location).** This decides which jobs are a geographic fit for you. You set three things:
+
+- **Based in** — the country you live in (e.g. *Spain*). This is the only field most people need. Setting it automatically fills in the regions you can work in (Spain → *Europe, EMEA, EU, Spain*).
+- **Work types** — *Remote*, *Hybrid*, *On-site*. If you don't pick On-site, jobs that are strictly on-site get dropped.
+- **Accepted regions** (advanced, optional) — the regions a job can be tied to and still match you. Auto-derived from your country; only open the *Customize* panel if your reach is different (e.g. based in Spain but also open to US-remote, or a specific timezone like CET).
+
+How the matching works, in plain terms — **a remote job is kept unless it *requires* a location you can't be in**:
+
+| The job says… | Result |
+|---|---|
+| `Remote`, `Worldwide`, `Global`, `Anywhere` (no specific place) | **Kept** — where the company is doesn't matter |
+| A region you accept (`Europe`, `EMEA`, your country) | **Kept** |
+| `Remote - US` but the description welcomes Europe | **Kept** — the label isn't a hard requirement |
+| `Remote - US`, `Remote (US only)`, "must be based in / authorized to work in the US" | **Dropped** — a real requirement you can't meet |
+
+This is **fully neutral** — no country is special. A Spain-based profile drops US-only jobs; a US-based profile drops Europe-only jobs; both run the same code. The **"Only show jobs in my accepted regions"** toggle controls strictness: on = drop out-of-region jobs; off = keep them but rank them lower.
+
 Re-run after editing the brief by going to **Settings → Scoring profile → Regenerate** (or POST `/api/profile-generate`). To hand-tune, edit `config/profile.json` directly — your edits won't be overwritten unless you regenerate.
 
 Tweak, run `pnpm run dev`, inspect `JOBS.md`, repeat.
@@ -391,10 +408,10 @@ URLs are canonicalized (`utm_*` stripped, trailing slash normalized) before hash
 | Senior title — title contains `senior\|sr` | +10 |
 | Frontend title — title contains `frontend\|front-end\|fullstack\|full-stack\|web\|mobile` | +10 |
 | Frontend body — body contains role-specific frontend phrases (design system, ship components, accessibility, etc.) (tiered) | +10 base |
-| Location — location or body contains `remote\|worldwide\|emea\|europe\|cet\|spain\|global\|anywhere` | +10 |
+| Location — job matches an accepted region / is remote (driven by the `location` profile block) | +10 |
 | Freshness — `postedAt` within 7 days | +10 |
 | Freshness — `postedAt` within 14 days (and not within 7) | +5 |
-| **Penalty** — body US-centric without remote-worldwide language | **-10** |
+| **Penalty** — job region-locked outside accepted regions (when not hard-excluding) | **-10** |
 
 **Tiered keyword weighting.** The four "stack/frontend body" signals (rows marked _tiered_ above) count occurrences instead of doing a binary match: 1 mention earns half-weight, 2–3 the listed base weight, and 4+ a 1.5× boost. This lets a posting that mentions "react" eight times in concrete role context outscore one that drops it once in a "nice to have" footer. Web3, AI, title, location, and freshness signals stay binary because they're inherently low-cardinality and cheating them with repetition isn't a real concern.
 
@@ -417,7 +434,7 @@ URLs are canonicalized (`utm_*` stripped, trailing slash normalized) before hash
     "roleTitle": 10,       "roleBody": 10,
     "locationRemote": 10,
     "freshness7d": 10,     "freshness14d": 0,
-    "usCentricPenalty": 0,
+    "outOfRegionPenalty": 0,
     "rawTotal": 110,       "capped": true
   }
 }

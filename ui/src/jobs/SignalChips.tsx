@@ -7,7 +7,7 @@ import type { JobSignals } from '../types.ts';
 //   - rawTotal / capped: meta, not signals
 //   - freshness7d / freshness14d: every recent job has them
 //   - locationRemote: most kept jobs are remote
-//   - usCentricPenalty: redundant with the verdict + EMEA filter
+//   - outOfRegionPenalty: redundant with the verdict + region filter
 //   - leadTitle / seniorTitle: the senior_req hard-drop ALREADY requires
 //     these, so every job in the table has them. Including them here would
 //     crowd out the actually-discriminating chips (web3/ai/stack).

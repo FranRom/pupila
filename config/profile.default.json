@@ -24,7 +24,7 @@
     "locationRemote": 10,
     "freshness7d": 10,
     "freshness14d": 5,
-    "usCentricPenalty": -10
+    "outOfRegionPenalty": -10
   },
   "keywords": {
     "_comment_universal": "Hard-exclude lists. These reject obvious mismatches and apply to anyone.",
@@ -123,39 +123,42 @@
       "researcher",
       "economist"
     ],
-    "_comment_geo": "US-only / on-site hard-drop patterns. Checked against `${job.location}\\n${job.body}`. The `nonUsRescue` list below is the escape hatch — if the posting also mentions a non-US region we can target (worldwide / EMEA / Europe), the hard-drop is skipped. Tune both lists together.",
-    "bodyHardUsOrOnsite": [
-      "must be (authorized|located)[\\s\\S]{0,40}(united states|US only|US-based only|US citizen)",
+    "_comment_geo": "Persona-NEUTRAL geo extraction. No country is privileged. `locationLock` / `onsiteOnly` detect that a posting is geographically or work-arrangement constrained; `worldwideRemote` detects open-to-anyone postings. The keep/drop DECISION compares these against your `location` block below (acceptedRegions / basedIn / workTypes) — see `hard_location_incompatible` in src/filters.ts. Edit your preferences in the `location` block (or the Profile tab), not here.",
+    "locationLock": [
       "onsite only",
-      "on-site only",
-      "in-office only",
-      "relocate to (san francisco|new york|nyc)",
-      "US[ -]?only",
-      "USA[ -]?only",
-      "United States[ -]?only",
-      "North America[ -]?only",
-      "US[ -]?based",
-      "USA[ -]?based",
-      "must (be|work|reside|live) (in|located in|based in) (the )?(US|USA|United States|North America)",
-      "(authoriz(e|ed|ation) to work in|work authorization in) (the )?(US|USA|United States)",
-      "(EST|PST|CST|MST) (timezone|time zone|zone) (only|required|preferred)",
-      "(EST|PST|CST|MST) (only|required|preferred)",
-      "eastern (time|standard) (zone )?(only|required|preferred)",
-      "remote[\\s,\\-—()]+(US|USA|United States|North America)( only)?",
-      "remote (in )?(US|USA|United States|North America)( only)?",
-      "(US|USA|United States) (work )?authorization (required|needed)"
+      "on-?site only",
+      "in[- ]office only",
+      "in[- ]office",
+      "(must|need to|required to|have to|expected to) (be )?(based|located|situated|residing|reside)",
+      "to be (based|located|situated) (in|out of)",
+      "(authoriz(e|ed|ation)|eligib(le|ility)) to work",
+      "work authorization",
+      "right to work",
+      "work permit",
+      "visa (sponsorship|sponsor|required|status)",
+      "relocat(e|ion|ing)",
+      "(time ?zone|gmt|utc|est|pst|cst|mst|cet|cest|eastern|pacific|central|mountain) (time ?zone|time|zone|hours)? ?(only|required|preferred|overlap|mandatory)"
     ],
-    "nonUsRescue": [
+    "onsiteOnly": [
+      "onsite only",
+      "on-?site only",
+      "in[- ]office only",
+      "in office only",
+      "relocat(e|ion) required",
+      "on-?site position"
+    ],
+    "worldwideRemote": [
       "worldwide",
+      "world ?wide",
       "globally",
+      "global remote",
       "anywhere",
-      "emea",
-      "europe",
-      "european",
-      "EMEA-friendly",
-      "remote-emea",
       "any timezone",
-      "all timezones?"
+      "all timezones?",
+      "fully remote",
+      "remote[- ]first",
+      "remote anywhere",
+      "work from anywhere"
     ],
     "_comment_personal_kw": "Personal — empty in the default. Filled automatically from the brief during Regenerate.",
     "w3TitleBody": [],
@@ -168,17 +171,16 @@
     "_comment_seniority_kw": "Seniority signals — used for the +leadTitle / +seniorTitle bonuses.",
     "titleLead": ["lead", "staff", "principal", "head"],
     "titleSenior": ["senior", "sr"],
-    "_comment_location_kw": "Location signals. Add region-specific terms (e.g. 'emea', 'cet', 'spain') if you want a regional bonus.",
-    "locationRemote": ["remote", "worldwide", "global", "anywhere"],
-    "remoteWorld": ["remote", "worldwide", "global", "anywhere"],
-    "usCentricSoft": [
-      "EST hours required",
-      "US-only",
-      "US only",
-      "US-based only",
-      "must be (located|authorized) in (the )?(united states|US|america)"
-    ]
+    "_comment_location_kw": "Fallback remote signal used only for older profiles that have no `location` block. The live geo logic reads the `location` block below.",
+    "locationRemote": ["remote", "worldwide", "global", "anywhere"]
   },
   "_comment_roles": "Personal — empty in the default. The target job titles you're interested in (e.g. Senior Frontend Engineer, Product Engineer). Filled automatically from the brief during Regenerate, or edited via Profile → Role interests. A title matching any role's `titleMatch` earns the roleTitle bonus, is tagged on the job, and is rescued from the title-based hard drops.",
-  "roles": []
+  "roles": [],
+  "_comment_location": "Personal location preferences (edit on the Profile tab, or filled from your brief during Regenerate). NEUTRAL default: accepts every work type and every region, so a fresh fork drops nothing on geography. `basedIn` = where you live; `workTypes` = arrangements you accept (remote/hybrid/onsite); `acceptedRegions` = region terms you'll work in (e.g. 'europe', 'emea', 'united states'); `excludeOutsideAcceptedRegions` = hard-drop region-locked jobs outside those regions (false → soft-penalize instead).",
+  "location": {
+    "basedIn": "",
+    "workTypes": ["remote", "hybrid", "onsite"],
+    "acceptedRegions": [],
+    "excludeOutsideAcceptedRegions": false
+  }
 }

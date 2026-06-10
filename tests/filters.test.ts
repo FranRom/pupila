@@ -61,16 +61,16 @@ describe('applyFilters — hard excludes', () => {
     expect(r.droppedHard).toBe(1);
   });
 
-  it('drops when location field says "Remote, USA"', () => {
+  it('drops when location field names a non-accepted region ("Remote, USA")', () => {
     const r = applyFilters([
       makeJob({ location: 'Remote, USA', body: 'We do many things and ship products.' }),
     ]);
     expect(r.kept).toHaveLength(0);
     expect(r.droppedHard).toBe(1);
-    expect(r.droppedByRule.hard_us_or_onsite).toBe(1);
+    expect(r.droppedByRule.hard_location_incompatible).toBe(1);
   });
 
-  it('drops when body says "EST timezone required"', () => {
+  it('drops when body says "EST timezone required" (out-of-region for an EU profile)', () => {
     const r = applyFilters([
       makeJob({ body: 'Remote-friendly position. EST timezone required for daily standups.' }),
     ]);
@@ -78,16 +78,19 @@ describe('applyFilters — hard excludes', () => {
     expect(r.droppedHard).toBe(1);
   });
 
-  it('drops "US-only" or "US-based" callouts in body', () => {
-    const r1 = applyFilters([makeJob({ body: 'This is a US-only position with great benefits.' })]);
-    const r2 = applyFilters([makeJob({ body: 'We hire US-based engineers exclusively.' })]);
+  it('drops explicit work-authorization / based-in locks to a non-accepted region', () => {
+    const r1 = applyFilters([
+      makeJob({ body: 'You must be authorized to work in the United States to apply.' }),
+    ]);
+    const r2 = applyFilters([
+      makeJob({ body: 'This role requires you to be based in the US for tax reasons.' }),
+    ]);
     expect(r1.droppedHard + r2.droppedHard).toBe(2);
   });
 
-  it('drops "North America only" / "remote in US" phrasing', () => {
-    const r1 = applyFilters([makeJob({ body: 'North America only — please apply if eligible.' })]);
-    const r2 = applyFilters([makeJob({ location: 'Remote in US', body: 'We build cool stuff.' })]);
-    expect(r1.droppedHard + r2.droppedHard).toBe(2);
+  it('drops "remote in US" via the location field', () => {
+    const r = applyFilters([makeJob({ location: 'Remote in US', body: 'We build cool stuff.' })]);
+    expect(r.droppedHard).toBe(1);
   });
 
   it('rescues a US-mentioning posting that ALSO targets EMEA / worldwide', () => {
@@ -120,6 +123,112 @@ describe('applyFilters — hard excludes', () => {
       }),
     ]);
     expect(r.droppedHard).toBe(0);
+  });
+
+  it('keeps a "Remote - US" posting whose body welcomes Europe (label ≠ requirement)', () => {
+    const r = applyFilters([
+      makeJob({
+        title: 'Senior Frontend Engineer',
+        location: 'Remote - US',
+        body: 'We are US-based but hire across Europe and EMEA. react typescript remote',
+      }),
+    ]);
+    expect(r.droppedHard).toBe(0);
+  });
+
+  it('does not drop a remote posting over an incidental, non-geographic "must be"', () => {
+    const r = applyFilters([
+      makeJob({
+        title: 'Senior Frontend Engineer',
+        location: 'Remote',
+        body: 'You must be a strong communicator and team player. react typescript remote',
+      }),
+    ]);
+    expect(r.droppedHard).toBe(0);
+  });
+
+  it('drops a posting that requires US work authorization (a real requirement)', () => {
+    const r = applyFilters([
+      makeJob({
+        location: 'Remote',
+        body: 'Must be authorized to work in the United States. react typescript remote',
+      }),
+    ]);
+    expect(r.droppedHard).toBe(1);
+    expect(r.droppedByRule.hard_location_incompatible).toBe(1);
+  });
+
+  it('keeps a plain "Remote" posting with no region named (company location is irrelevant)', () => {
+    const r = applyFilters([
+      makeJob({ location: 'Remote', body: 'react typescript next.js remote' }),
+    ]);
+    expect(r.droppedHard).toBe(0);
+    expect(r.kept).toHaveLength(1);
+  });
+
+  it('keeps generic remote/worldwide synonyms even without an accepted-region word', () => {
+    const locations = [
+      'Global',
+      'Worldwide',
+      'Distributed',
+      'Fully remote',
+      'Remote anywhere',
+      'Remote (Anywhere)',
+      'Remote - Global',
+    ];
+    for (const location of locations) {
+      const r = applyFilters([makeJob({ location, body: 'react typescript remote' })]);
+      expect(r.droppedHard, `expected "${location}" to be kept`).toBe(0);
+    }
+  });
+
+  it('drops a non-US out-of-region label too (LATAM) — the rule is not US-specific', () => {
+    const r = applyFilters([
+      makeJob({ location: 'Remote - LATAM', body: 'react typescript remote' }),
+    ]);
+    expect(r.droppedHard).toBe(1);
+    expect(r.droppedByRule.hard_location_incompatible).toBe(1);
+  });
+});
+
+// The bias the old hard_us_or_onsite rule baked in: it dropped US/onsite jobs
+// for everyone, which is backwards for a US-based candidate. The geo rule is now
+// driven entirely by profile.location, so swapping the profile swaps the outcome
+// with no code change. This test would have caught the original US-centric bias.
+describe('applyFilters — geo rule is persona-neutral (no privileged country)', () => {
+  const usProfile = {
+    ...testProfile,
+    location: {
+      basedIn: 'United States',
+      workTypes: ['remote', 'hybrid'],
+      acceptedRegions: ['united states', 'usa', 'us', 'north america', 'new york'],
+      excludeOutsideAcceptedRegions: true,
+    },
+  } as unknown as FilterProfile;
+  const us = createFilters(usProfile).applyFilters;
+  const eu = applyFilters; // the fixture is an EU (Spain) profile
+
+  const usJob = () =>
+    makeJob({
+      title: 'Senior Frontend Engineer',
+      location: 'Remote — US',
+      body: 'You must be authorized to work in the United States. react typescript next.js anthropic claude.',
+    });
+  const euJob = () =>
+    makeJob({
+      title: 'Senior Frontend Engineer',
+      location: 'Remote — Europe',
+      body: 'You must be based in the EU. react typescript next.js anthropic claude.',
+    });
+
+  it('US profile keeps the US job and drops the Europe-only job', () => {
+    expect(us([usJob()]).kept).toHaveLength(1);
+    expect(us([euJob()]).kept).toHaveLength(0);
+  });
+
+  it('EU profile drops the US job and keeps the Europe job — same code, opposite outcome', () => {
+    expect(eu([usJob()]).kept).toHaveLength(0);
+    expect(eu([euJob()]).kept).toHaveLength(1);
   });
 
   it('drops customer support engineer (compound non-eng)', () => {
@@ -276,17 +385,25 @@ describe('applyFilters — scoring', () => {
     }
   });
 
-  it('applies -10 US-centric penalty when no remote-worldwide language', () => {
-    const r = applyFilters([
+  it('applies the out-of-region penalty (not a hard drop) when excludeOutsideAcceptedRegions is off', () => {
+    // Same EU fixture but soft-mode: out-of-region jobs are penalized, not dropped.
+    const softProfile = {
+      ...testProfile,
+      location: {
+        ...(testProfile as unknown as FilterProfile).location,
+        excludeOutsideAcceptedRegions: false,
+      },
+    } as unknown as FilterProfile;
+    const soft = createFilters(softProfile).applyFilters;
+    const r = soft([
       makeJob({
-        title: 'Senior Engineer',
-        body: 'react typescript. Must be located in the United States. EST hours required.',
+        title: 'Senior Frontend Engineer',
+        body: 'react typescript next.js anthropic claude. Must be located in the United States. EST hours required.',
         location: 'New York',
       }),
     ]);
-    if (r.kept.length > 0) {
-      expect(r.kept[0]?._signals?.usCentricPenalty).toBe(-10);
-    }
+    expect(r.kept).toHaveLength(1);
+    expect(r.kept[0]?._signals?.outOfRegionPenalty).toBe(-10);
   });
 
   it('drops jobs with fitScore < 30', () => {
