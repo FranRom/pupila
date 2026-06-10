@@ -17,7 +17,10 @@ export interface RenderStats {
   removedByTitle: number;
 }
 
-const SOURCES: Source[] = [
+// Display order for the by-source counts in JOBS.md (best-quality first) — its
+// own ordering, but `as const satisfies` + the exhaustiveness check below make
+// it a compile error to omit (or misspell) any Source from `src/types.ts`.
+const SOURCES = [
   'aave',
   'ashby-private',
   'ashby',
@@ -31,7 +34,16 @@ const SOURCES: Source[] = [
   'remotive',
   'weworkremotely',
   'remoteok',
-];
+  'bluedoor',
+] as const satisfies readonly Source[];
+
+// Fails to compile if any Source is missing from the display list above.
+type _RenderSourcesExhaustive =
+  Exclude<Source, (typeof SOURCES)[number]> extends never
+    ? true
+    : ['render SOURCES missing a Source value', Exclude<Source, (typeof SOURCES)[number]>];
+const _renderSourcesExhaustive: _RenderSourcesExhaustive = true;
+void _renderSourcesExhaustive;
 
 const CATEGORIES: Category[] = ['web3+ai', 'web3', 'ai', 'general'];
 

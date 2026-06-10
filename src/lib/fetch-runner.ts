@@ -12,25 +12,13 @@
 
 import { type ChildProcess, spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
+import { SOURCES, type Source } from '../types.js';
 
 export type RunStatus = 'idle' | 'running' | 'done' | 'error';
 export type SourceState = 'pending' | 'running' | 'done' | 'partial' | 'error';
 
-export const KNOWN_SOURCES: readonly string[] = [
-  'remoteok',
-  'remotive',
-  'weworkremotely',
-  'cryptojobslist',
-  'web3career',
-  'aijobsnet',
-  'hn-hiring',
-  'hn-jobs',
-  'greenhouse',
-  'ashby',
-  'lever',
-  'aave',
-  'ashby-private',
-];
+// Derived from the canonical `Source` list — can never drift out of sync.
+export const KNOWN_SOURCES: readonly Source[] = SOURCES;
 
 export interface SourceEntry {
   name: string;

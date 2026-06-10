@@ -34,6 +34,7 @@ The stuff that makes the daily routine actually pleasant:
 - **Application tracking.** Click a status pill on any row (`📝 applied / 💬 interview / 🎯 offer / ❌ rejected / ⏸ withdrawn`) — saves to `config/applied.json` and feeds the "📋 Application status" section at the top of `JOBS.md`.
 - **8-panel Settings dashboard** — switch LLM CLI / install or remove the scheduler / regenerate scoring profile / inspect the last run / check disk usage / clean / view environment / monitor the apply queue, all from `pnpm run ui` → Settings.
 - **Talk to your data from an AI client.** Optional MCP server exposes every actionable UI surface (filter jobs, mark applied, enqueue AI Apply, trigger a refresh, regenerate the scoring profile) to Claude Code / Claude Desktop / Cursor via 17 typed tools. One command (`bash scripts/install-mcp.sh`) wires it in.
+- **Reach past the curated boards.** The `bluedoor` source taps a free aggregator over ~1.6M postings across 31 ATS providers (Workday, iCIMS, Oracle, ADP, …) you can't query directly — pulled by *your* accepted regions, with companies you already follow auto-skipped so it only adds long-tail listings.
 - **RSS feed.** `data/feed.xml` gets every "✨ new" job — point any RSS reader at the local `file://` path.
 - **Local-first by design.** No API keys, no cloud, no hosted scheduler. The LLM features use *your* existing `claude` / `codex` / `gemini` / `opencode` subscription via the CLI. Your CV, brief, and applied list never leave the machine.
 
@@ -69,7 +70,7 @@ Eyeball the brief and edit anything that needs tweaking — this natural-languag
 
 ## How it works
 
-A config-driven, **local-first** daily job aggregator. Pulls listings from a dozen-plus public sources (job boards, RSS feeds, Hacker News, three ATSes — Greenhouse, Ashby, Lever — plus a custom Aave scraper and an Ashby-private GraphQL fetcher; adding a new source is one file), normalizes them into a single shape, scores each one against **your** profile (defined in [`config/profile.json`](./config/profile.json)), deduplicates, and writes the result to your local checkout.
+A config-driven, **local-first** daily job aggregator. Pulls listings from a dozen-plus public sources (job boards, RSS feeds, Hacker News, three ATSes — Greenhouse, Ashby, Lever — a custom Aave scraper, an Ashby-private GraphQL fetcher, and **bluedoor**, a free cross-ATS aggregator (~1.6M postings) queried by your accepted regions; adding a new source is one file), normalizes them into a single shape, scores each one against **your** profile (defined in [`config/profile.json`](./config/profile.json)), deduplicates, and writes the result to your local checkout.
 
 Designed to be **cloned and run locally**. No hosted scheduler, no public dashboard, no external services. Anyone — frontend, backend, mobile, data, infra, any seniority, any region — sets their role via:
 
@@ -165,13 +166,15 @@ How the matching works, in plain terms — **a remote job is kept unless it *req
 
 This is **fully neutral** — no country is special. A Spain-based profile drops US-only jobs; a US-based profile drops Europe-only jobs; both run the same code. The **"Only show jobs in my accepted regions"** toggle controls strictness: on = drop out-of-region jobs; off = keep them but rank them lower.
 
+> **Your regions also drive the `bluedoor` source.** Besides filtering, **Based in** + **Accepted regions** are the search terms used to query the bluedoor aggregator (one search per region). Widen your accepted regions and bluedoor reaches further; a neutral/empty location simply pulls nothing from it. No geography is hardcoded — the same code works for any country.
+
 Re-run after editing the brief by going to **Settings → Scoring profile → Regenerate** (or POST `/api/profile-generate`). To hand-tune, edit `config/profile.json` directly — your edits won't be overwritten unless you regenerate.
 
 Tweak, run `pnpm run dev`, inspect `JOBS.md`, repeat.
 
 ### 4. Update the company slug list
 
-Edit [`config/slugs.json`](./config/slugs.json) to add Ashby / Greenhouse / Lever slugs you want to follow. Slugs come from the URL of the careers page (`jobs.ashbyhq.com/<slug>`, `boards.greenhouse.io/<slug>`, `jobs.lever.co/<slug>`). 404s are silently skipped, so trial-and-error is safe.
+Edit [`config/slugs.json`](./config/slugs.json) to add Ashby / Greenhouse / Lever slugs you want to follow. Slugs come from the URL of the careers page (`jobs.ashbyhq.com/<slug>`, `boards.greenhouse.io/<slug>`, `jobs.lever.co/<slug>`). 404s are silently skipped, so trial-and-error is safe. Adding a slug here also **auto-excludes that company from `bluedoor`** — the dedicated fetcher is authoritative, so you never get a duplicate from the aggregator.
 
 ### 5. Schedule the daily run
 
@@ -319,7 +322,7 @@ Each fetcher is isolated: it catches its own errors and returns an empty `items`
 
 ## Sources
 
-The three ATS fetchers (Ashby, Greenhouse, Lever) carry the bulk of the high-quality signal — each iterates a curated tier-S slug list. The other sources backfill long-tail listings.
+The three ATS fetchers (Ashby, Greenhouse, Lever) carry the bulk of the high-quality signal — each iterates a curated tier-S slug list. The other sources backfill long-tail listings. **bluedoor** is a different shape: a free aggregator spanning ~1.6M postings across 31 ATS providers (Workday, iCIMS, Oracle, ADP, …) we can't reach directly. It's queried region-by-region from your `profile.location` (no hardcoded geography), skips companies already covered by a dedicated fetcher, and sits at the lowest dedup priority so curated copies always win. **Works fully on the anonymous tier — no signup required.** To raise the per-run request budget, optionally export an API key in your shell (`export BLUEDOOR_API_KEY=…`); it's free via email OTP (no card). The fetcher reads it from the environment and falls back to anonymous when it's unset.
 
 | Source | Type | Endpoint |
 |---|---|---|
@@ -336,6 +339,7 @@ The three ATS fetchers (Ashby, Greenhouse, Lever) carry the bulk of the high-qua
 | [aijobsnet](./src/fetchers/aijobsnet.ts) | HTML scraper | `aijobs.net` (global + EU pages) |
 | [hn-hiring](./src/fetchers/hn-hiring.ts) | Algolia API | latest "Ask HN: Who is hiring" thread |
 | [hn-jobs](./src/fetchers/hn-jobs.ts) | Algolia API | `hn.algolia.com/api/v1/search_by_date?tags=job` |
+| [bluedoor](./src/fetchers/bluedoor.ts) | JSON API (aggregator, ~1.6M postings / 31 ATS) | `api.bluedoor.sh/job-postings/v1/jobs/search` — region fan-out from `profile.location` |
 
 The Ashby tier-S list covers the AI frontier (OpenAI, Mistral, Cohere, Perplexity, Cursor, ElevenLabs, Modal, LangChain, LangFuse, LlamaIndex, OpenRouter, Pinecone, Supabase, Neon, Clerk, PostHog, Browserbase, Replit, Runway, Notion, Anyscale, BaseTen, Character, Weaviate) plus web3 (Linear, Ramp, Uniswap, Mysten Labs, Paradigm, Polygon Labs, Base, Blockworks, Succinct, Espresso, Phantom, Polymarket, Alchemy, Stacks, Morpho, Magic Eden, LiFi). Greenhouse adds Anthropic, Vercel, Mercury, Coinbase. Lever adds Binance, Ledger, CoinGecko, CoinMarketCap, Safe, Arbitrum Foundation. Custom first-party coverage: Aave via a Next.js `__NEXT_DATA__` scraper, and Chainlink Labs via the `ashby-private` fetcher (Ashby's private GraphQL endpoint — same fetcher generalized to a slug array, so any future org whose public posting-API is disabled is a one-line config add).
 

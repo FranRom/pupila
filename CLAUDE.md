@@ -15,7 +15,7 @@ Guidance for future Claude Code sessions working in this repo. **Slim by design*
 
 ## Overview
 
-`pupila` is a **config-driven, forkable** daily job aggregator. Fetches from 13 public sources (3 ATS APIs — Ashby, Greenhouse, Lever — plus RSS, JSON boards, Hacker News, HTML scrapers, an Aave Next.js scraper, and `ashby-private` for orgs whose public posting-API is disabled), normalizes them, applies hard exclusion filters, computes a per-job `fitScore`, deduplicates, and writes `data/jobs.json`, an RSS feed at `data/feed.xml`, and an auto-regenerated `JOBS.md`. **`README.md` is hand-maintained — never overwrite it from code.** No external services, no DB.
+`pupila` is a **config-driven, forkable** daily job aggregator. Fetches from 14 public sources (3 ATS APIs — Ashby, Greenhouse, Lever — plus RSS, JSON boards, Hacker News, HTML scrapers, an Aave Next.js scraper, `ashby-private` for orgs whose public posting-API is disabled, and `bluedoor` — a free aggregator over ~1.6M postings/31 ATS, queried by `profile.location`), normalizes them, applies hard exclusion filters, computes a per-job `fitScore`, deduplicates, and writes `data/jobs.json`, an RSS feed at `data/feed.xml`, and an auto-regenerated `JOBS.md`. **`README.md` is hand-maintained — never overwrite it from code.** No external services, no DB.
 
 Cross-cutting invariants (apply repo-wide):
 
@@ -32,7 +32,7 @@ Cross-cutting invariants (apply repo-wide):
 | Runtime / language | Node 22 LTS, ESM, TypeScript 6 (NodeNext) |
 | Linter / formatter | Biome 2.4 (single config in `biome.json`) |
 | Package manager | pnpm 11 (`minimumReleaseAge: 1d`, `strictDepBuilds: true` — supply-chain hardening) |
-| Test runner | Vitest 4 (`tests/`, 330 cases) |
+| Test runner | Vitest 4 (`tests/`, `*.test.ts` glob) |
 | Pre-commit | simple-git-hooks (`lint && typecheck && lint:ui-patterns`) |
 | Runtime deps | `fast-xml-parser` (RSS), `mammoth` + `pdfjs-dist` (CV parsing), `proper-lockfile` (apply-queue R-M-W lock). Native `fetch` only — no HTTP client lib. |
 
@@ -71,7 +71,7 @@ pnpm run mcp                          # MCP server over stdio
 | `config/` | `slugs.json`, `profile.{default,}.json`, `applied.json`, brief, preferences |
 | `ui/` | Local-only React dashboard (see `ui/CLAUDE.md`) |
 | `scripts/` | Apply worker, installers (launchd/cron/mcp), clean |
-| `tests/` | 330 vitest cases, fixtures in `tests/fixtures/` |
+| `tests/` | vitest cases, fixtures in `tests/fixtures/` |
 | `.claude/skills/` | Project skills (`pupila-*`) ship; provider-generic skills are local-only |
 
 ## Orchestrator flow
@@ -80,7 +80,7 @@ pnpm run mcp                          # MCP server over stdio
 
 1. **CV gate** — fail-fast if `config/candidate-brief.md` missing (bypass: `PUPILA_NO_BRIEF_CHECK=1` or `--no-brief-check`).
 2. **Profile bootstrap** — `bootstrapProfileIfMissing()` copies `config/profile.default.json` → `profile.json` on first run.
-3. **Fetch** — all 13 sources in parallel via `processFetcher()` + `Promise.all`. Each fetcher returns `{ items, errors }` and **never throws** (a rejection would kill the whole run).
+3. **Fetch** — all 14 sources in parallel via `processFetcher()` + `Promise.all`. Each fetcher returns `{ items, errors }` and **never throws** (a rejection would kill the whole run).
 4. **Normalize** — per-source `normalize<Source>()` → `Job[]`. Salary fields populated via `withSalary()` spread.
 5. **Filter + score** — `applyFilters()` in `src/filters.ts`: hard drops → boilerplate strip → soft scoring (cap 100) → optional out-of-region penalty → drop below `minScoreToKeep` → category. Geo handling is persona-neutral, driven by the `location` block in `config/profile.json` (see `pupila-filters` skill).
 6. **Dedup + sort** — `compareJobs` 4-key chain in `src/dedup.ts` (source-priority tiebreak).
@@ -160,7 +160,7 @@ The README tool-reference table is hand-maintained — every tool change MUST al
 
 ## Tests
 
-Vitest, 330 cases across `tests/` (`*.test.ts` glob). Run via `pnpm test` or `pnpm run test:watch`. `tsconfig.test.json` extends `tsconfig.json` with `rootDir: "."` so tests/ don't leak into the build. When tuning a regex or weight, update tests in the same commit.
+Vitest, across `tests/` (`*.test.ts` glob). Run via `pnpm test` or `pnpm run test:watch`. `tsconfig.test.json` extends `tsconfig.json` with `rootDir: "."` so tests/ don't leak into the build. When tuning a regex or weight, update tests in the same commit.
 
 ## GitHub Actions
 

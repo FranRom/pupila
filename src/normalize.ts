@@ -1,3 +1,4 @@
+import { parseAtsUrl } from './fetchers/bluedoor.js';
 import { rssLink } from './rss.js';
 import { parseSalary } from './salary.js';
 import type {
@@ -6,6 +7,7 @@ import type {
   RawAiJobs,
   RawAshbyJobWithSlug,
   RawAshbyPrivateJobWithSlug,
+  RawBluedoorJob,
   RawGreenhouseJobWithSlug,
   RawHnHiringPost,
   RawHnHit,
@@ -500,6 +502,107 @@ export function normalizeAave(items: RawAavePost[], fetchedAt: string): Job[] {
       fitScore: 0,
       category: 'general',
     };
+  });
+}
+
+// Annualization factors so per-hour/day/week/month comp sorts against per-year
+// comp instead of sinking below it. Conservative working-period assumptions.
+const SALARY_PERIOD_FACTOR: Record<string, number> = {
+  year: 1,
+  annual: 1,
+  yearly: 1,
+  month: 12,
+  monthly: 12,
+  week: 52,
+  weekly: 52,
+  day: 260,
+  daily: 260,
+  hour: 2080,
+  hourly: 2080,
+};
+
+function bluedoorSalary(
+  min: number | null | undefined,
+  max: number | null | undefined,
+  currency: string | null | undefined,
+  period: string | null | undefined,
+): {
+  salary: string | null;
+  salaryMin: number | null;
+  salaryMax: number | null;
+  salaryCurrency: string | null;
+} {
+  const hasMin = typeof min === 'number' && Number.isFinite(min);
+  const hasMax = typeof max === 'number' && Number.isFinite(max);
+  if (!hasMin && !hasMax) {
+    return { salary: null, salaryMin: null, salaryMax: null, salaryCurrency: null };
+  }
+  const factor = SALARY_PERIOD_FACTOR[(period ?? 'year').toLowerCase()] ?? 1;
+  const annMin = hasMin ? Math.round(min * factor) : null;
+  const annMax = hasMax ? Math.round(max * factor) : null;
+  const ccy = currency?.trim() || null;
+  const fmt = (n: number) => (n >= 1000 ? `${Math.round(n / 1000)}K` : `${n}`);
+  const parts = [annMin, annMax].filter((n): n is number => n !== null).map(fmt);
+  const salary = parts.length ? `${parts.join('-')}${ccy ? ` ${ccy}` : ''}`.trim() : null;
+  return { salary, salaryMin: annMin, salaryMax: annMax, salaryCurrency: ccy };
+}
+
+// bluedoor ships no company name — recover it from the ATS slug in the URL, else
+// fall back to the stable org_id so different employers never collapse together
+// in the company+title dedup pass.
+function bluedoorCompany(j: RawBluedoorJob): string | null {
+  const ref = parseAtsUrl(j.apply_url ?? j.source_url);
+  if (ref) return slugToCompany(ref.slug);
+  return j.org_id?.trim() || null;
+}
+
+export function normalizeBluedoor(items: RawBluedoorJob[], fetchedAt: string): Job[] {
+  return items.flatMap((j) => {
+    const url = (j.apply_url || j.source_url || '').trim();
+    const title = j.title?.trim();
+    if (!url || !title) return [];
+    const locationText = j.location_text?.trim() || null;
+    // location_text is the region signal (often messy/multi-region) — keep it in
+    // the body so the persona-neutral geo filter can match accepted regions; the
+    // display `location` prefers the concise structured fields.
+    const displayLocation =
+      [j.city, j.region, j.country]
+        .map((s) => s?.trim())
+        .filter(Boolean)
+        .join(', ') || locationText;
+    const remote =
+      j.workplace_type?.toLowerCase() === 'remote' ||
+      j.remote_policy?.toLowerCase() === 'remote' ||
+      inferRemote(locationText);
+    const body = asPlain(
+      [j.description_text, locationText].filter((x): x is string => Boolean(x)).join('\n\n'),
+    );
+    const tags = joinTags([
+      j.provider,
+      j.department,
+      j.team,
+      j.employment_type,
+      j.workplace_type,
+      j.country,
+    ]);
+    return [
+      {
+        id: makeId('bluedoor', url, j.job_id),
+        source: 'bluedoor',
+        title,
+        company: bluedoorCompany(j),
+        url,
+        location: displayLocation,
+        remote,
+        body,
+        tags,
+        ...bluedoorSalary(j.salary_min, j.salary_max, j.salary_currency, j.salary_period),
+        postedAt: safeIso(j.source_posted_at) ?? safeIso(j.first_seen_at),
+        fetchedAt,
+        fitScore: 0,
+        category: 'general',
+      } satisfies Job,
+    ];
   });
 }
 

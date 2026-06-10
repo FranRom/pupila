@@ -5,7 +5,7 @@ metadata:
   scope: pupila
 ---
 
-The pipeline ingests from 13 public sources (3 ATS APIs + RSS, JSON boards, HN, HTML scrapers, an Aave Next.js scraper, and `ashby-private` for orgs whose public posting-API is disabled). Adding a source means: a fetcher, a normalizer, a `Source` literal, a slot in the orchestrator, and dedup/render wiring.
+The pipeline ingests from 14 public sources (3 ATS APIs + RSS, JSON boards, HN, HTML scrapers, an Aave Next.js scraper, `ashby-private` for orgs whose public posting-API is disabled, and `bluedoor` — a free cross-ATS aggregator queried by region from `profile.location`). Adding a source means: a fetcher, a normalizer, a `Source` literal, a slot in the orchestrator, and dedup/render wiring.
 
 **Companion invariants:** `src/fetchers/CLAUDE.md` (auto-loaded when working in that dir) — security checklist + must-obey rules. Read those rules; this skill covers the procedural side.
 
@@ -16,12 +16,15 @@ The pipeline ingests from 13 public sources (3 ATS APIs + RSS, JSON boards, HN, 
    - Use `fetchWithTimeout` / `fetchJson` / `fetchText` from `src/utils.ts` (30s timeout, 1 retry on 5xx/network).
    - Pass `JSON_HEADERS` or `RSS_HEADERS`.
    - For multi-slug fetchers, use `fetchMultiSlug` from `src/fetchers/_shared.ts` — it owns the `Promise.all` + per-slug try/catch + flatMap. The fetcher only owns per-slug extraction. Canonical examples: `ashby.ts`, `greenhouse.ts`, `lever.ts`.
-3. **Source union** — add the literal name to `Source` in `src/types.ts`.
+3. **Canonical source name** — add the literal to the `SOURCES` **const tuple** in `src/types.ts` (single source of truth; `type Source` derives from it). This one edit cascades: the MCP `sourceEnum`, `KNOWN_SOURCES` in `src/lib/fetch-runner.ts`, and the UI fetch-progress panel (`ui/plugins/fetchJobs.ts`) all derive from it automatically — **don't** hand-edit those.
 4. **Normalize** — add `normalize<Name>(items, fetchedAt): Job[]` to `src/normalize.ts`. Use `withSalary()` spread to populate `salary*` fields.
 5. **Wire orchestrator** — `src/index.ts`: import + add a line in the `Promise.all` block via `processFetcher(...)`.
-6. **Dedup priority** — add to `SOURCE_PRIORITY` in `src/dedup.ts` (ordered most → least trusted).
-7. **Render** — add to `SOURCES` in `src/render.ts` so by-source counts appear in `JOBS.md`.
-8. **Tests** — at least one parser test in `tests/` for HTML scrapers. Use existing files (`aave.test.ts`, `ashby-private.test.ts`, `normalize-hn.test.ts`) as templates.
+6. **Dedup priority** — add to `SOURCE_PRIORITY` in `src/dedup.ts` (ordered most → least trusted). Compile-enforced: `Record<Source, …>` fails to build if you skip it.
+7. **Render** — add to the display-ordered `SOURCES` in `src/render.ts` so by-source counts appear in `JOBS.md`. Compile-enforced: the `satisfies` + exhaustiveness guard below the array fails to build if you skip it.
+8. **UI client mirror** — add the literal to the `Source` union in `ui/src/types.ts` (a deliberate mirror that must NOT import from `src/*`). Guarded by `tests/source-lists.test.ts`, which fails if it drifts from the canonical tuple.
+9. **Tests** — at least one parser test in `tests/` for HTML scrapers. Use existing files (`aave.test.ts`, `ashby-private.test.ts`, `normalize-hn.test.ts`, `bluedoor.test.ts`) as templates.
+
+> **Source lists are guarded, not duplicated.** After step 3, steps 6–8 are the only other places that need a manual entry, and every one fails the build or a test if you forget — see `tests/source-lists.test.ts` and the guards in `src/render.ts` / `src/dedup.ts`. You can't silently half-wire a source anymore.
 
 ### Smoke-test before wiring
 
@@ -61,9 +64,19 @@ curl -sI "https://api.lever.co/v0/postings/<slug>?mode=json"
 
 ## Source-priority order (current)
 
-`aave = ashby-private > ashby > lever > greenhouse > cryptojobslist > web3career > aijobsnet > hn-hiring > hn-jobs > remotive > weworkremotely > remoteok`
+`aave = ashby-private > ashby > lever > greenhouse > cryptojobslist > web3career > aijobsnet > hn-hiring > hn-jobs > remotive > weworkremotely > remoteok > bluedoor`
 
-Used by dedup tiebreaker. Newly-added sources slot in based on data quality + ATS reliability.
+Used by dedup tiebreaker. Newly-added sources slot in based on data quality + ATS reliability. `bluedoor` is **lowest** on purpose: it re-carries many curated-ATS jobs, so on any company+title overlap the dedicated fetcher must win.
+
+## bluedoor (cross-ATS aggregator)
+
+`src/fetchers/bluedoor.ts` is structurally unlike the others — it's a free API over ~1.6M postings across 31 ATS providers, driven entirely by `profile.location` (no hardcoded geography, so it's forkable). Key invariants discovered against the live API:
+
+- **Region fan-out, no `q`/`workplace_type` filter.** One `location_text=` query per `acceptedRegions ∪ basedIn` term. `q` is an AND/phrase match (multi-term → 0 hits) and `workplace_type` is null on ~30% of records, so filtering on it drops genuinely-remote jobs. Work-type/role relevance is decided downstream by the persona-neutral filter.
+- **Anonymous rate limit is 15 requests/window** (`x-rate-limit-tier: anonymous`). `fetchBluedoor` caps at 12 region queries; `BLUEDOOR_API_KEY` (free, email-OTP) raises the ceiling (`KEYED_MAX_REQUESTS`).
+- **30-day `posted_after` window** so infrequent runs don't miss jobs; `limit=100` (API max) + a 2-page cap bound even huge regions (US `location_text` matches 600k+ all-time → tens with the window).
+- **No company name shipped** — only `org_id` (UUID) + `provider`. `parseAtsUrl()` recovers the employer from the ATS slug in the URL (so it matches curated fetchers for dedup); falls back to `org_id` so different employers never collapse in company+title dedup.
+- **Covered-company pre-skip:** `buildCoveredSlugs(slugs.json)` + `isCoveredCompany()` drop jobs whose `(provider, slug)` is already fetched directly — automatic, no extra config.
 
 ## Known upstream issues
 

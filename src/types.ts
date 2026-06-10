@@ -1,17 +1,26 @@
-export type Source =
-  | 'remoteok'
-  | 'remotive'
-  | 'weworkremotely'
-  | 'cryptojobslist'
-  | 'web3career'
-  | 'aijobsnet'
-  | 'hn-hiring'
-  | 'hn-jobs'
-  | 'greenhouse'
-  | 'ashby'
-  | 'lever'
-  | 'aave'
-  | 'ashby-private';
+// SINGLE SOURCE OF TRUTH for source names. Every other source list — dedup
+// priority (`Record<Source, …>`), render display order, the MCP enum, the
+// fetch-progress panels (`KNOWN_SOURCES` in `src/lib/fetch-runner.ts` and the UI
+// plugin), and the UI client's `Source` — derives from or is compile-checked
+// against this tuple. Adding a source is a one-line edit here.
+export const SOURCES = [
+  'remoteok',
+  'remotive',
+  'weworkremotely',
+  'cryptojobslist',
+  'web3career',
+  'aijobsnet',
+  'hn-hiring',
+  'hn-jobs',
+  'greenhouse',
+  'ashby',
+  'lever',
+  'aave',
+  'ashby-private',
+  'bluedoor',
+] as const;
+
+export type Source = (typeof SOURCES)[number];
 
 export type Category = 'web3' | 'ai' | 'web3+ai' | 'general';
 
@@ -363,6 +372,41 @@ export interface RawAavePost {
   location?: string | null;
   commitment?: string | null;
   workplaceType?: string | null;
+}
+
+/**
+ * A job posting from the bluedoor Job Postings API (`/v1/jobs/search`). bluedoor
+ * aggregates ~1.6M postings across 31 ATS providers but ships **no company
+ * name** — only `org_id` (a UUID) and the ATS `provider`. The employer is
+ * recovered from the ATS slug in `source_url`/`apply_url` (see `parseAtsUrl`),
+ * falling back to `org_id`. `location_text` is free-text and can cram many
+ * regions into one string — normalize defensively, prefer it over `country`
+ * (which reflects company HQ, not the role's region).
+ */
+export interface RawBluedoorJob {
+  job_id: string;
+  org_id?: string | null;
+  provider?: string | null;
+  title: string;
+  location_text?: string | null;
+  workplace_type?: string | null;
+  remote_policy?: string | null;
+  country?: string | null;
+  region?: string | null;
+  city?: string | null;
+  department?: string | null;
+  team?: string | null;
+  employment_type?: string | null;
+  salary_min?: number | null;
+  salary_max?: number | null;
+  salary_currency?: string | null;
+  /** year | month | week | day | hour — used to annualize min/max for sorting. */
+  salary_period?: string | null;
+  source_url?: string | null;
+  apply_url?: string | null;
+  source_posted_at?: string | null;
+  first_seen_at?: string | null;
+  description_text?: string | null;
 }
 
 export interface FetcherResult<T> {
