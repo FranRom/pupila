@@ -37,9 +37,11 @@ export function LastRunPanel({ runSummary }: LastRunPanelProps) {
         <>
           <div className={styles.totals}>
             <Stat label="Kept" value={runSummary.total.toLocaleString()} accent />
-            {(['web3+ai', 'web3', 'ai', 'general'] as const).map((c) => (
-              <Stat key={c} label={c} value={(runSummary.byCategory[c] ?? 0).toLocaleString()} />
-            ))}
+            {Object.entries(runSummary.byCategory)
+              .filter(([, n]) => n > 0)
+              .map(([id, n]) => (
+                <Stat key={id} label={id} value={n.toLocaleString()} />
+              ))}
           </div>
           <ul className={styles.sourceList}>
             {runSummary.bySource.map((s) => (

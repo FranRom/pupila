@@ -40,8 +40,8 @@ describe('MCP integration — SDK client ↔ server over in-memory transport', (
     const url = 'https://e2e.example/a-job';
     fx = await buildFixture({
       jobs: [
-        makeJob({ url, fitScore: 88, category: 'web3' }),
-        makeJob({ url: 'https://e2e.example/b-job', fitScore: 65, category: 'ai' }),
+        makeJob({ url, fitScore: 88, categories: ['web3'] }),
+        makeJob({ url: 'https://e2e.example/b-job', fitScore: 65, categories: ['ai'] }),
       ],
       applied: [{ url, status: 'interview', date: '2026-05-12' }],
       jobsBodies: { [jobIdFor(url)]: 'full body content for the e2e job' },

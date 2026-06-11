@@ -37,13 +37,13 @@ describe('runListJobs', () => {
     beforeEach(async () => {
       fx = await buildFixture({
         jobs: [
-          makeJob({ url: 'https://x.io/1', category: 'web3', fitScore: 90, source: 'ashby' }),
-          makeJob({ url: 'https://x.io/2', category: 'ai', fitScore: 70, source: 'lever' }),
-          makeJob({ url: 'https://x.io/3', category: 'general', fitScore: 40, source: 'ashby' }),
+          makeJob({ url: 'https://x.io/1', categories: ['web3'], fitScore: 90, source: 'ashby' }),
+          makeJob({ url: 'https://x.io/2', categories: ['ai'], fitScore: 70, source: 'lever' }),
+          makeJob({ url: 'https://x.io/3', categories: [], fitScore: 40, source: 'ashby' }),
           makeJob({
             url: 'https://x.io/4',
             title: 'Lead Backend Engineer',
-            category: 'general',
+            categories: [],
             fitScore: 55,
             source: 'greenhouse',
           }),
@@ -56,7 +56,7 @@ describe('runListJobs', () => {
       const result = await runListJobs(input, pathsFor(fx));
       const payload = parseToolJson(result.content) as ListJobsResponse;
       expect(payload.matched).toBe(1);
-      expect(payload.jobs[0]?.category).toBe('ai');
+      expect(payload.jobs[0]?.categories).toContain('ai');
     });
 
     it('filters by source', async () => {

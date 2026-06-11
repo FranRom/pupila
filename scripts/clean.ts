@@ -32,6 +32,12 @@ const LOG_PATTERNS: readonly RegExp[] = [/^launchd-.*\.log$/, /^cron-.*\.log$/];
 const FILES_PERSONAL: readonly string[] = [
   'config/candidate-brief.md',
   'config/applied.json',
+  // The personalized scoring profile (weights, keyword lists, categories,
+  // roles, location). Gitignored + bootstrapped from config/profile.default.json
+  // on first run, so a genuine fresh clone has no profile.json — wiping it on
+  // --all makes the reset truly clone-equivalent and re-bootstraps the current
+  // default schema on the next run.
+  'config/profile.json',
   // User-curated state from the Jinder swipe deck.
   'data/swipe-skips.json',
 ];
@@ -109,7 +115,7 @@ function main(): void {
     for (const f of FILES_PERSONAL) console.log(`  ${f}`);
     console.log('');
     console.log('--all          fresh-clone reset: removes the personal files above (brief, applied list,');
-    console.log('               swipe-skips), the contents of data/applications/, AND the onboarding');
+    console.log('               scoring profile, swipe-skips), the contents of data/applications/, AND onboarding');
     console.log('               state (preferences.json + raw CV). The first-run wizard will re-trigger');
     console.log('               on next `pnpm run ui` load.');
     console.log('--onboarding   wipes ONLY onboarding state (preferences + brief + raw CV) so the');

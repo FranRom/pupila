@@ -73,17 +73,7 @@ describe('committed config/profile.default.json', () => {
   it('zeroes every personal weight in the default', async () => {
     await bootstrapProfileIfMissing({ defaultPath: REPO_DEFAULT, profilePath });
     const profile = await loadProfile(profilePath);
-    const personal = [
-      'web3TitleBody',
-      'web3Stack',
-      'aiTitleBody',
-      'aiStack',
-      'stackPrimary',
-      'stackRn',
-      'stackOther',
-      'roleTitle',
-      'roleBody',
-    ] as const;
+    const personal = ['stackPrimary', 'stackRn', 'stackOther', 'roleTitle', 'roleBody'] as const;
     for (const key of personal) {
       expect(profile.weights[key]).toBe(0);
     }
@@ -98,16 +88,7 @@ describe('committed config/profile.default.json', () => {
   it('leaves every personal keyword array empty in the default', async () => {
     await bootstrapProfileIfMissing({ defaultPath: REPO_DEFAULT, profilePath });
     const profile = await loadProfile(profilePath);
-    const personal = [
-      'w3TitleBody',
-      'w3Stack',
-      'aiTitleBody',
-      'aiStack',
-      'stackPrimary',
-      'stackRn',
-      'stackOther',
-      'titleExcludedSpecialties',
-    ] as const;
+    const personal = ['stackPrimary', 'stackRn', 'stackOther', 'titleExcludedSpecialties'] as const;
     for (const key of personal) {
       const value = profile.keywords[key];
       expect(Array.isArray(value)).toBe(true);

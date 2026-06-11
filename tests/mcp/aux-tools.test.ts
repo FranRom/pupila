@@ -36,7 +36,8 @@ describe('run_summary', () => {
       ageHours: number | null;
     };
     expect(payload.total).toBe(0);
-    expect(payload.byCategory).toEqual({ 'web3+ai': 0, web3: 0, ai: 0, general: 0 });
+    // Categories are dynamic now — no jobs means no keys (not a fixed zeroed set).
+    expect(payload.byCategory).toEqual({});
     expect(payload.bySource).toEqual([]);
     expect(payload.ageHours).toBeNull();
   });
@@ -44,10 +45,10 @@ describe('run_summary', () => {
   it('aggregates byCategory and bySource correctly', async () => {
     fx = await buildFixture({
       jobs: [
-        makeJob({ url: 'https://s.test/1', category: 'web3', source: 'ashby' }),
-        makeJob({ url: 'https://s.test/2', category: 'web3', source: 'lever' }),
-        makeJob({ url: 'https://s.test/3', category: 'ai', source: 'ashby' }),
-        makeJob({ url: 'https://s.test/4', category: 'general', source: 'remoteok' }),
+        makeJob({ url: 'https://s.test/1', categories: ['web3'], source: 'ashby' }),
+        makeJob({ url: 'https://s.test/2', categories: ['web3'], source: 'lever' }),
+        makeJob({ url: 'https://s.test/3', categories: ['ai'], source: 'ashby' }),
+        makeJob({ url: 'https://s.test/4', categories: [], source: 'remoteok' }),
       ],
     });
     const result = await runRunSummary({ jobsPath: fx.jobsPath });
@@ -59,7 +60,8 @@ describe('run_summary', () => {
     expect(payload.total).toBe(4);
     expect(payload.byCategory.web3).toBe(2);
     expect(payload.byCategory.ai).toBe(1);
-    expect(payload.byCategory.general).toBe(1);
+    // Jobs matching no category tally under 'other' (was 'general').
+    expect(payload.byCategory.other).toBe(1);
     expect(payload.bySource).toContainEqual({ name: 'ashby', kept: 2 });
     expect(payload.bySource).toContainEqual({ name: 'lever', kept: 1 });
     // Sorted desc by kept count.

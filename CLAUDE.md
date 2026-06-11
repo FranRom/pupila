@@ -23,7 +23,7 @@ Cross-cutting invariants (apply repo-wide):
 - **Mandatory CV gate**: `pnpm run dev` checks for `config/candidate-brief.md` at startup and exits 1 if missing. Bypass with `PUPILA_NO_BRIEF_CHECK=1` or `--no-brief-check`.
 - **`config/candidate-brief.md` is the only natural-language config** (gitignored). Generated via `pnpm run setup-brief --file ~/cv.pdf` or via the UI's Profile tab (drop PDF/DOCX/MD CV). CLI shells out to `claude`/`codex`/`gemini`/`opencode` — auto-detected, override `PUPILA_LLM=<provider>`.
 - **Local-first scheduling**: daily aggregation runs via `scripts/install-launchd.sh` (macOS) or `scripts/install-cron.sh` (Linux), not GitHub Actions cron. CI runs only on push/PR for gates.
-- **`data/applied.json` source of truth** for application tracking (UI writes via Vite middleware). Commit manually to persist across machines. **Don't filter applied jobs out of the main list** — user explicitly wants them visible.
+- **`config/applied.json` source of truth** for application tracking (gitignored personal data; the UI writes it via Vite middleware). It's your private application history, so it's NOT committed (that would leak it to anyone cloning the repo); copy the file if you need it on another machine. **Don't filter applied jobs out of the main list**: the user wants them visible.
 
 ## Stack
 
@@ -51,7 +51,8 @@ pnpm run ai-review                    # writes data/ai-reviews.json (--top=N, --
 pnpm run apply-worker                 # Jinder queue consumer (separate terminal)
 pnpm run setup-brief --file ~/cv.pdf  # generate config/candidate-brief.md from a CV
 pnpm run daily                        # = dev && ai-review (morning routine)
-pnpm run clean [-- --all]             # wipe locally-generated artifacts
+pnpm run clean                        # wipe locally-generated artifacts (keeps brief/applied/profile)
+pnpm run clean:all                    # fresh-clone reset: also wipes brief, applied.json, profile.json, onboarding
 pnpm run mcp                          # MCP server over stdio
 ```
 
@@ -82,7 +83,7 @@ pnpm run mcp                          # MCP server over stdio
 2. **Profile bootstrap** — `bootstrapProfileIfMissing()` copies `config/profile.default.json` → `profile.json` on first run.
 3. **Fetch** — all 14 sources in parallel via `processFetcher()` + `Promise.all`. Each fetcher returns `{ items, errors }` and **never throws** (a rejection would kill the whole run).
 4. **Normalize** — per-source `normalize<Source>()` → `Job[]`. Salary fields populated via `withSalary()` spread.
-5. **Filter + score** — `applyFilters()` in `src/filters.ts`: hard drops → boilerplate strip → soft scoring (cap 100) → optional out-of-region penalty → drop below `minScoreToKeep` → category. Geo handling is persona-neutral, driven by the `location` block in `config/profile.json` (see `pupila-filters` skill).
+5. **Filter + score** — `applyFilters()` in `src/filters.ts`: hard drops → boilerplate strip → soft scoring (cap 100) → optional out-of-region penalty → drop below `minScoreToKeep` → multi-label categories. Geo handling is persona-neutral, driven by the `location` block in `config/profile.json` (see `pupila-filters` skill).
 6. **Dedup + sort** — `compareJobs` 4-key chain in `src/dedup.ts` (source-priority tiebreak).
 7. **Attach applied state** — `loadAppliedMap()` matches `Job.id` (sha1 of URL) to entries in `config/applied.json`; sets `job.applied`.
 8. **Diff** — compute new-since (top 20) / removed-since (top 10) vs previous `data/jobs.json` via `readJsonOrNull` before write.
@@ -105,7 +106,7 @@ Subsystems documented in-file + tests; this CLAUDE.md doesn't restate them:
 
 ## Filter rules (overview)
 
-`src/filters.ts` is a hard-drop chain → boilerplate strip → scoring (capped at 100) → optional out-of-region penalty → drop below `minScoreToKeep` (default 30) → category assignment (`web3+ai` / `web3` / `ai` / `general`).
+`src/filters.ts` is a hard-drop chain → boilerplate strip → scoring (capped at 100) → optional out-of-region penalty → drop below `minScoreToKeep` (default 30) → category tagging. Categories are **config-driven** (`config/profile.json#categories`, see `CategoryDef`) — a job is multi-labeled with every category whose keywords match (`Job.categories: string[]`), and a category's optional `weight` also feeds the score. No taxonomy is hardcoded; jobs matching none fall under a synthetic "Other".
 
 Geo filtering is **persona-neutral** — no country is privileged. Where/how the candidate works lives in the `location` block of `config/profile.json` (`basedIn`, `workTypes`, `acceptedRegions`, `excludeOutsideAcceptedRegions`), editable on the Profile tab. See the **`pupila-filters` skill** for the `hard_location_incompatible` rule and the rescue-first matching.
 

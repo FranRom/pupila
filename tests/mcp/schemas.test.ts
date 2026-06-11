@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   applicationStatusEnum,
-  CATEGORIES,
+  categoryFilterSchema,
   JOB_ID_REGEX,
   jobIdSchema,
   LIST_JOBS_SORT_KEYS,
@@ -52,8 +52,13 @@ describe('shared enum schemas', () => {
     expect(SOURCES).toContain('hn-hiring');
   });
 
-  it('CATEGORIES match the Category union', () => {
-    expect([...CATEGORIES].sort()).toEqual(['ai', 'general', 'web3', 'web3+ai']);
+  it('categoryFilterSchema accepts any non-empty id string, rejects empty/oversized', () => {
+    // Categories are user-defined config, not a fixed enum — the filter takes
+    // any id and matches it at runtime.
+    expect(categoryFilterSchema.safeParse('web3').success).toBe(true);
+    expect(categoryFilterSchema.safeParse('fintech').success).toBe(true);
+    expect(categoryFilterSchema.safeParse('').success).toBe(false);
+    expect(categoryFilterSchema.safeParse('x'.repeat(61)).success).toBe(false);
   });
 
   it('LIST_JOBS_SORT_KEYS exposes only safe sort columns', () => {

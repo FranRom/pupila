@@ -12,7 +12,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import type { Category, Source } from '../../types.ts';
+import type { Source } from '../../types.ts';
 
 export type SortKey = 'fitScore' | 'salaryMax' | 'postedAt';
 export type SortDir = 'asc' | 'desc';
@@ -20,7 +20,8 @@ export type Tab = 'jobs' | 'swipe' | 'profile' | 'settings';
 
 export interface UrlSyncedFilters {
   search: string;
-  category: Category | 'all';
+  /** Category id to filter by, or 'all'. 'other' = jobs matching no category. */
+  category: string;
   /** Role-interest id to filter by, or 'all'. '__none' = jobs matching no role. */
   role: string;
   source: Source | 'all';
@@ -38,7 +39,7 @@ export interface UrlSyncedFilters {
 
 export interface UrlSyncedSetters {
   setSearch: (v: string) => void;
-  setCategory: (v: Category | 'all') => void;
+  setCategory: (v: string) => void;
   setRole: (v: string) => void;
   setSource: (v: Source | 'all') => void;
   setAppliedOnly: (v: boolean) => void;
@@ -68,8 +69,9 @@ function readUrl(): UrlSyncedFilters {
   const tab = p.get('tab');
   return {
     search: p.get('q') ?? '',
-    category:
-      cat === 'web3+ai' || cat === 'web3' || cat === 'ai' || cat === 'general' ? cat : 'all',
+    // Category ids are user-defined config, not a fixed set — accept any
+    // non-empty value (an unknown id simply matches no jobs). Default 'all'.
+    category: cat && cat.length > 0 ? cat : 'all',
     role: p.get('role') ?? 'all',
     source: (p.get('src') as Source | 'all' | null) ?? 'all',
     appliedOnly: p.get('applied') === '1',
@@ -97,7 +99,7 @@ export function useUrlSyncedState(): UseUrlSyncedStateResult {
   const initial = useMemo(() => readUrl(), []);
 
   const [search, setSearch] = useState(initial.search);
-  const [category, setCategory] = useState<Category | 'all'>(initial.category);
+  const [category, setCategory] = useState<string>(initial.category);
   const [role, setRole] = useState<string>(initial.role);
   const [source, setSource] = useState<Source | 'all'>(initial.source);
   const [appliedOnly, setAppliedOnly] = useState(initial.appliedOnly);

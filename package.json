@@ -16,6 +16,7 @@
     "ai-review": "tsx src/ai-review.ts",
     "setup-brief": "tsx src/setup-brief.ts",
     "clean": "tsx scripts/clean.ts",
+    "clean:all": "tsx scripts/clean.ts --all",
     "clean:onboarding": "tsx scripts/clean.ts --onboarding",
     "daily": "pnpm run dev && pnpm run ai-review",
     "apply-worker": "tsx scripts/apply-worker.ts",

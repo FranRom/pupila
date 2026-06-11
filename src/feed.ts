@@ -24,7 +24,8 @@ function itemDescription(job: Job): string {
   if (job.company) parts.push(`<strong>${escapeXml(job.company)}</strong>`);
   if (job.location) parts.push(escapeXml(job.location));
   if (job.salary) parts.push(`💰 ${escapeXml(job.salary)}`);
-  parts.push(`Score: ${job.fitScore} · Source: ${job.source} · Category: ${job.category}`);
+  const cats = job.categories.length > 0 ? job.categories.join(', ') : 'other';
+  parts.push(`Score: ${job.fitScore} · Source: ${job.source} · Category: ${cats}`);
   return parts.join(' · ');
 }
 
@@ -39,12 +40,16 @@ export function renderFeed(newJobs: Job[], generatedAt: string): string {
       const link = escapeXml(job.url);
       const desc = itemDescription(job);
       const date = pubDate(job.postedAt ?? generatedAt);
+      // One <category> element per matched category id (RSS allows repeats);
+      // omitted entirely for uncategorized jobs.
+      const categoryTags = job.categories
+        .map((c) => `      <category>${escapeXml(c)}</category>`)
+        .join('\n');
       return `    <item>
       <title>${title}</title>
       <link>${link}</link>
       <guid isPermaLink="false">${escapeXml(job.id)}</guid>
-      <pubDate>${date}</pubDate>
-      <category>${escapeXml(job.category)}</category>
+      <pubDate>${date}</pubDate>${categoryTags ? `\n${categoryTags}` : ''}
       <description>${desc}</description>
     </item>`;
     })

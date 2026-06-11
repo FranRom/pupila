@@ -24,7 +24,7 @@ const sampleJob: Job = {
   postedAt: null,
   fetchedAt: '2026-05-01T00:00:00Z',
   fitScore: 90,
-  category: 'ai',
+  categories: ['ai'],
 };
 
 function mockEndpoints(handlers: Record<string, () => Response>) {

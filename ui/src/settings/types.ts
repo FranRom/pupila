@@ -116,6 +116,8 @@ export interface ProfileGenerateResult {
   ok: boolean;
   weightsChanged: string[];
   keywordsChanged: string[];
+  /** True when the brief regenerated a different category taxonomy. */
+  categoriesChanged?: boolean;
   provider: string;
   error?: string;
 }

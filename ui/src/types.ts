@@ -28,13 +28,28 @@ export type Source =
   | 'ashby-private'
   | 'bluedoor';
 
-export type Category = 'web3+ai' | 'web3' | 'ai' | 'general';
+/** Where a category's keywords are matched (UI mirror of CategoryScope in src/types.ts). */
+export const CATEGORY_SCOPES = ['title-body', 'body'] as const;
+export type CategoryScope = (typeof CATEGORY_SCOPES)[number];
+
+/**
+ * A user-defined job category (UI mirror of `CategoryDef` in src/types.ts).
+ * Edited on the Profile tab; persisted via PUT /api/profile-categories. A job is
+ * tagged with every category whose keywords match (`Job.categories`). Do NOT
+ * import from src/* here.
+ */
+export interface CategoryDef {
+  id: string;
+  label: string;
+  keywords: string[];
+  scope?: CategoryScope;
+  weight?: number;
+  limit?: number;
+}
 
 export interface JobSignals {
-  web3TitleBody: number;
-  web3Stack: number;
-  aiTitleBody: number;
-  aiStack: number;
+  /** Per-category score contribution keyed by category id (mirror of src/types.ts). */
+  categories: Record<string, number>;
   stackPrimary: number;
   stackRn: number;
   stackOther: number;
@@ -88,7 +103,11 @@ export interface Job {
   postedAt: string | null;
   fetchedAt: string;
   fitScore: number;
-  category: Category;
+  /**
+   * Ids of every category whose keywords matched (multi-label, mirror of
+   * `Job.categories` in src/types.ts). Empty → renders under synthetic "Other".
+   */
+  categories: string[];
   /**
    * IDs of the configured role interests this job's title matched, in role-list
    * order (mirror of `Job.roleMatches` in src/types.ts). Drives the role badges

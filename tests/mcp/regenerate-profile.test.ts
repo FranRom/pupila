@@ -15,20 +15,13 @@ interface RegenSuccess {
   weightsChanged: string[];
   keywordsChanged: string[];
   rolesChanged: boolean;
+  categoriesChanged: boolean;
 }
 
 function baseProfile(): ProfileShape {
   return {
-    weights: {
-      web3TitleBody: 10,
-      aiTitleBody: 10,
-      stackPrimary: 5,
-    },
-    keywords: {
-      w3TitleBody: ['web3'],
-      aiTitleBody: ['llm'],
-      stackPrimary: ['react'],
-    },
+    weights: { stackPrimary: 5 },
+    keywords: { stackPrimary: ['react'] },
   };
 }
 
@@ -89,8 +82,8 @@ describe('regenerate_profile', () => {
     const deps = depsWith(
       fx,
       stubGenerate({
-        weights: { web3TitleBody: 20, aiStack: 15 },
-        keywords: { w3TitleBody: ['web3', 'defi'], aiStack: ['langchain'] },
+        weights: { stackPrimary: 20, stackOther: 15 },
+        keywords: { stackPrimary: ['react', 'vue'], stackOther: ['graphql'] },
       }),
     );
     await writeFile(deps.profilePath, JSON.stringify(baseProfile()), 'utf8');
@@ -100,15 +93,39 @@ describe('regenerate_profile', () => {
     const payload = parseToolJson(result.content) as RegenSuccess;
     expect(payload.ok).toBe(true);
     expect(payload.provider).toBe('auto');
-    expect(payload.weightsChanged).toContain('web3TitleBody');
-    expect(payload.weightsChanged).toContain('aiStack');
-    expect(payload.keywordsChanged).toContain('w3TitleBody');
-    expect(payload.keywordsChanged).toContain('aiStack');
+    expect(payload.weightsChanged).toContain('stackPrimary');
+    expect(payload.weightsChanged).toContain('stackOther');
+    expect(payload.keywordsChanged).toContain('stackPrimary');
+    expect(payload.keywordsChanged).toContain('stackOther');
 
     // Verify the merge actually landed in the file.
     const written = JSON.parse(await readFile(deps.profilePath, 'utf8')) as ProfileShape;
-    expect(written.weights.web3TitleBody).toBe(20);
-    expect(written.keywords.w3TitleBody).toEqual(['web3', 'defi']);
+    expect(written.weights.stackPrimary).toBe(20);
+    expect(written.keywords.stackPrimary).toEqual(['react', 'vue']);
+  });
+
+  it('merges categories[] from the delta and reports categoriesChanged', async () => {
+    fx = await buildFixture({ brief: 'Senior FE engineer · web3 · ai · remote' });
+    const deps = depsWith(
+      fx,
+      stubGenerate({
+        weights: {},
+        keywords: {},
+        categories: [
+          { id: 'web3', label: 'Web3', keywords: ['web3', 'defi'], weight: 20 },
+          { id: 'ai', label: 'AI', keywords: ['llm', 'anthropic'] },
+        ],
+      }),
+    );
+    await writeFile(deps.profilePath, JSON.stringify(baseProfile()), 'utf8');
+
+    const result = await runRegenerateProfile({}, deps);
+    expect(result.isError).toBeUndefined();
+    const payload = parseToolJson(result.content) as RegenSuccess;
+    expect(payload.categoriesChanged).toBe(true);
+
+    const written = JSON.parse(await readFile(deps.profilePath, 'utf8')) as ProfileShape;
+    expect(written.categories?.map((c) => c.id)).toEqual(['web3', 'ai']);
   });
 
   it('merges roles[] from the delta and reports rolesChanged', async () => {

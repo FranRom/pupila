@@ -36,7 +36,7 @@ import {
   normalizeWeWorkRemotely,
 } from './normalize.js';
 import { type RenderStats, renderReadme } from './render.js';
-import type { Category, Job, Source } from './types.js';
+import type { Job, Source } from './types.js';
 import { isoToday, readJsonOrNull, stripHtml, writeFileEnsured, writeJson } from './utils.js';
 
 const BODY_PREVIEW_MAX_CHARS = 280;
@@ -199,13 +199,12 @@ async function main(): Promise<void> {
     bySource[t.source] = { fetched: t.fetched, kept: keptCount, errors: t.errors.length };
   }
 
-  const byCategory: Record<Category, number> = {
-    'web3+ai': 0,
-    web3: 0,
-    ai: 0,
-    general: 0,
-  };
-  for (const j of dedupResult.kept) byCategory[j.category]++;
+  // Counts keyed by category id; a multi-label job increments each of its ids.
+  // Jobs matching no category are uncategorized (rendered under "Other").
+  const byCategory: Record<string, number> = {};
+  for (const j of dedupResult.kept) {
+    for (const id of j.categories) byCategory[id] = (byCategory[id] ?? 0) + 1;
+  }
 
   const previous = await readJsonOrNull<Job[]>('data/jobs.json');
   const previousIds = new Set((previous ?? []).map((j) => j.id));
@@ -255,7 +254,10 @@ async function main(): Promise<void> {
   if (isFirstOfMonth) {
     await writeJson(`data/archive/${month}.json`, slimJobs);
   }
-  await writeFileEnsured('JOBS.md', renderReadme(dedupResult.kept, stats, newJobs, removedJobs));
+  await writeFileEnsured(
+    'JOBS.md',
+    renderReadme(dedupResult.kept, stats, newJobs, removedJobs, profile.categories ?? []),
+  );
   await writeFileEnsured('data/feed.xml', renderFeed(newJobs, fetchedAt));
 
   console.log('--- Run summary ---');

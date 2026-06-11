@@ -1,5 +1,5 @@
 import { STATUS_EMOJI, summarizeApplied } from './applied.js';
-import type { Category, Job, Source } from './types.js';
+import type { CategoryDef, Job, Source } from './types.js';
 import { formatDateTimeUTC, relativeTime } from './utils.js';
 
 export interface RenderStats {
@@ -9,7 +9,9 @@ export interface RenderStats {
   newCount: number;
   removedCount: number;
   bySource: Record<Source, { fetched: number; kept: number; errors: number }>;
-  byCategory: Record<Category, number>;
+  // Kept-job counts keyed by category id (a multi-label job counts under each
+  // of its ids). Jobs matching no category are uncategorized — not counted here.
+  byCategory: Record<string, number>;
   droppedHard: number;
   droppedByRule: Record<string, number>;
   droppedScore: number;
@@ -45,7 +47,36 @@ type _RenderSourcesExhaustive =
 const _renderSourcesExhaustive: _RenderSourcesExhaustive = true;
 void _renderSourcesExhaustive;
 
-const CATEGORIES: Category[] = ['web3+ai', 'web3', 'ai', 'general'];
+// Rows shown under the synthetic "Other" section (jobs matching no category).
+const OTHER_SECTION_LIMIT = 10;
+// Rows per configured category section when its `limit` is unset.
+const DEFAULT_CATEGORY_LIMIT = 20;
+
+interface CategoryGrouping {
+  /** Configured-category id → its jobs (multi-label: a job can be in several). */
+  groups: Map<string, Job[]>;
+  /** Jobs matching no configured category (empty `categories`, or only stale ids). */
+  other: Job[];
+}
+
+// Bucket jobs by configured category id (multi-label) and collect the rest under
+// "Other". A job carrying an id no longer present in the config falls to Other.
+function groupByCategory(jobs: Job[], categories: readonly CategoryDef[]): CategoryGrouping {
+  const groups = new Map<string, Job[]>(categories.map((c) => [c.id, []]));
+  const other: Job[] = [];
+  for (const j of jobs) {
+    let placed = false;
+    for (const id of j.categories) {
+      const bucket = groups.get(id);
+      if (bucket) {
+        bucket.push(j);
+        placed = true;
+      }
+    }
+    if (!placed) other.push(j);
+  }
+  return { groups, other };
+}
 
 function escapeMd(s: string | null | undefined): string {
   if (!s) return '';
@@ -111,8 +142,15 @@ function renderSourceHealthBanner(stats: RenderStats): string {
   return `> 🚨 **Source health:** ${sick.join(', ')} ${sick.length === 1 ? 'is' : 'are'} returning zero items or errors. If this persists for several days, eyeball the upstream HTML/API for changes.\n\n`;
 }
 
-function byCategory(stats: RenderStats): string {
-  return CATEGORIES.map((c) => `- **${c}**: ${stats.byCategory[c]}`).join('\n');
+// Stat lines for the "By category" block: one per configured category (by
+// label), plus a trailing "Other" for the uncategorized count. Driven by the
+// same grouping as the sections so the numbers always agree.
+function byCategory(categories: readonly CategoryDef[], grouping: CategoryGrouping): string {
+  const lines = categories.map(
+    (c) => `- **${c.label}**: ${grouping.groups.get(c.id)?.length ?? 0}`,
+  );
+  lines.push(`- **Other**: ${grouping.other.length}`);
+  return lines.join('\n');
 }
 
 function renderNewSection(newJobs: Job[]): string {
@@ -158,14 +196,19 @@ export function renderReadme(
   stats: RenderStats,
   newJobs: Job[],
   removedJobs: Job[] = [],
+  categories: readonly CategoryDef[] = [],
 ): string {
-  const grouped: Record<Category, Job[]> = {
-    'web3+ai': [],
-    web3: [],
-    ai: [],
-    general: [],
-  };
-  for (const j of jobs) grouped[j.category].push(j);
+  const grouping = groupByCategory(jobs, categories);
+
+  // One "## <label>" section per configured category (in config order), capped
+  // by its `limit`, followed by the synthetic "Other" bucket. Replaces the old
+  // hardcoded Web3/AI/Other sections so any taxonomy renders without code edits.
+  const categorySections = categories
+    .map(
+      (c) =>
+        `## ${c.label}\n\n${renderTable(grouping.groups.get(c.id) ?? [], c.limit ?? DEFAULT_CATEGORY_LIMIT)}`,
+    )
+    .join('\n\n');
 
   return `# Daily job matches
 
@@ -192,25 +235,12 @@ ${bySource(stats)}
 
 ### By category
 
-${byCategory(stats)}
+${byCategory(categories, grouping)}
 
 ${renderAppliedSection(jobs)}
 ${renderNewSection(newJobs)}
-${renderRemovedSection(removedJobs)}
-## Top Web3 + AI
+${renderRemovedSection(removedJobs)}${categorySections ? `${categorySections}\n\n` : ''}## Other
 
-${renderTable(grouped['web3+ai'], 10)}
-
-## Top Web3
-
-${renderTable(grouped.web3, 20)}
-
-## Top AI
-
-${renderTable(grouped.ai, 20)}
-
-## Other
-
-${renderTable(grouped.general, 10)}
+${renderTable(grouping.other, OTHER_SECTION_LIMIT)}
 `;
 }

@@ -1,7 +1,9 @@
 import clsx from 'clsx';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { CategoryPreferences } from './CategoryPreferences.tsx';
 import { LocationPreferences } from './LocationPreferences.tsx';
 import { api, formatError } from './lib/api/index.ts';
+import { useCategories } from './lib/hooks/useCategories.ts';
 import { useLocation } from './lib/hooks/useLocation.ts';
 import { useRoles } from './lib/hooks/useRoles.ts';
 import styles from './Profile.module.css';
@@ -101,6 +103,21 @@ export function Profile({ onRolesChanged, rolesDirty, onRescore, rescoring }: Pr
       onRolesChanged?.();
     },
     [saveLocation, onRolesChanged],
+  );
+  const {
+    categories,
+    loading: categoriesLoading,
+    saving: categoriesSaving,
+    save: saveCategories,
+  } = useCategories({ onError: onRolesError });
+  // Category edits change tagging + scoring, so reuse the same pending-re-score
+  // signal (onRolesChanged) and dirty/rescore plumbing as roles/location.
+  const handleSaveCategories = useCallback(
+    async (next: Parameters<typeof saveCategories>[0]) => {
+      await saveCategories(next);
+      onRolesChanged?.();
+    },
+    [saveCategories, onRolesChanged],
   );
 
   useEffect(() => {
@@ -364,6 +381,16 @@ export function Profile({ onRolesChanged, rolesDirty, onRescore, rescoring }: Pr
         loading={rolesLoading}
         saving={rolesSaving}
         onSave={handleSaveRoles}
+        dirty={rolesDirty}
+        onRescore={onRescore}
+        rescoring={rescoring}
+      />
+
+      <CategoryPreferences
+        categories={categories}
+        loading={categoriesLoading}
+        saving={categoriesSaving}
+        onSave={handleSaveCategories}
         dirty={rolesDirty}
         onRescore={onRescore}
         rescoring={rescoring}

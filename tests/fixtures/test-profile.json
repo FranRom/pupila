@@ -5,10 +5,6 @@
     "scoringBodyMaxChars": 1500
   },
   "weights": {
-    "web3TitleBody": 20,
-    "web3Stack": 20,
-    "aiTitleBody": 20,
-    "aiStack": 20,
     "stackPrimary": 10,
     "stackRn": 5,
     "stackOther": 5,
@@ -154,46 +150,6 @@
       "remote anywhere",
       "work from anywhere"
     ],
-    "w3TitleBody": [
-      "web3",
-      "crypto",
-      "defi",
-      "blockchain",
-      "wallet",
-      "onchain",
-      "on-chain",
-      "dapp",
-      "nft"
-    ],
-    "w3Stack": [
-      "wagmi",
-      "viem",
-      "ethers\\.?js",
-      "web3\\.?js",
-      "solana",
-      "anchor",
-      "evm",
-      "rainbowkit",
-      "walletconnect",
-      "reown",
-      "hardhat",
-      "foundry"
-    ],
-    "aiTitleBody": ["ai engineer", "ml engineer", "llm", "gen-?ai", "generative ai", "ai-native"],
-    "aiStack": [
-      "anthropic",
-      "claude",
-      "openai",
-      "gpt",
-      "vercel ai",
-      "ai sdk",
-      "langchain",
-      "llamaindex",
-      "rag",
-      "agents?",
-      "mcp",
-      "prompt engineering"
-    ],
     "stackPrimary": ["react", "next\\.?js", "typescript"],
     "stackRn": ["react native", "expo"],
     "stackOther": ["graphql", "tailwind", "vite"],
@@ -216,6 +172,61 @@
     "acceptedRegions": ["europe", "european", "emea", "eu", "cet", "spain", "united kingdom", "uk"],
     "excludeOutsideAcceptedRegions": true
   },
+  "categories": [
+    {
+      "id": "web3",
+      "label": "Web3",
+      "keywords": [
+        "web3",
+        "crypto",
+        "defi",
+        "blockchain",
+        "wallet",
+        "onchain",
+        "on-chain",
+        "dapp",
+        "nft",
+        "wagmi",
+        "viem",
+        "ethers.js",
+        "web3.js",
+        "solana",
+        "anchor",
+        "evm",
+        "rainbowkit",
+        "walletconnect",
+        "reown",
+        "hardhat",
+        "foundry"
+      ],
+      "weight": 20
+    },
+    {
+      "id": "ai",
+      "label": "AI",
+      "keywords": [
+        "ai engineer",
+        "ml engineer",
+        "llm",
+        "gen-ai",
+        "generative ai",
+        "ai-native",
+        "anthropic",
+        "claude",
+        "openai",
+        "gpt",
+        "vercel ai",
+        "ai sdk",
+        "langchain",
+        "llamaindex",
+        "rag",
+        "agents",
+        "mcp",
+        "prompt engineering"
+      ],
+      "weight": 20
+    }
+  ],
   "roles": [
     {
       "id": "frontend",

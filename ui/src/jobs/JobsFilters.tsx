@@ -1,6 +1,6 @@
 import clsx from 'clsx';
 import buttonStyles from '../styles/Button.module.css';
-import type { Category, Source } from '../types.ts';
+import type { Source } from '../types.ts';
 import styles from './JobsFilters.module.css';
 
 /** A selectable role-filter option: `value` is the role id ('all' / '__none' for the specials). */
@@ -11,7 +11,8 @@ export interface RoleFilterOption {
 
 interface JobsFiltersProps {
   search: string;
-  category: Category | 'all';
+  /** Selected category id, 'all', or 'other' (uncategorized). */
+  category: string;
   role: string;
   source: Source | 'all';
   appliedOnly: boolean;
@@ -20,10 +21,10 @@ interface JobsFiltersProps {
   groupByCompany: boolean;
   compact: boolean;
   sources: Source[];
-  categoryOptions: ReadonlyArray<Category | 'all'>;
+  categoryOptions: ReadonlyArray<string>;
   roleOptions: ReadonlyArray<RoleFilterOption>;
   onSearchChange: (v: string) => void;
-  onCategoryChange: (v: Category | 'all') => void;
+  onCategoryChange: (v: string) => void;
   onRoleChange: (v: string) => void;
   onSourceChange: (v: Source | 'all') => void;
   onAppliedOnlyChange: (v: boolean) => void;
@@ -83,11 +84,11 @@ export function JobsFilters({
       <select
         className={styles.select}
         value={category}
-        onChange={(e) => onCategoryChange(e.target.value as Category | 'all')}
+        onChange={(e) => onCategoryChange(e.target.value)}
       >
         {categoryOptions.map((c) => (
           <option key={c} value={c}>
-            {c === 'all' ? 'All categories' : c}
+            {c === 'all' ? 'All categories' : c === 'other' ? 'Other' : c}
           </option>
         ))}
       </select>

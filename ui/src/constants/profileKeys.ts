@@ -3,10 +3,6 @@
 // child_process via runLlm and cannot be imported here.
 
 export const PERSONAL_WEIGHT_KEYS = [
-  'web3TitleBody',
-  'web3Stack',
-  'aiTitleBody',
-  'aiStack',
   'stackPrimary',
   'stackRn',
   'stackOther',
@@ -18,10 +14,6 @@ export const PERSONAL_KEYWORD_KEYS = [
   'stackPrimary',
   'stackRn',
   'stackOther',
-  'w3TitleBody',
-  'w3Stack',
-  'aiTitleBody',
-  'aiStack',
   'titleExcludedSpecialties',
 ] as const;
 

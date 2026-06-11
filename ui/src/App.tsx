@@ -29,12 +29,12 @@ import badgeStyles from './styles/Badge.module.css';
 import bannerStyles from './styles/Banner.module.css';
 import buttonStyles from './styles/Button.module.css';
 import dockStyles from './styles/Dock.module.css';
+import spinnerStyles from './styles/Spinner.module.css';
 import type {
   AiReview,
   AiReviews,
   ApplicationStatus,
   AppliedEntry,
-  Category,
   Job,
   QueueRowStatus,
   QueueStatusMap,
@@ -71,14 +71,6 @@ const STATUS_BADGE_CLASS = {
   rejected: badgeStyles.rejected,
   withdrawn: badgeStyles.withdrawn,
 } as const;
-
-const CATEGORY_OPTIONS: ReadonlyArray<Category | 'all'> = [
-  'all',
-  'web3+ai',
-  'web3',
-  'ai',
-  'general',
-];
 
 interface CompanyGroup {
   /** lowercased — used as identity for expand state and grouping key */
@@ -273,8 +265,15 @@ export function App() {
   // POST /api/fetch-jobs — kicks off the aggregator. The FetchProgress
   // component handles its own polling + parent re-fetch on success.
   const triggerFetch = useCallback(async () => {
+    // Optimistically mark in-flight so the loading state shows immediately
+    // (e.g. onboarding's auto-fetch) without waiting for FetchProgress to poll
+    // `running`. FetchProgress's onStatusChange keeps it accurate afterwards.
+    setFetchInFlight(true);
     const r = await api.fetchJobs.trigger();
-    if (!r.ok) setApiError(`fetch run failed: ${formatError(r.error)}`);
+    if (!r.ok) {
+      setFetchInFlight(false);
+      setApiError(`fetch run failed: ${formatError(r.error)}`);
+    }
   }, []);
 
   // Settings' Maintenance panel calls this after a clean completes. A
@@ -347,7 +346,12 @@ export function App() {
   const visible = useMemo(() => {
     const q = search.trim().toLowerCase();
     const filtered = allJobs.filter((j) => {
-      if (category !== 'all' && j.category !== category) return false;
+      if (category !== 'all') {
+        // 'other' = jobs matching no category; otherwise match the id (multi-label).
+        // `?? []` tolerates legacy jobs.json entries that predate `categories`.
+        const cats = j.categories ?? [];
+        if (category === 'other' ? cats.length > 0 : !cats.includes(category)) return false;
+      }
       if (role !== 'all') {
         const matches = j.roleMatches ?? [];
         if (role === '__none' ? matches.length > 0 : !matches.includes(role)) return false;
@@ -423,10 +427,33 @@ export function App() {
     return result;
   }, [visible, groupByCompany, sortKey, sortDir]);
 
+  // Kept-job counts keyed by category id (multi-label: a job counts under each
+  // of its ids); jobs matching none tally under 'other'. Drives the header
+  // subtitle. Empty map when no categories are configured.
   const totals = useMemo(() => {
-    const counts: Record<Category, number> = { 'web3+ai': 0, web3: 0, ai: 0, general: 0 };
-    for (const j of allJobs) counts[j.category]++;
+    const counts: Record<string, number> = {};
+    for (const j of allJobs) {
+      const cats = j.categories ?? [];
+      if (cats.length === 0) counts.other = (counts.other ?? 0) + 1;
+      for (const id of cats) counts[id] = (counts[id] ?? 0) + 1;
+    }
     return counts;
+  }, [allJobs]);
+
+  // Category-filter options derived from the ids actually present on jobs, so
+  // the dropdown only offers categories that match something. 'all' is always
+  // first; 'other' appears only when some job matched no category.
+  const categoryOptions = useMemo<string[]>(() => {
+    const ids = new Set<string>();
+    let hasUncategorized = false;
+    for (const j of allJobs) {
+      const cats = j.categories ?? [];
+      if (cats.length === 0) hasUncategorized = true;
+      for (const id of cats) ids.add(id);
+    }
+    const opts = ['all', ...[...ids].sort()];
+    if (hasUncategorized) opts.push('other');
+    return opts;
   }, [allJobs]);
 
   // Role-filter options derived from the role ids actually present on jobs, so
@@ -559,7 +586,7 @@ export function App() {
             groupByCompany={groupByCompany}
             compact={compact}
             sources={sources}
-            categoryOptions={CATEGORY_OPTIONS}
+            categoryOptions={categoryOptions}
             roleOptions={roleOptions}
             onSearchChange={setSearch}
             onCategoryChange={setCategory}
@@ -598,7 +625,11 @@ export function App() {
 
           {visible.length === 0 ? (
             allJobs.length === 0 ? (
-              <FetchCta onFetch={triggerFetch} />
+              dataLoading || fetchInFlight ? (
+                <FetchingState />
+              ) : (
+                <FetchCta onFetch={triggerFetch} />
+              )
             ) : (
               <p className={styles.empty}>No jobs match the current filters.</p>
             )
@@ -724,12 +755,12 @@ function RoleChangeBanner({ isFetching, onRescore }: RoleChangeBannerProps) {
   return (
     <div className={styles.stalenessBanner} role="status">
       <span className={styles.stalenessIcon} aria-hidden>
-        🎯
+        ✨
       </span>
       <div className={styles.stalenessBody}>
-        <strong>Role interests changed.</strong>
+        <strong>Scoring settings changed.</strong>
         <span className={styles.muted}>
-          These jobs were scored against your previous roles. Re-score to apply the change (rescues
+          These jobs were scored with your previous settings. Re-score to apply the change (rescues
           previously-dropped jobs too).
         </span>
       </div>
@@ -749,6 +780,19 @@ function RoleChangeBanner({ isFetching, onRescore }: RoleChangeBannerProps) {
 
 interface FetchCtaProps {
   onFetch: () => void;
+}
+
+// Shown in the table area while jobs are loading or a fetch run is in flight
+// (e.g. onboarding's auto-fetch), so the user sees progress instead of the
+// "Fetch jobs now" CTA. Live per-source detail is in the FetchProgress dock.
+function FetchingState() {
+  return (
+    <div className={styles.fetchCta}>
+      <span className={spinnerStyles.spinner} aria-hidden />
+      <h2>Fetching jobs…</h2>
+      <p>Pulling listings from all the sources. This can take a moment.</p>
+    </div>
+  );
 }
 
 function FetchCta({ onFetch }: FetchCtaProps) {

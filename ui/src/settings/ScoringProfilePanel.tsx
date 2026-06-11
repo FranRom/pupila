@@ -41,7 +41,7 @@ export function ScoringProfilePanel({
     <Section
       index="03"
       title="Scoring profile"
-      subtitle="config/profile.json — auto-generated from your brief. Drives which roles surface."
+      subtitle="config/profile.json, auto-generated from your brief. Drives which roles surface."
       meta={
         <ProfileStatusChip
           profile={profile}
@@ -58,7 +58,7 @@ export function ScoringProfilePanel({
           </p>
           <p className={styles.muted}>
             The aggregator (<code>pnpm run dev</code>) will refuse to run until this is generated.
-            Click <em>Regenerate from brief</em> below — takes 10–20 seconds.
+            Click <em>Regenerate from brief</em> below. Takes 10-20 seconds.
           </p>
         </div>
       ) : !profile ? (
@@ -91,7 +91,8 @@ export function ScoringProfilePanel({
             {regenResult.weightsChanged.join(', ') || 'none'}) and{' '}
             {regenResult.keywordsChanged.length} keyword group
             {regenResult.keywordsChanged.length === 1 ? '' : 's'} (
-            {regenResult.keywordsChanged.join(', ') || 'none'}).
+            {regenResult.keywordsChanged.join(', ') || 'none'})
+            {regenResult.categoriesChanged ? '; categories regenerated' : ''}.
           </p>
         </div>
       )}

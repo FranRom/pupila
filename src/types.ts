@@ -22,7 +22,39 @@ export const SOURCES = [
 
 export type Source = (typeof SOURCES)[number];
 
-export type Category = 'web3' | 'ai' | 'web3+ai' | 'general';
+/** Where a category's keywords are matched against a job. */
+export const CATEGORY_SCOPES = ['title-body', 'body'] as const;
+export type CategoryScope = (typeof CATEGORY_SCOPES)[number];
+
+/**
+ * A user-defined job category — a named bucket whose keywords label a job.
+ * Replaces the old hardcoded `web3 | ai | web3+ai | general` taxonomy so the
+ * repo is forkable for any persona. Lives in `config/profile.json` under
+ * `categories`; generated from the brief during Regenerate and editable on the
+ * Profile tab. A job is tagged with EVERY category whose keywords match
+ * (multi-label — see `Job.categories`); an optional `weight` lets a match also
+ * boost `fitScore`. `general`/"Other" is synthetic (jobs matching none) — not a
+ * config entry.
+ */
+export interface CategoryDef {
+  /** Stable key stored in `Job.categories`, used by the UI filter and URLs. */
+  id: string;
+  /** Display name for the UI dropdown and the JOBS.md section heading. */
+  label: string;
+  /**
+   * Plain literal terms (NOT regex) — matched whole-word and case-insensitively.
+   * Punctuation-edged terms work (`c++`, `c#`, `.net`), and a dot between words is
+   * optional so `node.js` also matches `nodejs`. For other variants (agent/agents)
+   * list both. See `compileCategoryKeywords` in `src/filters.ts`.
+   */
+  keywords: string[];
+  /** Match scope. Default `'title-body'`; `'body'` is body-only noise control. */
+  scope?: CategoryScope;
+  /** Points added to `fitScore` when any keyword matches (binary). Default 0 = pure label. */
+  weight?: number;
+  /** Max rows rendered under this category's JOBS.md section. Default 20. */
+  limit?: number;
+}
 
 /** The work arrangements a candidate will accept (and a job can offer). */
 export const WORK_TYPES = ['remote', 'hybrid', 'onsite'] as const;
@@ -55,10 +87,14 @@ export interface LocationProfile {
 }
 
 export interface JobSignals {
-  web3TitleBody: number;
-  web3Stack: number;
-  aiTitleBody: number;
-  aiStack: number;
+  /**
+   * Per-category score contribution, keyed by `CategoryDef.id` — the
+   * config-driven replacement for the fixed `web3TitleBody`/`aiStack`/... fields.
+   * A key is present for every category whose keywords matched; the value is the
+   * `weight` it added (0 for pure-label categories). The matched ids are exactly
+   * `Object.keys(this.categories)` and mirror `Job.categories`.
+   */
+  categories: Record<string, number>;
   stackPrimary: number;
   stackRn: number;
   stackOther: number;
@@ -140,7 +176,13 @@ export interface Job {
   postedAt: string | null;
   fetchedAt: string;
   fitScore: number;
-  category: Category;
+  /**
+   * Ids of every `CategoryDef` whose keywords matched this job (multi-label, in
+   * config order). Empty when none matched — such jobs render under the synthetic
+   * "Other" bucket. Set at the filter stage (like `_signals`); absent on
+   * pre-filter jobs. Replaces the old single `category` string.
+   */
+  categories: string[];
   /**
    * IDs of the configured role interests whose `titleMatch` fired on this job's
    * title (see `RoleInterest`), in role-list order. Empty when the title matches

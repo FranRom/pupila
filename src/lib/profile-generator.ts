@@ -11,17 +11,19 @@
 //      etc.) stay frozen — the LLM only ever fills personal stuff.
 //   3. The merge step is pure, side-effect-free, and easy to test.
 
-import { type LocationProfile, type RoleInterest, WORK_TYPES } from '../types.js';
+import {
+  CATEGORY_SCOPES,
+  type CategoryDef,
+  type LocationProfile,
+  type RoleInterest,
+  WORK_TYPES,
+} from '../types.js';
 import { type LlmProvider, runLlm } from './llm.js';
 
 // ── Public types ────────────────────────────────────────────────────────────
 
 export interface PersonalizationDelta {
   weights: Partial<{
-    web3TitleBody: number;
-    web3Stack: number;
-    aiTitleBody: number;
-    aiStack: number;
     stackPrimary: number;
     stackRn: number;
     stackOther: number;
@@ -29,10 +31,6 @@ export interface PersonalizationDelta {
     roleBody: number;
   }>;
   keywords: Partial<{
-    w3TitleBody: string[];
-    w3Stack: string[];
-    aiTitleBody: string[];
-    aiStack: string[];
     stackPrimary: string[];
     stackRn: string[];
     stackOther: string[];
@@ -41,6 +39,10 @@ export interface PersonalizationDelta {
   // Target job titles the candidate wants (e.g. Senior Frontend Engineer,
   // Product Engineer). Omitted when the brief names no clear roles.
   roles?: RoleInterest[];
+  // Job categories tailored to this candidate (the config-driven replacement for
+  // the old fixed web3/ai groups). Each carries keywords + an optional weight.
+  // Omitted when the brief names no clear domain focus.
+  categories?: CategoryDef[];
   // Candidate location preferences derived from the brief. Omitted when the
   // brief gives no usable location signal.
   location?: LocationProfile;
@@ -50,10 +52,6 @@ export interface PersonalizationDelta {
 // UI runs in the browser and can't import this module (depends on Node
 // child_process via runLlm). Keep both lists in sync.
 const PERSONAL_WEIGHT_KEYS: ReadonlyArray<keyof PersonalizationDelta['weights']> = [
-  'web3TitleBody',
-  'web3Stack',
-  'aiTitleBody',
-  'aiStack',
   'stackPrimary',
   'stackRn',
   'stackOther',
@@ -62,10 +60,6 @@ const PERSONAL_WEIGHT_KEYS: ReadonlyArray<keyof PersonalizationDelta['weights']>
 ];
 
 const PERSONAL_KEYWORD_KEYS: ReadonlyArray<keyof PersonalizationDelta['keywords']> = [
-  'w3TitleBody',
-  'w3Stack',
-  'aiTitleBody',
-  'aiStack',
   'stackPrimary',
   'stackRn',
   'stackOther',
@@ -89,16 +83,12 @@ SCHEMA (every field is OPTIONAL — only include what applies to this candidate)
 
 {
   "weights": {
-    // Set 10–20 for stack/domain groups the candidate works in. Omit (or 0) otherwise.
+    // Set 10–20 for stack groups the candidate works in. Omit (or 0) otherwise.
     "stackPrimary":   10,    // primary framework/language match in body
     "stackRn":        10,    // mobile-specific match
     "stackOther":     5,     // adjacent/supporting tech
     "roleTitle":      10,    // when the title matches one of the target roles below
-    "roleBody":       10,    // when the body uses phrases specific to a target role
-    "web3TitleBody":  20,    // candidate cares about crypto/blockchain
-    "web3Stack":      20,
-    "aiTitleBody":    20,    // candidate cares about AI/LLM/agents
-    "aiStack":        20
+    "roleBody":       10     // when the body uses phrases specific to a target role
   },
   "keywords": {
     // Each value is an array of case-insensitive regex fragments.
@@ -106,16 +96,35 @@ SCHEMA (every field is OPTIONAL — only include what applies to this candidate)
     "stackPrimary":             ["react", "next\\\\.?js", "typescript"],
     "stackRn":                  ["react.?native", "expo"],
     "stackOther":               ["graphql", "tailwind", "vite"],
-    "w3TitleBody":              ["web3", "blockchain", "smart contract", "ethereum"],
-    "w3Stack":                  ["solidity", "ethers", "viem", "wagmi"],
-    "aiTitleBody":              ["ai", "llm", "agent", "rag"],
-    "aiStack":                  ["openai", "anthropic", "langchain", "mcp"],
     "titleExcludedSpecialties": [
       "backend engineers?", "data engineers?", "devops engineers?",
       "site reliability", "platform engineers?", "infrastructure engineers?",
       "qa engineers?", "embedded", "firmware", "ml engineers?", "machine learning"
     ]
   },
+  "categories": [
+    // The candidate's DOMAIN buckets — one per distinct field they care about.
+    // Jobs get tagged with EVERY category whose keywords match, which groups
+    // them in the dashboard. Read these from the brief; do NOT default to web3/ai
+    // unless the candidate actually mentions them. A fintech dev → payments /
+    // compliance; a devtools dev → developer-tools / infra; etc.
+    // keywords are PLAIN words/phrases (NOT regex): matched whole-word and
+    // case-insensitively. Punctuation is literal (c++, c#, .net all work); a dot
+    // between words is optional, so "node.js" also catches "nodejs". List both
+    // forms for other variants (agent/agents).
+    {
+      "id": "web3",                     // short kebab-case slug, unique
+      "label": "Web3",                  // human-readable, shown in the UI + JOBS.md
+      "keywords": ["web3", "blockchain", "smart contract", "ethereum", "solidity", "viem", "wagmi"],
+      "weight": 20                      // optional: points added to fitScore when matched (omit for a pure label)
+    },
+    {
+      "id": "ai",
+      "label": "AI",
+      "keywords": ["ai", "llm", "agent", "agents", "rag", "openai", "anthropic", "langchain"],
+      "weight": 20
+    }
+  ],
   "roles": [
     // One entry per DISTINCT job title the candidate is targeting. A title
     // matching any role's titleMatch earns the roleTitle bonus, is tagged on the
@@ -150,8 +159,13 @@ RULES
    want several, e.g. "Senior Frontend Engineer" AND "Product Engineer"). Each needs a unique
    "id", a human "label", and a "titleMatch" regex list; "bodyMatch" is optional. Do NOT add a
    titleExcludedSpecialties entry that would contradict a target role.
-4. If the candidate isn't interested in a domain (e.g. no web3 mention), OMIT that
-   weight and keyword group entirely (don't write empty arrays).
+4. categories: create ONE entry per distinct DOMAIN the candidate cares about (e.g. web3, ai,
+   fintech, devtools, gaming, healthtech). Each needs a unique "id", a human "label", and a
+   "keywords" list of PLAIN words/phrases (NOT regex — matched whole-word, case-insensitive; list
+   both singular and plural if needed). "weight" is optional (10-20 if matching should also raise
+   the score, omit for a pure label). Derive them from the brief — do NOT default to web3/ai unless
+   the candidate mentions those fields. OMIT the whole "categories" array if the brief names no
+   clear domain focus (don't invent buckets).
 5. Use lowercase, regex-safe strings. No unanchored single letters.
 6. Be specific to the brief — do not invent stacks or roles the candidate didn't mention.
 7. location: read paragraph 1 (primary location) + paragraph 2 (location preference). Set "basedIn"
@@ -216,6 +230,24 @@ function sanitizeKeywords(values: string[]): string[] {
   return out;
 }
 
+// Category keywords are LITERAL terms (the filter escapes them before matching),
+// so unlike the regex keyword groups they need no regex validation — just trim,
+// lowercase, dedupe, and cap length/count. Keeps `node.js`, `c++` etc. intact
+// instead of dropping them as "invalid regex".
+function sanitizeLiteralKeywords(values: string[]): string[] {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const v of values) {
+    const t = v.trim().toLowerCase();
+    if (!t || t.length > MAX_KEYWORD_LENGTH) continue;
+    if (seen.has(t)) continue;
+    seen.add(t);
+    out.push(t);
+    if (out.length >= MAX_KEYWORDS_PER_GROUP) break;
+  }
+  return out;
+}
+
 function isFiniteNumber(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value);
 }
@@ -233,6 +265,53 @@ export function sanitizeRoles(value: unknown): RoleInterest[] {
 
 function isNonEmptyString(value: unknown): value is string {
   return typeof value === 'string' && value.trim().length > 0;
+}
+
+// Bounds for category validation (defense-in-depth, same spirit as MAX_ROLES /
+// the keyword caps). A category whose keywords all fail sanitization is dropped.
+const MAX_CATEGORIES = 12;
+const MAX_CATEGORY_WEIGHT = 50;
+const MAX_CATEGORY_LIMIT = 200;
+
+// Validate + sanitize an arbitrary `categories` value (LLM output or a UI edit)
+// into safe CategoryDef[]. Drops malformed entries, dedupes by id, caps the
+// count. Shared by the LLM-parse path and the UI's PUT /api/profile-categories.
+export function sanitizeCategories(value: unknown): CategoryDef[] {
+  if (!Array.isArray(value)) return [];
+  const seen = new Set<string>();
+  const out: CategoryDef[] = [];
+  for (const item of value) {
+    const c = sanitizeCategory(item);
+    if (!c || seen.has(c.id)) continue;
+    seen.add(c.id);
+    out.push(c);
+    if (out.length >= MAX_CATEGORIES) break;
+  }
+  return out;
+}
+
+// Validate one category. Returns null when it lacks a usable id/label or has no
+// safe keyword fragment (so a malformed entry can't crash compileKw at runtime).
+// `scope`/`weight`/`limit` are optional — omitted when absent or out of range so
+// the consumer's defaults ('title-body' / 0 / 20) apply.
+function sanitizeCategory(value: unknown): CategoryDef | null {
+  if (typeof value !== 'object' || value === null) return null;
+  const c = value as Record<string, unknown>;
+  if (!isNonEmptyString(c.id) || !isNonEmptyString(c.label)) return null;
+  if (!isStringArray(c.keywords)) return null;
+  const keywords = sanitizeLiteralKeywords(c.keywords);
+  if (keywords.length === 0) return null;
+  const out: CategoryDef = { id: c.id.trim(), label: c.label.trim(), keywords };
+  if (CATEGORY_SCOPES.includes(c.scope as (typeof CATEGORY_SCOPES)[number])) {
+    out.scope = c.scope as CategoryDef['scope'];
+  }
+  if (isFiniteNumber(c.weight) && c.weight > 0) {
+    out.weight = Math.min(Math.round(c.weight), MAX_CATEGORY_WEIGHT);
+  }
+  if (isFiniteNumber(c.limit) && c.limit > 0) {
+    out.limit = Math.min(Math.round(c.limit), MAX_CATEGORY_LIMIT);
+  }
+  return out;
 }
 
 const MAX_BASED_IN_LENGTH = 80;
@@ -336,6 +415,9 @@ export function parsePersonalizationDelta(raw: string): PersonalizationDelta {
   const roles = sanitizeRoles(root.roles);
   if (roles.length > 0) delta.roles = roles;
 
+  const categories = sanitizeCategories(root.categories);
+  if (categories.length > 0) delta.categories = categories;
+
   if (root.location !== undefined) {
     const location = sanitizeLocation(root.location);
     if (locationHasSignal(location)) delta.location = location;
@@ -368,6 +450,7 @@ export interface ProfileShape {
   weights: Record<string, number>;
   keywords: Record<string, string[] | undefined>;
   roles?: RoleInterest[];
+  categories?: CategoryDef[];
   location?: LocationProfile;
   [key: string]: unknown;
 }
@@ -377,6 +460,7 @@ export interface MergeResult {
   weightsChanged: string[];
   keywordsChanged: string[];
   rolesChanged: boolean;
+  categoriesChanged: boolean;
   locationChanged: boolean;
 }
 
@@ -419,6 +503,16 @@ export function mergeProfile(base: ProfileShape, delta: PersonalizationDelta): M
     next.roles = delta.roles;
   }
 
+  // Categories are replaced wholesale (not merged) when the delta carries any —
+  // the LLM re-derives the candidate's full domain taxonomy from the brief.
+  let categoriesChanged = false;
+  if (delta.categories && delta.categories.length > 0) {
+    const before = JSON.stringify(next.categories ?? []);
+    const after = JSON.stringify(delta.categories);
+    if (before !== after) categoriesChanged = true;
+    next.categories = delta.categories;
+  }
+
   // Location is replaced wholesale when the delta carries one — the LLM
   // re-derives the candidate's full location preference from the brief.
   let locationChanged = false;
@@ -429,5 +523,12 @@ export function mergeProfile(base: ProfileShape, delta: PersonalizationDelta): M
     next.location = delta.location;
   }
 
-  return { profile: next, weightsChanged, keywordsChanged, rolesChanged, locationChanged };
+  return {
+    profile: next,
+    weightsChanged,
+    keywordsChanged,
+    rolesChanged,
+    categoriesChanged,
+    locationChanged,
+  };
 }

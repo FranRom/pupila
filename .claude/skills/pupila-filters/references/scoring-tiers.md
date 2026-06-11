@@ -26,10 +26,7 @@ Worked example with `base = 10` (stackPrimary):
 
 | Signal | Type | Max | Regex group (global flag set) |
 |---|---|---|---|
-| `web3TitleBody` | binary | 20 | `web3`, `crypto`, `blockchain`, `defi`, `dao`, `nft`, `solana`, `ethereum`, ... |
-| `web3Stack` | binary | 20 | stack-side web3 (libraries: viem, wagmi, ethers, solana/web3.js, ...) |
-| `aiTitleBody` | binary | 20 | `ai`, `ml`, `llm`, `agent`, `genai`, `claude`, `openai`, `anthropic`, ... |
-| `aiStack` | binary | 20 | stack-side AI (langchain, llamaindex, ollama, pytorch, ...) |
+| `categories[<id>]` | binary | each category's `weight` | per-category keyword list from `profile.json#categories` (e.g. a `web3` or `ai` `CategoryDef`). Keywords are plain LITERAL terms (not regex), matched whole-word via `compileCategoryKeywords()` (alphanumeric lookarounds, not `\b`), so `c++`/`.net` work and `node.js` also matches `nodejs`. Matched against title+body, or body-only when `scope: 'body'`. Recorded in `_signals.categories` keyed by id; replaces the old fixed `web3*`/`ai*` signals. |
 | `stackPrimary` | **tiered** | 10/5/15 | React, Next.js, TypeScript |
 | `stackRn` | **tiered** | 5/2/7 | React Native, Expo |
 | `stackOther` | **tiered** | 5/2/7 | GraphQL, Tailwind, Vite |

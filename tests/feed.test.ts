@@ -20,7 +20,7 @@ function makeJob(overrides: Partial<Job> = {}): Job {
     postedAt: '2026-04-28T00:00:00Z',
     fetchedAt: '2026-04-28T00:00:00Z',
     fitScore: 88,
-    category: 'ai',
+    categories: ['ai'],
     ...overrides,
   };
 }
