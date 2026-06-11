@@ -174,7 +174,7 @@ export function JobsFilters({
           className={clsx(buttonStyles.secondary, buttonStyles.sm)}
           onClick={onReset}
         >
-          Reset
+          Reset Filters
         </button>
       )}
 
