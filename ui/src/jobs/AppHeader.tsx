@@ -1,7 +1,6 @@
 import logoUrl from '../../../assets/logo.svg';
 import asciiTitleUrl from '../../../assets/pupila-ascii.svg';
 import tabStyles from '../styles/Tab.module.css';
-import type { Category } from '../types.ts';
 import styles from './AppHeader.module.css';
 
 type Tab = 'jobs' | 'swipe' | 'profile' | 'settings';
@@ -11,7 +10,8 @@ interface AppHeaderProps {
   onTabChange: (t: Tab) => void;
   dataLoading: boolean;
   totalJobs: number;
-  totals: Record<Category, number>;
+  /** Kept-job counts keyed by category id (plus 'other' for uncategorized). */
+  totals: Record<string, number>;
   appliedCount: number;
   visibleCount: number;
 }
@@ -46,11 +46,15 @@ export function AppHeader({
             'loading…'
           ) : (
             <>
-              {totalJobs} jobs · {totals['web3+ai']} web3+ai · {totals.web3} web3 · {totals.ai} ai ·{' '}
-              {totals.general} general · {appliedCount} applied
+              {totalJobs} jobs
+              {Object.entries(totals)
+                .filter(([, n]) => n > 0)
+                .map(([id, n]) => ` · ${n} ${id}`)
+                .join('')}{' '}
+              · {appliedCount} applied
               {tab === 'jobs' && (
                 <>
-                  {' — '}
+                  {' · '}
                   <span className={styles.subtitleEmphasis}>
                     Showing <strong>{visibleCount}</strong>
                   </span>

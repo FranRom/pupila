@@ -49,7 +49,10 @@ describe('useUrlSyncedState', () => {
     it('falls back to defaults for invalid values', () => {
       window.history.replaceState(null, '', '/?cat=nonsense&sort=bogus&dir=BOGUS&tab=invalid');
       const { result } = renderHook(() => useUrlSyncedState());
-      expect(result.current.category).toBe('all');
+      // Category ids are user-defined config, not a fixed enum — any non-empty
+      // value is preserved (an unknown id simply matches no jobs), so 'nonsense'
+      // is kept rather than reset. sort/dir/tab still validate against fixed sets.
+      expect(result.current.category).toBe('nonsense');
       expect(result.current.sortKey).toBe('fitScore');
       expect(result.current.sortDir).toBe('desc');
       expect(result.current.tab).toBe('jobs');

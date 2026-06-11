@@ -4,10 +4,7 @@ import type { JobSignals } from '../types.ts';
 import { SignalChips } from './SignalChips.tsx';
 
 const emptySignals: JobSignals = {
-  web3TitleBody: 0,
-  web3Stack: 0,
-  aiTitleBody: 0,
-  aiStack: 0,
+  categories: {},
   stackPrimary: 0,
   stackRn: 0,
   stackOther: 0,
@@ -55,10 +52,10 @@ describe('SignalChips', () => {
     expect(container).toBeEmptyDOMElement();
   });
 
-  it('renders fired chips with label + "+value" suffix', () => {
-    render(<SignalChips signals={{ ...emptySignals, web3TitleBody: 20, aiStack: 20 }} />);
+  it('renders fired chips (categories by id) with label + "+value" suffix', () => {
+    render(<SignalChips signals={{ ...emptySignals, categories: { web3: 20, ai: 20 } }} />);
     expect(screen.getByText('web3 +20')).toBeInTheDocument();
-    expect(screen.getByText('ai stack +20')).toBeInTheDocument();
+    expect(screen.getByText('ai +20')).toBeInTheDocument();
   });
 
   it('sorts chips by signal value descending', () => {
@@ -67,7 +64,7 @@ describe('SignalChips', () => {
         signals={{
           ...emptySignals,
           stackPrimary: 10,
-          web3TitleBody: 20,
+          categories: { web3: 20 },
           roleBody: 5,
         }}
       />,
@@ -84,11 +81,10 @@ describe('SignalChips', () => {
       <SignalChips
         signals={{
           ...emptySignals,
-          web3TitleBody: 20,
-          web3Stack: 20,
-          aiTitleBody: 20,
-          aiStack: 20,
+          categories: { web3: 20, ai: 20 },
           stackPrimary: 10,
+          stackOther: 5,
+          roleBody: 5,
         }}
       />,
     );
@@ -102,11 +98,10 @@ describe('SignalChips', () => {
         max={5}
         signals={{
           ...emptySignals,
-          web3TitleBody: 20,
-          web3Stack: 20,
-          aiTitleBody: 20,
-          aiStack: 20,
+          categories: { web3: 20, ai: 20 },
           stackPrimary: 10,
+          stackOther: 5,
+          roleBody: 5,
         }}
       />,
     );

@@ -1,10 +1,19 @@
 import { readFile } from 'node:fs/promises';
-import type { Category, Job, JobSignals, LocationProfile, RoleInterest } from './types.js';
+import type { CategoryDef, Job, JobSignals, LocationProfile, RoleInterest } from './types.js';
 import { isSafeUrl, withinDays } from './utils.js';
 
 /** Escape a plain location term so it's safe to drop into a regex alternation. */
 function escapeRegExp(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+// Compile a LITERAL category keyword to a regex fragment: escape it, but let a
+// dot that sits BETWEEN two alphanumerics become optional, so "node.js" also
+// matches "nodejs" (a common spelling variant of the same tech). Punctuation
+// that's meaningful on its own — "c++", "c#", ".net" — stays exact because its
+// dot (if any) isn't between two alphanumerics.
+function literalKeywordToRegex(kw: string): string {
+  return escapeRegExp(kw).replace(/(?<=[a-z0-9])\\\.(?=[a-z0-9])/gi, '\\.?');
 }
 
 // Profile is loaded at runtime (not statically imported) so that:
@@ -21,11 +30,11 @@ export interface FilterScoring {
   scoringBodyMaxChars: number;
 }
 
+// Point values for the fixed, universal scoring signals (stack, seniority,
+// role, location, freshness). Category scoring is NOT here — each category
+// carries its own optional `weight` in `FilterProfile.categories` (see
+// `CategoryDef`), so adding/renaming a category never touches this interface.
 export interface FilterWeights {
-  web3TitleBody: number;
-  web3Stack: number;
-  aiTitleBody: number;
-  aiStack: number;
   stackPrimary: number;
   stackRn: number;
   stackOther: number;
@@ -54,6 +63,12 @@ export interface FilterProfile {
   // `Job.roleMatches`, and is rescued from the title-based hard drops.
   // Optional so older/minimal profiles still load (treated as no roles).
   roles?: readonly RoleInterest[];
+  // User-defined job categories (the config-driven replacement for the old
+  // hardcoded web3/ai/general taxonomy). A job is tagged with every category
+  // whose keywords match (`Job.categories`); a category's optional `weight`
+  // also adds to the score. Optional so older/minimal profiles still load
+  // (no categories → every job is uncategorized → renders under "Other").
+  categories?: readonly CategoryDef[];
   // Candidate location preferences. When present, drives the persona-neutral
   // geo filter + location scoring. Optional so older/minimal profiles still
   // load (the geo hard-drop is inert without it).
@@ -90,6 +105,25 @@ function compileKw(fragments: readonly string[] | undefined): RegExp {
   } catch (err) {
     console.warn(
       `[filters] compileKw failed for keyword group; falling back to NEVER_MATCH. Fragments: ${JSON.stringify(fragments).slice(0, 200)}. Error: ${err instanceof Error ? err.message : String(err)}`,
+    );
+    return NEVER_MATCH;
+  }
+}
+
+// Compile a category's LITERAL keyword list to a matcher. Unlike `compileKw`
+// (which wraps in `\b...\b`), this anchors with alphanumeric lookarounds:
+// `(?<![a-z0-9])(...)(?![a-z0-9])`. That behaves like `\b` for plain words ("ai"
+// still won't match "email") but ALSO works for keywords whose edges are
+// punctuation — `\b` fails right after a "+" or "#", so "c++"/"c#"/".net" would
+// never match under `\b`. Each keyword is escaped + dot-relaxed first.
+function compileCategoryKeywords(keywords: readonly string[]): RegExp {
+  if (keywords.length === 0) return NEVER_MATCH;
+  const body = keywords.map(literalKeywordToRegex).join('|');
+  try {
+    return new RegExp(`(?<![a-z0-9])(${body})(?![a-z0-9])`, 'i');
+  } catch (err) {
+    console.warn(
+      `[filters] compileCategoryKeywords failed; falling back to NEVER_MATCH. Keywords: ${JSON.stringify(keywords).slice(0, 200)}. Error: ${err instanceof Error ? err.message : String(err)}`,
     );
     return NEVER_MATCH;
   }
@@ -163,10 +197,19 @@ export function createFilters(profile: FilterProfile): FilterApi {
   const TITLE_EXCLUDED_SPECIALTIES = compileKw(K.titleExcludedSpecialties);
   const TITLE_NON_ENG_ROLE = compileKw(K.titleNonEngRole);
   const TITLE_NON_TECH_ROLE = compileKw(K.titleNonTechRole);
-  const W3_TITLE_BODY = compileKw(K.w3TitleBody);
-  const W3_STACK = compileKw(K.w3Stack);
-  const AI_TITLE_BODY = compileKw(K.aiTitleBody);
-  const AI_STACK = compileKw(K.aiStack);
+  // User-defined categories, compiled once. Each becomes a label + an optional
+  // score boost. `scope` picks the haystack ('title-body' default, or body-only
+  // for stack-style noise control); `weight` defaults to 0 (pure label). Inert
+  // when `categories` is empty/absent (no job gets tagged). Keywords are LITERAL
+  // terms (not regex); `compileCategoryKeywords` escapes them, relaxes a dot
+  // between words to optional (`node.js` also matches `nodejs`), and anchors with
+  // alphanumeric lookarounds so punctuation-edged terms like `c++`/`.net` work.
+  const CATEGORIES = (profile.categories ?? []).map((c) => ({
+    id: c.id,
+    re: compileCategoryKeywords(c.keywords),
+    scope: c.scope ?? 'title-body',
+    weight: c.weight ?? 0,
+  }));
   const STACK_PRIMARY_G = compileKwGlobal(K.stackPrimary);
   const STACK_RN_G = compileKwGlobal(K.stackRn);
   const STACK_OTHER_G = compileKwGlobal(K.stackOther);
@@ -333,11 +376,21 @@ export function createFilters(profile: FilterProfile): FilterApi {
         0,
       );
 
+      // Category matching (config-driven, replaces the hardcoded web3/ai block).
+      // A job is tagged with every category whose keywords hit; a matched
+      // category's weight is added once (binary, like the old web3/ai signals).
+      const categoryScores: Record<string, number> = {};
+      const matchedCategories: string[] = [];
+      for (const c of CATEGORIES) {
+        const haystack = c.scope === 'body' ? scoringBody : scoringTitleAndBody;
+        if (c.re.test(haystack)) {
+          matchedCategories.push(c.id);
+          categoryScores[c.id] = c.weight;
+        }
+      }
+      const categorySum = Object.values(categoryScores).reduce((a, b) => a + b, 0);
+
       const positives = {
-        web3TitleBody: W3_TITLE_BODY.test(scoringTitleAndBody) ? W.web3TitleBody : 0,
-        web3Stack: W3_STACK.test(scoringBody) ? W.web3Stack : 0,
-        aiTitleBody: AI_TITLE_BODY.test(scoringTitleAndBody) ? W.aiTitleBody : 0,
-        aiStack: AI_STACK.test(scoringBody) ? W.aiStack : 0,
         stackPrimary: tieredWeight(countMatches(STACK_PRIMARY_G, scoringBody), W.stackPrimary),
         stackRn: tieredWeight(countMatches(STACK_RN_G, scoringBody), W.stackRn),
         stackOther: tieredWeight(countMatches(STACK_OTHER_G, scoringBody), W.stackOther),
@@ -356,11 +409,10 @@ export function createFilters(profile: FilterProfile): FilterApi {
         freshness14d: !fresh7 && withinDays(job.postedAt, 14) ? W.freshness14d : 0,
       };
 
-      const positiveSum = Object.values(positives).reduce((a, b) => a + b, 0);
-      const web3 = positives.web3TitleBody > 0 || positives.web3Stack > 0;
-      const ai = positives.aiTitleBody > 0 || positives.aiStack > 0;
+      const positiveSum = Object.values(positives).reduce((a, b) => a + b, 0) + categorySum;
 
       const signals: JobSignals = {
+        categories: categoryScores,
         ...positives,
         outOfRegionPenalty: 0,
         rawTotal: positiveSum,
@@ -390,12 +442,13 @@ export function createFilters(profile: FilterProfile): FilterApi {
         continue;
       }
 
-      let category: Category = 'general';
-      if (web3 && ai) category = 'web3+ai';
-      else if (web3) category = 'web3';
-      else if (ai) category = 'ai';
-
-      kept.push({ ...job, fitScore: score, category, roleMatches, _signals: signals });
+      kept.push({
+        ...job,
+        fitScore: score,
+        categories: matchedCategories,
+        roleMatches,
+        _signals: signals,
+      });
     }
 
     return { kept, droppedHard, droppedScore, droppedByRule };

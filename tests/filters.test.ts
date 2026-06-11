@@ -26,7 +26,7 @@ function makeJob(overrides: Partial<Job> = {}): Job {
     postedAt: now,
     fetchedAt: now,
     fitScore: 0,
-    category: 'general',
+    categories: [],
     ...overrides,
   };
 }
@@ -336,7 +336,7 @@ describe('applyFilters — geo rule is persona-neutral (no privileged country)',
 });
 
 describe('applyFilters — scoring', () => {
-  it('awards web3 signals (+20 title, +20 stack)', () => {
+  it('tags the web3 category (+20) and contributes to score', () => {
     const r = applyFilters([
       makeJob({
         title: 'Senior Blockchain Engineer',
@@ -344,11 +344,12 @@ describe('applyFilters — scoring', () => {
       }),
     ]);
     expect(r.kept).toHaveLength(1);
-    expect(r.kept[0]?.category).toBe('web3');
+    expect(r.kept[0]?.categories).toEqual(['web3']);
+    expect(r.kept[0]?._signals?.categories.web3).toBe(20);
     expect(r.kept[0]?.fitScore).toBeGreaterThanOrEqual(60);
   });
 
-  it('awards AI signals (+20 title, +20 stack)', () => {
+  it('tags the ai category (+20)', () => {
     const r = applyFilters([
       makeJob({
         title: 'Senior AI Engineer',
@@ -356,10 +357,11 @@ describe('applyFilters — scoring', () => {
       }),
     ]);
     expect(r.kept).toHaveLength(1);
-    expect(r.kept[0]?.category).toBe('ai');
+    expect(r.kept[0]?.categories).toEqual(['ai']);
+    expect(r.kept[0]?._signals?.categories.ai).toBe(20);
   });
 
-  it('assigns web3+ai when both fire', () => {
+  it('multi-labels a job matching both web3 and ai (config order)', () => {
     const r = applyFilters([
       makeJob({
         title: 'Senior Engineer',
@@ -367,14 +369,14 @@ describe('applyFilters — scoring', () => {
       }),
     ]);
     expect(r.kept).toHaveLength(1);
-    expect(r.kept[0]?.category).toBe('web3+ai');
+    expect(r.kept[0]?.categories).toEqual(['web3', 'ai']);
   });
 
   it('caps fitScore at 100 before penalty', () => {
     const r = applyFilters([
       makeJob({
-        title: 'Staff Senior Engineer',
-        body: 'web3 wagmi anthropic claude react typescript next.js graphql tailwind remote worldwide',
+        title: 'Staff Frontend Engineer',
+        body: 'web3 wagmi anthropic claude. Ship react components, own the design system, drive accessibility, responsive design, web vitals. react react react typescript next.js graphql tailwind remote worldwide',
       }),
     ]);
     const job = r.kept[0];
@@ -421,7 +423,7 @@ describe('applyFilters — scoring', () => {
       }),
     ]);
     expect(r.kept[0]?._signals).toBeDefined();
-    expect(r.kept[0]?._signals?.aiStack).toBe(20);
+    expect(r.kept[0]?._signals?.categories.ai).toBe(20);
     expect(r.kept[0]?._signals?.stackPrimary).toBe(10);
     expect(r.kept[0]?._signals?.seniorTitle).toBe(10);
   });
@@ -510,7 +512,7 @@ describe('applyFilters — scoring', () => {
       }),
     ]);
     if (r.kept.length > 0) {
-      expect(r.kept[0]?._signals?.aiStack).toBe(0);
+      expect(r.kept[0]?.categories ?? []).not.toContain('ai');
     }
   });
 
@@ -521,7 +523,44 @@ describe('applyFilters — scoring', () => {
         body: 'Build AI agents using Anthropic Claude and the Vercel AI SDK in React. Remote.',
       }),
     ]);
-    expect(r.kept[0]?._signals?.aiStack).toBe(20);
+    expect(r.kept[0]?._signals?.categories.ai).toBe(20);
+  });
+});
+
+describe('applyFilters — category keyword matching (literal terms)', () => {
+  function withCategory(keywords: string[]) {
+    const profile = {
+      ...testProfile,
+      categories: [{ id: 'tag', label: 'Tag', keywords, weight: 20 }],
+    } as unknown as FilterProfile;
+    return createFilters(profile).applyFilters;
+  }
+  const tagsFor = (run: ReturnType<typeof withCategory>, snippet: string) =>
+    run([makeJob({ title: 'Senior Engineer', body: `${snippet} react typescript remote` })]).kept[0]
+      ?.categories ?? [];
+
+  it('relaxes a dot between words: node.js matches both "node.js" and "nodejs"', () => {
+    const run = withCategory(['node.js']);
+    expect(tagsFor(run, 'we use node.js daily')).toContain('tag');
+    expect(tagsFor(run, 'we use nodejs daily')).toContain('tag');
+  });
+
+  it('matches punctuation-edged keywords that \\b would break (c++)', () => {
+    const run = withCategory(['c++']);
+    expect(tagsFor(run, 'strong c++ background')).toContain('tag');
+    expect(tagsFor(run, 'plain c developer')).not.toContain('tag');
+  });
+
+  it('keeps standalone-dot keywords exact (.net does not match the word "net")', () => {
+    const run = withCategory(['.net']);
+    expect(tagsFor(run, 'asp .net core')).toContain('tag');
+    expect(tagsFor(run, 'net income growth')).not.toContain('tag');
+  });
+
+  it('still anchors plain words (ai does not match inside "email")', () => {
+    const run = withCategory(['ai']);
+    expect(tagsFor(run, 'senior ai work')).toContain('tag');
+    expect(tagsFor(run, 'check your email often')).not.toContain('tag');
   });
 });
 

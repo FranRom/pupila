@@ -3,6 +3,7 @@ import {
   mergeProfile,
   type ProfileShape,
   parsePersonalizationDelta,
+  sanitizeCategories,
   sanitizeLocation,
 } from '../src/lib/profile-generator.js';
 
@@ -116,6 +117,106 @@ describe('mergeProfile — roles', () => {
     const out = mergeProfile(base, { weights: {}, keywords: {} });
     expect(out.profile.roles).toEqual([{ id: 'fe', label: 'FE', titleMatch: ['frontend'] }]);
     expect(out.rolesChanged).toBe(false);
+  });
+});
+
+describe('sanitizeCategories', () => {
+  it('keeps a valid category with scope/weight/limit', () => {
+    const out = sanitizeCategories([
+      {
+        id: 'web3',
+        label: 'Web3',
+        keywords: ['web3', 'defi'],
+        scope: 'body',
+        weight: 20,
+        limit: 5,
+      },
+    ]);
+    expect(out).toEqual([
+      {
+        id: 'web3',
+        label: 'Web3',
+        keywords: ['web3', 'defi'],
+        scope: 'body',
+        weight: 20,
+        limit: 5,
+      },
+    ]);
+  });
+
+  it('omits scope/weight/limit when absent or invalid (consumer defaults apply)', () => {
+    const out = sanitizeCategories([
+      { id: 'ai', label: 'AI', keywords: ['llm'], scope: 'bogus', weight: -3 },
+    ]);
+    expect(out).toEqual([{ id: 'ai', label: 'AI', keywords: ['llm'] }]);
+  });
+
+  it('drops categories with no usable keyword and dedupes by id', () => {
+    const out = sanitizeCategories([
+      { id: 'empty', label: 'Empty', keywords: [] },
+      { id: 'web3', label: 'Web3', keywords: ['web3'] },
+      { id: 'web3', label: 'Dupe', keywords: ['crypto'] },
+    ]);
+    expect(out).toEqual([{ id: 'web3', label: 'Web3', keywords: ['web3'] }]);
+  });
+
+  it('clamps weight to the 50 cap and keeps literal keywords (incl. punctuation)', () => {
+    // Category keywords are literal terms, so punctuation like node.js / c++ is
+    // preserved as-is (not dropped as "invalid regex").
+    const out = sanitizeCategories([
+      { id: 'x', label: 'X', keywords: ['node.js', 'c++'], weight: 999 },
+    ]);
+    expect(out).toEqual([{ id: 'x', label: 'X', keywords: ['node.js', 'c++'], weight: 50 }]);
+  });
+
+  it('returns [] for non-array input', () => {
+    expect(sanitizeCategories(undefined)).toEqual([]);
+    expect(sanitizeCategories('nope')).toEqual([]);
+  });
+});
+
+describe('parsePersonalizationDelta — categories', () => {
+  it('extracts a sanitized categories array', () => {
+    const raw = JSON.stringify({
+      categories: [{ id: 'web3', label: 'Web3', keywords: ['web3', 'defi'], weight: 20 }],
+    });
+    const out = parsePersonalizationDelta(raw);
+    expect(out.categories).toEqual([
+      { id: 'web3', label: 'Web3', keywords: ['web3', 'defi'], weight: 20 },
+    ]);
+  });
+
+  it('omits categories when none survive validation', () => {
+    const raw = JSON.stringify({ categories: [{ id: 'x', label: 'X', keywords: [] }] });
+    expect(parsePersonalizationDelta(raw).categories).toBeUndefined();
+  });
+});
+
+describe('mergeProfile — categories', () => {
+  it('replaces categories[] from the delta and reports the change', () => {
+    const base: ProfileShape = {
+      weights: {},
+      keywords: {},
+      categories: [{ id: 'old', label: 'Old', keywords: ['x'] }],
+    };
+    const out = mergeProfile(base, {
+      weights: {},
+      keywords: {},
+      categories: [{ id: 'web3', label: 'Web3', keywords: ['web3'] }],
+    });
+    expect(out.profile.categories).toEqual([{ id: 'web3', label: 'Web3', keywords: ['web3'] }]);
+    expect(out.categoriesChanged).toBe(true);
+  });
+
+  it('leaves categories untouched when the delta carries none', () => {
+    const base: ProfileShape = {
+      weights: {},
+      keywords: {},
+      categories: [{ id: 'web3', label: 'Web3', keywords: ['web3'] }],
+    };
+    const out = mergeProfile(base, { weights: {}, keywords: {} });
+    expect(out.profile.categories).toEqual([{ id: 'web3', label: 'Web3', keywords: ['web3'] }]);
+    expect(out.categoriesChanged).toBe(false);
   });
 });
 

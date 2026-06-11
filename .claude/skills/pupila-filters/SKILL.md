@@ -22,8 +22,7 @@ All filter logic lives in `src/filters.ts`. Weights + keyword lists load from `c
 1. **Hard excludes** — URL safety, junior/intern titles, location-incompatible (persona-neutral — see "Location & work type" below), non-engineering compounds, leadership, non-frontend eng (since user is a frontend engineer), non-tech roles.
 2. **Body preparation** — `preparedScoringBody()` strips boilerplate (EEO, privacy, "About us") and truncates to `scoringBodyMaxChars` (default 1500). Keyword scoring runs against this — prevents footer text like "we use Anthropic Claude internally" from landing a +20 AI signal on a backend role. **Hard-drops still see the full body.**
 3. **Soft scoring** — additive, capped at `maxScore` (100):
-   - Web3 (+20 title/body, +20 stack) — binary
-   - AI (+20 title/body, +20 stack) — binary
+   - Categories — each configured `CategoryDef` whose keywords match adds its `weight` once (binary); default `weight` 0 = pure label. Replaces the old hardcoded web3/ai signals. A job is tagged with every match (`Job.categories`).
    - Stack (+10 React/Next/TS, +5 RN/Expo, +5 GraphQL/Tailwind/Vite) — **tiered**
    - Seniority (+15 lead/staff/principal/head, +10 senior/sr) — binary
    - Frontend title (+10) — binary
@@ -32,7 +31,7 @@ All filter logic lives in `src/filters.ts`. Weights + keyword lists load from `c
    - Freshness (+10 within 7d, +5 within 14d) — binary
 4. **Negative** — `outOfRegionPenalty` (default -10) if the job is region-locked outside the candidate's accepted regions and they haven't opted into hard-excluding. Applied **after** capping. (Persona-neutral; replaced the old US-centric penalty.)
 5. **Drop** — anything with `fitScore < minScoreToKeep` (default 30).
-6. **Category** — `web3+ai` if both fired, else `web3`, `ai`, or `general`.
+6. **Categories** — `job.categories` = ids of every `CategoryDef` whose keywords matched (multi-label, config order); `[]` when none (renders under synthetic "Other"). Defined in `config/profile.json#categories`, generated from the brief on Regenerate or edited on the Profile tab. Each entry: `{ id, label, keywords, scope?, weight?, limit? }`.
 
 ## Tiered weighting
 
@@ -59,7 +58,8 @@ Edit `config/profile.json#keywords.<list>`. `compileKw()` joins each list with `
 
 - `seniorReq`, `engineeringKw` (whitelists — kept jobs must match these)
 - `nonEngineering`, `nonFrontendEng`, `nonEngLeadership`, `nonEngCompound`, `nonEngRole`, `nonTechRole` (blacklists — drop on title match)
-- `stackPrimary`, `stackRn`, `stackOther`, `web3*`, `ai*` (scoring signals)
+- `stackPrimary`, `stackRn`, `stackOther` (scoring signals)
+- `profile.json#categories[]`: user-defined taxonomy (`{ id, label, keywords, scope?, weight?, limit? }`). Each match tags `job.categories` and adds `weight` to the score. Replaced the old hardcoded `web3*`/`ai*` keyword groups. **Category `keywords` are plain LITERAL terms, not regex** (unlike every list above): they're matched whole-word + case-insensitive by `compileCategoryKeywords()` in `src/filters.ts`, which anchors with alphanumeric lookarounds instead of `\b`, so punctuation-edged terms work (`c++`, `c#`, `.net`) and a dot between words is optional (`node.js` also matches `nodejs`). List both for other variants (`agent`/`agents`). Edit by hand, regenerate from the brief, or use the Profile-tab editor (`ui/src/CategoryPreferences.tsx`); validated by `sanitizeCategories()` (literal-only, no regex compile) in `src/lib/profile-generator.ts`.
 - `profile.json#roles[]` — target job titles (`{ id, label, titleMatch, bodyMatch? }`); drive `roleTitle`/`roleBody` + `job.roleMatches` + the hard-drop rescue (see `references/scoring-tiers.md`)
 - `locationLock`, `onsiteOnly`, `worldwideRemote` — persona-neutral geo *extraction* groups (no country names); the keep/drop decision compares them against `profile.json#location` (see "Location & work type" below)
 - `locationRemote` — fallback remote signal only used when a profile has no `location` block
@@ -119,15 +119,16 @@ Every kept job carries a `_signals` object showing which scoring rules fired:
 
 ```jsonc
 "_signals": {
-  "web3TitleBody": 0, "web3Stack": 20, "aiTitleBody": 20, "aiStack": 20,
+  "categories": { "web3": 20, "ai": 20 },  // id → weight contributed; mirrors job.categories
   "stackPrimary": 10, "stackRn": 0, "stackOther": 0,
   "leadTitle": 0, "seniorTitle": 10,
   "roleTitle": 10, "roleBody": 10, "locationRemote": 10,
   "freshness7d": 10, "freshness14d": 0, "outOfRegionPenalty": 0,
-  "rawTotal": 110, "capped": true
+  "rawTotal": 100, "capped": false
 }
 ```
 
+- `_signals.categories` keys are exactly `job.categories`; a value of 0 = a matched pure-label category.
 - `rawTotal` is the un-capped positive sum.
 - `capped: true` means positives summed > 100 before clamping.
 - `outOfRegionPenalty` is applied **after** capping.

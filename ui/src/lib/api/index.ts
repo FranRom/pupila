@@ -32,6 +32,7 @@ import type {
   ApplicationStatus,
   AppliedEntry,
   ApplyQueueResponse,
+  CategoryDef,
   Job,
   JobBodyResponse,
   LocationProfile,
@@ -129,6 +130,15 @@ export interface RolesResponse {
 export interface RolesMutateResponse {
   ok: true;
   roles: RoleInterest[];
+}
+
+export interface CategoriesResponse {
+  categories: CategoryDef[];
+}
+
+export interface CategoriesMutateResponse {
+  ok: true;
+  categories: CategoryDef[];
 }
 
 export interface LocationResponse {
@@ -308,6 +318,17 @@ export const api = {
       request<RolesMutateResponse>('/api/profile-roles', {
         method: 'PUT',
         json: { roles },
+        ...opt,
+      }),
+  },
+
+  // ── Job categories (user-defined taxonomy) ───────────────────────────────
+  categories: {
+    get: (opt: SignalOpt = {}) => request<CategoriesResponse>('/api/profile-categories', opt),
+    set: (categories: CategoryDef[], opt: SignalOpt = {}) =>
+      request<CategoriesMutateResponse>('/api/profile-categories', {
+        method: 'PUT',
+        json: { categories },
         ...opt,
       }),
   },

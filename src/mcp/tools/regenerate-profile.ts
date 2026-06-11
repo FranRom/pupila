@@ -69,7 +69,8 @@ export async function runRegenerateProfile(
       input.provider && input.provider !== 'auto' ? input.provider : undefined;
 
     const delta = await deps.generateDelta(brief, provider);
-    const { profile, weightsChanged, keywordsChanged, rolesChanged } = mergeProfile(base, delta);
+    const { profile, weightsChanged, keywordsChanged, rolesChanged, categoriesChanged } =
+      mergeProfile(base, delta);
     await writeFile(deps.profilePath, `${JSON.stringify(profile, null, 2)}\n`, 'utf8');
 
     return toolJson({
@@ -78,6 +79,7 @@ export async function runRegenerateProfile(
       weightsChanged,
       keywordsChanged,
       rolesChanged,
+      categoriesChanged,
     });
   } finally {
     inFlight = false;

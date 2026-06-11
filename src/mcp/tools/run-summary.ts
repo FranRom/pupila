@@ -23,16 +23,16 @@ async function safeMtime(p: string): Promise<string | null> {
 
 export async function runRunSummary(paths: RunSummaryPaths = DEFAULT_PATHS): Promise<ToolResult> {
   const jobs = (await readJsonOrNull<Job[]>(paths.jobsPath)) ?? [];
-  const byCategory: Record<string, number> = {
-    'web3+ai': 0,
-    web3: 0,
-    ai: 0,
-    general: 0,
-  };
+  // Keyed by category id (a multi-label job counts under each of its ids);
+  // jobs matching no category are tallied under "other".
+  const byCategory: Record<string, number> = {};
   const sourceMap = new Map<string, number>();
   let maxFetched = 0;
   for (const j of jobs) {
-    byCategory[j.category] = (byCategory[j.category] ?? 0) + 1;
+    // `?? []` tolerates legacy jobs.json entries written before `categories`.
+    const cats = j.categories ?? [];
+    if (cats.length === 0) byCategory.other = (byCategory.other ?? 0) + 1;
+    for (const id of cats) byCategory[id] = (byCategory[id] ?? 0) + 1;
     sourceMap.set(j.source, (sourceMap.get(j.source) ?? 0) + 1);
     if (j.fetchedAt) {
       const t = new Date(j.fetchedAt).getTime();

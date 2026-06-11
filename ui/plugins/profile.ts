@@ -7,6 +7,7 @@ import {
   generateProfileFromBrief,
   mergeProfile,
   type ProfileShape,
+  sanitizeCategories,
   sanitizeLocation,
   sanitizeRoles,
 } from '../../src/lib/profile-generator.js';
@@ -100,6 +101,40 @@ export function profileApiPlugin(): Plugin {
           res.end();
         } catch (err) {
           console.error('[profile-roles api]', err);
+          res.statusCode = 500;
+          res.end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }));
+        }
+      });
+
+      // GET  /api/profile-categories → { categories } from config/profile.json
+      // PUT  /api/profile-categories → persist a user-edited categories[] (validated)
+      // Read-modify-write so all other profile fields are preserved.
+      server.middlewares.use('/api/profile-categories', async (req, res) => {
+        res.setHeader('Content-Type', 'application/json');
+        try {
+          if (req.method === 'GET') {
+            const profile = await readJsonOrDefault<ProfileShape | null>(PROFILE_PATH, null);
+            res.end(JSON.stringify({ categories: profile?.categories ?? [] }));
+            return;
+          }
+          if (req.method === 'PUT') {
+            const body = (await readBody(req)) as { categories?: unknown };
+            const categories = sanitizeCategories(body.categories);
+            const base = await readJsonOrDefault<ProfileShape | null>(PROFILE_PATH, null);
+            if (!base || typeof base !== 'object') {
+              res.statusCode = 500;
+              res.end(JSON.stringify({ error: 'config/profile.json is missing or unparseable.' }));
+              return;
+            }
+            const next: ProfileShape = { ...base, categories };
+            await writeFile(PROFILE_PATH, `${JSON.stringify(next, null, 2)}\n`, 'utf8');
+            res.end(JSON.stringify({ ok: true, categories }));
+            return;
+          }
+          res.statusCode = 405;
+          res.end();
+        } catch (err) {
+          console.error('[profile-categories api]', err);
           res.statusCode = 500;
           res.end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }));
         }
@@ -229,13 +264,20 @@ export function profileApiPlugin(): Plugin {
             );
             return;
           }
-          const { profile, weightsChanged, keywordsChanged, rolesChanged, locationChanged } =
-            mergeProfile(base, delta);
+          const {
+            profile,
+            weightsChanged,
+            keywordsChanged,
+            rolesChanged,
+            categoriesChanged,
+            locationChanged,
+          } = mergeProfile(base, delta);
           await writeFile(PROFILE_PATH, `${JSON.stringify(profile, null, 2)}\n`, 'utf8');
           responder.finish({
             weightsChanged,
             keywordsChanged,
             rolesChanged,
+            categoriesChanged,
             locationChanged,
             provider: provider ?? 'auto',
           });

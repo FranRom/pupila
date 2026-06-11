@@ -98,7 +98,7 @@ export function normalizeRemoteOk(items: RawRemoteOk[], fetchedAt: string): Job[
       postedAt,
       fetchedAt,
       fitScore: 0,
-      category: 'general',
+      categories: [],
     };
   });
 }
@@ -122,7 +122,7 @@ export function normalizeRemotive(items: RawRemotive[], fetchedAt: string): Job[
       postedAt: safeIso(j.publication_date),
       fetchedAt,
       fitScore: 0,
-      category: 'general',
+      categories: [],
     };
   });
 }
@@ -174,7 +174,7 @@ function normalizeRssGeneric(
         postedAt: safeIso(item.pubDate),
         fetchedAt,
         fitScore: 0,
-        category: 'general',
+        categories: [],
       } satisfies Job,
     ];
   });
@@ -208,7 +208,7 @@ export function normalizeWeb3Career(items: RawWeb3Career[], fetchedAt: string): 
       postedAt: j.postedAt,
       fetchedAt,
       fitScore: 0,
-      category: 'general',
+      categories: [],
     };
   });
 }
@@ -252,7 +252,7 @@ export function normalizeAiJobsNet(items: RawAiJobs[], fetchedAt: string): Job[]
       postedAt: parseRelativeAgo(j.postedRelative),
       fetchedAt,
       fitScore: 0,
-      category: 'general',
+      categories: [],
     };
   });
 }
@@ -316,7 +316,7 @@ export function normalizeHnHiring(items: RawHnHiringPost[], fetchedAt: string): 
         postedAt: safeIso(p.createdAt),
         fetchedAt,
         fitScore: 0,
-        category: 'general',
+        categories: [],
       } satisfies Job,
     ];
   });
@@ -349,7 +349,7 @@ export function normalizeHnJobs(items: RawHnHit[], fetchedAt: string): Job[] {
         postedAt: safeIso(h.created_at),
         fetchedAt,
         fitScore: 0,
-        category: 'general',
+        categories: [],
       } satisfies Job,
     ];
   });
@@ -382,7 +382,7 @@ export function normalizeAshby(items: RawAshbyJobWithSlug[], fetchedAt: string):
       postedAt: safeIso(j.publishedAt),
       fetchedAt,
       fitScore: 0,
-      category: 'general',
+      categories: [],
     };
   });
 }
@@ -419,7 +419,7 @@ export function normalizeLever(items: RawLeverJobWithSlug[], fetchedAt: string):
       postedAt: safeIso(j.createdAt),
       fetchedAt,
       fitScore: 0,
-      category: 'general',
+      categories: [],
     };
   });
 }
@@ -473,7 +473,7 @@ export function normalizeAshbyPrivate(
       postedAt: safeIso(detail?.publishedDate),
       fetchedAt,
       fitScore: 0,
-      category: 'general',
+      categories: [],
     };
   });
 }
@@ -500,7 +500,7 @@ export function normalizeAave(items: RawAavePost[], fetchedAt: string): Job[] {
       postedAt: null,
       fetchedAt,
       fitScore: 0,
-      category: 'general',
+      categories: [],
     };
   });
 }
@@ -600,7 +600,7 @@ export function normalizeBluedoor(items: RawBluedoorJob[], fetchedAt: string): J
         postedAt: safeIso(j.source_posted_at) ?? safeIso(j.first_seen_at),
         fetchedAt,
         fitScore: 0,
-        category: 'general',
+        categories: [],
       } satisfies Job,
     ];
   });
@@ -630,7 +630,7 @@ export function normalizeGreenhouse(items: RawGreenhouseJobWithSlug[], fetchedAt
       postedAt: safeIso(j.updated_at),
       fetchedAt,
       fitScore: 0,
-      category: 'general',
+      categories: [],
     };
   });
 }

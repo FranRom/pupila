@@ -31,11 +31,12 @@ const EXIT_ANIMATION_MS = 220;
 // We only surface positive-contributing signals; outOfRegionPenalty is the
 // one signed field but we still include it so the user understands a
 // suppressed score. rawTotal/capped are summarised separately.
-const SIGNAL_LABELS: Record<keyof Omit<JobSignals, 'rawTotal' | 'capped'>, string> = {
-  web3TitleBody: 'web3 in title/body',
-  web3Stack: 'web3 stack match',
-  aiTitleBody: 'AI in title/body',
-  aiStack: 'AI stack match',
+// Fixed, universal signals. Category contributions are dynamic (keyed by id)
+// and expanded separately in WhyPanel from `signals.categories`.
+const SIGNAL_LABELS: Record<
+  Exclude<keyof JobSignals, 'categories' | 'rawTotal' | 'capped'>,
+  string
+> = {
   stackPrimary: 'React/Next/TS',
   stackRn: 'RN / Expo',
   stackOther: 'GraphQL/Tailwind/Vite',
@@ -157,7 +158,7 @@ export function SwipeDeck({
           if (r.error.kind === 'http' && r.error.status === 409) {
             setError('Already in the queue.');
           } else {
-            setError(`Couldn't enqueue — ${formatError(r.error)}`);
+            setError(`Couldn't enqueue: ${formatError(r.error)}`);
           }
           inFlightRef.current = false;
           setBusy(false);
@@ -175,7 +176,7 @@ export function SwipeDeck({
         if (!r.ok) {
           // Skips are local-only — surface the error but still advance.
           // Trapping the user on a card they want to skip is the wrong UX.
-          setError(`Skip failed — ${formatError(r.error)}`);
+          setError(`Skip failed: ${formatError(r.error)}`);
         } else {
           onQueueRefresh();
           setLastSkippedJob(job);
@@ -198,7 +199,7 @@ export function SwipeDeck({
     clearUndo();
     const r = await api.applyQueue.removeSkip(job.id);
     if (!r.ok) {
-      setError(`Undo failed — ${formatError(r.error)}`);
+      setError(`Undo failed: ${formatError(r.error)}`);
       return;
     }
     onQueueRefresh();
@@ -291,9 +292,15 @@ interface WhyPanelProps {
 }
 
 function WhyPanel({ signals }: WhyPanelProps) {
-  const entries = (Object.keys(SIGNAL_LABELS) as Array<keyof typeof SIGNAL_LABELS>)
-    .map((k) => [k, signals[k]] as const)
+  // Matched categories (labelled by id, shown even at +0 so the tag is visible)
+  // followed by the fixed signals that fired.
+  const categoryEntries = Object.entries(signals.categories ?? {}).map(
+    ([id, v]) => [id, v] as const,
+  );
+  const fixedEntries = (Object.keys(SIGNAL_LABELS) as Array<keyof typeof SIGNAL_LABELS>)
+    .map((k) => [SIGNAL_LABELS[k], signals[k]] as const)
     .filter(([, v]) => v !== 0);
+  const entries = [...categoryEntries, ...fixedEntries];
 
   return (
     <aside className={styles.panel}>
@@ -308,10 +315,9 @@ function WhyPanel({ signals }: WhyPanelProps) {
         <p className={styles.panelMeta}>No positive signals fired.</p>
       ) : (
         <ul className={styles.panelList}>
-          {entries.map(([k, v]) => (
-            <li key={k}>
-              <span className={styles.panelListMuted}>{SIGNAL_LABELS[k]}:</span>{' '}
-              {v > 0 ? `+${v}` : v}
+          {entries.map(([label, v]) => (
+            <li key={label}>
+              <span className={styles.panelListMuted}>{label}:</span> {v > 0 ? `+${v}` : v}
             </li>
           ))}
         </ul>

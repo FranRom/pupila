@@ -7,7 +7,7 @@ import { randomBytes } from 'node:crypto';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import type { AiReviews, AppliedEntry, Category, Job, Source } from '../../src/types.js';
+import type { AiReviews, AppliedEntry, Job, Source } from '../../src/types.js';
 import { normalizeUrl, sha1Hex } from '../../src/utils.js';
 
 export function jobIdFor(url: string): string {
@@ -37,7 +37,7 @@ export interface JobOverrides {
   postedAt?: string | null;
   fetchedAt?: string;
   fitScore?: number;
-  category?: Category;
+  categories?: string[];
   remote?: boolean;
 }
 
@@ -62,7 +62,7 @@ export function makeJob(overrides: JobOverrides = {}): Job {
     postedAt: overrides.postedAt ?? '2026-05-10T00:00:00.000Z',
     fetchedAt: overrides.fetchedAt ?? '2026-05-15T00:00:00.000Z',
     fitScore: overrides.fitScore ?? 80,
-    category: overrides.category ?? 'general',
+    categories: overrides.categories ?? [],
   };
 }
 

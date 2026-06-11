@@ -6,11 +6,7 @@
     "scoringBodyMaxChars": 1500
   },
   "weights": {
-    "_comment_personal": "Personal — zeroed in the default. The LLM-generated delta overwrites these from your candidate brief.",
-    "web3TitleBody": 0,
-    "web3Stack": 0,
-    "aiTitleBody": 0,
-    "aiStack": 0,
+    "_comment_personal": "Personal — zeroed in the default. The LLM-generated delta overwrites these from your candidate brief. (web3/ai scoring moved to the `categories` block below — each category carries its own optional weight.)",
     "stackPrimary": 0,
     "stackRn": 0,
     "stackOther": 0,
@@ -160,11 +156,7 @@
       "remote anywhere",
       "work from anywhere"
     ],
-    "_comment_personal_kw": "Personal — empty in the default. Filled automatically from the brief during Regenerate.",
-    "w3TitleBody": [],
-    "w3Stack": [],
-    "aiTitleBody": [],
-    "aiStack": [],
+    "_comment_personal_kw": "Personal — empty in the default. Filled automatically from the brief during Regenerate. (web3/ai keyword lists moved to the `categories` block below.)",
     "stackPrimary": [],
     "stackRn": [],
     "stackOther": [],
@@ -176,6 +168,8 @@
   },
   "_comment_roles": "Personal — empty in the default. The target job titles you're interested in (e.g. Senior Frontend Engineer, Product Engineer). Filled automatically from the brief during Regenerate, or edited via Profile → Role interests. A title matching any role's `titleMatch` earns the roleTitle bonus, is tagged on the job, and is rescued from the title-based hard drops.",
   "roles": [],
+  "_comment_categories": "Personal — empty in the default (config-driven taxonomy; no category is privileged). Filled automatically from the brief during Regenerate, or edited via Profile → Categories. A job is tagged with EVERY category whose keywords match (`Job.categories`), grouping it in the UI / JOBS.md; jobs matching none fall under a synthetic 'Other'. Each entry: { id (stable key), label (display), keywords (PLAIN words/phrases, matched whole-word + case-insensitively; list both singular/plural if needed), scope? ('title-body' default | 'body' for body-only noise control), weight? (points added to fitScore when matched, default 0 = pure label), limit? (max rows in the JOBS.md section, default 20) }. Example: { \"id\": \"web3\", \"label\": \"Web3\", \"keywords\": [\"web3\", \"crypto\", \"defi\", \"wagmi\", \"viem\"], \"weight\": 20 }.",
+  "categories": [],
   "_comment_location": "Personal location preferences (edit on the Profile tab, or filled from your brief during Regenerate). NEUTRAL default: accepts every work type and every region, so a fresh fork drops nothing on geography. `basedIn` = where you live; `workTypes` = arrangements you accept (remote/hybrid/onsite); `acceptedRegions` = region terms you'll work in (e.g. 'europe', 'emea', 'united states'); `excludeOutsideAcceptedRegions` = hard-drop region-locked jobs outside those regions (false → soft-penalize instead).",
   "location": {
     "basedIn": "",

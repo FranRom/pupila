@@ -373,7 +373,7 @@ interface Job {
   postedAt: string | null;    // ISO 8601
   fetchedAt: string;          // ISO 8601, set at run-start
   fitScore: number;           // 0-100, populated by filters
-  category: 'web3' | 'ai' | 'web3+ai' | 'general';
+  categories: string[];       // ids of every matched config category (multi-label); [] = "Other"
   _signals?: JobSignals;      // per-job scoring breakdown (see below)
   applied?: AppliedEntry;     // attached when matched against config/applied.json
 }
@@ -401,10 +401,7 @@ URLs are canonicalized (`utm_*` stripped, trailing slash normalized) before hash
 
 | Signal | Weight |
 |---|---:|
-| Web3 — title or body contains `web3\|crypto\|defi\|blockchain\|wallet\|onchain\|dapp\|nft` | +20 |
-| Web3 stack — body contains `wagmi\|viem\|ethers\|web3.js\|solana\|anchor\|evm\|rainbowkit\|walletconnect\|reown\|hardhat\|foundry` | +20 |
-| AI — title or body contains `ai engineer\|ml engineer\|llm\|gen-ai\|generative ai\|ai-native` | +20 |
-| AI stack — body contains `anthropic\|claude\|openai\|gpt\|vercel ai\|ai sdk\|langchain\|llamaindex\|rag\|agents\|mcp\|prompt engineering` | +20 |
+| Category — title/body (or body-only) matches a configured category's keywords (e.g. Web3, AI) | category's `weight` (e.g. +20) |
 | Stack — body contains `react\|next.js\|typescript` (tiered) | +10 base |
 | Stack — body contains `react native\|expo` (tiered) | +5 base |
 | Stack — body contains `graphql\|tailwind\|vite` (tiered) | +5 base |
@@ -417,11 +414,13 @@ URLs are canonicalized (`utm_*` stripped, trailing slash normalized) before hash
 | Freshness — `postedAt` within 14 days (and not within 7) | +5 |
 | **Penalty** — job region-locked outside accepted regions (when not hard-excluding) | **-10** |
 
-**Tiered keyword weighting.** The four "stack/frontend body" signals (rows marked _tiered_ above) count occurrences instead of doing a binary match: 1 mention earns half-weight, 2–3 the listed base weight, and 4+ a 1.5× boost. This lets a posting that mentions "react" eight times in concrete role context outscore one that drops it once in a "nice to have" footer. Web3, AI, title, location, and freshness signals stay binary because they're inherently low-cardinality and cheating them with repetition isn't a real concern.
+**Tiered keyword weighting.** The "stack/frontend body" signals (rows marked _tiered_ above) count occurrences instead of doing a binary match: 1 mention earns half-weight, 2–3 the listed base weight, and 4+ a 1.5× boost. This lets a posting that mentions "react" eight times in concrete role context outscore one that drops it once in a "nice to have" footer. Category, title, location, and freshness signals stay binary because they're inherently low-cardinality and cheating them with repetition isn't a real concern.
 
 **Drop** anything with `fitScore < 30` after the cap.
 
-**Category** is derived from which signals fired: both web3 and AI → `web3+ai`; only web3 → `web3`; only AI → `ai`; neither → `general`.
+**Categories** are config-driven, not hardcoded. They're defined in `config/profile.json#categories` (generated from your brief on Regenerate, or edited on the Profile tab). A job is tagged with **every** category whose keywords match (multi-label), and a category's optional `weight` also boosts the score. Jobs matching no category render under a synthetic "Other" bucket. So a frontend+web3+AI candidate gets `web3` / `ai` buckets, while a fintech candidate's brief yields `payments` / `compliance` instead, with no code change. See the **`pupila-filters` skill** for the `CategoryDef` shape.
+
+Unlike the regex-based keyword lists elsewhere in the profile, **category `keywords` are plain literal terms** (`web3`, `smart contract`, `node.js`): what you type is what's stored and shown. They're matched whole-word and case-insensitively by `compileCategoryKeywords` (in `src/filters.ts`), which anchors with alphanumeric lookarounds instead of `\b`, so punctuation-edged terms work (`c++`, `c#`, `.net`) and a dot between words is optional (`node.js` also matches `nodejs`). For other variants (`agent` / `agents`) list both. Regenerate emits literals too, so the Profile-tab chips never show regex noise.
 
 **Auditability — `_signals`.** Every kept job in `data/jobs.json` carries a `_signals` object recording which scoring rules fired and what they contributed. Useful when a job's score looks wrong:
 
@@ -431,15 +430,14 @@ URLs are canonicalized (`utm_*` stripped, trailing slash normalized) before hash
   "fitScore": 100,
   "roleMatches": ["frontend"],
   "_signals": {
-    "web3TitleBody": 0,    "web3Stack": 20,
-    "aiTitleBody": 20,     "aiStack": 20,
+    "categories": { "web3": 20, "ai": 20 },
     "stackPrimary": 10,    "stackRn": 0,    "stackOther": 0,
     "leadTitle": 0,        "seniorTitle": 10,
     "roleTitle": 10,       "roleBody": 10,
     "locationRemote": 10,
     "freshness7d": 10,     "freshness14d": 0,
     "outOfRegionPenalty": 0,
-    "rawTotal": 110,       "capped": true
+    "rawTotal": 100,       "capped": false
   }
 }
 ```
@@ -609,7 +607,7 @@ The script writes `data/ai-reviews.json` after **every** successful review, so a
 In `pnpm run ui`, every job row is clickable. The expanded panel has three columns:
 
 1. **AI take** — the review's summary, verdict reason, and three short lists (wants / offers / red flags). When no review exists yet, you see a "run `pnpm run ai-review`" hint instead.
-2. **Score breakdown** — the rule-based `_signals` showing exactly which scoring rules fired (`+20 web3Stack`, `+10 stackPrimary`, etc.) so you can spot when the score is inflated by buzzwords.
+2. **Score breakdown** — the rule-based `_signals` showing exactly which scoring rules fired (`web3 +20`, `+10 stackPrimary`, etc.) so you can spot when the score is inflated by buzzwords.
 3. **Meta** — location, tags, posted date, internal id (handy for `--ids=` re-review).
 
 A small verdict badge (`strong-match` / `match` / `weak-match` / `skip`) also appears next to the title in the main row when a review exists, so you can scan from the table without expanding.
@@ -743,12 +741,18 @@ Install whichever prereq it called out (node 22+ via `nvm`/`fnm`/`asdf`, pnpm vi
 ```jsonc
 {
   "scoring": { "minScoreToKeep": 30, "maxScore": 100, "scoringBodyMaxChars": 1500 },
-  "weights": { "web3TitleBody": 20, "aiStack": 20, "roleTitle": 10, "roleBody": 10, ... },
+  "weights": { "stackPrimary": 10, "stackRn": 5, "roleTitle": 10, "roleBody": 10, ... },
   "keywords": {
     "junior":      ["junior", "jr", "intern", "entry-?level", "associate", ...],
     "seniorReq":   ["senior", "sr", "staff", "principal", "lead", "head", ...],
-    "aiStack":     ["anthropic", "claude", "openai", ...]
+    "stackPrimary": ["react", "next\\.?js", "typescript"]
   },
+  "categories": [
+    { "id": "web3", "label": "Web3",
+      "keywords": ["web3", "blockchain", "wagmi", "viem"], "weight": 20 },
+    { "id": "ai", "label": "AI",
+      "keywords": ["llm", "anthropic", "openai", "rag"], "weight": 20 }
+  ],
   "roles": [
     { "id": "frontend", "label": "Senior Frontend Engineer",
       "titleMatch": ["frontend", "fullstack", "web engineer"],
@@ -871,7 +875,7 @@ A run takes ~5-10 seconds and produces:
 
 - `data/jobs.json` — slim sorted list (no `body` field), survives filters + dedup
 - `data/feed.xml` — RSS 2.0 feed of the day's ✨ new jobs (top 50)
-- `JOBS.md` — sections: source-health banner, stats, applied, ✨ new, 🗑 removed, four category tables
+- `JOBS.md` — sections: source-health banner, stats, applied, ✨ new, 🗑 removed, one table per configured category + "Other"
 - `data/archive/<YYYY-MM>.json` — monthly snapshot, written on day 1
 - `data/raw/<source>-<YYYY-MM-DD>.json` — per-source raw payload for debugging (gitignored)
 

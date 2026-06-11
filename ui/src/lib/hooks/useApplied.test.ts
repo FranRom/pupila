@@ -19,7 +19,7 @@ const job1: Job = {
   postedAt: null,
   fetchedAt: '2026-05-01T00:00:00Z',
   fitScore: 80,
-  category: 'general',
+  categories: [],
 };
 
 const entry1: AppliedEntry = {

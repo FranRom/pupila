@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { categoryEnum, listJobsSortEnum, sourceEnum } from './_constants.js';
+import { categoryFilterSchema, listJobsSortEnum, sourceEnum } from './_constants.js';
 
 // `list_jobs` mirrors the UI's filter chips + sort dropdown. All filters are
 // AND-composed; an unset filter is treated as "no constraint." `q` does a
@@ -9,7 +9,9 @@ import { categoryEnum, listJobsSortEnum, sourceEnum } from './_constants.js';
 // response can be several megabytes for a fresh aggregator run. Clients that
 // need more should page (post-v1 feature).
 export const listJobsInputSchema = {
-  category: categoryEnum.optional(),
+  // A category id to match against `Job.categories` (multi-label); any id the
+  // user has configured. An unknown id matches no jobs.
+  category: categoryFilterSchema.optional(),
   source: sourceEnum.optional(),
   applied: z.boolean().optional(),
   q: z.string().min(1).max(200).optional(),

@@ -22,8 +22,12 @@ export const jobIdSchema = z
 export { SOURCES };
 export const sourceEnum = z.enum(SOURCES);
 
-export const CATEGORIES = ['web3', 'ai', 'web3+ai', 'general'] as const;
-export const categoryEnum = z.enum(CATEGORIES);
+// Category is no longer a fixed enum — it's user-defined config (see
+// `CategoryDef` / `config/profile.json#categories`), so the set isn't known at
+// schema-compile time. The `list_jobs` filter accepts any non-empty id string
+// and matches it against `Job.categories` at runtime (a non-existent id simply
+// matches nothing). Validated where used, not here.
+export const categoryFilterSchema = z.string().min(1).max(60);
 
 export const AI_VERDICTS = ['strong-match', 'match', 'weak-match', 'skip'] as const;
 export const verdictEnum = z.enum(AI_VERDICTS);

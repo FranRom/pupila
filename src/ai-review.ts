@@ -82,7 +82,7 @@ Company: ${job.company ?? 'unknown'}
 Location: ${job.location ?? 'not specified'}
 Salary: ${job.salary ?? 'not disclosed'}
 Source: ${job.source}
-Rule-based fit score: ${job.fitScore}/100 (category: ${job.category})
+Rule-based fit score: ${job.fitScore}/100 (categories: ${job.categories.length > 0 ? job.categories.join(', ') : 'other'})
 Matched target role(s): ${rolesLine}
 
 POSTING BODY

@@ -59,7 +59,10 @@ export async function runListJobs(
 
   let filtered = jobs;
 
-  if (input.category) filtered = filtered.filter((j) => j.category === input.category);
+  if (input.category) {
+    const category = input.category;
+    filtered = filtered.filter((j) => j.categories.includes(category));
+  }
   if (input.source) filtered = filtered.filter((j) => j.source === input.source);
   if (input.minScore !== undefined) {
     // Capture in a local so the closure sees a narrowed `number`, not
