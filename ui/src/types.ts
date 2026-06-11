@@ -16,6 +16,7 @@ export type Source =
   | 'remoteok'
   | 'remotive'
   | 'weworkremotely'
+  | 'remoteyeah'
   | 'cryptojobslist'
   | 'web3career'
   | 'aijobsnet'

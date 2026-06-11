@@ -36,6 +36,7 @@ const SOURCES = [
   'remotive',
   'weworkremotely',
   'remoteok',
+  'remoteyeah',
   'bluedoor',
 ] as const satisfies readonly Source[];
 

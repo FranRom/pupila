@@ -13,6 +13,7 @@ import { fetchHnHiring } from './fetchers/hn-hiring.js';
 import { fetchHnJobs } from './fetchers/hn-jobs.js';
 import { fetchLever } from './fetchers/lever.js';
 import { fetchRemoteOk } from './fetchers/remoteok.js';
+import { fetchRemoteYeah } from './fetchers/remoteyeah.js';
 import { fetchRemotive } from './fetchers/remotive.js';
 import { fetchWeb3Career } from './fetchers/web3career.js';
 import { fetchWeWorkRemotely } from './fetchers/weworkremotely.js';
@@ -31,6 +32,7 @@ import {
   normalizeHnJobs,
   normalizeLever,
   normalizeRemoteOk,
+  normalizeRemoteYeah,
   normalizeRemotive,
   normalizeWeb3Career,
   normalizeWeWorkRemotely,
@@ -160,6 +162,7 @@ async function main(): Promise<void> {
       fetchedAt,
       today,
     ),
+    processFetcher('remoteyeah', fetchRemoteYeah, normalizeRemoteYeah, fetchedAt, today),
     processFetcher(
       'cryptojobslist',
       fetchCryptoJobsList,

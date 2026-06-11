@@ -334,6 +334,7 @@ The three ATS fetchers (Ashby, Greenhouse, Lever) carry the bulk of the high-qua
 | [remoteok](./src/fetchers/remoteok.ts) | JSON API | `remoteok.com/api` |
 | [remotive](./src/fetchers/remotive.ts) | JSON API | `remotive.com/api/remote-jobs?category=software-dev` |
 | [weworkremotely](./src/fetchers/weworkremotely.ts) | RSS 2.0 | `weworkremotely.com/categories/remote-programming-jobs.rss` |
+| [remoteyeah](./src/fetchers/remoteyeah.ts) | RSS 2.0 (custom tags) | `remoteyeah.com/rss.xml` — global remote-engineering feed |
 | [cryptojobslist](./src/fetchers/cryptojobslist.ts) | RSS 2.0 | `api.cryptojobslist.com/jobs.rss` |
 | [web3career](./src/fetchers/web3career.ts) | HTML scraper | 5 category pages on `web3.career` |
 | [aijobsnet](./src/fetchers/aijobsnet.ts) | HTML scraper | `aijobs.net` (global + EU pages) |
@@ -454,7 +455,7 @@ Two passes:
 When two jobs collide, the one with the higher `fitScore` wins. Ties are broken by source priority:
 
 ```
-ashby > lever > greenhouse > cryptojobslist > web3career > aijobsnet > hn-hiring > hn-jobs > remotive > weworkremotely > remoteok
+ashby > lever > greenhouse > cryptojobslist > web3career > aijobsnet > hn-hiring > hn-jobs > remotive > weworkremotely > remoteok > remoteyeah > bluedoor
 ```
 
 **Sort stability.** After dedup, the final sort uses the exported `compareJobs` comparator: `fitScore desc → salaryMax desc → postedAt desc → id asc`. The `salaryMax` tiebreak floats transparent-comp companies above silent ones among score-tied roles (null is treated as 0), and `id asc` keeps day-over-day diffs deterministic when everything else ties.
@@ -799,6 +800,7 @@ pupila/
 │   │   ├── remoteok.ts
 │   │   ├── remotive.ts
 │   │   ├── weworkremotely.ts
+│   │   ├── remoteyeah.ts      # RSS: remoteyeah.com/rss.xml (global remote-eng feed)
 │   │   ├── cryptojobslist.ts
 │   │   ├── web3career.ts
 │   │   ├── aijobsnet.ts

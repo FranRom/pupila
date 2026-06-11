@@ -13,6 +13,7 @@ import type {
   RawHnHit,
   RawLeverJobWithSlug,
   RawRemoteOk,
+  RawRemoteYeah,
   RawRemotive,
   RawRssItem,
   RawWeb3Career,
@@ -186,6 +187,72 @@ export function normalizeWeWorkRemotely(items: RawRssItem[], fetchedAt: string):
 
 export function normalizeCryptoJobsList(items: RawRssItem[], fetchedAt: string): Job[] {
   return normalizeRssGeneric(items, 'cryptojobslist', fetchedAt);
+}
+
+function cdataText(d: RawRemoteYeah['description']): string {
+  if (!d) return '';
+  return typeof d === 'string' ? d : (d['#cdata'] ?? '');
+}
+
+// RemoteYeah's RSS carries no <salary> field — when a posting states pay, it's in
+// the description prose (~15% of jobs). Surface it by pulling the one clause that
+// has BOTH a currency figure AND a compensation context word, then handing it to
+// parseSalary. The dual gate avoids matching funding rounds / pricing / perks.
+const SALARY_MONEY_RE = /[$€£]\s?\d/;
+const SALARY_CONTEXT_RE =
+  /\b(salary|salaries|compensation|base pay|base salary|pay range|pay rate|hourly|per year|per hour|annually|annual|OTE|total comp|comp range|range of|earn)\b/i;
+// 401(k)/403(b) read as money to the parser ('401k' → 401,000) — strip first.
+const RETIREMENT_PLAN_RE = /\b(401\s*\(?k\)?|403\s*\(?b\)?)\b/gi;
+
+function extractSalaryFromBody(body: string): string | null {
+  // Split into clause-ish chunks (lines, then sentence breaks) so a stray dollar
+  // figure elsewhere in the body can't bleed into the salary clause.
+  for (const chunk of body.split(/\n|(?<=[.;])\s+/)) {
+    const cleaned = chunk.replace(RETIREMENT_PLAN_RE, ' ');
+    if (SALARY_MONEY_RE.test(cleaned) && SALARY_CONTEXT_RE.test(cleaned)) {
+      return cleaned.trim().replace(/\s+/g, ' ').slice(0, 160);
+    }
+  }
+  return null;
+}
+
+export function normalizeRemoteYeah(items: RawRemoteYeah[], fetchedAt: string): Job[] {
+  return items.flatMap((item) => {
+    // The feed XML-escapes `&` as `&amp;` in the link; decode it first so the
+    // tracking params split correctly and normalizeUrl can drop them (otherwise
+    // a stray `amp;ref` param survives). normalizeUrl then strips utm_source/ref.
+    const rawLink = (typeof item.link === 'string' ? item.link : '').replace(/&amp;/g, '&');
+    const url = normalizeUrl(rawLink) || rawLink;
+    if (!url) return [];
+    const title = asPlain(item.title);
+    if (!title) return [];
+
+    const company = item.company?.trim() || null;
+    const location = item.location?.trim() || null;
+    const category = item.category?.trim() || null;
+    const body = asPlain(cdataText(item.description));
+    // <tags> is a single comma-separated string (skills + seniority + employment).
+    const tagList = (item.tags ?? '').split(',');
+
+    return [
+      {
+        id: makeId('remoteyeah', url, `${company ?? ''}-${title}`),
+        source: 'remoteyeah',
+        title,
+        company,
+        url,
+        location,
+        remote: true,
+        body,
+        tags: joinTags(tagList, [category]),
+        ...withSalary(extractSalaryFromBody(body)),
+        postedAt: safeIso(item.pubDate),
+        fetchedAt,
+        fitScore: 0,
+        categories: [],
+      } satisfies Job,
+    ];
+  });
 }
 
 export function normalizeWeb3Career(items: RawWeb3Career[], fetchedAt: string): Job[] {
