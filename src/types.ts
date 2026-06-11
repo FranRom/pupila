@@ -7,6 +7,7 @@ export const SOURCES = [
   'remoteok',
   'remotive',
   'weworkremotely',
+  'remoteyeah',
   'cryptojobslist',
   'web3career',
   'aijobsnet',
@@ -235,6 +236,25 @@ export interface RawRemotive {
   salary: string;
   description: string;
   company_logo?: string;
+}
+
+// RemoteYeah ships a custom-tag RSS feed (one global feed at
+// https://remoteyeah.com/rss.xml). Beyond the standard fields it provides clean
+// dedicated tags — `company`, `category`, comma-separated `tags`, `location` —
+// so it gets its own raw shape rather than reusing RawRssItem + title-splitting.
+// `description` arrives as a CDATA object (`{ '#cdata': '<html>' }`) under the
+// shared parser's `cdataPropName`.
+export interface RawRemoteYeah {
+  title?: string;
+  company?: string;
+  description?: string | { '#cdata'?: string };
+  category?: string;
+  tags?: string;
+  location?: string;
+  pubDate?: string;
+  guid?: string | { '#text'?: string; '@_isPermaLink'?: string };
+  link?: string;
+  image?: string;
 }
 
 export interface RawRssItem {
