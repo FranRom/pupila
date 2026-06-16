@@ -10,6 +10,7 @@
 //     companies go quiet between hiring waves, and that's not a reason to prune.
 
 import { type FormEvent, useCallback, useState } from 'react';
+import { InfoTooltip } from '../components/InfoTooltip.tsx';
 import type {
   ProbeState,
   SourceHealthResponse,
@@ -200,12 +201,10 @@ function AtsGroup({ ats, health, checked, onSave, onVerify }: AtsGroupProps) {
       <div className={styles.groupHead}>
         <span className={styles.groupTitle}>
           {ats.label}
-          <span className={styles.groupInfo} title={ats.note} role="img" aria-label={ats.note}>
-            ⓘ
-          </span>
+          <InfoTooltip content={ats.note} ariaLabel={`About ${ats.label}`} />
         </span>
         {summary ? (
-          <span className={styles.health} title={summaryTitle}>
+          <span className={styles.health}>
             {summary.badN === 0 ? (
               <span className={styles.healthOk}>✓ {summary.okN} reachable</span>
             ) : (
@@ -216,6 +215,7 @@ function AtsGroup({ ats, health, checked, onSave, onVerify }: AtsGroupProps) {
                 </span>
               </>
             )}
+            <InfoTooltip content={summaryTitle} ariaLabel="What does board health mean?" />
           </span>
         ) : (
           <span className={styles.groupCount}>{ats.effective.length}</span>

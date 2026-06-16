@@ -31,16 +31,6 @@
   font-size: var(--text-md);
 }
 
-.groupInfo {
-  color: var(--text-soft);
-  font-size: var(--text-sm);
-  cursor: help;
-}
-
-.groupInfo:hover {
-  color: var(--primary);
-}
-
 .groupCount {
   font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   font-size: var(--text-xs);
@@ -52,7 +42,6 @@
   align-items: center;
   gap: var(--space-3);
   font-size: var(--text-sm);
-  cursor: help;
 }
 
 .healthOk {

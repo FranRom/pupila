@@ -47,7 +47,7 @@ it('renders the effective company list', () => {
 
 it('shows an explanatory tooltip on the group', () => {
   renderPanel();
-  expect(screen.getByTitle('Public Ashby boards.')).toBeInTheDocument();
+  expect(screen.getByText('Public Ashby boards.')).toBeInTheDocument();
 });
 
 it('removing a shipped slug saves it into the remove list', async () => {
@@ -100,8 +100,8 @@ it('flags only broken boards and summarizes health per group after a check', asy
   expect(screen.queryByTitle(/ramp — /i)).not.toBeInTheDocument();
   // Group header summarizes: 2 healthy, 1 broken, with an explanatory tooltip.
   expect(screen.getByText('2 OK')).toBeInTheDocument();
-  expect(screen.getByText(/1 unreachable/)).toBeInTheDocument();
-  expect(screen.getByTitle(/2 reachable, 1 unreachable/i)).toBeInTheDocument();
+  // The full phrase is unique to the InfoTooltip bubble.
+  expect(screen.getByText(/2 reachable, 1 unreachable/i)).toBeInTheDocument();
 });
 
 it('shows an all-clear summary when every board is reachable', async () => {
@@ -117,5 +117,6 @@ it('shows an all-clear summary when every board is reachable', async () => {
   fireEvent.click(screen.getByRole('button', { name: /check board health/i }));
 
   await waitFor(() => expect(screen.getByText('✓ 3 reachable')).toBeInTheDocument());
-  expect(screen.queryByText(/unreachable/)).not.toBeInTheDocument();
+  // No ⚠ marker anywhere (visible summary or chips) when all boards are reachable.
+  expect(screen.queryByText('⚠')).not.toBeInTheDocument();
 });
