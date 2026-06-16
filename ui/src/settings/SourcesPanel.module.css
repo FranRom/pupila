@@ -65,6 +65,18 @@
   color: var(--accent);
 }
 
+.chipBroken {
+  composes: chip;
+  border-color: var(--danger);
+  color: var(--danger);
+  background: var(--danger-soft);
+}
+
+.chipWarn {
+  font-size: var(--text-xs);
+  line-height: 1;
+}
+
 .chipRemove {
   border: none;
   background: none;

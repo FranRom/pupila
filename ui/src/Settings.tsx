@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import type { SourcesResponse, VerifyResponse } from './lib/api/index.ts';
+import type { SourceHealthResponse, SourcesResponse, VerifyResponse } from './lib/api/index.ts';
 import { api, formatError } from './lib/api/index.ts';
 import styles from './Settings.module.css';
 import { ApplyQueuePanel } from './settings/ApplyQueuePanel.tsx';
@@ -245,6 +245,16 @@ export function Settings({
     [],
   );
 
+  const checkSourceHealth = useCallback(async (): Promise<SourceHealthResponse | null> => {
+    setError(null);
+    const r = await api.sources.health();
+    if (!r.ok) {
+      setError(`Board health check failed: ${formatError(r.error)}`);
+      return null;
+    }
+    return r.value;
+  }, []);
+
   const installScheduler = useCallback(async () => {
     setError(null);
     setSchedulerOp('install');
@@ -382,7 +392,12 @@ export function Settings({
         onToggleRaw={() => setShowRawProfile((v) => !v)}
       />
 
-      <SourcesPanel sources={sources} onSave={saveSources} onVerify={verifySource} />
+      <SourcesPanel
+        sources={sources}
+        onSave={saveSources}
+        onVerify={verifySource}
+        onCheckHealth={checkSourceHealth}
+      />
 
       <LastRunPanel runSummary={runSummary} />
 
