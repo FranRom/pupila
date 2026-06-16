@@ -35,7 +35,7 @@ const NOTES: Record<AtsKey, string> = {
   ashbyPrivate:
     'Ashby companies whose public posting API is turned off — pupila fetches them via the ' +
     "job board's GraphQL instead (e.g. chainlink-labs). They're invisible to the normal Ashby " +
-    "source. Verify and health checks aren't available for these.",
+    'source. Verify and board-health use the same GraphQL, so they work here too.',
 };
 
 const BASE: Record<AtsKey, readonly string[]> = {
