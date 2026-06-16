@@ -281,8 +281,8 @@ Idempotent — running on an already-clean state prints `nothing to clean`. Afte
         ┌─────────────────── src/index.ts ──────────────────┐
         │                                                   │
         │   ┌──────── Fetchers (Promise.all) ─────────┐     │
-        │   │ ashby (42 slugs)   greenhouse (8 slugs) │     │
-        │   │ lever (6 slugs)    aave (custom)        │     │
+        │   │ ashby (45 slugs)   greenhouse (8 slugs) │     │
+        │   │ lever (8 slugs)    aave (custom)        │     │
         │   │ ashby-private (1)  cryptojobslist       │ ──► raw[] per source
         │   │ remoteok  remotive  weworkremotely      │     │
         │   │ web3career  aijobsnet                   │     │
@@ -332,11 +332,11 @@ The three ATS fetchers (Ashby, Greenhouse, Lever) carry the bulk of the high-qua
 
 | Source | Type | Endpoint |
 |---|---|---|
-| [ashby](./src/fetchers/ashby.ts) | JSON API | `api.ashbyhq.com/posting-api/job-board/<slug>` × 42 tier-S slugs |
+| [ashby](./src/fetchers/ashby.ts) | JSON API | `api.ashbyhq.com/posting-api/job-board/<slug>` × 45 tier-S slugs |
 | [greenhouse](./src/fetchers/greenhouse.ts) | JSON API | `boards-api.greenhouse.io/v1/boards/<slug>/jobs` × 8 tier-S slugs |
 | [aave](./src/fetchers/aave.ts) | HTML scraper (Next.js __NEXT_DATA__) | `aave.com/careers` |
 | [ashby-private](./src/fetchers/ashby-private.ts) | Ashby private GraphQL × N slugs | `jobs.ashbyhq.com/api/non-user-graphql` (currently 1 slug: `chainlink-labs`) |
-| [lever](./src/fetchers/lever.ts) | JSON API | `api.lever.co/v0/postings/<slug>` × 6 tier-S slugs |
+| [lever](./src/fetchers/lever.ts) | JSON API | `api.lever.co/v0/postings/<slug>` × 8 tier-S slugs |
 | [remoteok](./src/fetchers/remoteok.ts) | JSON API | `remoteok.com/api` |
 | [remotive](./src/fetchers/remotive.ts) | JSON API | `remotive.com/api/remote-jobs?category=software-dev` |
 | [weworkremotely](./src/fetchers/weworkremotely.ts) | RSS 2.0 | `weworkremotely.com/categories/remote-programming-jobs.rss` |
@@ -348,7 +348,7 @@ The three ATS fetchers (Ashby, Greenhouse, Lever) carry the bulk of the high-qua
 | [hn-jobs](./src/fetchers/hn-jobs.ts) | Algolia API | `hn.algolia.com/api/v1/search_by_date?tags=job` |
 | [bluedoor](./src/fetchers/bluedoor.ts) | JSON API (aggregator, ~1.6M postings / 31 ATS) | `api.bluedoor.sh/job-postings/v1/jobs/search` — region fan-out from `profile.location` |
 
-The Ashby tier-S list covers the AI frontier (OpenAI, Mistral, Cohere, Perplexity, Cursor, ElevenLabs, Modal, LangChain, LangFuse, LlamaIndex, OpenRouter, Pinecone, Supabase, Neon, Clerk, PostHog, Browserbase, Replit, Runway, Notion, Anyscale, BaseTen, Character, Weaviate) plus web3 (Linear, Ramp, Uniswap, Mysten Labs, Paradigm, Polygon Labs, Base, Blockworks, Succinct, Espresso, Phantom, Polymarket, Alchemy, Stacks, Morpho, Magic Eden, LiFi). Greenhouse adds Anthropic, Vercel, Mercury, Coinbase. Lever adds Binance, Ledger, CoinGecko, CoinMarketCap, Safe, Arbitrum Foundation. Custom first-party coverage: Aave via a Next.js `__NEXT_DATA__` scraper, and Chainlink Labs via the `ashby-private` fetcher (Ashby's private GraphQL endpoint — same fetcher generalized to a slug array, so any future org whose public posting-API is disabled is a one-line config add).
+The Ashby tier-S list covers the AI frontier (OpenAI, Cohere, Perplexity, Cursor, ElevenLabs, Modal, LangChain, LangFuse, LlamaIndex, OpenRouter, Pinecone, Supabase, Neon, Clerk, PostHog, Browserbase, Replit, Runway, Notion, Anyscale, BaseTen, Character, Weaviate) plus web3 (Linear, Ramp, Uniswap, Mysten Labs, Paradigm, Polygon Labs, Base, Blockworks, Succinct, Espresso, Phantom, Polymarket, Alchemy, Stacks, Morpho, Magic Eden, LiFi). Greenhouse adds Anthropic, Vercel, Mercury, Coinbase. Lever adds Binance, Ledger, CoinGecko, CoinMarketCap, Safe, Arbitrum Foundation, Celestia, and Mistral (which moved off Ashby to Lever). Custom first-party coverage: Aave via a Next.js `__NEXT_DATA__` scraper, and Chainlink Labs via the `ashby-private` fetcher (Ashby's private GraphQL endpoint — same fetcher generalized to a slug array, so any future org whose public posting-API is disabled is a one-line config add).
 
 Adding another source is one new file in `src/fetchers/`, one entry in `Source`, one normalizer in `normalize.ts`, and one line in `src/index.ts`. See [`CONTRIBUTING.md`](./CONTRIBUTING.md#adding-a-source) for the contributor-facing recipe.
 
@@ -798,9 +798,9 @@ pupila/
 ├── src/
 │   ├── fetchers/              # one file per source
 │   │   ├── _shared.ts         # fetchMultiSlug helper for ATS fetchers
-│   │   ├── ashby.ts           # 42 tier-S slugs (largest contributor)
+│   │   ├── ashby.ts           # 45 tier-S slugs (largest contributor)
 │   │   ├── greenhouse.ts      # 8 tier-S slugs
-│   │   ├── lever.ts           # 6 tier-S slugs
+│   │   ├── lever.ts           # 8 tier-S slugs
 │   │   ├── aave.ts            # custom: scrapes aave.com/careers (Next.js __NEXT_DATA__)
 │   │   ├── ashby-private.ts   # multi-slug: orgs hosted on Ashby with public API disabled
 │   │   ├── remoteok.ts
