@@ -1,12 +1,12 @@
-// [09] Job sources panel — add/remove company boards for the multi-slug ATS
+// [09] Job sources panel - add/remove company boards for the multi-slug ATS
 // sources (Ashby, Greenhouse, Lever, Ashby-private). Personal choices persist
 // as a delta in config/slugs.local.json (gitignored). Effective list per ATS =
-// shipped ∪ add − remove.
+// shipped ∪ add - remove.
 //
 // Two feedback signals, both run-independent:
-//   - Verify (per company, on add) — live board count, pre-filter.
-//   - Check board health (whole panel, on demand) — flags ONLY broken boards
-//     (404 / unreachable). A healthy board with 0 open roles is NOT flagged —
+//   - Verify (per company, on add) - live board count, pre-filter.
+//   - Check board health (whole panel, on demand) - flags ONLY broken boards
+//     (404 / unreachable). A healthy board with 0 open roles is NOT flagged -
 //     companies go quiet between hiring waves, and that's not a reason to prune.
 
 import { type FormEvent, useCallback, useState } from 'react';
@@ -22,7 +22,7 @@ import buttonStyles from '../styles/Button.module.css';
 import styles from './SourcesPanel.module.css';
 import { Section, SkeletonRows, settingsStyles } from './shared.tsx';
 
-// Mirror of SLUG_PATTERN in src/lib/slugs.ts — the server re-validates, this is
+// Mirror of SLUG_PATTERN in src/lib/slugs.ts - the server re-validates, this is
 // just for instant feedback.
 const SLUG_PATTERN = /^[a-z0-9][a-z0-9._-]*$/;
 
@@ -172,7 +172,7 @@ function AtsGroup({ ats, health, checked, onSave, onVerify }: AtsGroupProps) {
       setVerifyMsg(null);
       const slug = normalize(draft);
       if (!SLUG_PATTERN.test(slug)) {
-        setLocalError('Invalid slug — use lowercase letters, digits, dot, dash, underscore.');
+        setLocalError('Invalid slug. Use lowercase letters, digits, dot, dash, underscore.');
         return;
       }
       if (ats.effective.includes(slug)) {
@@ -180,7 +180,7 @@ function AtsGroup({ ats, health, checked, onSave, onVerify }: AtsGroupProps) {
         return;
       }
       setLocalError(null);
-      // Re-adding a shipped slug just clears its removal — it returns to a
+      // Re-adding a shipped slug just clears its removal - it returns to a
       // normal baseline chip, NOT a personal addition. Only genuinely new
       // companies land in `add` (and render highlighted).
       const inShipped = ats.shipped.includes(slug);
@@ -205,12 +205,12 @@ function AtsGroup({ ats, health, checked, onSave, onVerify }: AtsGroupProps) {
     setVerifyMsg(null);
     const result = await onVerify(ats.key, slug);
     setVerifying(false);
-    if (!result) setVerifyMsg('Verify failed — try again.');
+    if (!result) setVerifyMsg('Verify failed, try again.');
     else if (!result.supported) setVerifyMsg('Verify not supported for this source.');
-    else if (result.state === 'not_found') setVerifyMsg(`✗ ${slug} — board not found.`);
-    else if (result.state === 'error') setVerifyMsg(`✗ ${slug} — board unreachable, try again.`);
-    else if (result.found > 0) setVerifyMsg(`✓ ${slug} — ${result.found} open role(s).`);
-    else setVerifyMsg(`✓ ${slug} — board OK, no open roles right now.`);
+    else if (result.state === 'not_found') setVerifyMsg(`✗ ${slug}: board not found.`);
+    else if (result.state === 'error') setVerifyMsg(`✗ ${slug}: board unreachable, try again.`);
+    else if (result.found > 0) setVerifyMsg(`✓ ${slug}: ${result.found} open role(s).`);
+    else setVerifyMsg(`✓ ${slug}: board OK, no open roles right now.`);
   }, [ats.key, draft, onVerify]);
 
   return (
@@ -240,7 +240,7 @@ function AtsGroup({ ats, health, checked, onSave, onVerify }: AtsGroupProps) {
       </div>
       <div className={styles.chips}>
         {ats.effective.length === 0 ? (
-          <span className={styles.emptyChips}>No companies — add one below.</span>
+          <span className={styles.emptyChips}>No companies yet. Add one below.</span>
         ) : (
           ats.effective.map((slug) => {
             const entry = entryFor(slug);
@@ -255,7 +255,7 @@ function AtsGroup({ ats, health, checked, onSave, onVerify }: AtsGroupProps) {
               <span
                 key={slug}
                 className={cls}
-                title={brokenLabel ? `${slug} — ${brokenLabel}` : undefined}
+                title={brokenLabel ? `${slug}: ${brokenLabel}` : undefined}
               >
                 {brokenLabel && <span className={styles.chipWarn}>⚠</span>}
                 {slug}

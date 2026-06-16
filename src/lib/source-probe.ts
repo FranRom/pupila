@@ -1,12 +1,12 @@
 // Live board probe for the Settings > Job sources panel. Answers two things
 // for a single ATS company slug, with NO dependency on an aggregator run:
-//   - board HEALTH — does the board still exist? (`ok` | `not_found` | `error`)
-//   - role COUNT   — how many postings the board currently exposes (pre-filter)
+//   - board HEALTH - does the board still exist? (`ok` | `not_found` | `error`)
+//   - role COUNT   - how many postings the board currently exposes (pre-filter)
 //
-// `not_found` is the only actionable "remove this" signal — a typo'd slug or a
+// `not_found` is the only actionable "remove this" signal - a typo'd slug or a
 // company that left the ATS. `error` (timeout/5xx/network) is transient; `ok`
 // with found:0 just means a healthy board with no open roles right now (keep
-// it — they may post later).
+// it - they may post later).
 //
 // The three public REST ATS detect not_found via HTTP 404. Ashby-private uses
 // the same unauthenticated GraphQL as the public job-board page: a missing org
@@ -41,7 +41,7 @@ async function restProbe(url: string, count: (data: unknown) => number): Promise
   return { state: 'ok', found: count(data) };
 }
 
-// Mirrors the list query in src/fetchers/ashby-private.ts (kept minimal — we
+// Mirrors the list query in src/fetchers/ashby-private.ts (kept minimal - we
 // only need the posting count, not the per-job detail the fetcher pulls).
 const ASHBY_PRIVATE_GRAPHQL_URL =
   'https://jobs.ashbyhq.com/api/non-user-graphql?op=ApiJobBoardWithTeams';
@@ -65,7 +65,7 @@ async function ashbyPrivateProbe(slug: string): Promise<Outcome> {
     data?: { jobBoard?: { jobPostings?: unknown } | null };
   };
   const board = data.data?.jobBoard;
-  // A missing org comes back as jobBoard: null with HTTP 200 — treat as not_found.
+  // A missing org comes back as jobBoard: null with HTTP 200 - treat as not_found.
   if (!board) return { state: 'not_found', found: 0 };
   return { state: 'ok', found: arrayLen(board.jobPostings) };
 }

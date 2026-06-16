@@ -36,7 +36,7 @@ import type { ApplyQueueResponse } from './types.ts';
 //   [01] LLM CLI         — switch + test the configured provider
 //   [02] Scheduler       — read state + install/uninstall daily agents
 //   [03] Scoring profile — view + regenerate config/profile.json from the brief
-//   [09] Job sources     — add/remove company boards (config/slugs.local.json)
+//   [09] Job sources     - add/remove company boards (config/slugs.local.json)
 //   [04] Last run        — stats parsed from data/jobs.json
 //   [05] Disk usage      — bytes/files for data/raw, data/applications, data/archive
 //   [06] Maintenance     — clean / clean:onboarding / clean:all

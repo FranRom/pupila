@@ -13,7 +13,7 @@ import { isProbeSupported, probeSlug } from '../../src/lib/source-probe.js';
 import { SLUGS_LOCAL_PATH } from './_paths.ts';
 import { readBody } from './_shared.ts';
 
-// GET  /api/sources         → { ats: AtsView[] } — shipped + overlay + effective
+// GET  /api/sources         → { ats: AtsView[] } - shipped + overlay + effective
 // PUT  /api/sources         → persist one ATS's delta to slugs.local.json
 // POST /api/sources/verify  → live probe a slug ({ supported, found })
 //
@@ -33,7 +33,7 @@ const NOTES: Record<AtsKey, string> = {
   greenhouse: 'Public Greenhouse boards (boards.greenhouse.io/<slug>).',
   lever: 'Public Lever boards (jobs.lever.co/<slug>).',
   ashbyPrivate:
-    'Ashby companies whose public posting API is turned off — pupila fetches them via the ' +
+    'Ashby companies whose public posting API is turned off, so pupila fetches them via the ' +
     "job board's GraphQL instead (e.g. chainlink-labs). They're invisible to the normal Ashby " +
     'source. Verify and board-health use the same GraphQL, so they work here too.',
 };
@@ -80,7 +80,7 @@ export function sourcesApiPlugin(): Plugin {
   return {
     name: 'pupila-sources-api',
     configureServer(server) {
-      // Register the more specific path FIRST — connect matches by prefix, so
+      // Register the more specific path FIRST - connect matches by prefix, so
       // /api/sources would otherwise also swallow /api/sources/verify.
       server.middlewares.use('/api/sources/verify', async (req, res) => {
         res.setHeader('Content-Type', 'application/json');

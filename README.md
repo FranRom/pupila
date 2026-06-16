@@ -32,7 +32,7 @@ The stuff that makes the daily routine actually pleasant:
 - **URL-encoded view state.** Every filter, sort, and expanded row syncs to `?q=...&cat=...&src=...` — bookmark a filtered view and it rehydrates next time.
 - **Source-health banner.** A 🚨 banner appears in `JOBS.md` when a fetcher returns zero items or errors, so silent upstream breakage isn't silent.
 - **Application tracking.** Click a status pill on any row (`📝 applied / 💬 interview / 🎯 offer / ❌ rejected / ⏸ withdrawn`) — saves to `config/applied.json` and feeds the "📋 Application status" section at the top of `JOBS.md`.
-- **9-panel Settings dashboard** — switch LLM CLI / install or remove the scheduler / regenerate scoring profile / manage job sources / inspect the last run / check disk usage / clean / view environment / monitor the apply queue, all from `pnpm run ui` → Settings.
+- **9-panel Settings dashboard**: switch LLM CLI / install or remove the scheduler / regenerate scoring profile / manage job sources / inspect the last run / check disk usage / clean / view environment / monitor the apply queue, all from `pnpm run ui` → Settings.
 - **Talk to your data from an AI client.** Optional MCP server exposes every actionable UI surface (filter jobs, mark applied, enqueue AI Apply, trigger a refresh, regenerate the scoring profile) to Claude Code / Claude Desktop / Cursor via 17 typed tools. One command (`bash scripts/install-mcp.sh`) wires it in.
 - **Reach past the curated boards.** The `bluedoor` source taps a free aggregator over ~1.6M postings across 31 ATS providers (Workday, iCIMS, Oracle, ADP, …) you can't query directly — pulled by *your* accepted regions, with companies you already follow auto-skipped so it only adds long-tail listings.
 - **RSS feed.** `data/feed.xml` gets every "✨ new" job — point any RSS reader at the local `file://` path.
@@ -176,10 +176,10 @@ Tweak, run `pnpm run dev`, inspect `JOBS.md`, repeat.
 
 Two ways to follow more (or fewer) Ashby / Greenhouse / Lever companies:
 
-- **From the UI (recommended)** — `pnpm run ui` → **Settings → Job sources**. Add or remove a company per ATS, **Verify** a slug against the live board before saving, and run **Check board health** to flag any boards that 404 or time out. Changes are written to `config/slugs.local.json` (gitignored) as a per-ATS delta on top of the shipped list — so your personal picks stay separate and you keep getting upstream additions to `config/slugs.json`.
-- **By hand** — edit [`config/slugs.json`](./config/slugs.json) directly (the committed, shared baseline).
+- **From the UI (recommended):** `pnpm run ui` → **Settings → Job sources**. Add or remove a company per ATS, **Verify** a slug against the live board before saving, and run **Check board health** to flag any boards that 404 or time out. Changes are written to `config/slugs.local.json` (gitignored) as a per-ATS delta on top of the shipped list, so your personal picks stay separate and you keep getting upstream additions to `config/slugs.json`.
+- **By hand:** edit [`config/slugs.json`](./config/slugs.json) directly (the committed, shared baseline).
 
-Slugs come from the URL of the careers page (`jobs.ashbyhq.com/<slug>`, `boards.greenhouse.io/<slug>`, `jobs.lever.co/<slug>`). Either way, 404s are silently skipped, so trial-and-error is safe. Adding a slug also **auto-excludes that company from `bluedoor`** — the dedicated fetcher is authoritative, so you never get a duplicate from the aggregator.
+Slugs come from the URL of the careers page (`jobs.ashbyhq.com/<slug>`, `boards.greenhouse.io/<slug>`, `jobs.lever.co/<slug>`). Either way, 404s are silently skipped, so trial-and-error is safe. Adding a slug also **auto-excludes that company from `bluedoor`**: the dedicated fetcher is authoritative, so you never get a duplicate from the aggregator.
 
 ### 5. Schedule the daily run
 
@@ -348,7 +348,7 @@ The three ATS fetchers (Ashby, Greenhouse, Lever) carry the bulk of the high-qua
 | [hn-jobs](./src/fetchers/hn-jobs.ts) | Algolia API | `hn.algolia.com/api/v1/search_by_date?tags=job` |
 | [bluedoor](./src/fetchers/bluedoor.ts) | JSON API (aggregator, ~1.6M postings / 31 ATS) | `api.bluedoor.sh/job-postings/v1/jobs/search` — region fan-out from `profile.location` |
 
-The Ashby tier-S list covers the AI frontier (OpenAI, Cohere, Perplexity, Cursor, ElevenLabs, Modal, LangChain, LangFuse, LlamaIndex, OpenRouter, Pinecone, Supabase, Neon, Clerk, PostHog, Browserbase, Replit, Runway, Notion, Anyscale, BaseTen, Character, Weaviate) plus web3 (Linear, Ramp, Uniswap, Mysten Labs, Paradigm, Polygon Labs, Base, Blockworks, Succinct, Espresso, Phantom, Polymarket, Alchemy, Stacks, Morpho, Magic Eden, LiFi). Greenhouse adds Anthropic, Vercel, Mercury, Coinbase. Lever adds Binance, Ledger, CoinGecko, CoinMarketCap, Safe, Arbitrum Foundation, Celestia, and Mistral (which moved off Ashby to Lever). Custom first-party coverage: Aave via a Next.js `__NEXT_DATA__` scraper, and Chainlink Labs via the `ashby-private` fetcher (Ashby's private GraphQL endpoint — same fetcher generalized to a slug array, so any future org whose public posting-API is disabled is a one-line config add).
+The Ashby tier-S list covers the AI frontier (OpenAI, Cohere, Perplexity, Cursor, ElevenLabs, Modal, LangChain, LangFuse, LlamaIndex, OpenRouter, Pinecone, Supabase, Neon, Clerk, PostHog, Browserbase, Replit, Runway, Notion, Anyscale, BaseTen, Character, Weaviate) plus web3 (Linear, Ramp, Uniswap, Mysten Labs, Paradigm, Polygon Labs, Base, Blockworks, Succinct, Espresso, Phantom, Polymarket, Alchemy, Stacks, Morpho, Magic Eden, LiFi). Greenhouse adds Anthropic, Vercel, Mercury, Coinbase. Lever adds Binance, Ledger, CoinGecko, CoinMarketCap, Safe, Arbitrum Foundation, Celestia, and Mistral (which moved off Ashby to Lever). Custom first-party coverage: Aave via a Next.js `__NEXT_DATA__` scraper, and Chainlink Labs via the `ashby-private` fetcher (Ashby's private GraphQL endpoint; the same fetcher generalized to a slug array, so any future org whose public posting-API is disabled is a one-line config add).
 
 Adding another source is one new file in `src/fetchers/`, one entry in `Source`, one normalizer in `normalize.ts`, and one line in `src/index.ts`. See [`CONTRIBUTING.md`](./CONTRIBUTING.md#adding-a-source) for the contributor-facing recipe.
 
@@ -907,7 +907,7 @@ All weights and keyword lists live in [`config/profile.json`](./config/profile.j
 
 ### Change the tier-S ATS slug lists
 
-All three slug arrays live in [`config/slugs.json`](./config/slugs.json) — adding or removing a company is a non-code change. Slugs that 404 are logged and skipped silently, so testing a candidate is just appending it and re-running. Prefer not to touch the shared file? **Settings → Job sources** in the UI writes your personal add/remove choices to a gitignored `config/slugs.local.json` overlay instead (resolved on top of the baseline at fetch time), with live Verify + board-health checks.
+All three slug arrays live in [`config/slugs.json`](./config/slugs.json); adding or removing a company is a non-code change. Slugs that 404 are logged and skipped silently, so testing a candidate is just appending it and re-running. Prefer not to touch the shared file? **Settings → Job sources** in the UI writes your personal add/remove choices to a gitignored `config/slugs.local.json` overlay instead (resolved on top of the baseline at fetch time), with live Verify + board-health checks.
 
 ```jsonc
 {

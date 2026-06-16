@@ -160,8 +160,8 @@ it('flags only broken boards and summarizes health per group after a check', asy
   fireEvent.click(screen.getByRole('button', { name: /check board health/i }));
 
   // The one broken board gets a marker; the healthy ones do not.
-  await waitFor(() => expect(screen.getByTitle(/linear — board not found/i)).toBeInTheDocument());
-  expect(screen.queryByTitle(/ramp — /i)).not.toBeInTheDocument();
+  await waitFor(() => expect(screen.getByTitle(/linear: board not found/i)).toBeInTheDocument());
+  expect(screen.queryByTitle(/ramp: /i)).not.toBeInTheDocument();
   // Group header summarizes: 2 healthy, 1 broken, with an explanatory tooltip.
   expect(screen.getByText('2 OK')).toBeInTheDocument();
   // The full phrase is unique to the InfoTooltip bubble.

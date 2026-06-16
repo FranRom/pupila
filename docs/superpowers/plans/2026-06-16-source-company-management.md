@@ -4,7 +4,7 @@
 
 **Goal:** Let a user add or remove individual company boards for the multi-slug ATS sources (Ashby, Greenhouse, Lever, Ashby-private) from a new Settings panel, persisted to a gitignored overlay so the shipped tier-S list stays clean and keeps tracking upstream.
 
-**Architecture:** A gitignored `config/slugs.local.json` overlay stores **deltas** per ATS — `{ add: [...], remove: [...] }`. At fetch time, each ATS fetcher computes its effective slug list = `(shipped ∪ add) \ remove` via a new pure resolver (`src/lib/slugs.ts`). The UI Settings tab gets a "Job sources" panel that reads/writes the overlay through a new Vite middleware plugin (`/api/sources`), with an optional live "verify" probe (`/api/sources/verify`) that hits the real ATS board and reports how many roles a slug currently exposes. Shipped slugs (`config/slugs.json`) are never written by the app, so upstream updates flow through and a user's personal picks are additive deltas on top.
+**Architecture:** A gitignored `config/slugs.local.json` overlay stores **deltas** per ATS - `{ add: [...], remove: [...] }`. At fetch time, each ATS fetcher computes its effective slug list = `(shipped ∪ add) \ remove` via a new pure resolver (`src/lib/slugs.ts`). The UI Settings tab gets a "Job sources" panel that reads/writes the overlay through a new Vite middleware plugin (`/api/sources`), with an optional live "verify" probe (`/api/sources/verify`) that hits the real ATS board and reports how many roles a slug currently exposes. Shipped slugs (`config/slugs.json`) are never written by the app, so upstream updates flow through and a user's personal picks are additive deltas on top.
 
 **Tech Stack:** Node 22 / TypeScript (NodeNext, ESM), Vitest 4, Vite dev-server middleware plugins, React 19, CSS Modules, the typed `api` client (`ui/src/lib/api/`). No new runtime dependencies.
 
@@ -15,25 +15,25 @@
 ## File Structure
 
 **New files:**
-- `src/lib/slugs.ts` — pure overlay model: `AtsKey`, `SlugDelta`, `SlugOverlay`, `isValidSlug`, `resolveSlugs`, `sanitizeDelta`, `sanitizeOverlay`, `loadSlugOverlay`.
-- `src/lib/ats-endpoints.ts` — encoded board-URL builders for the 3 public ATS, shared by fetchers + probe.
-- `src/lib/source-probe.ts` — live "does this slug exist / how many roles" probe for the verify endpoint.
-- `tests/slugs.test.ts` — unit tests for `slugs.ts`.
-- `tests/ats-endpoints.test.ts` — unit tests for URL encoding.
-- `ui/plugins/sources.ts` — `/api/sources` (GET/PUT) + `/api/sources/verify` (POST) middleware.
-- `ui/src/settings/SourcesPanel.tsx` — the new Settings panel.
-- `ui/src/settings/SourcesPanel.module.css` — co-located styles.
-- `ui/src/settings/SourcesPanel.test.tsx` — component test for add/remove delta logic.
+- `src/lib/slugs.ts` - pure overlay model: `AtsKey`, `SlugDelta`, `SlugOverlay`, `isValidSlug`, `resolveSlugs`, `sanitizeDelta`, `sanitizeOverlay`, `loadSlugOverlay`.
+- `src/lib/ats-endpoints.ts` - encoded board-URL builders for the 3 public ATS, shared by fetchers + probe.
+- `src/lib/source-probe.ts` - live "does this slug exist / how many roles" probe for the verify endpoint.
+- `tests/slugs.test.ts` - unit tests for `slugs.ts`.
+- `tests/ats-endpoints.test.ts` - unit tests for URL encoding.
+- `ui/plugins/sources.ts` - `/api/sources` (GET/PUT) + `/api/sources/verify` (POST) middleware.
+- `ui/src/settings/SourcesPanel.tsx` - the new Settings panel.
+- `ui/src/settings/SourcesPanel.module.css` - co-located styles.
+- `ui/src/settings/SourcesPanel.test.tsx` - component test for add/remove delta logic.
 
 **Modified files:**
-- `src/fetchers/ashby.ts`, `src/fetchers/greenhouse.ts`, `src/fetchers/lever.ts`, `src/fetchers/ashby-private.ts` — consume effective slugs + shared encoded URLs; drop the now-unused `TIER_S_*` exports.
-- `.gitignore` — add `config/slugs.local.json`.
-- `config/slugs.json` — extend the `_comment` to mention the overlay.
-- `src/fetchers/CLAUDE.md` — note overlay resolution + that board URLs encode the slug.
-- `ui/plugins/_paths.ts` — add `SLUGS_LOCAL_PATH`.
-- `ui/vite.config.ts` — register `sourcesApiPlugin()`.
-- `ui/src/lib/api/index.ts` — add `SourcesResponse` / `VerifyResponse` types + `api.sources` namespace.
-- `ui/src/Settings.tsx` — load sources, render `<SourcesPanel>`, wire save + verify callbacks.
+- `src/fetchers/ashby.ts`, `src/fetchers/greenhouse.ts`, `src/fetchers/lever.ts`, `src/fetchers/ashby-private.ts` - consume effective slugs + shared encoded URLs; drop the now-unused `TIER_S_*` exports.
+- `.gitignore` - add `config/slugs.local.json`.
+- `config/slugs.json` - extend the `_comment` to mention the overlay.
+- `src/fetchers/CLAUDE.md` - note overlay resolution + that board URLs encode the slug.
+- `ui/plugins/_paths.ts` - add `SLUGS_LOCAL_PATH`.
+- `ui/vite.config.ts` - register `sourcesApiPlugin()`.
+- `ui/src/lib/api/index.ts` - add `SourcesResponse` / `VerifyResponse` types + `api.sources` namespace.
+- `ui/src/Settings.tsx` - load sources, render `<SourcesPanel>`, wire save + verify callbacks.
 
 ---
 
@@ -129,7 +129,7 @@ describe('sanitizeOverlay', () => {
 - [ ] **Step 2: Run the test to verify it fails**
 
 Run: `pnpm exec vitest run tests/slugs.test.ts`
-Expected: FAIL — `Cannot find module '../src/lib/slugs.js'`.
+Expected: FAIL - `Cannot find module '../src/lib/slugs.js'`.
 
 - [ ] **Step 3: Write the implementation**
 
@@ -240,7 +240,7 @@ export async function loadSlugOverlay(
 - [ ] **Step 4: Run the test to verify it passes**
 
 Run: `pnpm exec vitest run tests/slugs.test.ts`
-Expected: PASS — all cases green.
+Expected: PASS - all cases green.
 
 - [ ] **Step 5: Typecheck + commit**
 
@@ -291,7 +291,7 @@ describe('ATS board URLs', () => {
 - [ ] **Step 2: Run the test to verify it fails**
 
 Run: `pnpm exec vitest run tests/ats-endpoints.test.ts`
-Expected: FAIL — `Cannot find module '../src/lib/ats-endpoints.js'`.
+Expected: FAIL - `Cannot find module '../src/lib/ats-endpoints.js'`.
 
 - [ ] **Step 3: Write the implementation**
 
@@ -497,7 +497,7 @@ config/slugs.local.json
 Change the `_comment` value (line 2) to:
 
 ```json
-  "_comment": "Tier-S company slugs to scrape from each ATS. Slugs are public ATS URLs (jobs.ashbyhq.com/<slug>, boards.greenhouse.io/<slug>, jobs.lever.co/<slug>) — find them by browsing the boards. 404s are silently skipped, so trial-and-error is safe. This file is the committed, shared baseline; personal add/remove choices live in the gitignored config/slugs.local.json overlay (edit via the UI Settings → Job sources panel). Effective list per ATS = (shipped ∪ overlay.add) minus overlay.remove.",
+  "_comment": "Tier-S company slugs to scrape from each ATS. Slugs are public ATS URLs (jobs.ashbyhq.com/<slug>, boards.greenhouse.io/<slug>, jobs.lever.co/<slug>) - find them by browsing the boards. 404s are silently skipped, so trial-and-error is safe. This file is the committed, shared baseline; personal add/remove choices live in the gitignored config/slugs.local.json overlay (edit via the UI Settings → Job sources panel). Effective list per ATS = (shipped ∪ overlay.add) minus overlay.remove.",
 ```
 
 - [ ] **Step 3: Note the overlay in `src/fetchers/CLAUDE.md`**
@@ -505,7 +505,7 @@ Change the `_comment` value (line 2) to:
 Under the "### 6. URL-encode path segments at the boundary" invariant, append this paragraph:
 
 ```markdown
-The four multi-slug ATS fetchers (`ashby`, `greenhouse`, `lever`, `ashby-private`) build their board URLs via the shared encoded helpers in `src/lib/ats-endpoints.ts` and resolve their slug list at fetch time via `resolveSlugs(shipped, overlay)` from `src/lib/slugs.ts`. The effective list is the committed `config/slugs.json` baseline unioned with the gitignored `config/slugs.local.json` personal overlay, minus the overlay's removals. Never write `config/slugs.json` from app code — personal changes belong in the overlay.
+The four multi-slug ATS fetchers (`ashby`, `greenhouse`, `lever`, `ashby-private`) build their board URLs via the shared encoded helpers in `src/lib/ats-endpoints.ts` and resolve their slug list at fetch time via `resolveSlugs(shipped, overlay)` from `src/lib/slugs.ts`. The effective list is the committed `config/slugs.json` baseline unioned with the gitignored `config/slugs.local.json` personal overlay, minus the overlay's removals. Never write `config/slugs.json` from app code - personal changes belong in the overlay.
 ```
 
 - [ ] **Step 4: Commit**
@@ -532,7 +532,7 @@ Create `src/lib/source-probe.ts`:
 // Live "does this slug exist / how many roles does it expose right now" probe,
 // used by the Settings → Job sources panel when a user adds a company. Because
 // 404 slugs are silently skipped at fetch time, a typo otherwise contributes
-// zero jobs forever with no feedback — this gives the user a ✓/✗ on add.
+// zero jobs forever with no feedback - this gives the user a ✓/✗ on add.
 //
 // Only the three public ATS are probeable. Ashby-private uses an unauthenticated
 // GraphQL endpoint we intentionally don't replay here, so it reports unsupported.
@@ -618,7 +618,7 @@ import { probeSlug } from '../../src/lib/source-probe.js';
 import { SLUGS_LOCAL_PATH } from './_paths.ts';
 import { readBody } from './_shared.ts';
 
-// GET  /api/sources         → { ats: AtsView[] } — shipped + overlay + effective
+// GET  /api/sources         → { ats: AtsView[] } - shipped + overlay + effective
 // PUT  /api/sources         → persist one ATS's delta to slugs.local.json
 // POST /api/sources/verify  → live probe a slug ({ supported, found })
 //
@@ -639,7 +639,7 @@ const BASE: Record<AtsKey, readonly string[]> = {
   ashbyPrivate: slugs.ashbyPrivate,
 };
 
-// Ashby-private isn't probeable (see source-probe.ts) — UI hides its verify CTA.
+// Ashby-private isn't probeable (see source-probe.ts) - UI hides its verify CTA.
 const VERIFY_SUPPORTED: Record<AtsKey, boolean> = {
   ashby: true,
   greenhouse: true,
@@ -680,7 +680,7 @@ export function sourcesApiPlugin(): Plugin {
   return {
     name: 'pupila-sources-api',
     configureServer(server) {
-      // Register the more specific path FIRST — connect matches by prefix, so
+      // Register the more specific path FIRST - connect matches by prefix, so
       // /api/sources would otherwise also swallow /api/sources/verify.
       server.middlewares.use('/api/sources/verify', async (req, res) => {
         res.setHeader('Content-Type', 'application/json');
@@ -907,17 +907,17 @@ it('rejects an invalid slug without saving', async () => {
 - [ ] **Step 2: Run the test to verify it fails**
 
 Run: `pnpm exec vitest run ui/src/settings/SourcesPanel.test.tsx`
-Expected: FAIL — `Cannot find module './SourcesPanel.tsx'`.
+Expected: FAIL - `Cannot find module './SourcesPanel.tsx'`.
 
 - [ ] **Step 3: Write the panel component**
 
 Create `ui/src/settings/SourcesPanel.tsx`:
 
 ```tsx
-// [09] Job sources panel — add/remove company boards for the multi-slug ATS
+// [09] Job sources panel - add/remove company boards for the multi-slug ATS
 // sources (Ashby, Greenhouse, Lever, Ashby-private). Personal choices persist
 // as a delta in config/slugs.local.json (gitignored). Effective list per ATS =
-// shipped ∪ add − remove. Verify hits the live ATS board to confirm a slug.
+// shipped ∪ add - remove. Verify hits the live ATS board to confirm a slug.
 
 import { useCallback, useState } from 'react';
 import type { SourcesAtsView, SourcesResponse, VerifyResponse } from '../lib/api/index.ts';
@@ -925,7 +925,7 @@ import buttonStyles from '../styles/Button.module.css';
 import { Section, SkeletonRows, settingsStyles } from './shared.tsx';
 import styles from './SourcesPanel.module.css';
 
-// Mirror of SLUG_PATTERN in src/lib/slugs.ts — the server re-validates, this is
+// Mirror of SLUG_PATTERN in src/lib/slugs.ts - the server re-validates, this is
 // just for instant feedback.
 const SLUG_PATTERN = /^[a-z0-9][a-z0-9._-]*$/;
 
@@ -998,7 +998,7 @@ function AtsGroup({ ats, onSave, onVerify }: AtsGroupProps) {
       setVerifyMsg(null);
       const slug = normalize(draft);
       if (!SLUG_PATTERN.test(slug)) {
-        setLocalError('Invalid slug — use lowercase letters, digits, dot, dash, underscore.');
+        setLocalError('Invalid slug - use lowercase letters, digits, dot, dash, underscore.');
         return;
       }
       if (ats.effective.includes(slug)) {
@@ -1027,10 +1027,10 @@ function AtsGroup({ ats, onSave, onVerify }: AtsGroupProps) {
     setVerifyMsg(null);
     const result = await onVerify(ats.key, slug);
     setVerifying(false);
-    if (!result) setVerifyMsg('Verify failed — try again.');
+    if (!result) setVerifyMsg('Verify failed - try again.');
     else if (!result.supported) setVerifyMsg('Verify not supported for this source.');
-    else if (result.found > 0) setVerifyMsg(`✓ ${slug} — ${result.found} open role(s).`);
-    else setVerifyMsg(`✗ ${slug} — board not found or no open roles.`);
+    else if (result.found > 0) setVerifyMsg(`✓ ${slug} - ${result.found} open role(s).`);
+    else setVerifyMsg(`✗ ${slug} - board not found or no open roles.`);
   }, [ats.key, draft, onVerify]);
 
   return (
@@ -1041,7 +1041,7 @@ function AtsGroup({ ats, onSave, onVerify }: AtsGroupProps) {
       </div>
       <div className={styles.chips}>
         {ats.effective.length === 0 ? (
-          <span className={styles.emptyChips}>No companies — add one below.</span>
+          <span className={styles.emptyChips}>No companies - add one below.</span>
         ) : (
           ats.effective.map((slug) => (
             <span
@@ -1100,7 +1100,7 @@ Create `ui/src/settings/SourcesPanel.module.css`:
 
 ```css
 /*
- * [09] SourcesPanel — per-ATS company chips + add/verify row.
+ * [09] SourcesPanel - per-ATS company chips + add/verify row.
  */
 
 .groups {
@@ -1223,7 +1223,7 @@ Create `ui/src/settings/SourcesPanel.module.css`:
 - [ ] **Step 5: Run the test to verify it passes**
 
 Run: `pnpm exec vitest run ui/src/settings/SourcesPanel.test.tsx`
-Expected: PASS — all five cases green.
+Expected: PASS - all five cases green.
 
 - [ ] **Step 6: Lint (CSS-module + api-pattern gates) + commit**
 
@@ -1250,7 +1250,7 @@ After the `ScoringProfilePanel` import (line 12), add:
 import { SourcesPanel } from './settings/SourcesPanel.tsx';
 ```
 
-In the `api` import line 2, it already imports `api, formatError` — no change. Add the sources types to the existing api import is not needed (types come via the panel). Add this import near the top with the other api type imports:
+In the `api` import line 2, it already imports `api, formatError` - no change. Add the sources types to the existing api import is not needed (types come via the panel). Add this import near the top with the other api type imports:
 
 ```tsx
 import type { SourcesResponse, VerifyResponse } from './lib/api/index.ts';
@@ -1357,7 +1357,7 @@ Run: `pnpm run ui`
 Then in the browser at `127.0.0.1:5173`:
 - Go to Settings → `[09] Job sources`.
 - Confirm Ashby/Greenhouse/Lever/Ashby (private) groups render with their shipped companies.
-- Type `stripe` under Ashby, click **Verify** → expect a `✓ stripe — N open role(s)` (or `✗ … not found`) message.
+- Type `stripe` under Ashby, click **Verify** → expect a `✓ stripe - N open role(s)` (or `✗ … not found`) message.
 - Click **Add** → the chip appears (accent-colored = added).
 - Confirm `config/slugs.local.json` now exists and contains `{ "ashby": { "add": ["stripe"], "remove": [] } }`.
 - Remove a shipped company (e.g. click × on `linear`) → confirm it disappears and `slugs.local.json` gains it under `remove`.
