@@ -9,7 +9,7 @@ import {
   type SlugOverlay,
   sanitizeDelta,
 } from '../../src/lib/slugs.js';
-import { probeSlug } from '../../src/lib/source-probe.js';
+import { isProbeSupported, probeSlug } from '../../src/lib/source-probe.js';
 import { SLUGS_LOCAL_PATH } from './_paths.ts';
 import { readBody } from './_shared.ts';
 
@@ -34,14 +34,6 @@ const BASE: Record<AtsKey, readonly string[]> = {
   ashbyPrivate: slugs.ashbyPrivate,
 };
 
-// Ashby-private isn't probeable (see source-probe.ts) — UI hides its verify CTA.
-const VERIFY_SUPPORTED: Record<AtsKey, boolean> = {
-  ashby: true,
-  greenhouse: true,
-  lever: true,
-  ashbyPrivate: false,
-};
-
 interface AtsView {
   key: AtsKey;
   label: string;
@@ -58,7 +50,7 @@ function buildView(overlay: SlugOverlay): AtsView[] {
     return {
       key,
       label: LABELS[key],
-      verifySupported: VERIFY_SUPPORTED[key],
+      verifySupported: isProbeSupported(key),
       shipped: [...BASE[key]],
       add: delta.add,
       remove: delta.remove,
@@ -95,6 +87,38 @@ export function sourcesApiPlugin(): Plugin {
           res.end(JSON.stringify(await probeSlug(body.key, slug)));
         } catch (err) {
           console.error('[sources verify api]', err);
+          res.statusCode = 500;
+          res.end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }));
+        }
+      });
+
+      // POST /api/sources/health → live board-health for every effective slug
+      // across the probeable ATS. On-demand (no aggregator run needed); the UI
+      // fires it behind a "Check board health" button and flags only the broken
+      // boards. Heavy (~one request per company) but parallel and user-initiated.
+      server.middlewares.use('/api/sources/health', async (req, res) => {
+        res.setHeader('Content-Type', 'application/json');
+        if (req.method !== 'POST') {
+          res.statusCode = 405;
+          res.end();
+          return;
+        }
+        try {
+          const overlay = await loadSlugOverlay(SLUGS_LOCAL_PATH);
+          const tasks: Array<Promise<{ key: AtsKey; slug: string; state: string; found: number }>> =
+            [];
+          for (const key of ATS_KEYS) {
+            if (!isProbeSupported(key)) continue;
+            for (const slug of resolveSlugs(BASE[key], overlay[key])) {
+              tasks.push(
+                probeSlug(key, slug).then((r) => ({ key, slug, state: r.state, found: r.found })),
+              );
+            }
+          }
+          const results = await Promise.all(tasks);
+          res.end(JSON.stringify({ results }));
+        } catch (err) {
+          console.error('[sources health api]', err);
           res.statusCode = 500;
           res.end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }));
         }

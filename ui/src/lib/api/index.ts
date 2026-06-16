@@ -164,9 +164,23 @@ export interface SourcesResponse {
   ats: SourcesAtsView[];
 }
 
+export type ProbeState = 'ok' | 'not_found' | 'error';
+
 export interface VerifyResponse {
   supported: boolean;
+  state?: ProbeState;
   found: number;
+}
+
+export interface SourceHealthEntry {
+  key: string;
+  slug: string;
+  state: ProbeState;
+  found: number;
+}
+
+export interface SourceHealthResponse {
+  results: SourceHealthEntry[];
 }
 
 // ── Method types ────────────────────────────────────────────────────────────
@@ -370,6 +384,8 @@ export const api = {
       request<SourcesResponse>('/api/sources', { method: 'PUT', json: input, ...opt }),
     verify: (input: { key: string; slug: string }, opt: SignalOpt = {}) =>
       request<VerifyResponse>('/api/sources/verify', { method: 'POST', json: input, ...opt }),
+    health: (opt: SignalOpt = {}) =>
+      request<SourceHealthResponse>('/api/sources/health', { method: 'POST', ...opt }),
   },
 
   // ── Scheduler (launchd / cron) ───────────────────────────────────────────
