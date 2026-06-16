@@ -153,6 +153,19 @@ function AtsGroup({ ats, health, checked, onSave, onVerify }: AtsGroupProps) {
     [ats, addSet, onSave],
   );
 
+  // Re-enable a disabled shipped company: just drop it from `remove`, so it
+  // returns to a normal baseline chip (and the overlay entry clears).
+  const enableSlug = useCallback(
+    (slug: string) => {
+      void onSave(
+        ats.key,
+        ats.add,
+        ats.remove.filter((s) => s !== slug),
+      );
+    },
+    [ats, onSave],
+  );
+
   const submitAdd = useCallback(
     (e: FormEvent) => {
       e.preventDefault();
@@ -259,6 +272,24 @@ function AtsGroup({ ats, health, checked, onSave, onVerify }: AtsGroupProps) {
           })
         )}
       </div>
+      {ats.remove.length > 0 && (
+        <div className={styles.disabledRow}>
+          <span className={styles.disabledLabel}>Disabled</span>
+          {ats.remove.map((slug) => (
+            <span key={slug} className={styles.chipDisabled}>
+              {slug}
+              <button
+                type="button"
+                className={styles.chipRestore}
+                title={`Re-enable ${slug}`}
+                onClick={() => enableSlug(slug)}
+              >
+                +
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
       <form className={styles.addRow} onSubmit={submitAdd}>
         <input
           className={styles.input}

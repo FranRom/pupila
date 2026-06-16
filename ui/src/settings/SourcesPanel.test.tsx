@@ -105,6 +105,38 @@ it('re-adding a removed shipped slug clears the removal instead of marking it ad
   await waitFor(() => expect(onSave).toHaveBeenCalledWith('ashby', [], []));
 });
 
+it('shows disabled shipped companies and re-enables them with one click', async () => {
+  const onSave = vi.fn().mockResolvedValue(undefined);
+  const removed: SourcesResponse = {
+    ats: [
+      {
+        key: 'ashby',
+        label: 'Ashby',
+        note: 'Public Ashby boards.',
+        verifySupported: true,
+        shipped: ['linear', 'ramp'],
+        add: [],
+        remove: ['linear'],
+        effective: ['ramp'],
+      },
+    ],
+  };
+  render(
+    <SourcesPanel
+      sources={removed}
+      onSave={onSave}
+      onVerify={noopVerify}
+      onCheckHealth={noopHealth}
+    />,
+  );
+  // The disabled company stays visible under a "Disabled" row.
+  expect(screen.getByText('Disabled')).toBeInTheDocument();
+  expect(screen.getByText('linear')).toBeInTheDocument();
+  // One click re-enables it (clears the removal).
+  fireEvent.click(screen.getByTitle('Re-enable linear'));
+  await waitFor(() => expect(onSave).toHaveBeenCalledWith('ashby', [], []));
+});
+
 it('rejects an invalid slug without saving', async () => {
   const onSave = vi.fn();
   renderPanel({ onSave });
