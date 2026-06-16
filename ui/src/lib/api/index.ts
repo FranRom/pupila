@@ -150,6 +150,25 @@ export interface LocationMutateResponse {
   location: LocationProfile;
 }
 
+export interface SourcesAtsView {
+  key: string;
+  label: string;
+  verifySupported: boolean;
+  shipped: string[];
+  add: string[];
+  remove: string[];
+  effective: string[];
+}
+
+export interface SourcesResponse {
+  ats: SourcesAtsView[];
+}
+
+export interface VerifyResponse {
+  supported: boolean;
+  found: number;
+}
+
 // ── Method types ────────────────────────────────────────────────────────────
 
 interface SignalOpt {
@@ -342,6 +361,15 @@ export const api = {
         json: { location },
         ...opt,
       }),
+  },
+
+  // ── Job sources (per-company ATS slug overlay) ───────────────────────────
+  sources: {
+    get: (opt: SignalOpt = {}) => request<SourcesResponse>('/api/sources', opt),
+    set: (input: { key: string; add: string[]; remove: string[] }, opt: SignalOpt = {}) =>
+      request<SourcesResponse>('/api/sources', { method: 'PUT', json: input, ...opt }),
+    verify: (input: { key: string; slug: string }, opt: SignalOpt = {}) =>
+      request<VerifyResponse>('/api/sources/verify', { method: 'POST', json: input, ...opt }),
   },
 
   // ── Scheduler (launchd / cron) ───────────────────────────────────────────
