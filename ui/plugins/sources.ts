@@ -27,6 +27,17 @@ const LABELS: Record<AtsKey, string> = {
   ashbyPrivate: 'Ashby (private)',
 };
 
+// One-line explainer per ATS, shown as a tooltip on the group's ⓘ marker.
+const NOTES: Record<AtsKey, string> = {
+  ashby: 'Public Ashby boards (jobs.ashbyhq.com/<slug>).',
+  greenhouse: 'Public Greenhouse boards (boards.greenhouse.io/<slug>).',
+  lever: 'Public Lever boards (jobs.lever.co/<slug>).',
+  ashbyPrivate:
+    'Ashby companies whose public posting API is turned off — pupila fetches them via the ' +
+    "job board's GraphQL instead (e.g. chainlink-labs). They're invisible to the normal Ashby " +
+    "source. Verify and health checks aren't available for these.",
+};
+
 const BASE: Record<AtsKey, readonly string[]> = {
   ashby: slugs.ashby,
   greenhouse: slugs.greenhouse,
@@ -37,6 +48,7 @@ const BASE: Record<AtsKey, readonly string[]> = {
 interface AtsView {
   key: AtsKey;
   label: string;
+  note: string;
   verifySupported: boolean;
   shipped: string[];
   add: string[];
@@ -50,6 +62,7 @@ function buildView(overlay: SlugOverlay): AtsView[] {
     return {
       key,
       label: LABELS[key],
+      note: NOTES[key],
       verifySupported: isProbeSupported(key),
       shipped: [...BASE[key]],
       add: delta.add,

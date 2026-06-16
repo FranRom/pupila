@@ -198,7 +198,12 @@ function AtsGroup({ ats, health, checked, onSave, onVerify }: AtsGroupProps) {
   return (
     <div className={styles.group}>
       <div className={styles.groupHead}>
-        <span className={styles.groupTitle}>{ats.label}</span>
+        <span className={styles.groupTitle}>
+          {ats.label}
+          <span className={styles.groupInfo} title={ats.note} role="img" aria-label={ats.note}>
+            ⓘ
+          </span>
+        </span>
         {summary ? (
           <span className={styles.health} title={summaryTitle}>
             {summary.badN === 0 ? (

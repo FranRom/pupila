@@ -153,6 +153,7 @@ export interface LocationMutateResponse {
 export interface SourcesAtsView {
   key: string;
   label: string;
+  note: string;
   verifySupported: boolean;
   shipped: string[];
   add: string[];

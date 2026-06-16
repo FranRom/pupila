@@ -10,6 +10,7 @@ const sources: SourcesResponse = {
     {
       key: 'ashby',
       label: 'Ashby',
+      note: 'Public Ashby boards.',
       verifySupported: true,
       shipped: ['linear', 'ramp'],
       add: ['stripe'],
@@ -42,6 +43,11 @@ it('renders the effective company list', () => {
   renderPanel();
   expect(screen.getByText('linear')).toBeInTheDocument();
   expect(screen.getByText('stripe')).toBeInTheDocument();
+});
+
+it('shows an explanatory tooltip on the group', () => {
+  renderPanel();
+  expect(screen.getByTitle('Public Ashby boards.')).toBeInTheDocument();
 });
 
 it('removing a shipped slug saves it into the remove list', async () => {
