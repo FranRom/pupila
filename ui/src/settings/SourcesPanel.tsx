@@ -123,15 +123,19 @@ function AtsGroup({ ats, health, checked, onSave, onVerify }: AtsGroupProps) {
   const entryFor = (slug: string): HealthEntry | undefined => health[healthKey(ats.key, slug)];
 
   // Per-group health summary: only meaningful once a check has run, and only
-  // for probeable ATS. "N OK · M ⚠" — quiet (no badge) when nothing is broken.
-  let summary: string | null = null;
+  // for probeable ATS. Renders a colour-coded reachable/unreachable count.
+  let summary: { okN: number; badN: number } | null = null;
   if (checked && ats.verifySupported) {
     const probed = ats.effective.map(entryFor).filter((e): e is HealthEntry => e !== undefined);
     if (probed.length > 0) {
-      const bad = probed.filter((e) => e.state !== 'ok').length;
-      summary = `${probed.length - bad} OK · ${bad} ⚠`;
+      const badN = probed.filter((e) => e.state !== 'ok').length;
+      summary = { okN: probed.length - badN, badN };
     }
   }
+  const summaryTitle = summary
+    ? `Board health (last check): ${summary.okN} reachable, ${summary.badN} unreachable. ` +
+      'Unreachable boards (404 or timed out) are highlighted in red below.'
+    : undefined;
 
   const removeSlug = useCallback(
     (slug: string) => {
@@ -195,7 +199,22 @@ function AtsGroup({ ats, health, checked, onSave, onVerify }: AtsGroupProps) {
     <div className={styles.group}>
       <div className={styles.groupHead}>
         <span className={styles.groupTitle}>{ats.label}</span>
-        <span className={styles.groupCount}>{summary ?? ats.effective.length}</span>
+        {summary ? (
+          <span className={styles.health} title={summaryTitle}>
+            {summary.badN === 0 ? (
+              <span className={styles.healthOk}>✓ {summary.okN} reachable</span>
+            ) : (
+              <>
+                <span className={styles.healthOk}>{summary.okN} OK</span>
+                <span className={styles.healthWarn}>
+                  <span className={styles.healthWarnIcon}>⚠</span> {summary.badN} unreachable
+                </span>
+              </>
+            )}
+          </span>
+        ) : (
+          <span className={styles.groupCount}>{ats.effective.length}</span>
+        )}
       </div>
       <div className={styles.chips}>
         {ats.effective.length === 0 ? (

@@ -34,6 +34,32 @@
   color: var(--text-soft);
 }
 
+.health {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  font-size: var(--text-sm);
+  cursor: help;
+}
+
+.healthOk {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.healthWarn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--danger);
+  font-weight: 600;
+}
+
+.healthWarnIcon {
+  font-size: var(--text-lg);
+  line-height: 1;
+}
+
 .chips {
   display: flex;
   flex-wrap: wrap;
@@ -73,7 +99,7 @@
 }
 
 .chipWarn {
-  font-size: var(--text-xs);
+  font-size: var(--text-md);
   line-height: 1;
 }
 
