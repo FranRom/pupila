@@ -12,6 +12,7 @@ config/candidate-brief.md
 config/applied.json
 config/preferences.json
 config/profile.json
+config/slugs.local.json
 config/cv.pdf
 config/cv.docx
 config/cv.md

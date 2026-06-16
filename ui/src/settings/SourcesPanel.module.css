@@ -1,0 +1,197 @@
+/*
+ * [09] SourcesPanel - per-ATS company chips + add/verify row.
+ */
+
+.groups {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.group {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg);
+  padding: var(--space-3);
+}
+
+.groupHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: var(--space-2);
+}
+
+.groupTitle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-weight: 600;
+  color: var(--primary);
+  font-size: var(--text-md);
+}
+
+.groupCount {
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: var(--text-xs);
+  color: var(--text-soft);
+}
+
+.health {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  font-size: var(--text-sm);
+}
+
+.healthOk {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.healthWarn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--danger);
+  font-weight: 600;
+}
+
+.healthWarnIcon {
+  font-size: var(--text-lg);
+  line-height: 1;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+}
+
+.emptyChips {
+  color: var(--text-soft);
+  font-size: var(--text-sm);
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 0.125rem var(--space-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  color: var(--text-muted);
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: var(--text-sm);
+}
+
+.chipAdded {
+  composes: chip;
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.chipBroken {
+  composes: chip;
+  border-color: var(--danger);
+  color: var(--danger);
+  background: var(--danger-soft);
+}
+
+.chipWarn {
+  font-size: var(--text-md);
+  line-height: 1;
+}
+
+.chipRemove {
+  border: none;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+  font-size: var(--text-md);
+  line-height: 1;
+  padding: 0;
+  opacity: 0.7;
+}
+
+.chipRemove:hover {
+  opacity: 1;
+  color: var(--danger);
+}
+
+.disabledRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+}
+
+.disabledLabel {
+  font-size: var(--text-xs);
+  color: var(--text-soft);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-wide);
+}
+
+.chipDisabled {
+  composes: chip;
+  border-style: dashed;
+  opacity: 0.55;
+  text-decoration: line-through;
+}
+
+.chipRestore {
+  border: none;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+  font-size: var(--text-md);
+  line-height: 1;
+  padding: 0;
+  text-decoration: none;
+  opacity: 0.9;
+}
+
+.chipRestore:hover {
+  color: var(--accent);
+}
+
+.addRow {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+.input {
+  flex: 1;
+  min-width: 0;
+  padding: var(--space-2) var(--space-3);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: var(--text-sm);
+}
+
+.input:focus {
+  outline: none;
+  border-color: var(--focus-ring);
+  box-shadow: 0 0 0 3px var(--focus-ring-halo);
+}
+
+.error {
+  margin: var(--space-2) 0 0;
+  color: var(--danger);
+  font-size: var(--text-sm);
+}
+
+.verify {
+  margin: var(--space-2) 0 0;
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}

@@ -1,4 +1,5 @@
 import slugs from '../../config/slugs.json' with { type: 'json' };
+import { loadSlugOverlay, resolveSlugs } from '../lib/slugs.js';
 import type {
   FetcherResult,
   RawAshbyPrivateBrief,
@@ -7,8 +8,6 @@ import type {
   RawAshbyPrivateJobWithSlug,
 } from '../types.js';
 import { fetchJson, JSON_HEADERS } from '../utils.js';
-
-export const TIER_S_ASHBY_PRIVATE_SLUGS: readonly string[] = slugs.ashbyPrivate;
 
 const GRAPHQL_URL = 'https://jobs.ashbyhq.com/api/non-user-graphql';
 
@@ -88,8 +87,9 @@ async function fetchSlug(slug: string): Promise<{ items: RawAshbyPrivateJob[]; e
 }
 
 export async function fetchAshbyPrivate(): Promise<FetcherResult<RawAshbyPrivateJobWithSlug>> {
+  const slugList = resolveSlugs(slugs.ashbyPrivate, (await loadSlugOverlay()).ashbyPrivate);
   const results = await Promise.all(
-    TIER_S_ASHBY_PRIVATE_SLUGS.map(async (slug) => {
+    slugList.map(async (slug) => {
       const r = await fetchSlug(slug);
       return {
         items: r.items.map((j): RawAshbyPrivateJobWithSlug => ({ ...j, __slug: slug })),

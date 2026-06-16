@@ -18,6 +18,7 @@ import { profileApiPlugin } from './plugins/profile.ts';
 import { runSummaryApiPlugin } from './plugins/runSummary.ts';
 import { schedulerOpsApiPlugin } from './plugins/scheduler.ts';
 import { schedulerStatusApiPlugin } from './plugins/schedulerStatus.ts';
+import { sourcesApiPlugin } from './plugins/sources.ts';
 
 // HIGH-5: this file used to inline ~1700 lines of dev-server middleware. Each
 // API endpoint now lives under `./plugins/`. Keep this file thin: imports +
@@ -37,6 +38,7 @@ export default defineConfig({
     jobBodyApiPlugin(),
     fetchJobsApiPlugin(),
     profileApiPlugin(),
+    sourcesApiPlugin(),
     schedulerStatusApiPlugin(),
     schedulerOpsApiPlugin(),
     llmTestApiPlugin(),
