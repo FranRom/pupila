@@ -64,7 +64,8 @@
     "coinmarketcap",
     "safe",
     "arbitrumfoundation",
-    "celestia"
+    "celestia",
+    "mistral"
   ],
   "ashbyPrivate": ["chainlink-labs"]
 }
