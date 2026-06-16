@@ -167,9 +167,13 @@ function AtsGroup({ ats, health, checked, onSave, onVerify }: AtsGroupProps) {
         return;
       }
       setLocalError(null);
+      // Re-adding a shipped slug just clears its removal — it returns to a
+      // normal baseline chip, NOT a personal addition. Only genuinely new
+      // companies land in `add` (and render highlighted).
+      const inShipped = ats.shipped.includes(slug);
       void onSave(
         ats.key,
-        [...ats.add, slug],
+        inShipped ? ats.add : [...ats.add, slug],
         ats.remove.filter((s) => s !== slug),
       );
       setDraft('');

@@ -73,6 +73,38 @@ it('adding a new slug appends it to the add list', async () => {
   await waitFor(() => expect(onSave).toHaveBeenCalledWith('ashby', ['stripe', 'mercury'], []));
 });
 
+it('re-adding a removed shipped slug clears the removal instead of marking it added', async () => {
+  const onSave = vi.fn().mockResolvedValue(undefined);
+  // A view where the shipped slug "linear" has been removed (sits in `remove`).
+  const removed: SourcesResponse = {
+    ats: [
+      {
+        key: 'ashby',
+        label: 'Ashby',
+        note: 'Public Ashby boards.',
+        verifySupported: true,
+        shipped: ['linear', 'ramp'],
+        add: [],
+        remove: ['linear'],
+        effective: ['ramp'],
+      },
+    ],
+  };
+  render(
+    <SourcesPanel
+      sources={removed}
+      onSave={onSave}
+      onVerify={noopVerify}
+      onCheckHealth={noopHealth}
+    />,
+  );
+  const input = screen.getByPlaceholderText('Add Ashby company slug…');
+  fireEvent.change(input, { target: { value: 'linear' } });
+  fireEvent.submit(input.closest('form') as HTMLFormElement);
+  // add stays empty (not a personal addition); remove is cleared.
+  await waitFor(() => expect(onSave).toHaveBeenCalledWith('ashby', [], []));
+});
+
 it('rejects an invalid slug without saving', async () => {
   const onSave = vi.fn();
   renderPanel({ onSave });
