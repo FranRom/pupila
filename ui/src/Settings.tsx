@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import type { SourcesResponse, VerifyResponse } from './lib/api/index.ts';
 import { api, formatError } from './lib/api/index.ts';
 import styles from './Settings.module.css';
 import { ApplyQueuePanel } from './settings/ApplyQueuePanel.tsx';
@@ -10,6 +11,7 @@ import { LlmCliPanel } from './settings/LlmCliPanel.tsx';
 import { MaintenancePanel } from './settings/MaintenancePanel.tsx';
 import { SchedulerPanel } from './settings/SchedulerPanel.tsx';
 import { ScoringProfilePanel } from './settings/ScoringProfilePanel.tsx';
+import { SourcesPanel } from './settings/SourcesPanel.tsx';
 import {
   CLEAN_MODES,
   type CleanMode,
@@ -34,6 +36,7 @@ import type { ApplyQueueResponse } from './types.ts';
 //   [01] LLM CLI         — switch + test the configured provider
 //   [02] Scheduler       — read state + install/uninstall daily agents
 //   [03] Scoring profile — view + regenerate config/profile.json from the brief
+//   [09] Job sources     — add/remove company boards (config/slugs.local.json)
 //   [04] Last run        — stats parsed from data/jobs.json
 //   [05] Disk usage      — bytes/files for data/raw, data/applications, data/archive
 //   [06] Maintenance     — clean / clean:onboarding / clean:all
@@ -91,19 +94,21 @@ export function Settings({
   const [schedulerOp, setSchedulerOp] = useState<'install' | 'uninstall' | null>(null);
   const [confirmDialog, setConfirmDialog] = useState<ConfirmDialog | null>(null);
   const [copiedSnippet, setCopiedSnippet] = useState<string | null>(null);
+  const [sources, setSources] = useState<SourcesResponse | null>(null);
 
   const loadAll = useCallback(async (signal?: AbortSignal) => {
-    const [p, s, rs, d, e, prof] = await Promise.all([
+    const [p, s, rs, d, e, prof, src] = await Promise.all([
       api.preferences.get({ signal }),
       api.scheduler.status({ signal }),
       api.runSummary.get({ signal }),
       api.diskUsage.get({ signal }),
       api.env.get({ signal }),
       api.profile.get({ signal }),
+      api.sources.get({ signal }),
     ]);
     // If any request was aborted (e.g. tab unmount mid-flight), bail — the
     // unmounted component shouldn't setState.
-    const results = [p, s, rs, d, e, prof];
+    const results = [p, s, rs, d, e, prof, src];
     if (results.some((r) => !r.ok && r.error.kind === 'abort')) return;
     if (p.ok) {
       setPrefs(p.value);
@@ -116,6 +121,7 @@ export function Settings({
     setProfile(prof.ok ? (prof.value.profile ?? null) : null);
     setGenerating(prof.ok ? (prof.value.generating ?? false) : false);
     setProfileLoaded(prof.ok);
+    setSources(src.ok ? src.value : null);
   }, []);
 
   useEffect(() => {
@@ -220,6 +226,24 @@ export function Settings({
     }
     setRegenBusy(false);
   }, []);
+
+  const saveSources = useCallback(async (key: string, add: string[], remove: string[]) => {
+    setError(null);
+    const r = await api.sources.set({ key, add, remove });
+    if (!r.ok) {
+      setError(`Could not save sources: ${formatError(r.error)}`);
+      return;
+    }
+    setSources(r.value);
+  }, []);
+
+  const verifySource = useCallback(
+    async (key: string, slug: string): Promise<VerifyResponse | null> => {
+      const r = await api.sources.verify({ key, slug });
+      return r.ok ? r.value : null;
+    },
+    [],
+  );
 
   const installScheduler = useCallback(async () => {
     setError(null);
@@ -357,6 +381,8 @@ export function Settings({
         onAskRegenerate={askToRegenerateProfile}
         onToggleRaw={() => setShowRawProfile((v) => !v)}
       />
+
+      <SourcesPanel sources={sources} onSave={saveSources} onVerify={verifySource} />
 
       <LastRunPanel runSummary={runSummary} />
 
