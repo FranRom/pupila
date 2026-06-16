@@ -32,7 +32,7 @@ The stuff that makes the daily routine actually pleasant:
 - **URL-encoded view state.** Every filter, sort, and expanded row syncs to `?q=...&cat=...&src=...` — bookmark a filtered view and it rehydrates next time.
 - **Source-health banner.** A 🚨 banner appears in `JOBS.md` when a fetcher returns zero items or errors, so silent upstream breakage isn't silent.
 - **Application tracking.** Click a status pill on any row (`📝 applied / 💬 interview / 🎯 offer / ❌ rejected / ⏸ withdrawn`) — saves to `config/applied.json` and feeds the "📋 Application status" section at the top of `JOBS.md`.
-- **8-panel Settings dashboard** — switch LLM CLI / install or remove the scheduler / regenerate scoring profile / inspect the last run / check disk usage / clean / view environment / monitor the apply queue, all from `pnpm run ui` → Settings.
+- **9-panel Settings dashboard** — switch LLM CLI / install or remove the scheduler / regenerate scoring profile / manage job sources / inspect the last run / check disk usage / clean / view environment / monitor the apply queue, all from `pnpm run ui` → Settings.
 - **Talk to your data from an AI client.** Optional MCP server exposes every actionable UI surface (filter jobs, mark applied, enqueue AI Apply, trigger a refresh, regenerate the scoring profile) to Claude Code / Claude Desktop / Cursor via 17 typed tools. One command (`bash scripts/install-mcp.sh`) wires it in.
 - **Reach past the curated boards.** The `bluedoor` source taps a free aggregator over ~1.6M postings across 31 ATS providers (Workday, iCIMS, Oracle, ADP, …) you can't query directly — pulled by *your* accepted regions, with companies you already follow auto-skipped so it only adds long-tail listings.
 - **RSS feed.** `data/feed.xml` gets every "✨ new" job — point any RSS reader at the local `file://` path.
@@ -174,7 +174,12 @@ Tweak, run `pnpm run dev`, inspect `JOBS.md`, repeat.
 
 ### 4. Update the company slug list
 
-Edit [`config/slugs.json`](./config/slugs.json) to add Ashby / Greenhouse / Lever slugs you want to follow. Slugs come from the URL of the careers page (`jobs.ashbyhq.com/<slug>`, `boards.greenhouse.io/<slug>`, `jobs.lever.co/<slug>`). 404s are silently skipped, so trial-and-error is safe. Adding a slug here also **auto-excludes that company from `bluedoor`** — the dedicated fetcher is authoritative, so you never get a duplicate from the aggregator.
+Two ways to follow more (or fewer) Ashby / Greenhouse / Lever companies:
+
+- **From the UI (recommended)** — `pnpm run ui` → **Settings → Job sources**. Add or remove a company per ATS, **Verify** a slug against the live board before saving, and run **Check board health** to flag any boards that 404 or time out. Changes are written to `config/slugs.local.json` (gitignored) as a per-ATS delta on top of the shipped list — so your personal picks stay separate and you keep getting upstream additions to `config/slugs.json`.
+- **By hand** — edit [`config/slugs.json`](./config/slugs.json) directly (the committed, shared baseline).
+
+Slugs come from the URL of the careers page (`jobs.ashbyhq.com/<slug>`, `boards.greenhouse.io/<slug>`, `jobs.lever.co/<slug>`). Either way, 404s are silently skipped, so trial-and-error is safe. Adding a slug also **auto-excludes that company from `bluedoor`** — the dedicated fetcher is authoritative, so you never get a duplicate from the aggregator.
 
 ### 5. Schedule the daily run
 
@@ -224,6 +229,7 @@ These files are **gitignored** and never committed, so a public fork can't leak 
 | `config/cv.{pdf,docx,md,txt}` | Original CV file | Saved by the onboarding wizard / `setup-brief` so AI Apply can re-attach it |
 | `config/applied.json` | Your application history | UI Profile → status pills |
 | `config/preferences.json` | Your chosen LLM CLI + onboarding-complete stamp | Onboarding wizard |
+| `config/slugs.local.json` | Your personal add/remove of company slugs (overlay on `config/slugs.json`) | UI Settings → Job sources |
 | `data/jobs.json` | Daily aggregator output, tuned to your profile | Auto-created by `pnpm run dev` |
 | `data/ai-reviews.json` | Per-job LLM verdicts | Auto-created by `pnpm run ai-review` |
 | `data/applications/<job-id>.md` | AI-generated application packages (cover letter, highlights, Q&A) | Auto-created by AI Apply |
@@ -901,7 +907,7 @@ All weights and keyword lists live in [`config/profile.json`](./config/profile.j
 
 ### Change the tier-S ATS slug lists
 
-All three slug arrays live in [`config/slugs.json`](./config/slugs.json) — adding or removing a company is a non-code change. Slugs that 404 are logged and skipped silently, so testing a candidate is just appending it and re-running.
+All three slug arrays live in [`config/slugs.json`](./config/slugs.json) — adding or removing a company is a non-code change. Slugs that 404 are logged and skipped silently, so testing a candidate is just appending it and re-running. Prefer not to touch the shared file? **Settings → Job sources** in the UI writes your personal add/remove choices to a gitignored `config/slugs.local.json` overlay instead (resolved on top of the baseline at fetch time), with live Verify + board-health checks.
 
 ```jsonc
 {
