@@ -1,5 +1,5 @@
 {
-  "_comment": "Tier-S company slugs to scrape from each ATS. Slugs are public ATS URLs (jobs.ashbyhq.com/<slug>, boards.greenhouse.io/<slug>, jobs.lever.co/<slug>) — find them by browsing the boards. 404s are silently skipped, so trial-and-error is safe.",
+  "_comment": "Tier-S company slugs to scrape from each ATS. Slugs are public ATS URLs (jobs.ashbyhq.com/<slug>, boards.greenhouse.io/<slug>, jobs.lever.co/<slug>) — find them by browsing the boards. 404s are silently skipped, so trial-and-error is safe. This file is the committed, shared baseline; personal add/remove choices live in the gitignored config/slugs.local.json overlay (edit via the UI Settings > Job sources panel). Effective list per ATS = (shipped union overlay.add) minus overlay.remove.",
   "ashby": [
     "linear",
     "ramp",
