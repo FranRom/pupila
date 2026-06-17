@@ -1,5 +1,10 @@
-import { describe, expect, it } from 'vitest';
-import { parseCandidates, resolveSlugVariants, scoreRoles } from '../src/lib/company-discovery.js';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import {
+  fetchBoardTitles,
+  parseCandidates,
+  resolveSlugVariants,
+  scoreRoles,
+} from '../src/lib/company-discovery.js';
 
 describe('parseCandidates', () => {
   it('parses a bare JSON array', () => {
@@ -85,5 +90,35 @@ describe('scoreRoles', () => {
 
   it('returns zero when no positive keywords configured', () => {
     expect(scoreRoles(['Frontend Engineer'], [], junior).matchCount).toBe(0);
+  });
+});
+
+function mockFetch(body: string, status = 200) {
+  globalThis.fetch = vi.fn(async () => new Response(body, { status })) as typeof fetch;
+}
+
+describe('fetchBoardTitles', () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it('extracts ashby titles from {jobs:[{title}]}', async () => {
+    mockFetch(JSON.stringify({ jobs: [{ title: 'Frontend' }, { title: 'Agent Eng' }] }));
+    expect(await fetchBoardTitles('ashby', 'foo')).toEqual(['Frontend', 'Agent Eng']);
+  });
+
+  it('extracts lever titles from [{text}]', async () => {
+    mockFetch(JSON.stringify([{ text: 'Full-Stack' }]));
+    expect(await fetchBoardTitles('lever', 'foo')).toEqual(['Full-Stack']);
+  });
+
+  it('extracts recruitee titles from {offers:[{title}]}', async () => {
+    mockFetch(JSON.stringify({ offers: [{ title: 'Product Engineer' }] }));
+    expect(await fetchBoardTitles('recruitee', 'foo')).toEqual(['Product Engineer']);
+  });
+
+  it('extracts personio <position><name> from XML', async () => {
+    mockFetch(
+      '<workzag-jobs><position><id>1</id><name>Senior Frontend</name></position></workzag-jobs>',
+    );
+    expect(await fetchBoardTitles('personio', 'foo')).toEqual(['Senior Frontend']);
   });
 });

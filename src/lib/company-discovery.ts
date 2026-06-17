@@ -1,3 +1,12 @@
+import { parseXml } from '../rss.js';
+import { fetchJson, fetchText, JSON_HEADERS, RSS_HEADERS } from '../utils.js';
+import {
+  ashbyBoardUrl,
+  greenhouseBoardUrl,
+  leverBoardUrl,
+  personioBoardUrl,
+  recruiteeBoardUrl,
+} from './ats-endpoints.js';
 import { ATS_KEYS, type AtsKey, SLUG_PATTERN } from './slugs.js';
 
 /** ATSes discovery can probe (REST/XML). Excludes ashbyPrivate (GraphQL). */
@@ -112,4 +121,37 @@ export function scoreRoles(
   const junior = compileKeywords(juniorKeywords);
   const matched = titles.filter((t) => positive.test(t) && !(junior?.test(t) ?? false));
   return { matchCount: matched.length, sampleTitles: matched.slice(0, SAMPLE_LIMIT) };
+}
+
+interface JobsBody {
+  jobs?: { title?: string }[];
+}
+interface PersonioRoot {
+  'workzag-jobs'?: { position?: { name?: string } | { name?: string }[] } | null;
+}
+
+const clean = (arr: (string | undefined)[]): string[] =>
+  arr.map((s) => (s ?? '').trim()).filter(Boolean);
+
+/** Fetch one board and return its role titles. Throws on network/parse error. */
+export async function fetchBoardTitles(ats: DiscoveryAtsKey, slug: string): Promise<string[]> {
+  if (ats === 'personio') {
+    const xml = await fetchText(personioBoardUrl(slug), { headers: RSS_HEADERS });
+    const pos = (parseXml(xml) as PersonioRoot)['workzag-jobs']?.position;
+    const list = pos ? (Array.isArray(pos) ? pos : [pos]) : [];
+    return clean(list.map((p) => p?.name));
+  }
+  if (ats === 'recruitee') {
+    const d = await fetchJson<{ offers?: { title?: string }[] }>(recruiteeBoardUrl(slug), {
+      headers: JSON_HEADERS,
+    });
+    return clean((d.offers ?? []).map((o) => o.title));
+  }
+  if (ats === 'lever') {
+    const d = await fetchJson<{ text?: string }[]>(leverBoardUrl(slug), { headers: JSON_HEADERS });
+    return clean((Array.isArray(d) ? d : []).map((j) => j.text));
+  }
+  const url = ats === 'greenhouse' ? greenhouseBoardUrl(slug) : ashbyBoardUrl(slug);
+  const d = await fetchJson<JobsBody>(url, { headers: JSON_HEADERS });
+  return clean((d.jobs ?? []).map((j) => j.title));
 }
