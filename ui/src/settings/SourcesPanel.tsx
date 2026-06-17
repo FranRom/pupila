@@ -9,6 +9,7 @@
 //     (404 / unreachable). A healthy board with 0 open roles is NOT flagged -
 //     companies go quiet between hiring waves, and that's not a reason to prune.
 
+import clsx from 'clsx';
 import { type FormEvent, useCallback, useState } from 'react';
 import { InfoTooltip } from '../components/InfoTooltip.tsx';
 import type {
@@ -161,7 +162,7 @@ export function SourcesPanel({
               </p>
               <button
                 type="button"
-                className={buttonStyles.secondary}
+                className={clsx(buttonStyles.secondary, styles.discoverButton)}
                 disabled={discovering}
                 onClick={() => void runDiscover()}
               >

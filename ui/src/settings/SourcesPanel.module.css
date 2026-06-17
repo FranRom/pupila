@@ -223,6 +223,12 @@
   font-size: var(--text-sm);
 }
 
+/* Fixed width so the button doesn't resize between its idle label and the
+   shorter "Discovering…" state (the base button centers its content). */
+.discoverButton {
+  min-width: 19rem;
+}
+
 .discoverError {
   color: var(--danger);
   font-size: var(--text-sm);
