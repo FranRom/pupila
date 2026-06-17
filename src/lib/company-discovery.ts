@@ -8,7 +8,7 @@ import {
   recruiteeBoardUrl,
 } from './ats-endpoints.js';
 import { runLlm } from './llm.js';
-import { ATS_KEYS, type AtsKey, SLUG_PATTERN } from './slugs.js';
+import { ATS_KEYS, type AtsKey, isValidSlug } from './slugs.js';
 import { type ProbeResult, probeSlug } from './source-probe.js';
 
 /** ATSes discovery can probe (REST/XML). Excludes ashbyPrivate (GraphQL). */
@@ -86,7 +86,7 @@ export function resolveSlugVariants(name: string, slugGuess?: string): string[] 
   for (const v of raw) {
     if (!v) continue;
     const s = v.replace(/^-+|-+$/g, '');
-    if (s && SLUG_PATTERN.test(s) && !seen.has(s)) {
+    if (s && isValidSlug(s) && !seen.has(s)) {
       seen.add(s);
       out.push(s);
     }
@@ -105,7 +105,11 @@ const SAMPLE_LIMIT = 4;
 function compileKeywords(keywords: readonly string[]): RegExp | null {
   const cleaned = keywords.map((k) => k.trim()).filter(Boolean);
   if (cleaned.length === 0) return null;
-  return new RegExp(`(?:${cleaned.join('|')})`, 'i');
+  try {
+    return new RegExp(`(?:${cleaned.join('|')})`, 'i');
+  } catch {
+    return null; // malformed keyword — treat as no match rather than throwing
+  }
 }
 
 /**
@@ -179,15 +183,14 @@ export function buildDiscoveryPrompt(
     .filter(Boolean)
     .join(', ');
   const excluded = DISCOVERY_ATS_KEYS.flatMap((k) => curated[k] ?? []).join(', ');
-  return [
+  const lines = [
     'You are helping a job-seeker find more companies to track on public ATS job boards.',
     `Supported ATS platforms (only suggest companies on these): ${DISCOVERY_ATS_KEYS.join(', ')}.`,
     '',
     'Candidate brief:',
     brief.trim() || '(no brief provided)',
     '',
-    cats ? `Target role categories: ${cats}.` : '',
-    '',
+    ...(cats ? [`Target role categories: ${cats}.`, ''] : []),
     `Already tracked (DO NOT suggest these): ${excluded || '(none)'}.`,
     '',
     'Suggest up to 25 real companies that actively hire for the target roles and host',
@@ -196,7 +199,8 @@ export function buildDiscoveryPrompt(
     'Return STRICT JSON only — an array, no prose, no markdown fences:',
     '[{"name": "Company", "ats": "ashby|greenhouse|lever|recruitee|personio", "slug": "best-guess-slug", "why": "one short reason"}]',
     'The "ats" and "slug" are best guesses; they will be verified, so include them when unsure.',
-  ].join('\n');
+  ];
+  return lines.filter((line, i, arr) => !(line === '' && arr[i - 1] === '')).join('\n');
 }
 
 const MAX_CANDIDATES = 25;

@@ -61,6 +61,11 @@ describe('resolveSlugVariants', () => {
   it('caps at 4 variants', () => {
     expect(resolveSlugVariants('A B C D E F', 'x').length).toBeLessThanOrEqual(4);
   });
+
+  it('yields no variants for a name whose slug would exceed MAX_SLUG_LENGTH', () => {
+    const longName = 'a'.repeat(101);
+    expect(resolveSlugVariants(longName)).toEqual([]);
+  });
 });
 
 describe('scoreRoles', () => {
@@ -94,6 +99,13 @@ describe('scoreRoles', () => {
   it('returns zero when no positive keywords configured', () => {
     expect(scoreRoles(['Frontend Engineer'], [], junior).matchCount).toBe(0);
   });
+
+  it('does not throw on a malformed regex keyword', () => {
+    expect(scoreRoles(['Frontend Engineer'], ['(unclosed'], [])).toEqual({
+      matchCount: 0,
+      sampleTitles: [],
+    });
+  });
 });
 
 function mockFetch(body: string, status = 200) {
@@ -123,6 +135,13 @@ describe('fetchBoardTitles', () => {
       '<workzag-jobs><position><id>1</id><name>Senior Frontend</name></position></workzag-jobs>',
     );
     expect(await fetchBoardTitles('personio', 'foo')).toEqual(['Senior Frontend']);
+  });
+
+  it('extracts personio titles from multiple <position> elements', async () => {
+    mockFetch(
+      '<workzag-jobs><position><name>Frontend Dev</name></position><position><name>Backend Dev</name></position></workzag-jobs>',
+    );
+    expect(await fetchBoardTitles('personio', 'foo')).toEqual(['Frontend Dev', 'Backend Dev']);
   });
 });
 
@@ -197,20 +216,19 @@ describe('discoverCompanies', () => {
     expect(r.verified).toBe(0);
   });
 
-  it('returns an error (not throw) when the LLM output is unparseable', async () => {
+  it('gracefully degrades to empty suggestions when the LLM returns unparseable output', async () => {
     const r = await discoverCompanies(deps({ runLlm: async () => 'sorry, no JSON' }));
     expect(r.suggestions).toEqual([]);
     expect(r.proposed).toBe(0);
   });
 
   it('ranks higher-matchCount companies first', async () => {
-    let call = 0;
     const r = await discoverCompanies(
       deps({
         runLlm: async () =>
           '[{"name":"Low","ats":"ashby","slug":"low"},{"name":"High","ats":"ashby","slug":"high"}]',
-        fetchTitles: async () =>
-          call++ === 0 ? ['Frontend Engineer'] : ['Frontend Engineer', 'Agent Engineer'],
+        fetchTitles: async (_ats: string, slug: string) =>
+          slug === 'high' ? ['Frontend Engineer', 'Agent Engineer'] : ['Frontend Engineer'],
       }),
     );
     expect(r.suggestions.map((s) => s.matchCount)).toEqual([2, 1]);
