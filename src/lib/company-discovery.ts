@@ -82,3 +82,34 @@ export function resolveSlugVariants(name: string, slugGuess?: string): string[] 
   }
   return out.slice(0, MAX_VARIANTS);
 }
+
+export interface RoleScore {
+  matchCount: number;
+  sampleTitles: string[];
+}
+
+const SAMPLE_LIMIT = 4;
+
+/** Build a case-insensitive matcher from keyword/regex-fragment strings. Empty → never matches. */
+function compileKeywords(keywords: readonly string[]): RegExp | null {
+  const cleaned = keywords.map((k) => k.trim()).filter(Boolean);
+  if (cleaned.length === 0) return null;
+  return new RegExp(`(?:${cleaned.join('|')})`, 'i');
+}
+
+/**
+ * Title-keyword relevance: count titles that match a positive keyword and are
+ * NOT junior-excluded. `positiveKeywords` come from the profile's category
+ * keyword arrays; `juniorKeywords` from `profile.keywords.junior`.
+ */
+export function scoreRoles(
+  titles: readonly string[],
+  positiveKeywords: readonly string[],
+  juniorKeywords: readonly string[],
+): RoleScore {
+  const positive = compileKeywords(positiveKeywords);
+  if (!positive) return { matchCount: 0, sampleTitles: [] };
+  const junior = compileKeywords(juniorKeywords);
+  const matched = titles.filter((t) => positive.test(t) && !(junior?.test(t) ?? false));
+  return { matchCount: matched.length, sampleTitles: matched.slice(0, SAMPLE_LIMIT) };
+}

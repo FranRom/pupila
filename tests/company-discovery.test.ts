@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseCandidates, resolveSlugVariants } from '../src/lib/company-discovery.js';
+import { parseCandidates, resolveSlugVariants, scoreRoles } from '../src/lib/company-discovery.js';
 
 describe('parseCandidates', () => {
   it('parses a bare JSON array', () => {
@@ -52,5 +52,38 @@ describe('resolveSlugVariants', () => {
 
   it('caps at 4 variants', () => {
     expect(resolveSlugVariants('A B C D E F', 'x').length).toBeLessThanOrEqual(4);
+  });
+});
+
+describe('scoreRoles', () => {
+  const positive = ['front[\\s-]?end', 'full[\\s-]?stack', 'product engineer', 'agent'];
+  const junior = ['junior', 'intern', 'working student'];
+
+  it('counts titles matching a positive keyword', () => {
+    const r = scoreRoles(
+      ['Senior Frontend Engineer', 'Full-Stack Engineer', 'Backend Engineer'],
+      positive,
+      junior,
+    );
+    expect(r.matchCount).toBe(2);
+    expect(r.sampleTitles).toEqual(['Senior Frontend Engineer', 'Full-Stack Engineer']);
+  });
+
+  it('excludes junior/intern/working-student even if otherwise matching', () => {
+    const r = scoreRoles(
+      ['Junior Frontend Engineer', 'Working Student Frontend'],
+      positive,
+      junior,
+    );
+    expect(r.matchCount).toBe(0);
+  });
+
+  it('caps sampleTitles at 4', () => {
+    const titles = Array.from({ length: 6 }, (_, i) => `Frontend Engineer ${i}`);
+    expect(scoreRoles(titles, positive, junior).sampleTitles).toHaveLength(4);
+  });
+
+  it('returns zero when no positive keywords configured', () => {
+    expect(scoreRoles(['Frontend Engineer'], [], junior).matchCount).toBe(0);
   });
 });
