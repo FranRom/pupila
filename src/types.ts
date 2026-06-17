@@ -9,6 +9,7 @@ export const SOURCES = [
   'weworkremotely',
   'remoteyeah',
   'jobicy',
+  'himalayas',
   'cryptojobslist',
   'web3career',
   'aijobsnet',
@@ -246,6 +247,30 @@ export interface RawJobicy {
   salaryCurrency?: string;
   /** Jobicy ships "yearly" today; annualized via SALARY_PERIOD_FACTOR anyway. */
   salaryPeriod?: string;
+}
+
+// Himalayas' public remote-jobs feed (~90k listings, 20 rows/request). Ships
+// structured salary on ~40% of rows and `locationRestrictions` as a country
+// array (empty array = worldwide); `pubDate`/`expiryDate` are unix epoch
+// seconds. `applicationLink` points back to himalayas.app, not the ATS.
+export interface RawHimalayas {
+  title: string;
+  companyName?: string;
+  companySlug?: string;
+  employmentType?: string;
+  seniority?: string[];
+  minSalary?: number;
+  maxSalary?: number;
+  currency?: string;
+  /** annual | monthly | hourly — annualized via SALARY_PERIOD_FACTOR. */
+  salaryPeriod?: string;
+  locationRestrictions?: string[];
+  categories?: string[];
+  description?: string;
+  excerpt?: string;
+  pubDate?: number;
+  applicationLink?: string;
+  guid?: string;
 }
 
 export interface RawRemotive {

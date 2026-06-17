@@ -38,6 +38,7 @@ const SOURCES = [
   'remoteok',
   'remoteyeah',
   'jobicy',
+  'himalayas',
   'bluedoor',
 ] as const satisfies readonly Source[];
 

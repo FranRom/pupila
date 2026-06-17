@@ -9,6 +9,7 @@ import { fetchAshbyPrivate } from './fetchers/ashby-private.js';
 import { fetchBluedoor } from './fetchers/bluedoor.js';
 import { fetchCryptoJobsList } from './fetchers/cryptojobslist.js';
 import { fetchGreenhouse } from './fetchers/greenhouse.js';
+import { fetchHimalayas } from './fetchers/himalayas.js';
 import { fetchHnHiring } from './fetchers/hn-hiring.js';
 import { fetchHnJobs } from './fetchers/hn-jobs.js';
 import { fetchJobicy } from './fetchers/jobicy.js';
@@ -29,6 +30,7 @@ import {
   normalizeBluedoor,
   normalizeCryptoJobsList,
   normalizeGreenhouse,
+  normalizeHimalayas,
   normalizeHnHiring,
   normalizeHnJobs,
   normalizeJobicy,
@@ -158,6 +160,7 @@ async function main(): Promise<void> {
     processFetcher('remoteok', fetchRemoteOk, normalizeRemoteOk, fetchedAt, today),
     processFetcher('remotive', fetchRemotive, normalizeRemotive, fetchedAt, today),
     processFetcher('jobicy', fetchJobicy, normalizeJobicy, fetchedAt, today),
+    processFetcher('himalayas', fetchHimalayas, normalizeHimalayas, fetchedAt, today),
     processFetcher(
       'weworkremotely',
       fetchWeWorkRemotely,

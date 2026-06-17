@@ -17,15 +17,16 @@ const SOURCE_PRIORITY: Record<Source, number> = {
   remoteok: 1,
   // Aggregators sit at the bottom: they re-carry jobs the dedicated fetchers
   // already pull, so on any company+title overlap the curated copy must win.
-  // jobicy and remoteyeah rank above bluedoor but below every dedicated source —
-  // like remoteyeah, jobicy's links point at its own site (not the underlying
-  // ATS), so it can't pre-skip already-covered companies and dedups by
+  // jobicy, himalayas and remoteyeah rank above bluedoor but below every
+  // dedicated source — their links point at their own sites (not the underlying
+  // ATS), so they can't pre-skip already-covered companies and dedup by
   // company+title only.
   jobicy: 0,
-  remoteyeah: -1,
+  himalayas: -1,
+  remoteyeah: -2,
   // Lowest priority: bluedoor's unique long-tail (providers we can't reach
   // directly) survives, but any overlap loses to a more-specific source.
-  bluedoor: -2,
+  bluedoor: -3,
 };
 
 // Comparator for the post-dedup orchestrator sort. Order:

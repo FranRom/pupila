@@ -9,6 +9,7 @@ import type {
   RawAshbyPrivateJobWithSlug,
   RawBluedoorJob,
   RawGreenhouseJobWithSlug,
+  RawHimalayas,
   RawHnHiringPost,
   RawHnHit,
   RawJobicy,
@@ -153,6 +154,37 @@ export function normalizeJobicy(items: RawJobicy[], fetchedAt: string): Job[] {
           j.jobLevel,
         ]),
         ...structuredSalary(j.salaryMin, j.salaryMax, j.salaryCurrency, j.salaryPeriod),
+        postedAt: safeIso(j.pubDate),
+        fetchedAt,
+        fitScore: 0,
+        categories: [],
+      } satisfies Job,
+    ];
+  });
+}
+
+export function normalizeHimalayas(items: RawHimalayas[], fetchedAt: string): Job[] {
+  return items.flatMap((j) => {
+    const url = j.applicationLink?.trim();
+    const title = j.title?.trim();
+    if (!url || !title) return [];
+    // locationRestrictions is a country array; an empty array means the role is
+    // open worldwide. Keep it as the location string so the persona-neutral geo
+    // filter can match accepted regions (or treat "Worldwide" as in-region).
+    const restrictions = (j.locationRestrictions ?? []).map((s) => s.trim()).filter(Boolean);
+    const location = restrictions.length ? restrictions.join(', ') : 'Worldwide';
+    return [
+      {
+        id: makeId('himalayas', url, `${j.companySlug ?? j.companyName ?? ''}-${title}`),
+        source: 'himalayas',
+        title,
+        company: j.companyName?.trim() || null,
+        url,
+        location,
+        remote: true,
+        body: asPlain(j.description),
+        tags: joinTags(j.categories, j.seniority, [j.employmentType]),
+        ...structuredSalary(j.minSalary, j.maxSalary, j.currency, j.salaryPeriod),
         postedAt: safeIso(j.pubDate),
         fetchedAt,
         fitScore: 0,

@@ -18,6 +18,7 @@ export type Source =
   | 'weworkremotely'
   | 'remoteyeah'
   | 'jobicy'
+  | 'himalayas'
   | 'cryptojobslist'
   | 'web3career'
   | 'aijobsnet'
