@@ -210,6 +210,11 @@
   font-size: var(--text-sm);
 }
 
+.addError {
+  color: var(--danger);
+  font-size: var(--text-sm);
+}
+
 .discoverEmpty {
   color: var(--text-muted);
   font-size: var(--text-sm);

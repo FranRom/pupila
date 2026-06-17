@@ -66,6 +66,8 @@ export function SourcesPanel({
   const [discoverError, setDiscoverError] = useState<string | null>(null);
   const [suggestions, setSuggestions] = useState<DiscoverySuggestion[] | null>(null);
   const [picked, setPicked] = useState<Set<string>>(new Set());
+  const [adding, setAdding] = useState(false);
+  const [addError, setAddError] = useState<string | null>(null);
 
   const total = sources?.ats.reduce((n, a) => n + a.effective.length, 0) ?? 0;
 
@@ -104,22 +106,28 @@ export function SourcesPanel({
   }, []);
 
   const addPicked = useCallback(async () => {
-    const byAts = new Map<string, string[]>();
-    for (const key of picked) {
-      const parts = key.split(':');
-      const ats = parts[0] ?? '';
-      const slug = parts[1] ?? '';
-      if (!ats || !slug) continue;
-      byAts.set(ats, [...(byAts.get(ats) ?? []), slug]);
+    setAdding(true);
+    setAddError(null);
+    try {
+      const byAts = new Map<string, string[]>();
+      for (const key of picked) {
+        const [ats = '', slug = ''] = key.split(':', 2);
+        if (!ats || !slug) continue;
+        byAts.set(ats, [...(byAts.get(ats) ?? []), slug]);
+      }
+      for (const [ats, slugs] of byAts) {
+        const group = sources?.ats.find((a) => a.key === ats);
+        if (!group) continue;
+        const merged = Array.from(new Set([...group.add, ...slugs]));
+        await onSave(ats, merged, group.remove);
+      }
+      setSuggestions(null);
+      setPicked(new Set());
+    } catch (err) {
+      setAddError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setAdding(false);
     }
-    for (const [ats, slugs] of byAts) {
-      const group = sources?.ats.find((a) => a.key === ats);
-      if (!group) continue;
-      const merged = Array.from(new Set([...group.add, ...slugs]));
-      await onSave(ats, merged, group.remove);
-    }
-    setSuggestions(null);
-    setPicked(new Set());
   }, [picked, sources, onSave]);
 
   return (
@@ -189,11 +197,12 @@ export function SourcesPanel({
                     <button
                       type="button"
                       className={buttonStyles.primary}
-                      disabled={picked.size === 0}
+                      disabled={picked.size === 0 || adding}
                       onClick={() => void addPicked()}
                     >
-                      Add selected ({picked.size})
+                      {adding ? 'Adding…' : `Add selected (${picked.size})`}
                     </button>
+                    {addError && <p className={styles.addError}>{addError}</p>}
                   </>
                 )}
               </div>
