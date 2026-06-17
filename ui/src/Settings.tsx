@@ -1,5 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
-import type { SourceHealthResponse, SourcesResponse, VerifyResponse } from './lib/api/index.ts';
+import type {
+  DiscoverResult,
+  SourceHealthResponse,
+  SourcesResponse,
+  VerifyResponse,
+} from './lib/api/index.ts';
 import { api, formatError } from './lib/api/index.ts';
 import styles from './Settings.module.css';
 import { ApplyQueuePanel } from './settings/ApplyQueuePanel.tsx';
@@ -255,6 +260,12 @@ export function Settings({
     return r.value;
   }, []);
 
+  const handleDiscover = useCallback(async (): Promise<DiscoverResult> => {
+    const r = await api.sources.discover();
+    if (!r.ok) throw new Error(formatError(r.error));
+    return r.value;
+  }, []);
+
   const installScheduler = useCallback(async () => {
     setError(null);
     setSchedulerOp('install');
@@ -397,6 +408,7 @@ export function Settings({
         onSave={saveSources}
         onVerify={verifySource}
         onCheckHealth={checkSourceHealth}
+        onDiscover={handleDiscover}
       />
 
       <LastRunPanel runSummary={runSummary} />

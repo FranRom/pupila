@@ -1,6 +1,11 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
-import type { SourceHealthResponse, SourcesResponse, VerifyResponse } from '../lib/api/index.ts';
+import type {
+  DiscoverResult,
+  SourceHealthResponse,
+  SourcesResponse,
+  VerifyResponse,
+} from '../lib/api/index.ts';
 import { SourcesPanel } from './SourcesPanel.tsx';
 
 afterEach(() => vi.restoreAllMocks());
@@ -26,6 +31,12 @@ const noopVerify = async (): Promise<VerifyResponse | null> => ({
   found: 3,
 });
 const noopHealth = async (): Promise<SourceHealthResponse | null> => ({ results: [] });
+const noopDiscover = async (): Promise<DiscoverResult> => ({
+  suggestions: [],
+  proposed: 0,
+  verified: 0,
+  errors: [],
+});
 
 function renderPanel(overrides: Partial<Parameters<typeof SourcesPanel>[0]> = {}) {
   return render(
@@ -34,6 +45,7 @@ function renderPanel(overrides: Partial<Parameters<typeof SourcesPanel>[0]> = {}
       onSave={vi.fn()}
       onVerify={noopVerify}
       onCheckHealth={noopHealth}
+      onDiscover={noopDiscover}
       {...overrides}
     />,
   );
@@ -96,6 +108,7 @@ it('re-adding a removed shipped slug clears the removal instead of marking it ad
       onSave={onSave}
       onVerify={noopVerify}
       onCheckHealth={noopHealth}
+      onDiscover={noopDiscover}
     />,
   );
   const input = screen.getByPlaceholderText('Add Ashby company slug…');
@@ -127,6 +140,7 @@ it('shows disabled shipped companies and re-enables them with one click', async 
       onSave={onSave}
       onVerify={noopVerify}
       onCheckHealth={noopHealth}
+      onDiscover={noopDiscover}
     />,
   );
   // The disabled company stays visible under a "Disabled" row.

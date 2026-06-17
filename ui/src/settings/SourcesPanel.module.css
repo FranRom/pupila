@@ -195,3 +195,65 @@
   font-size: var(--text-sm);
   font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
 }
+
+/* ── Discovery block ─────────────────────────────────────────────────────── */
+
+.discover {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+}
+
+.discoverError {
+  color: var(--danger);
+  font-size: var(--text-sm);
+}
+
+.discoverEmpty {
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
+.suggestions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.suggestionList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.suggestion {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.suggestionLabel {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  cursor: pointer;
+}
+
+.suggestionName {
+  font-weight: 600;
+}
+
+.suggestionMeta {
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
+.suggestionTitles {
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  padding-left: var(--space-4);
+}
