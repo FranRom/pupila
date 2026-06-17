@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseCandidates } from '../src/lib/company-discovery.js';
+import { parseCandidates, resolveSlugVariants } from '../src/lib/company-discovery.js';
 
 describe('parseCandidates', () => {
   it('parses a bare JSON array', () => {
@@ -28,5 +28,29 @@ describe('parseCandidates', () => {
 
   it('returns [] on unparseable input', () => {
     expect(parseCandidates('not json at all')).toEqual([]);
+  });
+});
+
+describe('resolveSlugVariants', () => {
+  it('puts the LLM slug guess first, then name-derived variants', () => {
+    expect(resolveSlugVariants('Aleph Alpha', 'aleph-alpha')).toEqual([
+      'aleph-alpha',
+      'alephalpha',
+    ]);
+  });
+
+  it('derives compact + hyphenated variants from the name when no guess', () => {
+    expect(resolveSlugVariants('Black Forest Labs')).toEqual([
+      'blackforestlabs',
+      'black-forest-labs',
+    ]);
+  });
+
+  it('dedupes and drops variants failing SLUG_PATTERN', () => {
+    expect(resolveSlugVariants('n8n')).toEqual(['n8n']);
+  });
+
+  it('caps at 4 variants', () => {
+    expect(resolveSlugVariants('A B C D E F', 'x').length).toBeLessThanOrEqual(4);
   });
 });

@@ -1,4 +1,4 @@
-import { ATS_KEYS, type AtsKey } from './slugs.js';
+import { ATS_KEYS, type AtsKey, SLUG_PATTERN } from './slugs.js';
 
 /** ATSes discovery can probe (REST/XML). Excludes ashbyPrivate (GraphQL). */
 export const DISCOVERY_ATS_KEYS = [
@@ -58,4 +58,27 @@ export function parseCandidates(raw: string): Candidate[] {
     });
   }
   return out;
+}
+
+const MAX_VARIANTS = 4;
+
+/** Ordered, deduped, SLUG_PATTERN-valid slug candidates for one company. */
+export function resolveSlugVariants(name: string, slugGuess?: string): string[] {
+  const base = name.toLowerCase().trim();
+  const raw = [
+    slugGuess?.toLowerCase().trim(),
+    base.replace(/[^a-z0-9]+/g, ''), // "alephalpha"
+    base.replace(/[^a-z0-9]+/g, '-'), // "aleph-alpha"
+  ];
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const v of raw) {
+    if (!v) continue;
+    const s = v.replace(/^-+|-+$/g, '');
+    if (s && SLUG_PATTERN.test(s) && !seen.has(s)) {
+      seen.add(s);
+      out.push(s);
+    }
+  }
+  return out.slice(0, MAX_VARIANTS);
 }
