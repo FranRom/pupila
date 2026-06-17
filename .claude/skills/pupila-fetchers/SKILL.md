@@ -36,7 +36,9 @@ If items are 0, eyeball the upstream response — RSS/HTML markup changes silent
 
 ## Add a tier-S company
 
-All slug arrays live in `config/slugs.json` (non-code edit). Identify the ATS, then append to the matching JSON key.
+All slug arrays live in `config/slugs.json` (non-code edit). Identify the ATS, then append to the matching JSON key. (Personal, non-shipped picks instead go to the gitignored `config/slugs.local.json` overlay — the UI writes those.)
+
+> **Automated discovery (UI):** Settings → Job sources → **Discover more sources for my profile** runs the user's LLM CLI to propose companies from `profile.json` + `candidate-brief.md`, live-probes each against the 5 REST/XML ATSes, ranks by matching roles, and adds the accepted picks to the overlay. Code in `src/lib/company-discovery.ts` (+ `POST /api/sources/discover`). It never invents slugs into `slugs.json` — everything is probe-verified and overlay-only.
 
 | ATS | JSON key | URL pattern (slug location) |
 |---|---|---|

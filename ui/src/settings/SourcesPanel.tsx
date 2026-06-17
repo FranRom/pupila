@@ -9,9 +9,12 @@
 //     (404 / unreachable). A healthy board with 0 open roles is NOT flagged -
 //     companies go quiet between hiring waves, and that's not a reason to prune.
 
+import clsx from 'clsx';
 import { type FormEvent, useCallback, useState } from 'react';
 import { InfoTooltip } from '../components/InfoTooltip.tsx';
 import type {
+  DiscoverResult,
+  DiscoverySuggestion,
   ProbeState,
   SourceHealthResponse,
   SourcesAtsView,
@@ -46,12 +49,26 @@ interface SourcesPanelProps {
   onSave: (key: string, add: string[], remove: string[]) => Promise<void>;
   onVerify: (key: string, slug: string) => Promise<VerifyResponse | null>;
   onCheckHealth: () => Promise<SourceHealthResponse | null>;
+  onDiscover: () => Promise<DiscoverResult>;
 }
 
-export function SourcesPanel({ sources, onSave, onVerify, onCheckHealth }: SourcesPanelProps) {
+export function SourcesPanel({
+  sources,
+  onSave,
+  onVerify,
+  onCheckHealth,
+  onDiscover,
+}: SourcesPanelProps) {
   const [health, setHealth] = useState<HealthMap>({});
   const [checked, setChecked] = useState(false);
   const [checking, setChecking] = useState(false);
+
+  const [discovering, setDiscovering] = useState(false);
+  const [discoverError, setDiscoverError] = useState<string | null>(null);
+  const [suggestions, setSuggestions] = useState<DiscoverySuggestion[] | null>(null);
+  const [picked, setPicked] = useState<Set<string>>(new Set());
+  const [adding, setAdding] = useState(false);
+  const [addError, setAddError] = useState<string | null>(null);
 
   const total = sources?.ats.reduce((n, a) => n + a.effective.length, 0) ?? 0;
 
@@ -66,6 +83,53 @@ export function SourcesPanel({ sources, onSave, onVerify, onCheckHealth }: Sourc
     setHealth(next);
     setChecked(true);
   }, [onCheckHealth]);
+
+  const runDiscover = useCallback(async () => {
+    setDiscovering(true);
+    setDiscoverError(null);
+    try {
+      const result = await onDiscover();
+      setSuggestions(result.suggestions);
+      setPicked(new Set());
+    } catch (err) {
+      setDiscoverError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setDiscovering(false);
+    }
+  }, [onDiscover]);
+
+  const togglePick = useCallback((key: string) => {
+    setPicked((prev) => {
+      const next = new Set(prev);
+      next.has(key) ? next.delete(key) : next.add(key);
+      return next;
+    });
+  }, []);
+
+  const addPicked = useCallback(async () => {
+    setAdding(true);
+    setAddError(null);
+    try {
+      const byAts = new Map<string, string[]>();
+      for (const key of picked) {
+        const [ats = '', slug = ''] = key.split(':', 2);
+        if (!ats || !slug) continue;
+        byAts.set(ats, [...(byAts.get(ats) ?? []), slug]);
+      }
+      for (const [ats, slugs] of byAts) {
+        const group = sources?.ats.find((a) => a.key === ats);
+        if (!group) continue;
+        const merged = Array.from(new Set([...group.add, ...slugs]));
+        await onSave(ats, merged, group.remove);
+      }
+      setSuggestions(null);
+      setPicked(new Set());
+    } catch (err) {
+      setAddError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setAdding(false);
+    }
+  }, [picked, sources, onSave]);
 
   return (
     <Section
@@ -89,18 +153,81 @@ export function SourcesPanel({ sources, onSave, onVerify, onCheckHealth }: Sourc
       {!sources ? (
         <SkeletonRows count={4} />
       ) : (
-        <div className={styles.groups}>
-          {sources.ats.map((ats) => (
-            <AtsGroup
-              key={ats.key}
-              ats={ats}
-              health={health}
-              checked={checked}
-              onSave={onSave}
-              onVerify={onVerify}
-            />
-          ))}
-        </div>
+        <>
+          <div className={styles.discover}>
+            <div className={styles.discoverHead}>
+              <p className={styles.discoverHint}>
+                Uses your profile and candidate brief to find more company boards with roles that
+                fit, then lets you add the ones you want.
+              </p>
+              <button
+                type="button"
+                className={clsx(buttonStyles.secondary, styles.discoverButton)}
+                disabled={discovering}
+                onClick={() => void runDiscover()}
+              >
+                {discovering ? 'Discovering…' : 'Discover more sources for my profile'}
+              </button>
+            </div>
+            {discoverError && <p className={styles.discoverError}>{discoverError}</p>}
+            {suggestions && (
+              <div className={styles.suggestions}>
+                {suggestions.length === 0 ? (
+                  <p className={styles.discoverEmpty}>No new companies found.</p>
+                ) : (
+                  <>
+                    <ul className={styles.suggestionList}>
+                      {suggestions.map((s) => {
+                        const key = `${s.ats}:${s.slug}`;
+                        return (
+                          <li key={key} className={styles.suggestion}>
+                            <label className={styles.suggestionLabel}>
+                              <input
+                                type="checkbox"
+                                checked={picked.has(key)}
+                                onChange={() => togglePick(key)}
+                              />
+                              <span className={styles.suggestionName}>{s.name}</span>
+                              <span className={styles.suggestionMeta}>
+                                {s.ats} · {s.matchCount}/{s.totalRoles} roles
+                              </span>
+                            </label>
+                            {s.sampleTitles.length > 0 && (
+                              <span className={styles.suggestionTitles}>
+                                {s.sampleTitles.join(' · ')}
+                              </span>
+                            )}
+                          </li>
+                        );
+                      })}
+                    </ul>
+                    <button
+                      type="button"
+                      className={buttonStyles.primary}
+                      disabled={picked.size === 0 || adding}
+                      onClick={() => void addPicked()}
+                    >
+                      {adding ? 'Adding…' : `Add selected (${picked.size})`}
+                    </button>
+                    {addError && <p className={styles.addError}>{addError}</p>}
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+          <div className={styles.groups}>
+            {sources.ats.map((ats) => (
+              <AtsGroup
+                key={ats.key}
+                ats={ats}
+                health={health}
+                checked={checked}
+                onSave={onSave}
+                onVerify={onVerify}
+              />
+            ))}
+          </div>
+        </>
       )}
     </Section>
   );

@@ -195,3 +195,94 @@
   font-size: var(--text-sm);
   font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
 }
+
+/* ── Discovery block ─────────────────────────────────────────────────────── */
+
+.discover {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+}
+
+/* Explanation on the left, auto-width action button on the right. Wraps to a
+   stacked layout when the row gets cramped. */
+.discoverHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.discoverHint {
+  flex: 1 1 16rem;
+  min-width: 12rem;
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
+/* Fixed width so the button doesn't resize between its idle label and the
+   shorter "Discovering…" state (the base button centers its content). */
+.discoverButton {
+  min-width: 19rem;
+}
+
+.discoverError {
+  color: var(--danger);
+  font-size: var(--text-sm);
+}
+
+.addError {
+  color: var(--danger);
+  font-size: var(--text-sm);
+}
+
+.discoverEmpty {
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
+.suggestions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.suggestionList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.suggestion {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.suggestionLabel {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  cursor: pointer;
+}
+
+.suggestionName {
+  font-weight: 600;
+}
+
+.suggestionMeta {
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
+.suggestionTitles {
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  padding-left: var(--space-4);
+}

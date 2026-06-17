@@ -1,6 +1,11 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
-import type { SourceHealthResponse, SourcesResponse, VerifyResponse } from '../lib/api/index.ts';
+import type {
+  DiscoverResult,
+  SourceHealthResponse,
+  SourcesResponse,
+  VerifyResponse,
+} from '../lib/api/index.ts';
 import { SourcesPanel } from './SourcesPanel.tsx';
 
 afterEach(() => vi.restoreAllMocks());
@@ -26,6 +31,12 @@ const noopVerify = async (): Promise<VerifyResponse | null> => ({
   found: 3,
 });
 const noopHealth = async (): Promise<SourceHealthResponse | null> => ({ results: [] });
+const noopDiscover = async (): Promise<DiscoverResult> => ({
+  suggestions: [],
+  proposed: 0,
+  verified: 0,
+  errors: [],
+});
 
 function renderPanel(overrides: Partial<Parameters<typeof SourcesPanel>[0]> = {}) {
   return render(
@@ -34,6 +45,7 @@ function renderPanel(overrides: Partial<Parameters<typeof SourcesPanel>[0]> = {}
       onSave={vi.fn()}
       onVerify={noopVerify}
       onCheckHealth={noopHealth}
+      onDiscover={noopDiscover}
       {...overrides}
     />,
   );
@@ -96,6 +108,7 @@ it('re-adding a removed shipped slug clears the removal instead of marking it ad
       onSave={onSave}
       onVerify={noopVerify}
       onCheckHealth={noopHealth}
+      onDiscover={noopDiscover}
     />,
   );
   const input = screen.getByPlaceholderText('Add Ashby company slug…');
@@ -127,6 +140,7 @@ it('shows disabled shipped companies and re-enables them with one click', async 
       onSave={onSave}
       onVerify={noopVerify}
       onCheckHealth={noopHealth}
+      onDiscover={noopDiscover}
     />,
   );
   // The disabled company stays visible under a "Disabled" row.
@@ -166,6 +180,43 @@ it('flags only broken boards and summarizes health per group after a check', asy
   expect(screen.getByText('2 OK')).toBeInTheDocument();
   // The full phrase is unique to the InfoTooltip bubble.
   expect(screen.getByText(/2 reachable, 1 unreachable/i)).toBeInTheDocument();
+});
+
+it('discover flow: renders suggestion, checkbox pick, and saves merged add list', async () => {
+  const onDiscover = vi.fn().mockResolvedValue({
+    suggestions: [
+      {
+        name: 'N8n',
+        ats: 'ashby',
+        slug: 'n8n',
+        matchCount: 2,
+        totalRoles: 3,
+        sampleTitles: ['Senior Product Engineer'],
+      },
+    ],
+    proposed: 1,
+    verified: 1,
+    errors: [],
+  });
+  const onSave = vi.fn().mockResolvedValue(undefined);
+
+  renderPanel({ onDiscover, onSave });
+
+  fireEvent.click(screen.getByText(/Discover more sources for my profile/i));
+
+  // Wait for the suggestion to render after the async onDiscover resolves.
+  await waitFor(() => expect(screen.getByText('N8n')).toBeInTheDocument());
+
+  // Tick the checkbox for N8n (label wraps the checkbox, so name matches).
+  fireEvent.click(screen.getByRole('checkbox', { name: /N8n/i }));
+
+  // "Add selected (1)" button should now be enabled; click it.
+  fireEvent.click(screen.getByText(/Add selected/i));
+
+  // onSave(ats, mergedAdd, remove) — merged = group.add(['stripe']) + ['n8n'], remove = [].
+  await waitFor(() =>
+    expect(onSave).toHaveBeenCalledWith('ashby', expect.arrayContaining(['stripe', 'n8n']), []),
+  );
 });
 
 it('shows an all-clear summary when every board is reachable', async () => {
