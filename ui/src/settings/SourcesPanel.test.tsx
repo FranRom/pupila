@@ -182,6 +182,43 @@ it('flags only broken boards and summarizes health per group after a check', asy
   expect(screen.getByText(/2 reachable, 1 unreachable/i)).toBeInTheDocument();
 });
 
+it('discover flow: renders suggestion, checkbox pick, and saves merged add list', async () => {
+  const onDiscover = vi.fn().mockResolvedValue({
+    suggestions: [
+      {
+        name: 'N8n',
+        ats: 'ashby',
+        slug: 'n8n',
+        matchCount: 2,
+        totalRoles: 3,
+        sampleTitles: ['Senior Product Engineer'],
+      },
+    ],
+    proposed: 1,
+    verified: 1,
+    errors: [],
+  });
+  const onSave = vi.fn().mockResolvedValue(undefined);
+
+  renderPanel({ onDiscover, onSave });
+
+  fireEvent.click(screen.getByText(/Discover for my profile/i));
+
+  // Wait for the suggestion to render after the async onDiscover resolves.
+  await waitFor(() => expect(screen.getByText('N8n')).toBeInTheDocument());
+
+  // Tick the checkbox for N8n (label wraps the checkbox, so name matches).
+  fireEvent.click(screen.getByRole('checkbox', { name: /N8n/i }));
+
+  // "Add selected (1)" button should now be enabled; click it.
+  fireEvent.click(screen.getByText(/Add selected/i));
+
+  // onSave(ats, mergedAdd, remove) — merged = group.add(['stripe']) + ['n8n'], remove = [].
+  await waitFor(() =>
+    expect(onSave).toHaveBeenCalledWith('ashby', expect.arrayContaining(['stripe', 'n8n']), []),
+  );
+});
+
 it('shows an all-clear summary when every board is reachable', async () => {
   const onCheckHealth = vi.fn().mockResolvedValue({
     results: [
