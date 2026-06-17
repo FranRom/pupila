@@ -155,3 +155,44 @@ export async function fetchBoardTitles(ats: DiscoveryAtsKey, slug: string): Prom
   const d = await fetchJson<JobsBody>(url, { headers: JSON_HEADERS });
   return clean((d.jobs ?? []).map((j) => j.title));
 }
+
+/** Minimal shape of the profile fields discovery reads (subset of FilterProfile). */
+export interface DiscoveryProfile {
+  categories?: readonly { id: string; label?: string; keywords: readonly string[] }[];
+  keywords?: { junior?: readonly string[]; engineering?: readonly string[] } & Record<
+    string,
+    readonly string[] | undefined
+  >;
+}
+
+export type CuratedSlugs = Record<DiscoveryAtsKey, readonly string[]>;
+
+export function buildDiscoveryPrompt(
+  profile: DiscoveryProfile,
+  brief: string,
+  curated: CuratedSlugs,
+): string {
+  const cats = (profile.categories ?? [])
+    .map((c) => c.label ?? c.id)
+    .filter(Boolean)
+    .join(', ');
+  const excluded = DISCOVERY_ATS_KEYS.flatMap((k) => curated[k] ?? []).join(', ');
+  return [
+    'You are helping a job-seeker find more companies to track on public ATS job boards.',
+    `Supported ATS platforms (only suggest companies on these): ${DISCOVERY_ATS_KEYS.join(', ')}.`,
+    '',
+    'Candidate brief:',
+    brief.trim() || '(no brief provided)',
+    '',
+    cats ? `Target role categories: ${cats}.` : '',
+    '',
+    `Already tracked (DO NOT suggest these): ${excluded || '(none)'}.`,
+    '',
+    'Suggest up to 25 real companies that actively hire for the target roles and host',
+    'their jobs on one of the supported ATS platforms. Prefer companies building with AI.',
+    '',
+    'Return STRICT JSON only — an array, no prose, no markdown fences:',
+    '[{"name": "Company", "ats": "ashby|greenhouse|lever|recruitee|personio", "slug": "best-guess-slug", "why": "one short reason"}]',
+    'The "ats" and "slug" are best guesses; they will be verified, so include them when unsure.',
+  ].join('\n');
+}

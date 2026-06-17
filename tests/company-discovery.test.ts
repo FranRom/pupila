@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
+  buildDiscoveryPrompt,
   fetchBoardTitles,
   parseCandidates,
   resolveSlugVariants,
@@ -120,5 +121,27 @@ describe('fetchBoardTitles', () => {
       '<workzag-jobs><position><id>1</id><name>Senior Frontend</name></position></workzag-jobs>',
     );
     expect(await fetchBoardTitles('personio', 'foo')).toEqual(['Senior Frontend']);
+  });
+});
+
+describe('buildDiscoveryPrompt', () => {
+  const profile = {
+    categories: [{ id: 'fe', label: 'Frontend', keywords: ['frontend', 'react'] }],
+    keywords: { junior: ['junior'], engineering: ['engineer'] },
+  };
+
+  it('includes supported ATSes, brief, category labels, and the exclude list', () => {
+    const p = buildDiscoveryPrompt(profile, 'Senior FE engineer, 8y React', {
+      ashby: ['linear'],
+      greenhouse: [],
+      lever: [],
+      recruitee: [],
+      personio: [],
+    });
+    expect(p).toContain('ashby');
+    expect(p).toContain('Senior FE engineer');
+    expect(p).toContain('Frontend');
+    expect(p).toContain('linear'); // excluded company surfaced in prompt
+    expect(p.toLowerCase()).toContain('json');
   });
 });
