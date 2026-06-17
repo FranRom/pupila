@@ -45,7 +45,34 @@
     "eigen-labs",
     "kalshi",
     "wormholelabs",
-    "monad.foundation"
+    "monad.foundation",
+    "n8n",
+    "factory",
+    "harvey",
+    "sierra",
+    "livekit",
+    "cognition",
+    "lovable",
+    "mercor",
+    "writer",
+    "vapi",
+    "cartesia",
+    "rime",
+    "deepgram",
+    "bland",
+    "cerebras",
+    "suno",
+    "synthesia",
+    "nabla",
+    "doctolib",
+    "alan",
+    "dust",
+    "sanity",
+    "alephalpha",
+    "resend",
+    "tldraw",
+    "pennylane",
+    "poolside"
   ],
   "greenhouse": [
     "anthropic",
@@ -55,7 +82,22 @@
     "fireblocks",
     "kalshi",
     "layerzerolabs",
-    "mesh"
+    "mesh",
+    "stackblitz",
+    "webflow",
+    "figma",
+    "scaleai",
+    "helsing",
+    "blackforestlabs",
+    "imbue",
+    "parloa",
+    "labelbox",
+    "contentful",
+    "raisin",
+    "getyourguide",
+    "monzo",
+    "typeform",
+    "wolt"
   ],
   "lever": [
     "ledger",
@@ -65,9 +107,11 @@
     "safe",
     "arbitrumfoundation",
     "celestia",
-    "mistral"
+    "mistral",
+    "pigment",
+    "qonto"
   ],
   "ashbyPrivate": ["chainlink-labs"],
   "recruitee": ["bunq", "apside", "technicaengineeringgmbh", "javelo"],
-  "personio": ["egym", "holidu", "userlane", "getquin"]
+  "personio": ["egym", "holidu", "userlane", "getquin", "pitch"]
 }
