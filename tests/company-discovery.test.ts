@@ -1,11 +1,13 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   buildDiscoveryPrompt,
+  discoverCompanies,
   fetchBoardTitles,
   parseCandidates,
   resolveSlugVariants,
   scoreRoles,
 } from '../src/lib/company-discovery.js';
+import type { ProbeResult } from '../src/lib/source-probe.js';
 
 describe('parseCandidates', () => {
   it('parses a bare JSON array', () => {
@@ -143,5 +145,74 @@ describe('buildDiscoveryPrompt', () => {
     expect(p).toContain('Frontend');
     expect(p).toContain('linear'); // excluded company surfaced in prompt
     expect(p.toLowerCase()).toContain('json');
+  });
+});
+
+const profile = {
+  categories: [{ id: 'fe', label: 'FE', keywords: ['frontend', 'agent'] }],
+  keywords: { junior: ['junior'], engineering: ['engineer'] },
+};
+const emptyCurated = { ashby: [], greenhouse: [], lever: [], recruitee: [], personio: [] };
+
+function deps(over: Partial<Parameters<typeof discoverCompanies>[0]> = {}) {
+  return {
+    profile,
+    brief: 'FE engineer',
+    curated: emptyCurated,
+    runLlm: async () => '[{"name":"N8n","ats":"ashby","slug":"n8n","why":"agentic"}]',
+    probe: async (_ats: string, _slug: string): Promise<ProbeResult> => ({
+      supported: true,
+      state: 'ok',
+      found: 3,
+    }),
+    fetchTitles: async () => ['Senior Frontend Engineer', 'Agent Engineer', 'Backend Engineer'],
+    ...over,
+  };
+}
+
+describe('discoverCompanies', () => {
+  it('verifies, scores, and ranks LLM candidates', async () => {
+    const r = await discoverCompanies(deps());
+    expect(r.proposed).toBe(1);
+    expect(r.verified).toBe(1);
+    expect(r.suggestions[0]).toMatchObject({
+      name: 'N8n',
+      ats: 'ashby',
+      slug: 'n8n',
+      matchCount: 2,
+      totalRoles: 3,
+    });
+  });
+
+  it('drops candidates whose boards are not live', async () => {
+    const r = await discoverCompanies(
+      deps({ probe: async () => ({ supported: true, state: 'not_found', found: 0 }) }),
+    );
+    expect(r.verified).toBe(0);
+    expect(r.suggestions).toEqual([]);
+  });
+
+  it('skips slugs already curated', async () => {
+    const r = await discoverCompanies(deps({ curated: { ...emptyCurated, ashby: ['n8n'] } }));
+    expect(r.verified).toBe(0);
+  });
+
+  it('returns an error (not throw) when the LLM output is unparseable', async () => {
+    const r = await discoverCompanies(deps({ runLlm: async () => 'sorry, no JSON' }));
+    expect(r.suggestions).toEqual([]);
+    expect(r.proposed).toBe(0);
+  });
+
+  it('ranks higher-matchCount companies first', async () => {
+    let call = 0;
+    const r = await discoverCompanies(
+      deps({
+        runLlm: async () =>
+          '[{"name":"Low","ats":"ashby","slug":"low"},{"name":"High","ats":"ashby","slug":"high"}]',
+        fetchTitles: async () =>
+          call++ === 0 ? ['Frontend Engineer'] : ['Frontend Engineer', 'Agent Engineer'],
+      }),
+    );
+    expect(r.suggestions.map((s) => s.matchCount)).toEqual([2, 1]);
   });
 });

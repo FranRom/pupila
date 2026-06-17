@@ -7,7 +7,9 @@ import {
   personioBoardUrl,
   recruiteeBoardUrl,
 } from './ats-endpoints.js';
+import { runLlm } from './llm.js';
 import { ATS_KEYS, type AtsKey, SLUG_PATTERN } from './slugs.js';
+import { type ProbeResult, probeSlug } from './source-probe.js';
 
 /** ATSes discovery can probe (REST/XML). Excludes ashbyPrivate (GraphQL). */
 export const DISCOVERY_ATS_KEYS = [
@@ -195,4 +197,101 @@ export function buildDiscoveryPrompt(
     '[{"name": "Company", "ats": "ashby|greenhouse|lever|recruitee|personio", "slug": "best-guess-slug", "why": "one short reason"}]',
     'The "ats" and "slug" are best guesses; they will be verified, so include them when unsure.',
   ].join('\n');
+}
+
+const MAX_CANDIDATES = 25;
+
+export interface Suggestion {
+  name: string;
+  ats: DiscoveryAtsKey;
+  slug: string;
+  matchCount: number;
+  totalRoles: number;
+  sampleTitles: string[];
+  why?: string;
+}
+
+export interface DiscoverResult {
+  suggestions: Suggestion[];
+  proposed: number;
+  verified: number;
+  errors: string[];
+}
+
+export interface DiscoverOptions {
+  profile: DiscoveryProfile;
+  brief: string;
+  curated: CuratedSlugs;
+  // Injectable for tests; default to the real implementations.
+  runLlm?: (prompt: string) => Promise<string>;
+  probe?: (ats: DiscoveryAtsKey, slug: string) => Promise<ProbeResult>;
+  fetchTitles?: (ats: DiscoveryAtsKey, slug: string) => Promise<string[]>;
+}
+
+function positiveKeywords(p: DiscoveryProfile): string[] {
+  const cat = (p.categories ?? []).flatMap((c) => [...c.keywords]);
+  return cat.length ? cat : [...(p.keywords?.engineering ?? [])];
+}
+
+export async function discoverCompanies(opts: DiscoverOptions): Promise<DiscoverResult> {
+  const runLlmFn = opts.runLlm ?? runLlm;
+  const probeFn = opts.probe ?? probeSlug;
+  const fetchTitlesFn = opts.fetchTitles ?? fetchBoardTitles;
+  const errors: string[] = [];
+
+  let candidates: Candidate[];
+  try {
+    const raw = await runLlmFn(buildDiscoveryPrompt(opts.profile, opts.brief, opts.curated));
+    candidates = parseCandidates(raw).slice(0, MAX_CANDIDATES);
+  } catch (err) {
+    return { suggestions: [], proposed: 0, verified: 0, errors: [(err as Error).message] };
+  }
+
+  const posKw = positiveKeywords(opts.profile);
+  const juniorKw = [...(opts.profile.keywords?.junior ?? [])];
+  const isCurated = (ats: DiscoveryAtsKey, slug: string) =>
+    (opts.curated[ats] ?? []).includes(slug);
+
+  const settled = await Promise.all(
+    candidates.map(async (c): Promise<Suggestion | null> => {
+      try {
+        const variants = resolveSlugVariants(c.name, c.slug);
+        // If any variant is already curated on any ATS, skip the whole candidate.
+        if (variants.some((slug) => DISCOVERY_ATS_KEYS.some((ats) => isCurated(ats, slug)))) {
+          return null;
+        }
+        const order: DiscoveryAtsKey[] =
+          c.ats && (DISCOVERY_ATS_KEYS as readonly string[]).includes(c.ats)
+            ? [c.ats as DiscoveryAtsKey, ...DISCOVERY_ATS_KEYS.filter((k) => k !== c.ats)]
+            : [...DISCOVERY_ATS_KEYS];
+        for (const ats of order) {
+          for (const slug of variants) {
+            const res = await probeFn(ats, slug);
+            if (res.state === 'ok' && res.found > 0) {
+              const titles = await fetchTitlesFn(ats, slug);
+              const score = scoreRoles(titles, posKw, juniorKw);
+              return {
+                name: c.name,
+                ats,
+                slug,
+                matchCount: score.matchCount,
+                totalRoles: titles.length,
+                sampleTitles: score.sampleTitles,
+                why: c.why,
+              };
+            }
+          }
+        }
+        return null;
+      } catch (err) {
+        errors.push(`${c.name}: ${(err as Error).message}`);
+        return null;
+      }
+    }),
+  );
+
+  const suggestions = settled
+    .filter((s): s is Suggestion => s !== null)
+    .sort((a, b) => b.matchCount - a.matchCount);
+  return { suggestions, proposed: candidates.length, verified: suggestions.length, errors };
 }
