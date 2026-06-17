@@ -28,6 +28,7 @@ export type Source =
   | 'ashby'
   | 'lever'
   | 'recruitee'
+  | 'personio'
   | 'aave'
   | 'ashby-private'
   | 'bluedoor';

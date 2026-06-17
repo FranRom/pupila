@@ -29,6 +29,7 @@ const SOURCES = [
   'lever',
   'greenhouse',
   'recruitee',
+  'personio',
   'cryptojobslist',
   'web3career',
   'aijobsnet',

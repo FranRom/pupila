@@ -26,6 +26,7 @@ const LABELS: Record<AtsKey, string> = {
   lever: 'Lever',
   ashbyPrivate: 'Ashby (private)',
   recruitee: 'Recruitee',
+  personio: 'Personio',
 };
 
 // One-line explainer per ATS, shown as a tooltip on the group's ⓘ marker.
@@ -40,6 +41,9 @@ const NOTES: Record<AtsKey, string> = {
   recruitee:
     'Public Recruitee careers boards (<slug>.recruitee.com). The slug is the careers subdomain, ' +
     'which often differs from a custom careers domain - check <slug>.recruitee.com/api/offers loads.',
+  personio:
+    'Public Personio XML careers feeds (<slug>.jobs.personio.de). Mostly DACH/EU companies. ' +
+    'No salary or per-job URL in the feed (the link is rebuilt from the slug + id).',
 };
 
 const BASE: Record<AtsKey, readonly string[]> = {
@@ -48,6 +52,7 @@ const BASE: Record<AtsKey, readonly string[]> = {
   lever: slugs.lever,
   ashbyPrivate: slugs.ashbyPrivate,
   recruitee: slugs.recruitee,
+  personio: slugs.personio,
 };
 
 interface AtsView {

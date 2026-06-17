@@ -68,5 +68,6 @@
     "mistral"
   ],
   "ashbyPrivate": ["chainlink-labs"],
-  "recruitee": ["bunq", "apside", "technicaengineeringgmbh", "javelo"]
+  "recruitee": ["bunq", "apside", "technicaengineeringgmbh", "javelo"],
+  "personio": ["egym", "holidu", "userlane", "getquin"]
 }

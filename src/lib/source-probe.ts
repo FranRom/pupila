@@ -18,6 +18,7 @@ import {
   ashbyBoardUrl,
   greenhouseBoardUrl,
   leverBoardUrl,
+  personioBoardUrl,
   recruiteeBoardUrl,
 } from './ats-endpoints.js';
 import type { AtsKey } from './slugs.js';
@@ -83,7 +84,18 @@ const PROBERS: Partial<Record<AtsKey, Prober>> = {
   ashbyPrivate: (slug) => ashbyPrivateProbe(slug),
   recruitee: (slug) =>
     restProbe(recruiteeBoardUrl(slug), (d) => arrayLen((d as { offers?: unknown }).offers)),
+  personio: (slug) => personioProbe(slug),
 };
+
+// Personio ships XML, not JSON, so count <position> elements in the body. 404 →
+// not_found (a typo'd / departed slug); other non-2xx → transient error.
+async function personioProbe(slug: string): Promise<Outcome> {
+  const res = await fetchWithTimeout(personioBoardUrl(slug), { headers: JSON_HEADERS });
+  if (res.status === 404) return { state: 'not_found', found: 0 };
+  if (!res.ok) return { state: 'error', found: 0 };
+  const xml = await res.text();
+  return { state: 'ok', found: (xml.match(/<position>/g) ?? []).length };
+}
 
 export function isProbeSupported(key: AtsKey): boolean {
   return key in PROBERS;

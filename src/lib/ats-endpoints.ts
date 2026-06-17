@@ -17,3 +17,12 @@ export const leverBoardUrl = (slug: string): string =>
 // no-op, but it still guards the host boundary against an injected slug.
 export const recruiteeBoardUrl = (slug: string): string =>
   `https://${encodeURIComponent(slug)}.recruitee.com/api/offers/`;
+
+// Personio's public XML careers feed. Slug is the careers subdomain (always
+// .de in practice). The feed carries no per-job URL, so personioJobUrl rebuilds
+// the public job-detail link from the slug + the position id.
+export const personioBoardUrl = (slug: string): string =>
+  `https://${encodeURIComponent(slug)}.jobs.personio.de/xml?language=en`;
+
+export const personioJobUrl = (slug: string, id: string): string =>
+  `https://${encodeURIComponent(slug)}.jobs.personio.de/job/${encodeURIComponent(id)}`;

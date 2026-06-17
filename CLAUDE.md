@@ -15,7 +15,7 @@ Guidance for future Claude Code sessions working in this repo. **Slim by design*
 
 ## Overview
 
-`pupila` is a **config-driven, forkable** daily job aggregator. Fetches from 18 public sources (4 ATS APIs — Ashby, Greenhouse, Lever, Recruitee — plus RSS, JSON boards, Hacker News, HTML scrapers, an Aave Next.js scraper, `ashby-private` for orgs whose public posting-API is disabled, `jobicy` and `himalayas` — no-key remote-jobs feeds with region/country-tagged locations and structured salary, and `bluedoor` — a free aggregator over ~1.6M postings/31 ATS, queried by `profile.location`), normalizes them, applies hard exclusion filters, computes a per-job `fitScore`, deduplicates, and writes `data/jobs.json`, an RSS feed at `data/feed.xml`, and an auto-regenerated `JOBS.md`. **`README.md` is hand-maintained — never overwrite it from code.** No external services, no DB.
+`pupila` is a **config-driven, forkable** daily job aggregator. Fetches from 19 public sources (5 ATS APIs — Ashby, Greenhouse, Lever, Recruitee, Personio (XML) — plus RSS, JSON boards, Hacker News, HTML scrapers, an Aave Next.js scraper, `ashby-private` for orgs whose public posting-API is disabled, `jobicy` and `himalayas` — no-key remote-jobs feeds with region/country-tagged locations and structured salary, and `bluedoor` — a free aggregator over ~1.6M postings/31 ATS, queried by `profile.location`), normalizes them, applies hard exclusion filters, computes a per-job `fitScore`, deduplicates, and writes `data/jobs.json`, an RSS feed at `data/feed.xml`, and an auto-regenerated `JOBS.md`. **`README.md` is hand-maintained — never overwrite it from code.** No external services, no DB.
 
 Cross-cutting invariants (apply repo-wide):
 
@@ -82,7 +82,7 @@ pnpm run mcp                          # MCP server over stdio
 
 1. **CV gate** — fail-fast if `config/candidate-brief.md` missing (bypass: `PUPILA_NO_BRIEF_CHECK=1` or `--no-brief-check`).
 2. **Profile bootstrap** — `bootstrapProfileIfMissing()` copies `config/profile.default.json` → `profile.json` on first run.
-3. **Fetch** — all 18 sources in parallel via `processFetcher()` + `Promise.all`. Each fetcher returns `{ items, errors }` and **never throws** (a rejection would kill the whole run).
+3. **Fetch** — all 19 sources in parallel via `processFetcher()` + `Promise.all`. Each fetcher returns `{ items, errors }` and **never throws** (a rejection would kill the whole run).
 4. **Normalize** — per-source `normalize<Source>()` → `Job[]`. Salary fields populated via `withSalary()` spread.
 5. **Filter + score** — `applyFilters()` in `src/filters.ts`: hard drops → boilerplate strip → soft scoring (cap 100) → optional out-of-region penalty → drop below `minScoreToKeep` → multi-label categories. Geo handling is persona-neutral, driven by the `location` block in `config/profile.json` (see `pupila-filters` skill).
 6. **Dedup + sort** — `compareJobs` 4-key chain in `src/dedup.ts` (source-priority tiebreak).

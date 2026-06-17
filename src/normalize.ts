@@ -1,4 +1,5 @@
 import { parseAtsUrl } from './fetchers/bluedoor.js';
+import { personioJobUrl } from './lib/ats-endpoints.js';
 import { rssLink } from './rss.js';
 import { parseSalary } from './salary.js';
 import type {
@@ -14,6 +15,8 @@ import type {
   RawHnHit,
   RawJobicy,
   RawLeverJobWithSlug,
+  RawPersonioJobDescription,
+  RawPersonioPositionWithSlug,
   RawRecruiteeOfferWithSlug,
   RawRemoteOk,
   RawRemoteYeah,
@@ -617,6 +620,56 @@ export function normalizeRecruitee(items: RawRecruiteeOfferWithSlug[], fetchedAt
           sal?.period,
         ),
         postedAt: safeIso(j.published_at) ?? safeIso(j.created_at),
+        fetchedAt,
+        fitScore: 0,
+        categories: [],
+      } satisfies Job,
+    ];
+  });
+}
+
+// Pull the text out of one Personio jobDescription <value> node — a CDATA value
+// parses to { '#cdata': html }, a plain one to a string or { '#text': ... }.
+function personioValueText(value: RawPersonioJobDescription['value']): string {
+  if (!value) return '';
+  if (typeof value === 'string') return value;
+  return value['#cdata'] ?? value['#text'] ?? '';
+}
+
+export function normalizePersonio(items: RawPersonioPositionWithSlug[], fetchedAt: string): Job[] {
+  return items.flatMap((j) => {
+    const id = j.id != null ? String(j.id) : '';
+    const title = asPlain(j.name); // decodes &amp; etc. (entities aren't pre-decoded)
+    if (!id || !title) return [];
+    const url = personioJobUrl(j.__slug, id);
+    const location = asPlain(j.office) || null;
+    // Concatenate every description section (name + CDATA html) for the body.
+    const jd = j.jobDescriptions?.jobDescription;
+    const sections = jd ? (Array.isArray(jd) ? jd : [jd]) : [];
+    const body = asPlain(
+      sections
+        .map((s) => [s?.name, personioValueText(s?.value)].filter(Boolean).join('\n'))
+        .join('\n\n'),
+    );
+    return [
+      {
+        id: makeId('personio', url, `${j.__slug}-${title}-${id}`),
+        source: 'personio',
+        title,
+        company: slugToCompany(j.__slug),
+        url,
+        location,
+        remote: inferRemote(location, title, body),
+        body,
+        tags: joinTags([
+          asPlain(j.department) || null,
+          asPlain(j.recruitingCategory) || null,
+          j.seniority,
+          j.employmentType,
+          j.occupationCategory,
+        ]),
+        ...withSalary(null),
+        postedAt: safeIso(j.createdAt),
         fetchedAt,
         fitScore: 0,
         categories: [],

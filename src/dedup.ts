@@ -2,14 +2,16 @@ import type { Job, Source } from './types.js';
 import { normalizeText, sha1Hex } from './utils.js';
 
 const SOURCE_PRIORITY: Record<Source, number> = {
-  aave: 13,
-  'ashby-private': 13,
-  ashby: 12,
-  lever: 11,
-  greenhouse: 10,
-  // Recruitee is a public curated ATS (per-company boards), so it ranks in the
-  // ATS tier above the niche boards and every aggregator.
-  recruitee: 9,
+  aave: 14,
+  'ashby-private': 14,
+  ashby: 13,
+  lever: 12,
+  greenhouse: 11,
+  // Recruitee and Personio are public curated ATSes (per-company boards), so
+  // they rank in the ATS tier above the niche boards and every aggregator.
+  // Personio sits just under Recruitee (it ships no salary and no native URL).
+  recruitee: 10,
+  personio: 9,
   cryptojobslist: 8,
   web3career: 7,
   aijobsnet: 6,

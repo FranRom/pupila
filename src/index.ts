@@ -14,6 +14,7 @@ import { fetchHnHiring } from './fetchers/hn-hiring.js';
 import { fetchHnJobs } from './fetchers/hn-jobs.js';
 import { fetchJobicy } from './fetchers/jobicy.js';
 import { fetchLever } from './fetchers/lever.js';
+import { fetchPersonio } from './fetchers/personio.js';
 import { fetchRecruitee } from './fetchers/recruitee.js';
 import { fetchRemoteOk } from './fetchers/remoteok.js';
 import { fetchRemoteYeah } from './fetchers/remoteyeah.js';
@@ -36,6 +37,7 @@ import {
   normalizeHnJobs,
   normalizeJobicy,
   normalizeLever,
+  normalizePersonio,
   normalizeRecruitee,
   normalizeRemoteOk,
   normalizeRemoteYeah,
@@ -186,6 +188,7 @@ async function main(): Promise<void> {
     processFetcher('ashby', fetchAshby, normalizeAshby, fetchedAt, today),
     processFetcher('lever', fetchLever, normalizeLever, fetchedAt, today),
     processFetcher('recruitee', fetchRecruitee, normalizeRecruitee, fetchedAt, today),
+    processFetcher('personio', fetchPersonio, normalizePersonio, fetchedAt, today),
     processFetcher('aave', fetchAave, normalizeAave, fetchedAt, today),
     processFetcher('ashby-private', fetchAshbyPrivate, normalizeAshbyPrivate, fetchedAt, today),
     processFetcher(

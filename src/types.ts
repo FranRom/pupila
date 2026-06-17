@@ -19,6 +19,7 @@ export const SOURCES = [
   'ashby',
   'lever',
   'recruitee',
+  'personio',
   'aave',
   'ashby-private',
   'bluedoor',
@@ -309,6 +310,41 @@ export interface RawRecruiteeOffer {
 }
 
 export interface RawRecruiteeOfferWithSlug extends RawRecruiteeOffer {
+  __slug: string;
+}
+
+// One <position> from a Personio XML careers feed (<slug>.jobs.personio.de/xml).
+// The feed carries no URL or salary; entities in text fields are left raw
+// (decoded downstream). A CDATA `value` parses to { '#cdata': html }; a single
+// jobDescription is an object, multiple are an array.
+export interface RawPersonioValue {
+  '#cdata'?: string;
+  '#text'?: string;
+}
+
+export interface RawPersonioJobDescription {
+  name?: string;
+  value?: string | RawPersonioValue | null;
+}
+
+export interface RawPersonioPosition {
+  id?: string | number;
+  name?: string;
+  subcompany?: string | null;
+  office?: string | null;
+  department?: string | null;
+  recruitingCategory?: string | null;
+  employmentType?: string | null;
+  seniority?: string | null;
+  schedule?: string | null;
+  occupationCategory?: string | null;
+  createdAt?: string | null;
+  jobDescriptions?: {
+    jobDescription?: RawPersonioJobDescription | RawPersonioJobDescription[];
+  } | null;
+}
+
+export interface RawPersonioPositionWithSlug extends RawPersonioPosition {
   __slug: string;
 }
 

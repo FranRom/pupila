@@ -18,6 +18,13 @@ interface RssRoot {
   feed?: { entry?: RawRssItem | RawRssItem[] };
 }
 
+// Parse an arbitrary XML document with the same hardened parser config used for
+// RSS (CDATA preserved, entities left raw). Used by non-RSS XML feeds such as
+// Personio's `<workzag-jobs>` careers export.
+export function parseXml(xml: string): unknown {
+  return parser.parse(xml);
+}
+
 export async function fetchRssItems(url: string): Promise<RawRssItem[]> {
   const xml = await fetchText(url, { headers: RSS_HEADERS });
   const parsed = parser.parse(xml) as RssRoot;
