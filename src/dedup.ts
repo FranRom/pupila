@@ -2,11 +2,16 @@ import type { Job, Source } from './types.js';
 import { normalizeText, sha1Hex } from './utils.js';
 
 const SOURCE_PRIORITY: Record<Source, number> = {
-  aave: 12,
-  'ashby-private': 12,
-  ashby: 11,
-  lever: 10,
-  greenhouse: 9,
+  aave: 14,
+  'ashby-private': 14,
+  ashby: 13,
+  lever: 12,
+  greenhouse: 11,
+  // Recruitee and Personio are public curated ATSes (per-company boards), so
+  // they rank in the ATS tier above the niche boards and every aggregator.
+  // Personio sits just under Recruitee (it ships no salary and no native URL).
+  recruitee: 10,
+  personio: 9,
   cryptojobslist: 8,
   web3career: 7,
   aijobsnet: 6,
@@ -15,15 +20,18 @@ const SOURCE_PRIORITY: Record<Source, number> = {
   remotive: 3,
   weworkremotely: 2,
   remoteok: 1,
-  // Aggregators sit at the bottom: both re-carry jobs the dedicated fetchers
+  // Aggregators sit at the bottom: they re-carry jobs the dedicated fetchers
   // already pull, so on any company+title overlap the curated copy must win.
-  // remoteyeah is above bluedoor but below every dedicated source — unlike
-  // bluedoor it can't pre-skip already-covered companies (its links don't expose
-  // the underlying ATS slug), so it dedups by company+title only.
-  remoteyeah: 0,
+  // jobicy, himalayas and remoteyeah rank above bluedoor but below every
+  // dedicated source — their links point at their own sites (not the underlying
+  // ATS), so they can't pre-skip already-covered companies and dedup by
+  // company+title only.
+  jobicy: 0,
+  himalayas: -1,
+  remoteyeah: -2,
   // Lowest priority: bluedoor's unique long-tail (providers we can't reach
   // directly) survives, but any overlap loses to a more-specific source.
-  bluedoor: -1,
+  bluedoor: -3,
 };
 
 // Comparator for the post-dedup orchestrator sort. Order:

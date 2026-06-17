@@ -8,6 +8,8 @@ export const SOURCES = [
   'remotive',
   'weworkremotely',
   'remoteyeah',
+  'jobicy',
+  'himalayas',
   'cryptojobslist',
   'web3career',
   'aijobsnet',
@@ -16,6 +18,8 @@ export const SOURCES = [
   'greenhouse',
   'ashby',
   'lever',
+  'recruitee',
+  'personio',
   'aave',
   'ashby-private',
   'bluedoor',
@@ -221,6 +225,127 @@ export interface RawRemoteOk {
   description?: string;
   date?: string;
   epoch?: number;
+}
+
+// Jobicy's public v2 remote-jobs feed. Salary fields appear only on listings
+// that carry compensation (~a third); `jobGeo` speaks region terms ("Europe",
+// "EMEA", "USA", "LATAM", "APAC") and/or comma-separated country lists, which
+// map straight onto the persona-neutral geo filter's accepted regions.
+export interface RawJobicy {
+  id: number;
+  url: string;
+  jobSlug?: string;
+  jobTitle: string;
+  companyName?: string;
+  jobIndustry?: string[];
+  jobType?: string[];
+  jobGeo?: string;
+  jobLevel?: string;
+  jobExcerpt?: string;
+  jobDescription?: string;
+  pubDate?: string;
+  salaryMin?: number;
+  salaryMax?: number;
+  salaryCurrency?: string;
+  /** Jobicy ships "yearly" today; annualized via SALARY_PERIOD_FACTOR anyway. */
+  salaryPeriod?: string;
+}
+
+// Himalayas' public remote-jobs feed (~90k listings, 20 rows/request). Ships
+// structured salary on ~40% of rows and `locationRestrictions` as a country
+// array (empty array = worldwide); `pubDate`/`expiryDate` are unix epoch
+// seconds. `applicationLink` points back to himalayas.app, not the ATS.
+export interface RawHimalayas {
+  title: string;
+  companyName?: string;
+  companySlug?: string;
+  employmentType?: string;
+  seniority?: string[];
+  minSalary?: number;
+  maxSalary?: number;
+  currency?: string;
+  /** annual | monthly | hourly — annualized via SALARY_PERIOD_FACTOR. */
+  salaryPeriod?: string;
+  locationRestrictions?: string[];
+  categories?: string[];
+  description?: string;
+  excerpt?: string;
+  pubDate?: number;
+  applicationLink?: string;
+  guid?: string;
+}
+
+// One offer from Recruitee's public Careers Site API ({slug}.recruitee.com/api/
+// offers/). Numeric salary fields arrive as strings; `salary.period` is
+// month/year, annualized via SALARY_PERIOD_FACTOR. `careers_url` points at the
+// company's real careers page (often a custom domain), HTTPS.
+export interface RawRecruiteeSalary {
+  min?: string | number | null;
+  max?: string | number | null;
+  currency?: string | null;
+  period?: string | null;
+}
+
+export interface RawRecruiteeOffer {
+  id?: number;
+  title: string;
+  company_name?: string | null;
+  careers_url?: string | null;
+  careers_apply_url?: string | null;
+  location?: string | null;
+  city?: string | null;
+  country?: string | null;
+  remote?: boolean;
+  hybrid?: boolean;
+  on_site?: boolean;
+  salary?: RawRecruiteeSalary | null;
+  department?: string | null;
+  employment_type_code?: string | null;
+  tags?: string[];
+  description?: string | null;
+  requirements?: string | null;
+  published_at?: string | null;
+  created_at?: string | null;
+  slug?: string;
+}
+
+export interface RawRecruiteeOfferWithSlug extends RawRecruiteeOffer {
+  __slug: string;
+}
+
+// One <position> from a Personio XML careers feed (<slug>.jobs.personio.de/xml).
+// The feed carries no URL or salary; entities in text fields are left raw
+// (decoded downstream). A CDATA `value` parses to { '#cdata': html }; a single
+// jobDescription is an object, multiple are an array.
+export interface RawPersonioValue {
+  '#cdata'?: string;
+  '#text'?: string;
+}
+
+export interface RawPersonioJobDescription {
+  name?: string;
+  value?: string | RawPersonioValue | null;
+}
+
+export interface RawPersonioPosition {
+  id?: string | number;
+  name?: string;
+  subcompany?: string | null;
+  office?: string | null;
+  department?: string | null;
+  recruitingCategory?: string | null;
+  employmentType?: string | null;
+  seniority?: string | null;
+  schedule?: string | null;
+  occupationCategory?: string | null;
+  createdAt?: string | null;
+  jobDescriptions?: {
+    jobDescription?: RawPersonioJobDescription | RawPersonioJobDescription[];
+  } | null;
+}
+
+export interface RawPersonioPositionWithSlug extends RawPersonioPosition {
+  __slug: string;
 }
 
 export interface RawRemotive {

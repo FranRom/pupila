@@ -70,7 +70,7 @@ Eyeball the brief and edit anything that needs tweaking — this natural-languag
 
 ## How it works
 
-A config-driven, **local-first** daily job aggregator. Pulls listings from a dozen-plus public sources (job boards, RSS feeds, Hacker News, three ATSes — Greenhouse, Ashby, Lever — a custom Aave scraper, an Ashby-private GraphQL fetcher, and **bluedoor**, a free cross-ATS aggregator (~1.6M postings) queried by your accepted regions; adding a new source is one file), normalizes them into a single shape, scores each one against **your** profile (defined in [`config/profile.json`](./config/profile.json)), deduplicates, and writes the result to your local checkout.
+A config-driven, **local-first** daily job aggregator. Pulls listings from ~20 public sources (job boards, RSS feeds, Hacker News, five ATSes — Greenhouse, Ashby, Lever, Recruitee, Personio — no-key remote feeds like Jobicy and Himalayas, a custom Aave scraper, an Ashby-private GraphQL fetcher, and **bluedoor**, a free cross-ATS aggregator (~1.6M postings) queried by your accepted regions; adding a new source is one file), normalizes them into a single shape, scores each one against **your** profile (defined in [`config/profile.json`](./config/profile.json)), deduplicates, and writes the result to your local checkout.
 
 Designed to be **cloned and run locally**. No hosted scheduler, no public dashboard, no external services. Anyone — frontend, backend, mobile, data, infra, any seniority, any region — sets their role via:
 
@@ -328,7 +328,7 @@ Each fetcher is isolated: it catches its own errors and returns an empty `items`
 
 ## Sources
 
-The three ATS fetchers (Ashby, Greenhouse, Lever) carry the bulk of the high-quality signal — each iterates a curated tier-S slug list. The other sources backfill long-tail listings. **bluedoor** is a different shape: a free aggregator spanning ~1.6M postings across 31 ATS providers (Workday, iCIMS, Oracle, ADP, …) we can't reach directly. It's queried region-by-region from your `profile.location` (no hardcoded geography), skips companies already covered by a dedicated fetcher, and sits at the lowest dedup priority so curated copies always win. **Works fully on the anonymous tier — no signup required.** To raise the per-run request budget, optionally export an API key in your shell (`export BLUEDOOR_API_KEY=…`); it's free via email OTP (no card). The fetcher reads it from the environment and falls back to anonymous when it's unset.
+The ATS fetchers (Ashby, Greenhouse, Lever, plus Recruitee and Personio for EU/DACH coverage) carry the bulk of the high-quality signal — each iterates a curated tier-S slug list. The other sources backfill long-tail listings. **bluedoor** is a different shape: a free aggregator spanning ~1.6M postings across 31 ATS providers (Workday, iCIMS, Oracle, ADP, …) we can't reach directly. It's queried region-by-region from your `profile.location` (no hardcoded geography), skips companies already covered by a dedicated fetcher, and sits at the lowest dedup priority so curated copies always win. **Works fully on the anonymous tier — no signup required.** To raise the per-run request budget, optionally export an API key in your shell (`export BLUEDOOR_API_KEY=…`); it's free via email OTP (no card). The fetcher reads it from the environment and falls back to anonymous when it's unset.
 
 | Source | Type | Endpoint |
 |---|---|---|
@@ -337,10 +337,14 @@ The three ATS fetchers (Ashby, Greenhouse, Lever) carry the bulk of the high-qua
 | [aave](./src/fetchers/aave.ts) | HTML scraper (Next.js __NEXT_DATA__) | `aave.com/careers` |
 | [ashby-private](./src/fetchers/ashby-private.ts) | Ashby private GraphQL × N slugs | `jobs.ashbyhq.com/api/non-user-graphql` (currently 1 slug: `chainlink-labs`) |
 | [lever](./src/fetchers/lever.ts) | JSON API | `api.lever.co/v0/postings/<slug>` × 8 tier-S slugs |
+| [recruitee](./src/fetchers/recruitee.ts) | JSON API | `<slug>.recruitee.com/api/offers` × 4 tier-S slugs (mostly EU scaleups; structured salary + work-type flags) |
+| [personio](./src/fetchers/personio.ts) | XML feed | `<slug>.jobs.personio.de/xml` × 4 tier-S slugs (DACH/EU; no salary, URL rebuilt from slug + id) |
 | [remoteok](./src/fetchers/remoteok.ts) | JSON API | `remoteok.com/api` |
 | [remotive](./src/fetchers/remotive.ts) | JSON API | `remotive.com/api/remote-jobs?category=software-dev` |
 | [weworkremotely](./src/fetchers/weworkremotely.ts) | RSS 2.0 | `weworkremotely.com/categories/remote-programming-jobs.rss` |
 | [remoteyeah](./src/fetchers/remoteyeah.ts) | RSS 2.0 (custom tags) | `remoteyeah.com/rss.xml` — global remote-engineering feed |
+| [jobicy](./src/fetchers/jobicy.ts) | JSON API | `jobicy.com/api/v2/remote-jobs` — no-key remote feed; `jobGeo` region tags + structured salary |
+| [himalayas](./src/fetchers/himalayas.ts) | JSON API | `himalayas.app/jobs/api` — no-key global remote feed (paged 20/req), structured salary |
 | [cryptojobslist](./src/fetchers/cryptojobslist.ts) | RSS 2.0 | `api.cryptojobslist.com/jobs.rss` |
 | [web3career](./src/fetchers/web3career.ts) | HTML scraper | 5 category pages on `web3.career` |
 | [aijobsnet](./src/fetchers/aijobsnet.ts) | HTML scraper | `aijobs.net` (global + EU pages) |
@@ -356,7 +360,7 @@ Adding another source is one new file in `src/fetchers/`, one entry in `Source`,
 
 ### 1. Fetch (`src/fetchers/*.ts`)
 
-Each module exports `fetch<Source>(): Promise<{ items: Raw[]; errors: string[] }>` where `Raw` is source-specific. Errors are caught internally and aggregated, never thrown. Per-slug isolation in the three ATS fetchers so 404s on individual companies don't cascade. The 30s `AbortController` timeout in `fetchWithTimeout` retries once with a 2s backoff on `>=500` and network errors; 4xx errors are not retried (they're permanent). Tier-S slug arrays for Ashby / Greenhouse / Lever are loaded from [`config/slugs.json`](./config/slugs.json) — adding a company is a non-code change.
+Each module exports `fetch<Source>(): Promise<{ items: Raw[]; errors: string[] }>` where `Raw` is source-specific. Errors are caught internally and aggregated, never thrown. Per-slug isolation in the multi-slug ATS fetchers so 404s on individual companies don't cascade. The 30s `AbortController` timeout in `fetchWithTimeout` retries once with a 2s backoff on `>=500` and network errors; 4xx errors are not retried (they're permanent). Tier-S slug arrays for the multi-slug ATS sources (Ashby, Greenhouse, Lever, Recruitee, Personio) are loaded from [`config/slugs.json`](./config/slugs.json) — adding a company is a non-code change.
 
 ### 2. Normalize (`src/normalize.ts`)
 
@@ -461,7 +465,7 @@ Two passes:
 When two jobs collide, the one with the higher `fitScore` wins. Ties are broken by source priority:
 
 ```
-ashby > lever > greenhouse > cryptojobslist > web3career > aijobsnet > hn-hiring > hn-jobs > remotive > weworkremotely > remoteok > remoteyeah > bluedoor
+aave = ashby-private > ashby > lever > greenhouse > recruitee > personio > cryptojobslist > web3career > aijobsnet > hn-hiring > hn-jobs > remotive > weworkremotely > remoteok > jobicy > himalayas > remoteyeah > bluedoor
 ```
 
 **Sort stability.** After dedup, the final sort uses the exported `compareJobs` comparator: `fitScore desc → salaryMax desc → postedAt desc → id asc`. The `salaryMax` tiebreak floats transparent-comp companies above silent ones among score-tied roles (null is treated as 0), and `id asc` keeps day-over-day diffs deterministic when everything else ties.
@@ -922,8 +926,10 @@ All three slug arrays live in [`config/slugs.json`](./config/slugs.json); adding
 | Ashby | `jobs.ashbyhq.com/<slug>` | `api.ashbyhq.com/posting-api/job-board/<slug>?includeCompensation=true` |
 | Greenhouse | `boards.greenhouse.io/<slug>` | `boards-api.greenhouse.io/v1/boards/<slug>/jobs?content=true` |
 | Lever | `jobs.lever.co/<slug>` | `api.lever.co/v0/postings/<slug>?mode=json` |
+| Recruitee | `<slug>.recruitee.com` | `<slug>.recruitee.com/api/offers/` |
+| Personio | `<slug>.jobs.personio.de` | `<slug>.jobs.personio.de/xml?language=en` |
 
-Quick probe: `curl -sI <endpoint>` → 200 means it's live.
+Quick probe: `curl -sI <endpoint>` → 200 means it's live (for Personio, `curl -s … | grep -c '<position>'` → >0).
 
 ### Add a new source
 

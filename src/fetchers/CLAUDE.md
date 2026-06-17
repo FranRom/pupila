@@ -50,7 +50,7 @@ This is intentional — it's safe to leave a known-bad slug in `config/slugs.jso
 
 ### 9. ATS slug lists resolve through the personal overlay
 
-The four multi-slug ATS fetchers (`ashby`, `greenhouse`, `lever`, `ashby-private`) build their board URLs via the shared encoded helpers in `src/lib/ats-endpoints.ts` and resolve their slug list at fetch time via `resolveSlugs(shipped, overlay)` from `src/lib/slugs.ts`. The effective list is the committed `config/slugs.json` baseline unioned with the gitignored `config/slugs.local.json` personal overlay, minus the overlay's removals. **Never write `config/slugs.json` from app code**; personal changes belong in the overlay (the UI's `/api/sources` endpoint writes only `slugs.local.json`).
+The six multi-slug ATS fetchers (`ashby`, `greenhouse`, `lever`, `ashby-private`, `recruitee`, `personio`) build their board URLs via the shared encoded helpers in `src/lib/ats-endpoints.ts` and resolve their slug list at fetch time via `resolveSlugs(shipped, overlay)` from `src/lib/slugs.ts`. The effective list is the committed `config/slugs.json` baseline unioned with the gitignored `config/slugs.local.json` personal overlay, minus the overlay's removals. **Never write `config/slugs.json` from app code**; personal changes belong in the overlay (the UI's `/api/sources` endpoint writes only `slugs.local.json`).
 
 ---
 

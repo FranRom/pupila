@@ -17,6 +17,8 @@ export type Source =
   | 'remotive'
   | 'weworkremotely'
   | 'remoteyeah'
+  | 'jobicy'
+  | 'himalayas'
   | 'cryptojobslist'
   | 'web3career'
   | 'aijobsnet'
@@ -25,6 +27,8 @@ export type Source =
   | 'greenhouse'
   | 'ashby'
   | 'lever'
+  | 'recruitee'
+  | 'personio'
   | 'aave'
   | 'ashby-private'
   | 'bluedoor';

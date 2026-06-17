@@ -5,7 +5,7 @@ metadata:
   scope: pupila
 ---
 
-The pipeline ingests from 14 public sources (3 ATS APIs + RSS, JSON boards, HN, HTML scrapers, an Aave Next.js scraper, `ashby-private` for orgs whose public posting-API is disabled, and `bluedoor` — a free cross-ATS aggregator queried by region from `profile.location`). Adding a source means: a fetcher, a normalizer, a `Source` literal, a slot in the orchestrator, and dedup/render wiring.
+The pipeline ingests from 19 public sources (5 ATS APIs — Ashby, Greenhouse, Lever, Recruitee, Personio (XML) — plus RSS, JSON boards, HN, HTML scrapers, an Aave Next.js scraper, `ashby-private` for orgs whose public posting-API is disabled, `jobicy` and `himalayas` — no-key remote-jobs feeds, and `bluedoor` — a free cross-ATS aggregator queried by region from `profile.location`). Adding a source means: a fetcher, a normalizer, a `Source` literal, a slot in the orchestrator, and dedup/render wiring.
 
 **Companion invariants:** `src/fetchers/CLAUDE.md` (auto-loaded when working in that dir) — security checklist + must-obey rules. Read those rules; this skill covers the procedural side.
 
@@ -43,9 +43,11 @@ All slug arrays live in `config/slugs.json` (non-code edit). Identify the ATS, t
 | Ashby (public posting API) | `ashby` | `jobs.ashbyhq.com/<slug>` |
 | Greenhouse | `greenhouse` | `boards.greenhouse.io/<slug>` |
 | Lever | `lever` | `jobs.lever.co/<slug>` |
+| Recruitee | `recruitee` | `<slug>.recruitee.com` — slug is the careers *subdomain*, often differs from any custom careers domain |
+| Personio | `personio` | `<slug>.jobs.personio.de` — XML feed; no salary/URL in feed (URL rebuilt from slug + id) |
 | Ashby (private GraphQL) | `ashbyPrivate` | `jobs.ashbyhq.com/<slug>` loads in browser but public API returns 404 |
 
-The `TIER_S_*_SLUGS` exports in fetcher files are thin re-exports of the JSON.
+The `TIER_S_*_SLUGS` exports in fetcher files are thin re-exports of the JSON. Recruitee slugs are discovered by trial — most customers use custom careers domains, so the brand name rarely equals the `<slug>.recruitee.com` subdomain (verified seeds: `bunq`, `apside`).
 
 ### Probe before adding
 
@@ -53,6 +55,8 @@ The `TIER_S_*_SLUGS` exports in fetcher files are thin re-exports of the JSON.
 curl -sI "https://api.ashbyhq.com/posting-api/job-board/<slug>?includeCompensation=true"
 curl -sI "https://boards-api.greenhouse.io/v1/boards/<slug>/jobs"
 curl -sI "https://api.lever.co/v0/postings/<slug>?mode=json"
+curl -s "https://<slug>.recruitee.com/api/offers/" | head -c 200   # {"offers":[...]} = live
+curl -s "https://<slug>.jobs.personio.de/xml?language=en" | grep -c '<position>'   # >0 = live
 ```
 
 404s are logged and skipped silently — it's safe to leave a known-bad slug while waiting on upstream.
@@ -64,7 +68,7 @@ curl -sI "https://api.lever.co/v0/postings/<slug>?mode=json"
 
 ## Source-priority order (current)
 
-`aave = ashby-private > ashby > lever > greenhouse > cryptojobslist > web3career > aijobsnet > hn-hiring > hn-jobs > remotive > weworkremotely > remoteok > bluedoor`
+`aave = ashby-private > ashby > lever > greenhouse > recruitee > personio > cryptojobslist > web3career > aijobsnet > hn-hiring > hn-jobs > remotive > weworkremotely > remoteok > jobicy > himalayas > remoteyeah > bluedoor`
 
 Used by dedup tiebreaker. Newly-added sources slot in based on data quality + ATS reliability. `bluedoor` is **lowest** on purpose: it re-carries many curated-ATS jobs, so on any company+title overlap the dedicated fetcher must win.
 

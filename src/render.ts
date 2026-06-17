@@ -28,6 +28,8 @@ const SOURCES = [
   'ashby',
   'lever',
   'greenhouse',
+  'recruitee',
+  'personio',
   'cryptojobslist',
   'web3career',
   'aijobsnet',
@@ -37,6 +39,8 @@ const SOURCES = [
   'weworkremotely',
   'remoteok',
   'remoteyeah',
+  'jobicy',
+  'himalayas',
   'bluedoor',
 ] as const satisfies readonly Source[];
 

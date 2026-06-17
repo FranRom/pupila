@@ -1,4 +1,5 @@
 import { parseAtsUrl } from './fetchers/bluedoor.js';
+import { personioJobUrl } from './lib/ats-endpoints.js';
 import { rssLink } from './rss.js';
 import { parseSalary } from './salary.js';
 import type {
@@ -9,9 +10,14 @@ import type {
   RawAshbyPrivateJobWithSlug,
   RawBluedoorJob,
   RawGreenhouseJobWithSlug,
+  RawHimalayas,
   RawHnHiringPost,
   RawHnHit,
+  RawJobicy,
   RawLeverJobWithSlug,
+  RawPersonioJobDescription,
+  RawPersonioPositionWithSlug,
+  RawRecruiteeOfferWithSlug,
   RawRemoteOk,
   RawRemoteYeah,
   RawRemotive,
@@ -125,6 +131,70 @@ export function normalizeRemotive(items: RawRemotive[], fetchedAt: string): Job[
       fitScore: 0,
       categories: [],
     };
+  });
+}
+
+export function normalizeJobicy(items: RawJobicy[], fetchedAt: string): Job[] {
+  return items.flatMap((j) => {
+    const url = j.url?.trim();
+    const title = j.jobTitle?.trim();
+    if (!url || !title) return [];
+    // jobGeo carries region terms / country lists (e.g. "Europe,  Netherlands")
+    // — keep it as the location string so the persona-neutral geo filter can
+    // match accepted regions. asPlain decodes the HTML entities Jobicy leaves in
+    // its industry/type labels (e.g. "Legal &amp; Compliance").
+    const location = j.jobGeo?.trim() || null;
+    return [
+      {
+        id: makeId('jobicy', url, `${j.companyName ?? ''}-${title}-${j.id}`),
+        source: 'jobicy',
+        title,
+        company: j.companyName?.trim() || null,
+        url,
+        location,
+        remote: true,
+        body: asPlain(j.jobDescription),
+        tags: joinTags((j.jobIndustry ?? []).map(asPlain), (j.jobType ?? []).map(asPlain), [
+          j.jobLevel,
+        ]),
+        ...structuredSalary(j.salaryMin, j.salaryMax, j.salaryCurrency, j.salaryPeriod),
+        postedAt: safeIso(j.pubDate),
+        fetchedAt,
+        fitScore: 0,
+        categories: [],
+      } satisfies Job,
+    ];
+  });
+}
+
+export function normalizeHimalayas(items: RawHimalayas[], fetchedAt: string): Job[] {
+  return items.flatMap((j) => {
+    const url = j.applicationLink?.trim();
+    const title = j.title?.trim();
+    if (!url || !title) return [];
+    // locationRestrictions is a country array; an empty array means the role is
+    // open worldwide. Keep it as the location string so the persona-neutral geo
+    // filter can match accepted regions (or treat "Worldwide" as in-region).
+    const restrictions = (j.locationRestrictions ?? []).map((s) => s.trim()).filter(Boolean);
+    const location = restrictions.length ? restrictions.join(', ') : 'Worldwide';
+    return [
+      {
+        id: makeId('himalayas', url, `${j.companySlug ?? j.companyName ?? ''}-${title}`),
+        source: 'himalayas',
+        title,
+        company: j.companyName?.trim() || null,
+        url,
+        location,
+        remote: true,
+        body: asPlain(j.description),
+        tags: joinTags(j.categories, j.seniority, [j.employmentType]),
+        ...structuredSalary(j.minSalary, j.maxSalary, j.currency, j.salaryPeriod),
+        postedAt: safeIso(j.pubDate),
+        fetchedAt,
+        fitScore: 0,
+        categories: [],
+      } satisfies Job,
+    ];
   });
 }
 
@@ -507,6 +577,107 @@ function slugToCompany(slug: string): string {
   return slug.replace(/[-.]/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
+// Recruitee ships numeric salary as strings ("45000"); coerce to a positive
+// number (or null) so structuredSalary can annualize it.
+function toPositiveNumber(v: string | number | null | undefined): number | null {
+  if (v === null || v === undefined || v === '') return null;
+  const n = Number(v);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+export function normalizeRecruitee(items: RawRecruiteeOfferWithSlug[], fetchedAt: string): Job[] {
+  return items.flatMap((j) => {
+    const url = (j.careers_url || j.careers_apply_url || '').trim();
+    const title = j.title?.trim();
+    if (!url || !title) return [];
+    const location =
+      j.location?.trim() ||
+      [j.city, j.country]
+        .map((s) => s?.trim())
+        .filter(Boolean)
+        .join(', ') ||
+      null;
+    // remote/hybrid/on_site are explicit booleans; treat only fully-remote as
+    // remote. The work-type label rides along in tags so the persona-neutral
+    // filter can still see hybrid/on-site.
+    const workType = j.remote ? 'remote' : j.hybrid ? 'hybrid' : j.on_site ? 'on-site' : null;
+    const sal = j.salary ?? undefined;
+    return [
+      {
+        id: makeId('recruitee', url, `${j.__slug}-${title}-${j.id ?? j.slug ?? ''}`),
+        source: 'recruitee',
+        title,
+        company: j.company_name?.trim() || slugToCompany(j.__slug),
+        url,
+        location,
+        remote: j.remote === true,
+        body: asPlain([j.description, j.requirements].filter(Boolean).join('\n\n')),
+        tags: joinTags(j.tags, [j.department, j.employment_type_code, workType]),
+        ...structuredSalary(
+          toPositiveNumber(sal?.min),
+          toPositiveNumber(sal?.max),
+          sal?.currency,
+          sal?.period,
+        ),
+        postedAt: safeIso(j.published_at) ?? safeIso(j.created_at),
+        fetchedAt,
+        fitScore: 0,
+        categories: [],
+      } satisfies Job,
+    ];
+  });
+}
+
+// Pull the text out of one Personio jobDescription <value> node — a CDATA value
+// parses to { '#cdata': html }, a plain one to a string or { '#text': ... }.
+function personioValueText(value: RawPersonioJobDescription['value']): string {
+  if (!value) return '';
+  if (typeof value === 'string') return value;
+  return value['#cdata'] ?? value['#text'] ?? '';
+}
+
+export function normalizePersonio(items: RawPersonioPositionWithSlug[], fetchedAt: string): Job[] {
+  return items.flatMap((j) => {
+    const id = j.id != null ? String(j.id) : '';
+    const title = asPlain(j.name); // decodes &amp; etc. (entities aren't pre-decoded)
+    if (!id || !title) return [];
+    const url = personioJobUrl(j.__slug, id);
+    const location = asPlain(j.office) || null;
+    // Concatenate every description section (name + CDATA html) for the body.
+    const jd = j.jobDescriptions?.jobDescription;
+    const sections = jd ? (Array.isArray(jd) ? jd : [jd]) : [];
+    const body = asPlain(
+      sections
+        .map((s) => [s?.name, personioValueText(s?.value)].filter(Boolean).join('\n'))
+        .join('\n\n'),
+    );
+    return [
+      {
+        id: makeId('personio', url, `${j.__slug}-${title}-${id}`),
+        source: 'personio',
+        title,
+        company: slugToCompany(j.__slug),
+        url,
+        location,
+        remote: inferRemote(location, title, body),
+        body,
+        tags: joinTags([
+          asPlain(j.department) || null,
+          asPlain(j.recruitingCategory) || null,
+          j.seniority,
+          j.employmentType,
+          j.occupationCategory,
+        ]),
+        ...withSalary(null),
+        postedAt: safeIso(j.createdAt),
+        fetchedAt,
+        fitScore: 0,
+        categories: [],
+      } satisfies Job,
+    ];
+  });
+}
+
 export function normalizeAshbyPrivate(
   items: RawAshbyPrivateJobWithSlug[],
   fetchedAt: string,
@@ -588,7 +759,10 @@ const SALARY_PERIOD_FACTOR: Record<string, number> = {
   hourly: 2080,
 };
 
-function bluedoorSalary(
+// Build the salary quartet from structured min/max/currency/period fields,
+// annualizing via SALARY_PERIOD_FACTOR. Shared by every source that ships
+// structured compensation (bluedoor, jobicy).
+function structuredSalary(
   min: number | null | undefined,
   max: number | null | undefined,
   currency: string | null | undefined,
@@ -663,7 +837,7 @@ export function normalizeBluedoor(items: RawBluedoorJob[], fetchedAt: string): J
         remote,
         body,
         tags,
-        ...bluedoorSalary(j.salary_min, j.salary_max, j.salary_currency, j.salary_period),
+        ...structuredSalary(j.salary_min, j.salary_max, j.salary_currency, j.salary_period),
         postedAt: safeIso(j.source_posted_at) ?? safeIso(j.first_seen_at),
         fetchedAt,
         fitScore: 0,
