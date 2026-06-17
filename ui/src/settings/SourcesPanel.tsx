@@ -154,14 +154,20 @@ export function SourcesPanel({
       ) : (
         <>
           <div className={styles.discover}>
-            <button
-              type="button"
-              className={buttonStyles.secondary}
-              disabled={discovering}
-              onClick={() => void runDiscover()}
-            >
-              {discovering ? 'Discovering…' : '✨ Discover for my profile'}
-            </button>
+            <div className={styles.discoverHead}>
+              <p className={styles.discoverHint}>
+                Uses your profile and candidate brief to find more company boards with roles that
+                fit, then lets you add the ones you want.
+              </p>
+              <button
+                type="button"
+                className={buttonStyles.secondary}
+                disabled={discovering}
+                onClick={() => void runDiscover()}
+              >
+                {discovering ? 'Discovering…' : '✨ Discover more sources for my profile'}
+              </button>
+            </div>
             {discoverError && <p className={styles.discoverError}>{discoverError}</p>}
             {suggestions && (
               <div className={styles.suggestions}>

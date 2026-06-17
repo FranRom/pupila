@@ -202,7 +202,7 @@ it('discover flow: renders suggestion, checkbox pick, and saves merged add list'
 
   renderPanel({ onDiscover, onSave });
 
-  fireEvent.click(screen.getByText(/Discover for my profile/i));
+  fireEvent.click(screen.getByText(/Discover more sources for my profile/i));
 
   // Wait for the suggestion to render after the async onDiscover resolves.
   await waitFor(() => expect(screen.getByText('N8n')).toBeInTheDocument());
