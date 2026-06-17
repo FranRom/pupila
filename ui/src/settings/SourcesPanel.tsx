@@ -166,7 +166,7 @@ export function SourcesPanel({
                 disabled={discovering}
                 onClick={() => void runDiscover()}
               >
-                {discovering ? 'Discovering…' : '✨ Discover more sources for my profile'}
+                {discovering ? 'Discovering…' : 'Discover more sources for my profile'}
               </button>
             </div>
             {discoverError && <p className={styles.discoverError}>{discoverError}</p>}
