@@ -1,6 +1,13 @@
-import { writeFile } from 'node:fs/promises';
+import { readFile, writeFile } from 'node:fs/promises';
+import { fileURLToPath } from 'node:url';
 import type { Plugin } from 'vite';
 import slugs from '../../config/slugs.json' with { type: 'json' };
+import { loadProfile } from '../../src/filters.js';
+import {
+  type CuratedSlugs,
+  DISCOVERY_ATS_KEYS,
+  discoverCompanies,
+} from '../../src/lib/company-discovery.js';
 import {
   ATS_KEYS,
   type AtsKey,
@@ -12,6 +19,8 @@ import {
 import { isProbeSupported, probeSlug } from '../../src/lib/source-probe.js';
 import { SLUGS_LOCAL_PATH } from './_paths.ts';
 import { readBody } from './_shared.ts';
+
+const BRIEF_PATH = fileURLToPath(new URL('../../config/candidate-brief.md', import.meta.url));
 
 // GET  /api/sources         → { ats: AtsView[] } - shipped + overlay + effective
 // PUT  /api/sources         → persist one ATS's delta to slugs.local.json
@@ -142,6 +151,47 @@ export function sourcesApiPlugin(): Plugin {
           res.end(JSON.stringify({ results }));
         } catch (err) {
           console.error('[sources health api]', err);
+          res.statusCode = 500;
+          res.end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }));
+        }
+      });
+
+      // POST /api/sources/discover → LLM-propose companies, verify live, rank by
+      // profile fit. Read-only: returns suggestions; the user accepts via PUT.
+      server.middlewares.use('/api/sources/discover', async (req, res) => {
+        res.setHeader('Content-Type', 'application/json');
+        if (req.method !== 'POST') {
+          res.statusCode = 405;
+          res.end();
+          return;
+        }
+        try {
+          const profile = await loadProfile();
+          let brief = '';
+          try {
+            brief = await readFile(BRIEF_PATH, 'utf8');
+          } catch {
+            brief = '';
+          }
+          if (!(profile.categories?.length || brief.trim())) {
+            res.statusCode = 400;
+            res.end(JSON.stringify({ error: 'Set up your profile or candidate brief first.' }));
+            return;
+          }
+          const overlay = await loadSlugOverlay(SLUGS_LOCAL_PATH);
+          const curated = Object.fromEntries(
+            DISCOVERY_ATS_KEYS.map((k) => [k, resolveSlugs(BASE[k], overlay[k])]),
+          ) as unknown as CuratedSlugs;
+          // FilterProfile.keywords allows bare string comment values; cast to
+          // DiscoveryProfile's narrower shape (only array values matter at runtime).
+          const result = await discoverCompanies({
+            profile: profile as Parameters<typeof discoverCompanies>[0]['profile'],
+            brief,
+            curated,
+          });
+          res.end(JSON.stringify(result));
+        } catch (err) {
+          console.error('[sources discover api]', err);
           res.statusCode = 500;
           res.end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }));
         }
