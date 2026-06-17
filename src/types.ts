@@ -8,6 +8,7 @@ export const SOURCES = [
   'remotive',
   'weworkremotely',
   'remoteyeah',
+  'jobicy',
   'cryptojobslist',
   'web3career',
   'aijobsnet',
@@ -221,6 +222,30 @@ export interface RawRemoteOk {
   description?: string;
   date?: string;
   epoch?: number;
+}
+
+// Jobicy's public v2 remote-jobs feed. Salary fields appear only on listings
+// that carry compensation (~a third); `jobGeo` speaks region terms ("Europe",
+// "EMEA", "USA", "LATAM", "APAC") and/or comma-separated country lists, which
+// map straight onto the persona-neutral geo filter's accepted regions.
+export interface RawJobicy {
+  id: number;
+  url: string;
+  jobSlug?: string;
+  jobTitle: string;
+  companyName?: string;
+  jobIndustry?: string[];
+  jobType?: string[];
+  jobGeo?: string;
+  jobLevel?: string;
+  jobExcerpt?: string;
+  jobDescription?: string;
+  pubDate?: string;
+  salaryMin?: number;
+  salaryMax?: number;
+  salaryCurrency?: string;
+  /** Jobicy ships "yearly" today; annualized via SALARY_PERIOD_FACTOR anyway. */
+  salaryPeriod?: string;
 }
 
 export interface RawRemotive {

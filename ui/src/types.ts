@@ -17,6 +17,7 @@ export type Source =
   | 'remotive'
   | 'weworkremotely'
   | 'remoteyeah'
+  | 'jobicy'
   | 'cryptojobslist'
   | 'web3career'
   | 'aijobsnet'

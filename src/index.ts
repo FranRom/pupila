@@ -11,6 +11,7 @@ import { fetchCryptoJobsList } from './fetchers/cryptojobslist.js';
 import { fetchGreenhouse } from './fetchers/greenhouse.js';
 import { fetchHnHiring } from './fetchers/hn-hiring.js';
 import { fetchHnJobs } from './fetchers/hn-jobs.js';
+import { fetchJobicy } from './fetchers/jobicy.js';
 import { fetchLever } from './fetchers/lever.js';
 import { fetchRemoteOk } from './fetchers/remoteok.js';
 import { fetchRemoteYeah } from './fetchers/remoteyeah.js';
@@ -30,6 +31,7 @@ import {
   normalizeGreenhouse,
   normalizeHnHiring,
   normalizeHnJobs,
+  normalizeJobicy,
   normalizeLever,
   normalizeRemoteOk,
   normalizeRemoteYeah,
@@ -155,6 +157,7 @@ async function main(): Promise<void> {
   const tasks = await Promise.all([
     processFetcher('remoteok', fetchRemoteOk, normalizeRemoteOk, fetchedAt, today),
     processFetcher('remotive', fetchRemotive, normalizeRemotive, fetchedAt, today),
+    processFetcher('jobicy', fetchJobicy, normalizeJobicy, fetchedAt, today),
     processFetcher(
       'weworkremotely',
       fetchWeWorkRemotely,

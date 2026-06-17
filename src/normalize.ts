@@ -11,6 +11,7 @@ import type {
   RawGreenhouseJobWithSlug,
   RawHnHiringPost,
   RawHnHit,
+  RawJobicy,
   RawLeverJobWithSlug,
   RawRemoteOk,
   RawRemoteYeah,
@@ -125,6 +126,39 @@ export function normalizeRemotive(items: RawRemotive[], fetchedAt: string): Job[
       fitScore: 0,
       categories: [],
     };
+  });
+}
+
+export function normalizeJobicy(items: RawJobicy[], fetchedAt: string): Job[] {
+  return items.flatMap((j) => {
+    const url = j.url?.trim();
+    const title = j.jobTitle?.trim();
+    if (!url || !title) return [];
+    // jobGeo carries region terms / country lists (e.g. "Europe,  Netherlands")
+    // — keep it as the location string so the persona-neutral geo filter can
+    // match accepted regions. asPlain decodes the HTML entities Jobicy leaves in
+    // its industry/type labels (e.g. "Legal &amp; Compliance").
+    const location = j.jobGeo?.trim() || null;
+    return [
+      {
+        id: makeId('jobicy', url, `${j.companyName ?? ''}-${title}-${j.id}`),
+        source: 'jobicy',
+        title,
+        company: j.companyName?.trim() || null,
+        url,
+        location,
+        remote: true,
+        body: asPlain(j.jobDescription),
+        tags: joinTags((j.jobIndustry ?? []).map(asPlain), (j.jobType ?? []).map(asPlain), [
+          j.jobLevel,
+        ]),
+        ...structuredSalary(j.salaryMin, j.salaryMax, j.salaryCurrency, j.salaryPeriod),
+        postedAt: safeIso(j.pubDate),
+        fetchedAt,
+        fitScore: 0,
+        categories: [],
+      } satisfies Job,
+    ];
   });
 }
 
@@ -588,7 +622,10 @@ const SALARY_PERIOD_FACTOR: Record<string, number> = {
   hourly: 2080,
 };
 
-function bluedoorSalary(
+// Build the salary quartet from structured min/max/currency/period fields,
+// annualizing via SALARY_PERIOD_FACTOR. Shared by every source that ships
+// structured compensation (bluedoor, jobicy).
+function structuredSalary(
   min: number | null | undefined,
   max: number | null | undefined,
   currency: string | null | undefined,
@@ -663,7 +700,7 @@ export function normalizeBluedoor(items: RawBluedoorJob[], fetchedAt: string): J
         remote,
         body,
         tags,
-        ...bluedoorSalary(j.salary_min, j.salary_max, j.salary_currency, j.salary_period),
+        ...structuredSalary(j.salary_min, j.salary_max, j.salary_currency, j.salary_period),
         postedAt: safeIso(j.source_posted_at) ?? safeIso(j.first_seen_at),
         fetchedAt,
         fitScore: 0,
