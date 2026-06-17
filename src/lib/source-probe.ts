@@ -14,7 +14,12 @@
 // that instead.
 
 import { fetchWithTimeout, JSON_HEADERS } from '../utils.js';
-import { ashbyBoardUrl, greenhouseBoardUrl, leverBoardUrl } from './ats-endpoints.js';
+import {
+  ashbyBoardUrl,
+  greenhouseBoardUrl,
+  leverBoardUrl,
+  recruiteeBoardUrl,
+} from './ats-endpoints.js';
 import type { AtsKey } from './slugs.js';
 
 export type ProbeState = 'ok' | 'not_found' | 'error';
@@ -76,6 +81,8 @@ const PROBERS: Partial<Record<AtsKey, Prober>> = {
     restProbe(greenhouseBoardUrl(slug), (d) => arrayLen((d as { jobs?: unknown }).jobs)),
   lever: (slug) => restProbe(leverBoardUrl(slug), (d) => arrayLen(d)),
   ashbyPrivate: (slug) => ashbyPrivateProbe(slug),
+  recruitee: (slug) =>
+    restProbe(recruiteeBoardUrl(slug), (d) => arrayLen((d as { offers?: unknown }).offers)),
 };
 
 export function isProbeSupported(key: AtsKey): boolean {

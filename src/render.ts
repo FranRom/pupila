@@ -28,6 +28,7 @@ const SOURCES = [
   'ashby',
   'lever',
   'greenhouse',
+  'recruitee',
   'cryptojobslist',
   'web3career',
   'aijobsnet',

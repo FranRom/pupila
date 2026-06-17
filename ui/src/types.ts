@@ -27,6 +27,7 @@ export type Source =
   | 'greenhouse'
   | 'ashby'
   | 'lever'
+  | 'recruitee'
   | 'aave'
   | 'ashby-private'
   | 'bluedoor';

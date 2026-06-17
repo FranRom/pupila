@@ -67,5 +67,6 @@
     "celestia",
     "mistral"
   ],
-  "ashbyPrivate": ["chainlink-labs"]
+  "ashbyPrivate": ["chainlink-labs"],
+  "recruitee": ["bunq", "apside", "technicaengineeringgmbh", "javelo"]
 }

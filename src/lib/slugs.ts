@@ -9,7 +9,7 @@ import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 
 // Keys match config/slugs.json (camelCase ashbyPrivate), NOT the Source ids.
-export const ATS_KEYS = ['ashby', 'greenhouse', 'lever', 'ashbyPrivate'] as const;
+export const ATS_KEYS = ['ashby', 'greenhouse', 'lever', 'ashbyPrivate', 'recruitee'] as const;
 export type AtsKey = (typeof ATS_KEYS)[number];
 
 // Public ATS slugs are lowercase and use letters, digits, dot, dash, underscore

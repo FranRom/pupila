@@ -18,6 +18,7 @@ export const SOURCES = [
   'greenhouse',
   'ashby',
   'lever',
+  'recruitee',
   'aave',
   'ashby-private',
   'bluedoor',
@@ -271,6 +272,44 @@ export interface RawHimalayas {
   pubDate?: number;
   applicationLink?: string;
   guid?: string;
+}
+
+// One offer from Recruitee's public Careers Site API ({slug}.recruitee.com/api/
+// offers/). Numeric salary fields arrive as strings; `salary.period` is
+// month/year, annualized via SALARY_PERIOD_FACTOR. `careers_url` points at the
+// company's real careers page (often a custom domain), HTTPS.
+export interface RawRecruiteeSalary {
+  min?: string | number | null;
+  max?: string | number | null;
+  currency?: string | null;
+  period?: string | null;
+}
+
+export interface RawRecruiteeOffer {
+  id?: number;
+  title: string;
+  company_name?: string | null;
+  careers_url?: string | null;
+  careers_apply_url?: string | null;
+  location?: string | null;
+  city?: string | null;
+  country?: string | null;
+  remote?: boolean;
+  hybrid?: boolean;
+  on_site?: boolean;
+  salary?: RawRecruiteeSalary | null;
+  department?: string | null;
+  employment_type_code?: string | null;
+  tags?: string[];
+  description?: string | null;
+  requirements?: string | null;
+  published_at?: string | null;
+  created_at?: string | null;
+  slug?: string;
+}
+
+export interface RawRecruiteeOfferWithSlug extends RawRecruiteeOffer {
+  __slug: string;
 }
 
 export interface RawRemotive {

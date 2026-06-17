@@ -25,6 +25,7 @@ const LABELS: Record<AtsKey, string> = {
   greenhouse: 'Greenhouse',
   lever: 'Lever',
   ashbyPrivate: 'Ashby (private)',
+  recruitee: 'Recruitee',
 };
 
 // One-line explainer per ATS, shown as a tooltip on the group's ⓘ marker.
@@ -36,6 +37,9 @@ const NOTES: Record<AtsKey, string> = {
     'Ashby companies whose public posting API is turned off, so pupila fetches them via the ' +
     "job board's GraphQL instead (e.g. chainlink-labs). They're invisible to the normal Ashby " +
     'source. Verify and board-health use the same GraphQL, so they work here too.',
+  recruitee:
+    'Public Recruitee careers boards (<slug>.recruitee.com). The slug is the careers subdomain, ' +
+    'which often differs from a custom careers domain - check <slug>.recruitee.com/api/offers loads.',
 };
 
 const BASE: Record<AtsKey, readonly string[]> = {
@@ -43,6 +47,7 @@ const BASE: Record<AtsKey, readonly string[]> = {
   greenhouse: slugs.greenhouse,
   lever: slugs.lever,
   ashbyPrivate: slugs.ashbyPrivate,
+  recruitee: slugs.recruitee,
 };
 
 interface AtsView {

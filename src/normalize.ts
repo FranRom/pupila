@@ -14,6 +14,7 @@ import type {
   RawHnHit,
   RawJobicy,
   RawLeverJobWithSlug,
+  RawRecruiteeOfferWithSlug,
   RawRemoteOk,
   RawRemoteYeah,
   RawRemotive,
@@ -571,6 +572,57 @@ function formatLeverSalary(
 
 function slugToCompany(slug: string): string {
   return slug.replace(/[-.]/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+// Recruitee ships numeric salary as strings ("45000"); coerce to a positive
+// number (or null) so structuredSalary can annualize it.
+function toPositiveNumber(v: string | number | null | undefined): number | null {
+  if (v === null || v === undefined || v === '') return null;
+  const n = Number(v);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+export function normalizeRecruitee(items: RawRecruiteeOfferWithSlug[], fetchedAt: string): Job[] {
+  return items.flatMap((j) => {
+    const url = (j.careers_url || j.careers_apply_url || '').trim();
+    const title = j.title?.trim();
+    if (!url || !title) return [];
+    const location =
+      j.location?.trim() ||
+      [j.city, j.country]
+        .map((s) => s?.trim())
+        .filter(Boolean)
+        .join(', ') ||
+      null;
+    // remote/hybrid/on_site are explicit booleans; treat only fully-remote as
+    // remote. The work-type label rides along in tags so the persona-neutral
+    // filter can still see hybrid/on-site.
+    const workType = j.remote ? 'remote' : j.hybrid ? 'hybrid' : j.on_site ? 'on-site' : null;
+    const sal = j.salary ?? undefined;
+    return [
+      {
+        id: makeId('recruitee', url, `${j.__slug}-${title}-${j.id ?? j.slug ?? ''}`),
+        source: 'recruitee',
+        title,
+        company: j.company_name?.trim() || slugToCompany(j.__slug),
+        url,
+        location,
+        remote: j.remote === true,
+        body: asPlain([j.description, j.requirements].filter(Boolean).join('\n\n')),
+        tags: joinTags(j.tags, [j.department, j.employment_type_code, workType]),
+        ...structuredSalary(
+          toPositiveNumber(sal?.min),
+          toPositiveNumber(sal?.max),
+          sal?.currency,
+          sal?.period,
+        ),
+        postedAt: safeIso(j.published_at) ?? safeIso(j.created_at),
+        fetchedAt,
+        fitScore: 0,
+        categories: [],
+      } satisfies Job,
+    ];
+  });
 }
 
 export function normalizeAshbyPrivate(

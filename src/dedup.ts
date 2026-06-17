@@ -2,11 +2,14 @@ import type { Job, Source } from './types.js';
 import { normalizeText, sha1Hex } from './utils.js';
 
 const SOURCE_PRIORITY: Record<Source, number> = {
-  aave: 12,
-  'ashby-private': 12,
-  ashby: 11,
-  lever: 10,
-  greenhouse: 9,
+  aave: 13,
+  'ashby-private': 13,
+  ashby: 12,
+  lever: 11,
+  greenhouse: 10,
+  // Recruitee is a public curated ATS (per-company boards), so it ranks in the
+  // ATS tier above the niche boards and every aggregator.
+  recruitee: 9,
   cryptojobslist: 8,
   web3career: 7,
   aijobsnet: 6,
