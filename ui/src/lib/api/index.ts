@@ -184,6 +184,23 @@ export interface SourceHealthResponse {
   results: SourceHealthEntry[];
 }
 
+export interface DiscoverySuggestion {
+  name: string;
+  ats: string;
+  slug: string;
+  matchCount: number;
+  totalRoles: number;
+  sampleTitles: string[];
+  why?: string;
+}
+
+export interface DiscoverResult {
+  suggestions: DiscoverySuggestion[];
+  proposed: number;
+  verified: number;
+  errors: string[];
+}
+
 // ── Method types ────────────────────────────────────────────────────────────
 
 interface SignalOpt {
@@ -387,6 +404,8 @@ export const api = {
       request<VerifyResponse>('/api/sources/verify', { method: 'POST', json: input, ...opt }),
     health: (opt: SignalOpt = {}) =>
       request<SourceHealthResponse>('/api/sources/health', { method: 'POST', ...opt }),
+    discover: (opt: SignalOpt = {}) =>
+      request<DiscoverResult>('/api/sources/discover', { method: 'POST', ...opt }),
   },
 
   // ── Scheduler (launchd / cron) ───────────────────────────────────────────
