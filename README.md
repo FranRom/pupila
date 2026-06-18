@@ -7,6 +7,16 @@
   <img src="./assets/readme/dashboard.jpg" alt="Local job matching dashboard with source feeds, scoring, and scheduled file output" width="100%" />
 </p>
 
+## Table of contents
+
+**Getting started** — [What](#what) · [Key features](#key-features) · [Onboarding](#onboarding) · [Forking & personalizing](#forking--personalizing) · [How it works](#how-it-works)
+
+**Using it** — [Application tracking](#application-tracking) · [AI Apply](#ai-apply-per-job-optional) · [AI per-job review](#ai-per-job-review) · [MCP server](#mcp-server--talk-to-your-data-from-an-ai-client)
+
+**Under the hood** — [Stack](#stack) · [Architecture](#architecture) · [Sources](#sources) · [Pipeline stages](#pipeline-stages) · [Tuning filters](#tuning-filters-via-configprofilejson)
+
+**Reference** — [Repo layout](#repo-layout) · [Run locally](#run-locally) · [GitHub Actions](#github-actions) · [Customization](#customization) · [Security & quality gates](#security--quality-gates) · [Known upstream issues](#known-upstream-issues-as-of-2026-04) · [Conventional commits](#conventional-commits) · [License](#license)
+
 ## What
 
 PUPILA is a local-first job aggregator. Choose for schedule a task or trigger a manual refetch and it pulls from many public sources (adding more is an easy job), filters out the noise (junior roles, non-engineering, onsite-only, etc.), and scores each remaining posting against your CV-derived profile. You wake up to a single sorted table of roles that actually fit, every row links to the original posting, so you can apply directly. **That's the core value: getting the data, filtering it, and scoring it. The AI layers below are optional.**
@@ -272,6 +282,9 @@ Idempotent — running on an already-clean state prints `nothing to clean`. Afte
 
 ## Architecture
 
+<details>
+<summary>Show the architecture diagram</summary>
+
 ```
                 ┌─────────────────────────────────────────────────┐
                 │ launchd / cron — local agent, daily               │
@@ -326,6 +339,8 @@ Each fetcher is isolated: it catches its own errors and returns an empty `items`
 
 > **Where's the auto-commit step?** Removed. The pipeline now runs locally and writes to your working tree. If you want git history of your daily snapshots, add a third launchd/cron task that runs `git add data/ JOBS.md && git commit -m "chore: daily run"` (or just commit by hand when you want).
 
+</details>
+
 ## Sources
 
 The ATS fetchers (Ashby, Greenhouse, Lever, plus Recruitee and Personio for EU/DACH coverage) carry the bulk of the high-quality signal — each iterates a curated tier-S slug list. The other sources backfill long-tail listings. **bluedoor** is a different shape: a free aggregator spanning ~1.6M postings across 31 ATS providers (Workday, iCIMS, Oracle, ADP, …) we can't reach directly. It's queried region-by-region from your `profile.location` (no hardcoded geography), skips companies already covered by a dedicated fetcher, and sits at the lowest dedup priority so curated copies always win. **Works fully on the anonymous tier — no signup required.** To raise the per-run request budget, optionally export an API key in your shell (`export BLUEDOOR_API_KEY=…`); it's free via email OTP (no card). The fetcher reads it from the environment and falls back to anonymous when it's unset.
@@ -357,6 +372,9 @@ The Ashby tier-S list covers the AI frontier (OpenAI, Cohere, Perplexity, Cursor
 Adding another source is one new file in `src/fetchers/`, one entry in `Source`, one normalizer in `normalize.ts`, and one line in `src/index.ts`. See [`CONTRIBUTING.md`](./CONTRIBUTING.md#adding-a-source) for the contributor-facing recipe.
 
 ## Pipeline stages
+
+<details>
+<summary>Show all six pipeline stages in detail</summary>
 
 ### 1. Fetch (`src/fetchers/*.ts`)
 
@@ -491,6 +509,8 @@ Before writing the new `data/jobs.json`, the orchestrator reads the **previous**
 Each table row: `Score | Title | Company | Source | Posted (relative) | Link`. The title cell carries an emoji prefix when the job is in `config/applied.json` (📝 applied, 💬 interview, 🎯 offer, ❌ rejected, ⏸ withdrawn) and a ` · <salary>` suffix when the source provides salary data. The full sorted list also lands in `data/jobs.json`, including the `_signals` breakdown per job.
 
 [`src/feed.ts`](./src/feed.ts) also writes [`data/feed.xml`](./data/feed.xml) — an RSS 2.0 feed of the day's "✨ new" jobs (top 50 by fitScore). Point your RSS reader at the local `file://` path to get a daily digest.
+
+</details>
 
 ## Application tracking
 
@@ -671,6 +691,9 @@ Inside Claude Desktop or Cursor, open the tools panel — you should see all 17 
 
 ### Tool reference
 
+<details>
+<summary>Show the full tool reference</summary>
+
 | Category | Tool | What it does |
 |---|---|---|
 | **Read** | `list_jobs` | Filter / sort / limit `data/jobs.json`. Supports `category`, `source`, `applied`, `q` (search), `minScore`, `sort`, `dir`, `limit`. |
@@ -693,7 +716,12 @@ Inside Claude Desktop or Cursor, open the tools panel — you should see all 17 
 
 Every tool that accepts a `jobId` validates it against `/^[a-f0-9]{40}$/` (sha1 hex) — the same regex the apply-worker uses to gate path-traversal payloads. Inputs are Zod-checked at the boundary; validation failures come back as error envelopes, not thrown exceptions.
 
+</details>
+
 ### How it actually works
+
+<details>
+<summary>Show how the MCP server works internally</summary>
 
 The MCP server is the **fourth direct consumer** of `src/lib/*` alongside the Vite UI middleware, the standalone apply-worker, and the `pnpm run ai-review` script. No HTTP shim, no CLI subprocess layer — tools call into the same functions the UI uses. That means a `mark_applied` from inside Claude lands in `config/applied.json` the same way (with the same atomic write) as clicking a status pill in the UI.
 
@@ -714,7 +742,12 @@ src/mcp/
 
 **Worker separation is preserved.** `enqueue_apply` adds a row to `data/apply-queue.json` but **does not** spawn the apply-worker — that's still a separate process you start with `pnpm run apply-worker`. If you `enqueue_apply` without the worker running, the tool returns a structured warning telling you to start it. The worker is intentionally decoupled so a crashed worker can't take down the MCP server (and vice versa).
 
+</details>
+
 ### Troubleshooting
+
+<details>
+<summary>Show MCP troubleshooting</summary>
 
 **`claude mcp list` doesn't show `pupila` after install.**
 For Claude Desktop and Cursor, you have to fully quit and relaunch the app — they only read the MCP config at startup. Claude Code picks it up on the next session.
@@ -745,7 +778,12 @@ A tool somewhere wrote to stdout instead of stderr. stdio is the JSON-RPC channe
 **`scripts/install-mcp.sh` exits with "missing prerequisite".**
 Install whichever prereq it called out (node 22+ via `nvm`/`fnm`/`asdf`, pnpm via `corepack enable`, git via your package manager) and re-run. The script never auto-installs system tools — too many ways to silently corrupt a user's environment.
 
+</details>
+
 ## Tuning filters via `config/profile.json`
+
+<details>
+<summary>Show the filter-tuning reference</summary>
 
 [`config/profile.json`](./config/profile.json) externalizes every scoring weight and keyword list. Adjust weights without touching code:
 
@@ -774,6 +812,8 @@ Install whichever prereq it called out (node 22+ via `nvm`/`fnm`/`asdf`, pnpm vi
 ```
 
 Keyword arrays are joined with `|` and compiled into word-bounded, case-insensitive regexes at startup. Adding a keyword is a single-line edit; nothing else needs to change.
+
+</details>
 
 ## Repo layout
 
@@ -957,6 +997,9 @@ Defense-in-depth measures, ranked from runtime to build-time:
 
 ## Known upstream issues (as of 2026-04)
 
+<details>
+<summary>Show known upstream issues</summary>
+
 These are currently affecting the data quality — they're documented here so they're discoverable when you wonder why a source is empty:
 
 - **`cryptojobslist.com`** is fully Cloudflare-challenged for HTML and the `api.cryptojobslist.com/jobs.rss` endpoint currently returns an empty channel. The fetcher gracefully returns `[]` and will pick up jobs again if upstream restores the feed.
@@ -964,6 +1007,8 @@ These are currently affecting the data quality — they're documented here so th
 - **`web3.career`** and **`aijobs.net`** removed RSS — both are now scraped from HTML via small inline regex parsers, which means a markup change upstream will silently degrade them. If a fetcher returns `0` for several days, eyeball the raw HTML for new selectors.
 - **`hn-jobs`** routinely keeps 0–2 entries because YC company posts rarely match the senior+stack signal threshold; this is filtering working as intended, not a bug.
 - **`aijobs.net` is dominated by spam-aggregator listings** (one posting cloned to 50 cities). The fetcher dedups by base ID (`-idNNNNN-` slug pattern), which often collapses an entire page down to 2–5 distinct postings.
+
+</details>
 
 ## Conventional commits
 
