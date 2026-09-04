@@ -36,10 +36,12 @@ export interface AppliedEntry {
 
 export interface Preferences {
   provider: LlmProvider | 'auto' | null;
+  /** Selected Ollama model name when provider is `ollama`. */
+  ollamaModel: string | null;
   onboardedAt: string | null;
 }
 
-export const EMPTY_PREFS: Preferences = { provider: null, onboardedAt: null };
+export const EMPTY_PREFS: Preferences = { provider: null, ollamaModel: null, onboardedAt: null };
 
 // Read a JSON file, falling back to a default if it doesn't exist or is
 // invalid. Used so the UI keeps working on a fresh clone where the personal
@@ -89,7 +91,12 @@ export async function writeApplied(entries: AppliedEntry[]): Promise<void> {
 }
 
 export async function readPreferences(): Promise<Preferences> {
-  return readJsonOrDefault<Preferences>(PREFERENCES_PATH, EMPTY_PREFS);
+  const raw = await readJsonOrDefault<Partial<Preferences>>(PREFERENCES_PATH, EMPTY_PREFS);
+  return {
+    provider: raw.provider ?? null,
+    ollamaModel: typeof raw.ollamaModel === 'string' ? raw.ollamaModel : null,
+    onboardedAt: raw.onboardedAt ?? null,
+  };
 }
 
 export async function writePreferences(prefs: Preferences): Promise<void> {

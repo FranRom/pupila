@@ -60,7 +60,9 @@ type Step = 'provider' | 'cv' | 'preview';
 export function Onboarding({ onComplete }: OnboardingProps) {
   const [step, setStep] = useState<Step>('provider');
   const [available, setAvailable] = useState<Record<Provider, boolean> | null>(null);
+  const [ollamaModels, setOllamaModels] = useState<string[]>([]);
   const [provider, setProvider] = useState<ProviderChoice>('auto');
+  const [ollamaModel, setOllamaModel] = useState<string | null>(null);
   // Set while /api/llm-detect is in flight. Drives the Re-check button label so
   // a user who just installed a CLI in another terminal sees feedback without a
   // page refresh.
@@ -82,8 +84,8 @@ export function Onboarding({ onComplete }: OnboardingProps) {
     keywordsChanged?: string[];
   }>({ url: '/api/profile-generate' });
 
-  // Probe installed-CLI status. Runs on mount and again whenever the user
-  // clicks "Re-check" after downloading/installing a CLI.
+  // Probe installed-CLI status + Ollama models. Runs on mount and again
+  // whenever the user clicks "Re-check" after downloading/installing.
   const probe = useCallback(async (signal?: AbortSignal) => {
     setProbing(true);
     try {
@@ -94,9 +96,18 @@ export function Onboarding({ onComplete }: OnboardingProps) {
         return;
       }
       setAvailable(r.value.available);
-      // Pre-select the first installed CLI as a sensible default.
-      const firstInstalled = PROVIDERS.find((p) => r.value.available[p]);
-      if (firstInstalled) setProvider(firstInstalled);
+      const models = r.value.ollamaModels ?? [];
+      setOllamaModels(models);
+      // Pre-select the first installed CLI as a sensible default. Prefer a
+      // subscription CLI; if only Ollama is available, pick its first model.
+      const firstCli = PROVIDERS.find((p) => p !== 'ollama' && r.value.available[p]);
+      if (firstCli) {
+        setProvider(firstCli);
+        setOllamaModel(null);
+      } else if (r.value.available.ollama && models[0]) {
+        setProvider('ollama');
+        setOllamaModel(models[0]);
+      }
     } finally {
       setProbing(false);
     }
@@ -110,8 +121,21 @@ export function Onboarding({ onComplete }: OnboardingProps) {
 
   const anyAvailable = useMemo(() => {
     if (!available) return false;
-    return PROVIDERS.some((p) => available[p]);
-  }, [available]);
+    if (PROVIDERS.some((p) => p !== 'ollama' && available[p])) return true;
+    return Boolean(available.ollama && ollamaModels.length > 0);
+  }, [available, ollamaModels]);
+
+  const canProceed = anyAvailable && (provider !== 'ollama' || Boolean(ollamaModel));
+
+  const selectCli = useCallback((p: ProviderChoice) => {
+    setProvider(p);
+    if (p !== 'ollama') setOllamaModel(null);
+  }, []);
+
+  const selectOllamaModel = useCallback((name: string) => {
+    setProvider('ollama');
+    setOllamaModel(name);
+  }, []);
 
   const uploadCv = useCallback(
     async (file: File, source: BriefSource = 'cv') => {
@@ -125,7 +149,13 @@ export function Onboarding({ onComplete }: OnboardingProps) {
       try {
         const data =
           format === 'pdf' || format === 'docx' ? await fileToBase64(file) : await file.text();
-        const done = await cv.start({ format, data, source });
+        const done = await cv.start({
+          format,
+          data,
+          source,
+          provider: provider === 'auto' ? null : provider,
+          model: provider === 'ollama' ? ollamaModel : null,
+        });
         if (!done?.body) {
           // hook already set its own error+status; mirror it into the
           // wizard-level error banner so the user sees a single message.
@@ -139,7 +169,7 @@ export function Onboarding({ onComplete }: OnboardingProps) {
         setBusy(false);
       }
     },
-    [cv],
+    [cv, provider, ollamaModel],
   );
 
   const finish = useCallback(async () => {
@@ -154,7 +184,10 @@ export function Onboarding({ onComplete }: OnboardingProps) {
         return;
       }
     }
-    const prefR = await api.preferences.set({ provider });
+    const prefR = await api.preferences.set({
+      provider,
+      ollamaModel: provider === 'ollama' ? ollamaModel : null,
+    });
     if (!prefR.ok) {
       setError(`Could not finish onboarding: preferences save: ${formatError(prefR.error)}`);
       setBusy(false);
@@ -168,25 +201,28 @@ export function Onboarding({ onComplete }: OnboardingProps) {
     // Errors here don't block the handoff — Settings → Scoring profile
     // has a manual retry button.
     setTuning(true);
-    const tuneDone = await tune.start({ provider: provider === 'auto' ? null : provider });
+    const tuneDone = await tune.start({
+      provider: provider === 'auto' ? null : provider,
+      model: provider === 'ollama' ? ollamaModel : null,
+    });
     if (!tuneDone && tune.error) {
       console.warn('[onboarding] profile generation failed; continuing anyway:', tune.error);
     }
     setTuning(false);
     setBusy(false);
     onComplete();
-  }, [briefDraft, generatedBrief, provider, onComplete, tune]);
+  }, [briefDraft, generatedBrief, provider, ollamaModel, onComplete, tune]);
 
   return (
     <div className={styles.wizard}>
       <header className={styles.header}>
         <AsciiHero />
         <p className={styles.subtitle}>
-          A 30-second setup. Pick your LLM CLI, drop your CV, confirm the generated brief.
+          A 30-second setup. Pick your LLM, drop your CV, confirm the generated brief.
         </p>
         <ol className={styles.progress}>
           <li className={step === 'provider' ? styles.progressCurrent : styles.progressDone}>
-            1. LLM CLI
+            1. LLM
           </li>
           <li
             className={
@@ -214,17 +250,17 @@ export function Onboarding({ onComplete }: OnboardingProps) {
 
       {step === 'provider' && (
         <section className={styles.step}>
-          <h2>Pick your LLM CLI</h2>
+          <h2>Pick your LLM</h2>
           <p>
-            Pupila shells out to a local LLM CLI (no API keys, uses your existing subscription) for
-            the CV summary, per-job AI review, and AI Apply. Pick whichever you have installed — or
-            download one below.
+            Pupila uses a local LLM for the CV summary, per-job AI review, and AI Apply — no cloud
+            API keys. Pick a subscription CLI you already have authenticated, or one of your locally
+            pulled Ollama models.
           </p>
           <p className={styles.installHelp}>
-            ⚠️ These are <strong>command-line tools</strong> you run in your terminal — not desktop
-            apps. In particular, <strong>Claude Code</strong> is the terminal tool, <em>not</em> the
-            Claude desktop app. Click <strong>Download</strong>, follow the install guide, then
-            press <strong>Re-check</strong>.
+            ⚠️ Subscription options are <strong>command-line tools</strong> you run in your terminal
+            — not desktop apps. In particular, <strong>Claude Code</strong> is the terminal tool,{' '}
+            <em>not</em> the Claude desktop app. Click <strong>Download</strong>, follow the install
+            guide, then press <strong>Re-check</strong>.
           </p>
           {!available ? (
             <p className={styles.placeholder}>Probing installed CLIs…</p>
@@ -237,15 +273,15 @@ export function Onboarding({ onComplete }: OnboardingProps) {
                     name="provider"
                     value="auto"
                     checked={provider === 'auto'}
-                    onChange={() => setProvider('auto')}
+                    onChange={() => selectCli('auto')}
                   />
                   <strong>Auto-detect</strong>
                   <span className={styles.muted}>
-                    — picks the first installed in claude → codex → gemini → opencode order
+                    — picks the first installed in claude → codex → gemini → opencode → ollama order
                   </span>
                 </label>
               </li>
-              {PROVIDERS.map((p) => {
+              {PROVIDERS.filter((p) => p !== 'ollama').map((p) => {
                 const installed = available[p];
                 const meta = PROVIDER_META[p];
                 return (
@@ -256,7 +292,7 @@ export function Onboarding({ onComplete }: OnboardingProps) {
                         name="provider"
                         value={p}
                         checked={provider === p}
-                        onChange={() => setProvider(p)}
+                        onChange={() => selectCli(p)}
                         disabled={!installed}
                       />
                       <strong>{meta.label}</strong>
@@ -277,12 +313,54 @@ export function Onboarding({ onComplete }: OnboardingProps) {
                   </li>
                 );
               })}
+              <li className={styles.ollamaGroup}>
+                <div className={styles.ollamaHeader}>
+                  <strong>{PROVIDER_META.ollama.label}</strong>
+                  <span className={available.ollama ? styles.available : styles.unavailable}>
+                    {available.ollama ? '✓ installed' : '✗ not installed'}
+                  </span>
+                  {!available.ollama && (
+                    <a
+                      className={styles.installLink}
+                      href={PROVIDER_META.ollama.installUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      Download ↗
+                    </a>
+                  )}
+                </div>
+                {available.ollama && ollamaModels.length === 0 && (
+                  <p className={styles.muted}>
+                    No models pulled yet. Run <code>ollama pull qwen3:14b</code> (or another model),
+                    then Re-check.
+                  </p>
+                )}
+                {available.ollama && ollamaModels.length > 0 && (
+                  <ul className={styles.modelList}>
+                    {ollamaModels.map((name) => (
+                      <li key={name}>
+                        <label>
+                          <input
+                            type="radio"
+                            name="provider"
+                            value={`ollama:${name}`}
+                            checked={provider === 'ollama' && ollamaModel === name}
+                            onChange={() => selectOllamaModel(name)}
+                          />
+                          <strong className={styles.modelName}>{name}</strong>
+                        </label>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </li>
             </ul>
           )}
           {!anyAvailable && available && (
             <p className={styles.warn}>
-              No supported CLI found on PATH. Download one above (Claude Code is the easiest start),
-              install it, then press Re-check.
+              No supported CLI or Ollama model found. Download a CLI above, or install Ollama and{' '}
+              <code>ollama pull</code> a model, then press Re-check.
             </p>
           )}
           <div className={styles.actions}>
@@ -298,7 +376,7 @@ export function Onboarding({ onComplete }: OnboardingProps) {
             <button
               type="button"
               className={buttonStyles.secondary}
-              disabled={!anyAvailable || busy}
+              disabled={!canProceed || busy}
               onClick={() => setStep('cv')}
             >
               Next: upload CV →
@@ -311,9 +389,10 @@ export function Onboarding({ onComplete }: OnboardingProps) {
         <section className={styles.step}>
           <h2>Upload your CV</h2>
           <p>
-            We'll send the contents to your local <code>{provider}</code> CLI to generate a short
-            candidate brief. The original file stays on disk at <code>config/cv.&lt;ext&gt;</code>{' '}
-            (gitignored) so AI Apply can re-attach it later.
+            We'll send the contents to your local{' '}
+            <code>{provider === 'ollama' && ollamaModel ? `ollama/${ollamaModel}` : provider}</code>{' '}
+            to generate a short candidate brief. The original file stays on disk at{' '}
+            <code>config/cv.&lt;ext&gt;</code> (gitignored) so AI Apply can re-attach it later.
           </p>
           <CvDropZone busy={busy} onFile={(f) => uploadCv(f, 'cv')} />
           <LinkedinImport busy={busy} onFile={(f) => uploadCv(f, 'linkedin')} />
@@ -328,7 +407,13 @@ export function Onboarding({ onComplete }: OnboardingProps) {
             stream={cv.stream}
             status={cv.status}
             elapsedMs={cv.elapsedMs}
-            provider={provider === 'auto' ? null : provider}
+            provider={
+              provider === 'auto'
+                ? null
+                : provider === 'ollama' && ollamaModel
+                  ? `ollama/${ollamaModel}`
+                  : provider
+            }
             error={cv.status === 'error' ? error : null}
           />
           <div className={styles.actions}>
@@ -362,7 +447,13 @@ export function Onboarding({ onComplete }: OnboardingProps) {
             stream={tune.stream}
             status={tune.status}
             elapsedMs={tune.elapsedMs}
-            provider={provider === 'auto' ? null : provider}
+            provider={
+              provider === 'auto'
+                ? null
+                : provider === 'ollama' && ollamaModel
+                  ? `ollama/${ollamaModel}`
+                  : provider
+            }
           />
           <div className={styles.actions}>
             <button

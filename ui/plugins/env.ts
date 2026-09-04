@@ -1,7 +1,7 @@
 import { existsSync, statSync } from 'node:fs';
 import os from 'node:os';
 import type { Plugin } from 'vite';
-import { availableProviders, type LlmProvider } from '../../src/lib/llm.js';
+import { availableProviders, type LlmProvider, listOllamaModels } from '../../src/lib/llm.js';
 import { BRIEF_PATH, REPO_ROOT } from './_paths.ts';
 import { findCvPath, readPreferences } from './_shared.ts';
 
@@ -13,6 +13,8 @@ interface EnvInfo {
   cvPresent: boolean;
   providers: Record<LlmProvider, boolean>;
   preferredProvider: LlmProvider | 'auto' | null;
+  ollamaModels: string[];
+  preferredOllamaModel: string | null;
 }
 
 export function envApiPlugin(): Plugin {
@@ -26,10 +28,11 @@ export function envApiPlugin(): Plugin {
           return;
         }
         try {
-          const [providers, prefs, cv] = await Promise.all([
+          const [providers, prefs, cv, ollamaModels] = await Promise.all([
             availableProviders(),
             readPreferences(),
             findCvPath(),
+            listOllamaModels(),
           ]);
           const info: EnvInfo = {
             node: process.version,
@@ -42,6 +45,8 @@ export function envApiPlugin(): Plugin {
             cvPresent: cv !== null,
             providers,
             preferredProvider: prefs.provider,
+            ollamaModels,
+            preferredOllamaModel: prefs.ollamaModel,
           };
           res.setHeader('Content-Type', 'application/json');
           res.end(JSON.stringify(info));

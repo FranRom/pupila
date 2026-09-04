@@ -3,7 +3,7 @@ import type { Plugin } from 'vite';
 import { type BriefSource, buildBriefPrompt } from '../../src/lib/brief-prompt.js';
 import { readBriefBody, writeBriefBody } from '../../src/lib/brief-template.js';
 import { type CvFormat, parseCvBuffer } from '../../src/lib/cv-parser.js';
-import { runLlm } from '../../src/lib/llm.js';
+import { type LlmProvider, runLlm, SUPPORTED_PROVIDERS } from '../../src/lib/llm.js';
 import { stripFences } from '../../src/lib/profile-generator.js';
 import { streamableResponse } from '../../src/lib/streamable-response.js';
 import { CV_BASENAME } from './_paths.ts';
@@ -23,6 +23,11 @@ interface CvPostBody {
   // 'cv' (default) or 'linkedin'. LinkedIn = a profile exported via
   // "Save to PDF"; only changes the LLM prompt framing (see brief-prompt.ts).
   source?: unknown;
+  // Optional provider override from the onboarding picker. When omitted /
+  // null / 'auto', detectLlmCli() picks from PATH.
+  provider?: unknown;
+  /** Ollama model name when provider is ollama. */
+  model?: unknown;
 }
 
 export function briefApiPlugin(): Plugin {
@@ -74,6 +79,8 @@ export function briefApiPlugin(): Plugin {
         // yet so we can still set a status code.
         let format: CvFormat;
         let source: BriefSource;
+        let provider: LlmProvider | undefined;
+        let model: string | null = null;
         let buf: Buffer;
         try {
           const body = (await readBody(req)) as CvPostBody;
@@ -81,6 +88,12 @@ export function briefApiPlugin(): Plugin {
           const data = typeof body.data === 'string' ? body.data : '';
           // Default to 'cv' when omitted so existing callers keep working.
           const rawSource = typeof body.source === 'string' ? body.source : 'cv';
+          const rawProvider = typeof body.provider === 'string' ? body.provider : null;
+          provider =
+            rawProvider && SUPPORTED_PROVIDERS.includes(rawProvider as LlmProvider)
+              ? (rawProvider as LlmProvider)
+              : undefined;
+          model = typeof body.model === 'string' && body.model.trim() ? body.model.trim() : null;
           if (!rawFormat || !VALID_CV_FORMATS.has(rawFormat)) {
             res.statusCode = 400;
             res.setHeader('Content-Type', 'application/json');
@@ -134,10 +147,11 @@ export function briefApiPlugin(): Plugin {
           responder.send({ type: 'stage', stage: 'calling-llm' });
           const raw = await runLlm(
             buildBriefPrompt(cvText, source, CV_MAX_CHARS),
-            undefined,
+            provider,
             responder.isStreaming
               ? (chunk) => responder.send({ type: 'chunk', data: chunk })
               : undefined,
+            model,
           );
           const cleaned = stripFences(raw);
           if (!cleaned) {

@@ -13,7 +13,7 @@ import { fileURLToPath } from 'node:url';
 import { isValidJobId } from './apply-queue.js';
 import { readBriefBody } from './brief-template.js';
 import { parseCvBuffer } from './cv-parser.js';
-import { detectLlmCli, type LlmProvider } from './llm.js';
+import { detectLlmCli, type LlmProvider, runLlm } from './llm.js';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -63,6 +63,8 @@ export interface RunAiApplyOptions {
   repoRoot?: string;
   /** LLM provider override. undefined = auto-detect. */
   provider?: LlmProvider | undefined;
+  /** Ollama model name when provider is ollama. */
+  model?: string | null;
 }
 
 export interface AppliedEntry {
@@ -295,7 +297,7 @@ function spawnLlm(
 // ---------------------------------------------------------------------------
 
 export async function runAiApplyForJob(opts: RunAiApplyOptions): Promise<RunAiApplyResult> {
-  const { jobId, onChunk, signal, repoRoot = DEFAULT_REPO_ROOT, provider } = opts;
+  const { jobId, onChunk, signal, repoRoot = DEFAULT_REPO_ROOT, provider, model } = opts;
 
   // Defense in depth: even though the queue file is supposed to only ever
   // contain valid jobIds (validated at /api/apply-queue entry points), a
@@ -393,7 +395,19 @@ export async function runAiApplyForJob(opts: RunAiApplyOptions): Promise<RunAiAp
   const invocation = await detectLlmCli(provider);
   let spawnResult: SpawnResult;
   try {
-    spawnResult = await spawnLlm(invocation.cmd, invocation.argTemplate, prompt, onChunk, signal);
+    if (invocation.provider === 'ollama') {
+      // Ollama goes through the HTTP helper (same as runLlm) — the CLI
+      // spawn path is TTY-oriented and not cancellable the same way.
+      const stdout = await runLlm(prompt, 'ollama', onChunk, model);
+      spawnResult = {
+        stdout,
+        exitCode: 0,
+        signal: null,
+        aborted: signal?.aborted ?? false,
+      };
+    } else {
+      spawnResult = await spawnLlm(invocation.cmd, invocation.argTemplate, prompt, onChunk, signal);
+    }
   } catch (err) {
     throw new Error(
       `LLM CLI ${invocation.cmd} spawn failed: ${err instanceof Error ? err.message : String(err)}`,

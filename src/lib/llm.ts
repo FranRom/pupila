@@ -1,22 +1,29 @@
-// Provider-agnostic LLM CLI wrapper. Shells out to whichever local LLM CLI is
-// installed (claude / codex / gemini / opencode) so the same code path works
-// for any user's tool of choice. No API keys, no per-token billing — uses the
-// user's existing CLI subscription.
+// Provider-agnostic LLM wrapper. Uses whichever local LLM tool is installed
+// (claude / codex / gemini / opencode / ollama) so the same code path works
+// for any user's tool of choice. No cloud API keys — subscription CLIs use
+// the user's existing plan; ollama runs a local model via the Ollama HTTP API.
 //
 // Detection order:
-//   1. PUPILA_LLM env var (claude | codex | gemini | opencode)
-//   2. First found on PATH in the order: claude > codex > gemini > opencode
+//   1. PUPILA_LLM env var (claude | codex | gemini | opencode | ollama)
+//   2. First found on PATH in the order: claude > codex > gemini > opencode > ollama
 //
 // Override the exact CLI invocation per provider via `PUPILA_LLM_FLAG`
 // (e.g. `PUPILA_LLM_FLAG=--prompt`) if a CLI's flag syntax changes upstream.
+// For ollama, pick the model via (in order): explicit `model` arg to
+// `runLlm`, `PUPILA_LLM_MODEL` env, or the first model returned by
+// `listOllamaModels()` (from the local Ollama daemon).
+// Host override: `OLLAMA_HOST` (default: 127.0.0.1:11434).
 //
-// Prompt delivery: we feed the prompt via STDIN, not argv. Three reasons:
+// Prompt delivery (subscription CLIs): we feed the prompt via STDIN, not argv.
+// Three reasons:
 //   1. argv has a kernel-imposed size limit (ARG_MAX, ~1MB on macOS) and
 //      we sometimes send 10–20KB CV+job blobs.
 //   2. claude-code's `-p` mode reads from stdin when no positional prompt
 //      is given; the same pattern works for codex/gemini/opencode.
 //   3. argv is also visible in `ps`, so stdin keeps the prompt out of
 //      process listings.
+// ollama uses POST /api/generate instead — `ollama run` paints ANSI spinners
+// on a TTY and is awkward to drive non-interactively.
 
 import { execFile, spawn } from 'node:child_process';
 import os from 'node:os';
@@ -134,14 +141,18 @@ async function smokeTestCli(cmd: string): Promise<SmokeTestResult> {
   });
 }
 
-export type LlmProvider = 'claude' | 'codex' | 'gemini' | 'opencode';
+export type LlmProvider = 'claude' | 'codex' | 'gemini' | 'opencode' | 'ollama';
 
 export const SUPPORTED_PROVIDERS: readonly LlmProvider[] = [
   'claude',
   'codex',
   'gemini',
   'opencode',
+  'ollama',
 ] as const;
+
+/** @deprecated Prefer resolving via listOllamaModels() — kept for docs/tests. */
+export const DEFAULT_OLLAMA_MODEL = 'qwen3:14b';
 
 interface ProviderSpec {
   /** Static argv passed before stdin is closed. The prompt is fed via stdin. */
@@ -149,17 +160,72 @@ interface ProviderSpec {
 }
 
 // Each CLI's non-interactive print mode invocation. The prompt itself is
-// piped through stdin, so these arrays hold *only* the mode-selecting flag.
+// piped through stdin, so these arrays hold *only* the mode-selecting flag
+// (except ollama, which is invoked via HTTP — see runOllama).
 //   claude -p             → read prompt from stdin, print response, exit
 //   codex exec            → ditto
 //   gemini -p             → ditto
 //   opencode run          → ditto
+//   ollama                → HTTP /api/generate (args unused at runtime)
 const PROVIDER_DEFAULTS: Record<LlmProvider, ProviderSpec> = {
   claude: { args: ['-p'] },
   codex: { args: ['exec'] },
   gemini: { args: ['-p'] },
   opencode: { args: ['run'] },
+  ollama: { args: [] },
 };
+
+function ollamaBaseUrl(): string {
+  const host = process.env.OLLAMA_HOST?.trim() || '127.0.0.1:11434';
+  return host.startsWith('http://') || host.startsWith('https://') ? host : `http://${host}`;
+}
+
+interface OllamaTagsResponse {
+  models?: Array<{ name?: string }>;
+}
+
+/**
+ * List model names pulled into the local Ollama daemon (`GET /api/tags`).
+ * Returns [] when the daemon is down or the binary isn't useful — callers
+ * treat empty as "no models available" rather than a hard failure.
+ */
+export async function listOllamaModels(): Promise<string[]> {
+  if (!(await commandExists('ollama'))) return [];
+  const url = `${ollamaBaseUrl()}/api/tags`;
+  try {
+    const res = await fetch(url, { signal: AbortSignal.timeout(5_000) });
+    if (!res.ok) return [];
+    const data = (await res.json()) as OllamaTagsResponse;
+    const names = (data.models ?? [])
+      .map((m) => (typeof m.name === 'string' ? m.name.trim() : ''))
+      .filter(Boolean);
+    // Stable, human-friendly order for pickers.
+    return [...new Set(names)].toSorted((a, b) => a.localeCompare(b));
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Resolve which Ollama model to call. Precedence:
+ *   1. Explicit `preferred` (from UI prefs / request body)
+ *   2. `PUPILA_LLM_MODEL` env
+ *   3. First model from `listOllamaModels()`
+ * Throws with a pull hint when nothing resolves.
+ */
+export async function resolveOllamaModel(preferred?: string | null): Promise<string> {
+  const fromArg = preferred?.trim();
+  if (fromArg) return fromArg;
+  const fromEnv = process.env.PUPILA_LLM_MODEL?.trim();
+  if (fromEnv) return fromEnv;
+  const models = await listOllamaModels();
+  const first = models[0];
+  if (first) return first;
+  throw new Error(
+    `No Ollama model available. Pull one (e.g. \`ollama pull ${DEFAULT_OLLAMA_MODEL}\`) ` +
+      'or set PUPILA_LLM_MODEL=<name>, then re-check in Settings / onboarding.',
+  );
+}
 
 export interface LlmInvocation {
   provider: LlmProvider;
@@ -326,6 +392,103 @@ function spawnAndPipe(
   });
 }
 
+interface OllamaGenerateChunk {
+  response?: string;
+  error?: string;
+  done?: boolean;
+}
+
+/**
+ * Drive a local Ollama model via POST /api/generate. Prefer this over
+ * `ollama run` — the CLI paints ANSI spinners and is TTY-oriented.
+ */
+async function runOllama(
+  prompt: string,
+  onChunk?: (chunk: string) => void,
+  preferredModel?: string | null,
+): Promise<string> {
+  const model = await resolveOllamaModel(preferredModel);
+  const url = `${ollamaBaseUrl()}/api/generate`;
+  const stream = Boolean(onChunk);
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model,
+        prompt,
+        stream,
+        // qwen3 (and other thinking models) otherwise dump chain-of-thought
+        // into the response and break JSON-fence parsers downstream.
+        think: false,
+      }),
+      signal: AbortSignal.timeout(RUN_TIMEOUT_MS),
+    });
+  } catch (err) {
+    const detail = err instanceof Error ? err.message : String(err);
+    throw new Error(
+      `ollama request to ${url} failed (${detail}). Is the Ollama daemon running? ` +
+        `Try \`ollama serve\` or open the Ollama app. Model: ${model} ` +
+        '(set via onboarding/Settings, or PUPILA_LLM_MODEL).',
+    );
+  }
+
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    const hint =
+      res.status === 404
+        ? ` Model "${model}" may not be pulled — try \`ollama pull ${model}\`.`
+        : '';
+    throw new Error(
+      `ollama HTTP ${res.status} from ${url}.${hint}${body ? ` Body: ${body.slice(0, 300)}` : ''}`,
+    );
+  }
+
+  if (!stream) {
+    const data = (await res.json()) as OllamaGenerateChunk;
+    if (data.error) throw new Error(`ollama error: ${data.error}`);
+    return data.response ?? '';
+  }
+
+  // Streaming: NDJSON lines `{ "response": "...", "done": false|true }`.
+  if (!res.body) {
+    throw new Error('ollama returned an empty streaming body');
+  }
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  let stdout = '';
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    let newline = buffer.indexOf('\n');
+    while (newline !== -1) {
+      const line = buffer.slice(0, newline).trim();
+      buffer = buffer.slice(newline + 1);
+      newline = buffer.indexOf('\n');
+      if (!line) continue;
+      let chunk: OllamaGenerateChunk;
+      try {
+        chunk = JSON.parse(line) as OllamaGenerateChunk;
+      } catch {
+        continue;
+      }
+      if (chunk.error) throw new Error(`ollama error: ${chunk.error}`);
+      if (chunk.response) {
+        stdout += chunk.response;
+        try {
+          onChunk?.(chunk.response);
+        } catch {
+          // never let a callback exception break the LLM run
+        }
+      }
+    }
+  }
+  return stdout;
+}
+
 /**
  * Run a prompt through the detected LLM CLI and return its stdout. The
  * prompt is fed via stdin. On failure, runs a follow-up smoke test (`<cli>
@@ -341,8 +504,15 @@ export async function runLlm(
   prompt: string,
   override?: LlmProvider,
   onChunk?: (chunk: string) => void,
+  model?: string | null,
 ): Promise<string> {
   const invocation = await detectLlmCli(override);
+
+  // Ollama is HTTP-backed — skip the stdin/CLI spawn path.
+  if (invocation.provider === 'ollama') {
+    return runOllama(prompt, onChunk, model);
+  }
+
   const promptBytes = Buffer.byteLength(prompt, 'utf8');
   const result = await spawnAndPipe(invocation.cmd, invocation.argTemplate, prompt, onChunk);
 
@@ -400,6 +570,7 @@ export async function runLlm(
     lines.push('  PUPILA_LLM=codex pnpm run ui      # if you have codex CLI');
     lines.push('  PUPILA_LLM=gemini pnpm run ui     # if you have gemini-cli');
     lines.push('  PUPILA_LLM=opencode pnpm run ui   # if you have opencode');
+    lines.push('  PUPILA_LLM=ollama pnpm run ui     # if you have ollama + a local model');
     lines.push('=========================================================================');
     lines.push('');
   }

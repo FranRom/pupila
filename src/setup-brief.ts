@@ -16,8 +16,9 @@
 // a LinkedIn profile export so it ignores LinkedIn's boilerplate. A `--file`
 // whose name contains "linkedin" is auto-treated as a LinkedIn source.
 //
-// Provider: auto-detects claude / codex / gemini / opencode on PATH (in that
-// order). Override with PUPILA_LLM=<provider>.
+// Provider: auto-detects claude / codex / gemini / opencode / ollama on PATH
+// (in that order). Override with PUPILA_LLM=<provider>. For ollama, set
+// PUPILA_LLM_MODEL (default qwen3:14b).
 
 import { existsSync } from 'node:fs';
 import { copyFile } from 'node:fs/promises';
@@ -106,8 +107,10 @@ async function main(): Promise<void> {
     console.log('  pnpm run setup-brief --linkedin path/to/profile.pdf   # LinkedIn "Save to PDF"');
     console.log('  cat cv.txt | pnpm run setup-brief');
     console.log('');
-    console.log('Provider: auto-detects claude/codex/gemini/opencode on PATH.');
-    console.log('Override with PUPILA_LLM=<provider>.');
+    console.log('Provider: auto-detects claude/codex/gemini/opencode/ollama on PATH.');
+    console.log(
+      'Override with PUPILA_LLM=<provider>. For ollama, set PUPILA_LLM_MODEL (default qwen3:14b).',
+    );
     return;
   }
 

@@ -21,7 +21,7 @@ Cross-cutting invariants (apply repo-wide):
 
 - **`config/profile.json` is gitignored** — encodes personal scoring preferences. Auto-bootstraps from committed `config/profile.default.json` on first `pnpm run dev` / `pnpm run ui` via `bootstrapProfileIfMissing()` (idempotent — `COPYFILE_EXCL` no-ops on the steady state). Don't bypass; don't commit personalized weights.
 - **Mandatory CV gate**: `pnpm run dev` checks for `config/candidate-brief.md` at startup and exits 1 if missing. Bypass with `PUPILA_NO_BRIEF_CHECK=1` or `--no-brief-check`.
-- **`config/candidate-brief.md` is the only natural-language config** (gitignored). Generated via `pnpm run setup-brief --file ~/cv.pdf` or via the UI's Profile tab (drop PDF/DOCX/MD CV). CLI shells out to `claude`/`codex`/`gemini`/`opencode` — auto-detected, override `PUPILA_LLM=<provider>`.
+- **`config/candidate-brief.md` is the only natural-language config** (gitignored). Generated via `pnpm run setup-brief --file ~/cv.pdf` or via the UI's Profile tab (drop PDF/DOCX/MD CV). CLI shells out to `claude`/`codex`/`gemini`/`opencode`/`ollama` — auto-detected, override `PUPILA_LLM=<provider>` (ollama model via `PUPILA_LLM_MODEL`, default `qwen3:14b`).
 - **Local-first scheduling**: daily aggregation runs via `scripts/install-launchd.sh` (macOS) or `scripts/install-cron.sh` (Linux), not GitHub Actions cron. CI runs only on push/PR for gates.
 - **`config/slugs.local.json` is gitignored**: a personal overlay of per-ATS company-slug add/removes layered on the committed `config/slugs.json` baseline (effective list = shipped baseline plus overlay adds, minus overlay removes; resolved at fetch time in `src/lib/slugs.ts`). Written only by the UI's Settings → Job sources panel (`/api/sources`); **never write `config/slugs.json` from app code.** See the `pupila-fetchers` skill.
 - **`config/applied.json` source of truth** for application tracking (gitignored personal data; the UI writes it via Vite middleware). It's your private application history, so it's NOT committed (that would leak it to anyone cloning the repo); copy the file if you need it on another machine. **Don't filter applied jobs out of the main list**: the user wants them visible.
@@ -137,7 +137,7 @@ Settings tab (eight panels), Jinder (swipe-to-apply queue), AI Apply (per-job ta
 
 ## AI per-job review
 
-`pnpm run ai-review` is a **local-only** companion that augments selected jobs with an LLM review via `src/lib/llm.ts` (auto-detects `claude`/`codex`/`gemini`/`opencode`, override `PUPILA_LLM`). Uses the local subscription — **not** an API key, so no per-token charges. Output: `data/ai-reviews.json`.
+`pnpm run ai-review` is a **local-only** companion that augments selected jobs with an LLM review via `src/lib/llm.ts` (auto-detects `claude`/`codex`/`gemini`/`opencode`/`ollama`, override `PUPILA_LLM`). Subscription CLIs use the local plan — **not** an API key. Ollama uses a local model (`PUPILA_LLM_MODEL`, default `qwen3:14b`). Output: `data/ai-reviews.json`.
 
 Daily workflow:
 

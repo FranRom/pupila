@@ -26,6 +26,7 @@ import { readBody, readJsonOrDefault } from './_shared.ts';
 
 interface ProfileGenerateBody {
   provider?: unknown;
+  model?: unknown;
 }
 
 export function profileApiPlugin(): Plugin {
@@ -192,6 +193,7 @@ export function profileApiPlugin(): Plugin {
         // before the LLM runs. 412/500 stay JSON because they fire before
         // any streaming headers are committed.
         let provider: LlmProvider | undefined;
+        let model: string | null = null;
         let briefBody: string;
         let base: ProfileShape;
         try {
@@ -201,6 +203,7 @@ export function profileApiPlugin(): Plugin {
             rawProvider && SUPPORTED_PROVIDERS.includes(rawProvider as LlmProvider)
               ? (rawProvider as LlmProvider)
               : undefined;
+          model = typeof body.model === 'string' && body.model.trim() ? body.model.trim() : null;
 
           const maybeBrief = await readBriefBody();
           if (!maybeBrief?.trim()) {
@@ -256,6 +259,7 @@ export function profileApiPlugin(): Plugin {
               responder.isStreaming
                 ? (chunk) => responder.send({ type: 'chunk', data: chunk })
                 : undefined,
+              model,
             );
           } catch (err) {
             responder.fail(

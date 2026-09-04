@@ -8,15 +8,22 @@ const NONE_INSTALLED: Record<Provider, boolean> = {
   codex: false,
   gemini: false,
   opencode: false,
+  ollama: false,
 };
 
 // Route every /api/llm-detect probe through `getAvailable`, which is read
 // fresh per call so a test can flip availability between probes (Re-check).
-function mockDetect(getAvailable: () => Record<Provider, boolean>) {
+function mockDetect(
+  getAvailable: () => Record<Provider, boolean>,
+  getModels: () => string[] = () => [],
+) {
   globalThis.fetch = vi.fn(async (input: RequestInfo | URL) => {
     const url = typeof input === 'string' ? input : input.toString();
     if (url.includes('/api/llm-detect')) {
-      return new Response(JSON.stringify({ available: getAvailable() }), { status: 200 });
+      return new Response(
+        JSON.stringify({ available: getAvailable(), ollamaModels: getModels() }),
+        { status: 200 },
+      );
     }
     return new Response('not mocked', { status: 500 });
   }) as typeof fetch;
@@ -51,6 +58,7 @@ describe('Onboarding — provider step', () => {
       'https://github.com/openai/codex',
       'https://github.com/google-gemini/gemini-cli',
       'https://opencode.ai/docs/',
+      'https://ollama.com/download',
     ]);
     // Links open safely in a new tab.
     for (const a of downloadLinks()) {
@@ -66,10 +74,24 @@ describe('Onboarding — provider step', () => {
 
     // claude installed → its radio is selectable and it carries no Download link.
     expect(screen.getByRole('radio', { name: /claude code/i })).toBeEnabled();
-    expect(downloadLinks()).toHaveLength(3);
+    expect(downloadLinks()).toHaveLength(4);
     expect(downloadLinks().map((a) => a.getAttribute('href'))).not.toContain(
       'https://code.claude.com/docs/en/quickstart',
     );
+  });
+
+  it('lists pulled Ollama models as selectable radios', async () => {
+    mockDetect(
+      () => ({ ...NONE_INSTALLED, ollama: true }),
+      () => ['gemma4:latest', 'qwen3:14b'],
+    );
+    render(<Onboarding onComplete={vi.fn()} />);
+    await waitFor(() => expect(screen.getByText('Auto-detect')).toBeInTheDocument());
+
+    expect(screen.getByRole('radio', { name: /qwen3:14b/i })).toBeEnabled();
+    expect(screen.getByRole('radio', { name: /gemma4:latest/i })).toBeEnabled();
+    // Pre-selects the first model when only Ollama is available.
+    expect(screen.getByRole('radio', { name: /gemma4:latest/i })).toBeChecked();
   });
 
   it('re-probes detection when Re-check is clicked', async () => {
@@ -77,13 +99,13 @@ describe('Onboarding — provider step', () => {
     mockDetect(() => ({ ...NONE_INSTALLED, claude: claudeInstalled }));
     render(<Onboarding onComplete={vi.fn()} />);
     await waitFor(() => expect(screen.getByText('Auto-detect')).toBeInTheDocument());
-    expect(downloadLinks()).toHaveLength(4);
+    expect(downloadLinks()).toHaveLength(5);
 
     // User installs Claude Code in another terminal, then hits Re-check.
     claudeInstalled = true;
     fireEvent.click(screen.getByRole('button', { name: /re-check/i }));
 
-    await waitFor(() => expect(downloadLinks()).toHaveLength(3));
+    await waitFor(() => expect(downloadLinks()).toHaveLength(4));
     expect(screen.getByRole('radio', { name: /claude code/i })).toBeEnabled();
   });
 });
@@ -126,9 +148,13 @@ describe('Onboarding — CV upload step', () => {
     globalThis.fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = typeof input === 'string' ? input : input.toString();
       if (url.includes('/api/llm-detect')) {
-        return new Response(JSON.stringify({ available: { ...NONE_INSTALLED, claude: true } }), {
-          status: 200,
-        });
+        return new Response(
+          JSON.stringify({
+            available: { ...NONE_INSTALLED, claude: true },
+            ollamaModels: [],
+          }),
+          { status: 200 },
+        );
       }
       if (url.includes('/api/cv')) {
         cvBodyRaw = String(init?.body);

@@ -205,6 +205,7 @@ export function aiApplyApiPlugin(): Plugin {
 
           const prefs = await readPreferences();
           const provider = prefs.provider && prefs.provider !== 'auto' ? prefs.provider : undefined;
+          const model = prefs.ollamaModel;
 
           // All inputs validated — seed the state slot, kick off the core in
           // the background (lock already claimed at the top), return 202.
@@ -222,7 +223,7 @@ export function aiApplyApiPlugin(): Plugin {
             output: '',
             path: null,
             applied: null,
-            provider: provider ?? 'auto',
+            provider: provider === 'ollama' && model ? `ollama/${model}` : (provider ?? 'auto'),
             error: null,
           };
 
@@ -232,6 +233,7 @@ export function aiApplyApiPlugin(): Plugin {
               const result = await runAiApplyForJob({
                 jobId,
                 provider,
+                model,
                 repoRoot: REPO_ROOT,
                 onChunk: (chunk: string) => {
                   // Append + cap to AI_APPLY_OUTPUT_CAP chars to keep the

@@ -1,4 +1,4 @@
-// [01] LLM CLI panel — switch + test the configured provider.
+// [01] LLM panel — switch + test the configured provider / Ollama model.
 
 import clsx from 'clsx';
 import buttonStyles from '../styles/Button.module.css';
@@ -7,8 +7,10 @@ import { ProviderChip, Section, SkeletonRows, settingsStyles } from './shared.ts
 import {
   type EnvInfo,
   type LlmTestResult,
+  PROVIDER_META,
   PROVIDERS,
   type PreferencesResponse,
+  type Provider,
   type ProviderChoice,
 } from './types.ts';
 
@@ -16,7 +18,9 @@ interface LlmCliPanelProps {
   prefs: PreferencesResponse | null;
   envInfo: EnvInfo | null;
   provider: ProviderChoice;
+  ollamaModel: string | null;
   onProviderChange: (next: ProviderChoice) => void;
+  onOllamaModelChange: (next: string | null) => void;
   onSave: () => void;
   onTest: () => void;
   savingProvider: boolean;
@@ -26,26 +30,39 @@ interface LlmCliPanelProps {
   savedToastVisible: boolean;
 }
 
+const CLI_PROVIDERS = PROVIDERS.filter((p): p is Exclude<Provider, 'ollama'> => p !== 'ollama');
+
 export function LlmCliPanel({
   prefs,
   envInfo,
   provider,
+  ollamaModel,
   onProviderChange,
+  onOllamaModelChange,
   onSave,
   onTest,
   savingProvider,
   llmTest,
   savedToastVisible,
 }: LlmCliPanelProps) {
-  const detectedAny = envInfo ? PROVIDERS.some((p) => envInfo.providers[p]) : false;
+  const detectedAny = envInfo
+    ? CLI_PROVIDERS.some((p) => envInfo.providers[p]) ||
+      (envInfo.providers.ollama && envInfo.ollamaModels.length > 0)
+    : false;
+  const canSave = provider !== 'ollama' || Boolean(ollamaModel);
+  const chipLabel =
+    prefs?.provider === 'ollama' && prefs.ollamaModel
+      ? `ollama/${prefs.ollamaModel}`
+      : prefs?.provider;
+
   return (
     <Section
       index="01"
-      title="LLM CLI"
-      subtitle="Local CLI used for the CV summary, AI review, and AI Apply."
+      title="LLM"
+      subtitle="Local CLI or Ollama model used for the CV summary, AI review, and AI Apply."
       meta={
-        prefs?.provider ? (
-          <ProviderChip provider={prefs.provider} />
+        chipLabel ? (
+          <ProviderChip provider={chipLabel} />
         ) : (
           <span className={clsx(settingsStyles.pill, settingsStyles.pillWarn)}>not set</span>
         )
@@ -62,15 +79,18 @@ export function LlmCliPanel({
                 name="settings-provider"
                 value="auto"
                 checked={provider === 'auto'}
-                onChange={() => onProviderChange('auto')}
+                onChange={() => {
+                  onProviderChange('auto');
+                  onOllamaModelChange(null);
+                }}
               />
               <strong>Auto-detect</strong>
               <span className={styles.muted}>
-                — first installed in claude → codex → gemini → opencode
+                — first installed in claude → codex → gemini → opencode → ollama
               </span>
             </label>
           </li>
-          {PROVIDERS.map((p) => (
+          {CLI_PROVIDERS.map((p) => (
             <li key={p}>
               <label>
                 <input
@@ -78,21 +98,58 @@ export function LlmCliPanel({
                   name="settings-provider"
                   value={p}
                   checked={provider === p}
-                  onChange={() => onProviderChange(p)}
+                  onChange={() => {
+                    onProviderChange(p);
+                    onOllamaModelChange(null);
+                  }}
                   disabled={!envInfo.providers[p]}
                 />
-                <strong>{p}</strong>
+                <strong>{PROVIDER_META[p].label}</strong>
                 <span className={envInfo.providers[p] ? styles.available : styles.unavailable}>
                   {envInfo.providers[p] ? '✓ installed' : '✗ not on PATH'}
                 </span>
               </label>
             </li>
           ))}
+          <li className={styles.ollamaGroup}>
+            <div className={styles.ollamaHeader}>
+              <strong>{PROVIDER_META.ollama.label}</strong>
+              <span className={envInfo.providers.ollama ? styles.available : styles.unavailable}>
+                {envInfo.providers.ollama ? '✓ installed' : '✗ not on PATH'}
+              </span>
+            </div>
+            {envInfo.providers.ollama && envInfo.ollamaModels.length === 0 && (
+              <p className={styles.muted}>
+                No models pulled. Run <code>ollama pull &lt;model&gt;</code>, then reload Settings.
+              </p>
+            )}
+            {envInfo.providers.ollama && envInfo.ollamaModels.length > 0 && (
+              <ul className={styles.modelList}>
+                {envInfo.ollamaModels.map((name) => (
+                  <li key={name}>
+                    <label>
+                      <input
+                        type="radio"
+                        name="settings-provider"
+                        value={`ollama:${name}`}
+                        checked={provider === 'ollama' && ollamaModel === name}
+                        onChange={() => {
+                          onProviderChange('ollama');
+                          onOllamaModelChange(name);
+                        }}
+                      />
+                      <strong className={styles.modelName}>{name}</strong>
+                    </label>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </li>
         </ul>
       )}
       {!detectedAny && envInfo && (
         <p className={styles.warn}>
-          No supported LLM CLI on PATH. Install one (e.g.{' '}
+          No supported LLM CLI or Ollama model found. Install a CLI (e.g.{' '}
           <a
             href="https://docs.claude.com/en/docs/claude-code/quickstart"
             target="_blank"
@@ -100,14 +157,14 @@ export function LlmCliPanel({
           >
             Claude Code
           </a>
-          ) to enable AI features.
+          ) or pull an Ollama model to enable AI features.
         </p>
       )}
       <div className={settingsStyles.actions}>
         <button
           type="button"
           className={buttonStyles.secondary}
-          disabled={savingProvider || !envInfo}
+          disabled={savingProvider || !envInfo || !canSave}
           onClick={onSave}
         >
           {savingProvider ? 'Saving…' : 'Save provider'}
@@ -115,7 +172,7 @@ export function LlmCliPanel({
         <button
           type="button"
           className={buttonStyles.primary}
-          disabled={llmTest.busy || !detectedAny}
+          disabled={llmTest.busy || !detectedAny || !canSave}
           onClick={onTest}
         >
           {llmTest.busy ? 'Testing…' : 'Test connection'}
