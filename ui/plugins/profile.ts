@@ -209,10 +209,11 @@ export function profileApiPlugin(): Plugin {
             SUPPORTED_PROVIDERS.includes(rawProvider as LlmProvider)
           ) {
             provider = rawProvider as LlmProvider;
-            model = provider === 'ollama' ? (rawModel ?? prefs.model) : null;
+            // Model is inert for CLI providers; keep it so auto→ollama later still works.
+            model = rawModel ?? prefs.model;
           } else if (rawProvider === 'auto') {
             provider = undefined;
-            model = null;
+            model = rawModel ?? prefs.model;
           } else {
             // Body omitted provider (Settings → Regenerate) — use saved prefs.
             provider = prefs.provider;

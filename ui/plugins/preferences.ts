@@ -54,9 +54,11 @@ export function preferencesApiPlugin(): Plugin {
               return;
             }
             const existing = await readPreferences();
+            // Keep ollamaModel for any provider — inert for CLI providers, but
+            // required when auto-detect later resolves to ollama.
             const next: Preferences = {
               provider,
-              ollamaModel: provider === 'ollama' ? ollamaModel : null,
+              ollamaModel,
               onboardedAt: existing.onboardedAt ?? new Date().toISOString().slice(0, 10),
             };
             await writePreferences(next);

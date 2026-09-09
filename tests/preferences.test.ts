@@ -17,26 +17,26 @@ describe('readLlmPreference', () => {
     expect(result).toEqual({ provider: undefined, model: null });
   });
 
-  it('treats provider auto / invalid as undefined', async () => {
+  it('treats provider auto / invalid as undefined but keeps ollamaModel', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'pupila-prefs-'));
     expect(
       await readLlmPreference(writePrefs(dir, { provider: 'auto', ollamaModel: 'qwen3:14b' })),
     ).toEqual({
       provider: undefined,
-      model: null,
+      model: 'qwen3:14b',
     });
     expect(
       await readLlmPreference(
         writePrefs(dir, { provider: 'not-a-provider', ollamaModel: 'qwen3:14b' }),
       ),
-    ).toEqual({ provider: undefined, model: null });
+    ).toEqual({ provider: undefined, model: 'qwen3:14b' });
   });
 
-  it('gates ollamaModel on provider === ollama', async () => {
+  it('returns ollamaModel whenever it is a non-empty string', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'pupila-prefs-'));
     expect(
       await readLlmPreference(writePrefs(dir, { provider: 'claude', ollamaModel: 'qwen3:14b' })),
-    ).toEqual({ provider: 'claude', model: null });
+    ).toEqual({ provider: 'claude', model: 'qwen3:14b' });
 
     expect(
       await readLlmPreference(

@@ -13,7 +13,11 @@ const DEFAULT_PREFERENCES_PATH = fileURLToPath(
 export interface LlmPreference {
   /** Explicit provider, or undefined for auto-detect. */
   provider: LlmProvider | undefined;
-  /** Ollama model when provider is ollama; otherwise null. */
+  /**
+   * Saved Ollama model name when `ollamaModel` is non-empty in preferences.
+   * Returned regardless of `provider` (inert for CLI providers; used when
+   * auto-detect resolves to ollama).
+   */
   model: string | null;
 }
 
@@ -24,8 +28,9 @@ function isSupportedProvider(value: string): value is LlmProvider {
 /**
  * Read the user's saved LLM choice from preferences.json.
  *
- * - `provider: 'auto'` / missing / invalid → `{ provider: undefined, model: null }`
- * - `model` is set only when `provider === 'ollama'` and `ollamaModel` is non-empty
+ * - `provider: 'auto'` / missing / invalid → `{ provider: undefined, ... }`
+ * - `model` is the trimmed `ollamaModel` whenever it is a non-empty string
+ *   (not gated on `provider === 'ollama'`)
  * - Missing or unparseable file → auto-detect shape (no throw)
  */
 export async function readLlmPreference(
@@ -42,7 +47,7 @@ export async function readLlmPreference(
       provider = prefs.provider;
     }
     const model =
-      provider === 'ollama' && typeof prefs.ollamaModel === 'string' && prefs.ollamaModel.trim()
+      typeof prefs.ollamaModel === 'string' && prefs.ollamaModel.trim()
         ? prefs.ollamaModel.trim()
         : null;
     return { provider, model };

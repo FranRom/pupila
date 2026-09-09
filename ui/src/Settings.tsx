@@ -157,7 +157,7 @@ export function Settings({
     setError(null);
     const r = await api.preferences.set({
       provider,
-      ollamaModel: provider === 'ollama' ? ollamaModel : null,
+      ollamaModel,
     });
     setSavingProvider(false);
     if (!r.ok) {
@@ -175,7 +175,7 @@ export function Settings({
     setError(null);
     const r = await api.llm.test({
       provider,
-      model: provider === 'ollama' ? ollamaModel : null,
+      model: ollamaModel,
     });
     if (r.ok) {
       setLlmTest({ busy: false, result: r.value });

@@ -394,51 +394,52 @@ export async function runAiApplyForJob(opts: RunAiApplyOptions): Promise<RunAiAp
   // 6. Spawn LLM with cancellation support
   const invocation = await detectLlmCli(provider);
   let spawnResult: SpawnResult;
-  try {
-    if (invocation.provider === 'ollama') {
-      // Call runOllama directly (skip detectLlmCli re-probe inside runLlm)
-      // and forward the cancel signal into the HTTP fetch.
-      let streamed = '';
-      const wrapChunk =
-        onChunk || signal
-          ? (chunk: string) => {
-              streamed += chunk;
-              onChunk?.(chunk);
-            }
-          : undefined;
-      try {
-        const stdout = await runOllama(prompt, wrapChunk, model, signal);
+  if (invocation.provider === 'ollama') {
+    // Call runOllama directly (skip detectLlmCli re-probe inside runLlm)
+    // and forward the cancel signal into the HTTP fetch. Ollama errors
+    // (timeout, daemon-down) propagate unchanged — do not wrap as "spawn failed".
+    let streamed = '';
+    const wrapChunk =
+      onChunk || signal
+        ? (chunk: string) => {
+            streamed += chunk;
+            onChunk?.(chunk);
+          }
+        : undefined;
+    try {
+      const stdout = await runOllama(prompt, wrapChunk, model, signal);
+      spawnResult = {
+        stdout,
+        exitCode: 0,
+        signal: null,
+        aborted: false,
+      };
+    } catch (err) {
+      const aborted =
+        signal?.aborted === true ||
+        (err instanceof Error && err.name === 'AbortError') ||
+        (typeof DOMException !== 'undefined' &&
+          err instanceof DOMException &&
+          err.name === 'AbortError');
+      if (aborted) {
         spawnResult = {
-          stdout,
-          exitCode: 0,
+          stdout: streamed,
+          exitCode: null,
           signal: null,
-          aborted: false,
+          aborted: true,
         };
-      } catch (err) {
-        const aborted =
-          signal?.aborted === true ||
-          (err instanceof Error && err.name === 'AbortError') ||
-          (typeof DOMException !== 'undefined' &&
-            err instanceof DOMException &&
-            err.name === 'AbortError');
-        if (aborted) {
-          spawnResult = {
-            stdout: streamed,
-            exitCode: null,
-            signal: null,
-            aborted: true,
-          };
-        } else {
-          throw err;
-        }
+      } else {
+        throw err;
       }
-    } else {
-      spawnResult = await spawnLlm(invocation.cmd, invocation.argTemplate, prompt, onChunk, signal);
     }
-  } catch (err) {
-    throw new Error(
-      `LLM CLI ${invocation.cmd} spawn failed: ${err instanceof Error ? err.message : String(err)}`,
-    );
+  } else {
+    try {
+      spawnResult = await spawnLlm(invocation.cmd, invocation.argTemplate, prompt, onChunk, signal);
+    } catch (err) {
+      throw new Error(
+        `LLM CLI ${invocation.cmd} spawn failed: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
   }
 
   if (!spawnResult.aborted && spawnResult.exitCode !== 0) {

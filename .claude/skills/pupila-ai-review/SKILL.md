@@ -5,7 +5,7 @@ metadata:
   scope: pupila
 ---
 
-`pnpm run ai-review` is a **local-only** companion that augments selected jobs with an LLM review via `src/lib/llm.ts` (auto-detects `claude` / `codex` / `gemini` / `opencode` / `ollama`, override `PUPILA_LLM`). Subscription CLIs use the user's local plan — NOT an API key. Ollama runs a local model via HTTP (`PUPILA_LLM_MODEL`, default `qwen3:14b`).
+`pnpm run ai-review` is a **local-only** companion that augments selected jobs with an LLM review via `src/lib/llm.ts` (auto-detects `claude` / `codex` / `gemini` / `opencode` / `ollama`, override `PUPILA_LLM`). Subscription CLIs use the user's local plan — NOT an API key. Ollama runs a local model via HTTP (UI selection / `PUPILA_LLM_MODEL`, or the sole pulled model with a warning — no hardcoded default).
 
 The launchd/cron review agent runs daily at 07:15 by default. Without an LLM CLI, run `scripts/install-launchd.sh --no-review` (or cron equivalent).
 
@@ -54,7 +54,7 @@ Tests in `tests/ai-review-parse.test.ts` (9 cases) cover all the failure modes s
 
 ## The candidate brief
 
-`config/candidate-brief.md` is the **only natural-language config in the repo**. Hand-edited, gitignored. Generated via `pnpm run setup-brief --file ~/cv.pdf` (or via the UI's Profile tab → drop a PDF/DOCX/MD CV). The CLI shells out to whichever local LLM tool is installed (`claude` / `codex` / `gemini` / `opencode` / `ollama` — auto-detected; override via `PUPILA_LLM=<provider>`). For ollama, set `PUPILA_LLM_MODEL` (default `qwen3:14b`).
+`config/candidate-brief.md` is the **only natural-language config in the repo**. Hand-edited, gitignored. Generated via `pnpm run setup-brief --file ~/cv.pdf` (or via the UI's Profile tab → drop a PDF/DOCX/MD CV). The CLI shells out to whichever local LLM tool is installed (`claude` / `codex` / `gemini` / `opencode` / `ollama` — auto-detected; override via `PUPILA_LLM=<provider>`). For ollama, set the model in Settings / onboarding or `PUPILA_LLM_MODEL` (no hardcoded default; a sole pulled model is used with a warning).
 
 The brief is embedded **verbatim** in the review prompt — it's the main lever for tuning match/skip behaviour. To change verdicts at scale, edit the brief; to change individual scores, see the `pupila-filters` skill.
 
@@ -102,8 +102,8 @@ git commit -m "chore: daily run + ai reviews"
 - Provider id: `ollama`. Detected when the `ollama` binary is on PATH.
 - Invoked via `POST http://$OLLAMA_HOST/api/generate` (default host `127.0.0.1:11434`), not `ollama run` (TTY spinners).
 - Models are listed live from `GET /api/tags` and shown as selectable radios in onboarding + Settings (stored as `preferences.ollamaModel`).
-- Resolution order for the model name: request/UI selection / `preferences.ollamaModel` → `PUPILA_LLM_MODEL` env (no silent daemon fallback).
-- Context: requests set `options.num_ctx` from the prompt size (override with `PUPILA_OLLAMA_NUM_CTX`).
+- Resolution order for the model name: request/UI selection / `preferences.ollamaModel` → `PUPILA_LLM_MODEL` env → sole pulled generation-capable model (with a console warning) → throw.
+- Context: requests set `options.num_ctx` from the prompt size (override with `PUPILA_OLLAMA_NUM_CTX`, hard-capped at 32768).
 - Thinking models (qwen3): requests set `think: false` so chain-of-thought doesn't break JSON parsers.
 
 ## Related

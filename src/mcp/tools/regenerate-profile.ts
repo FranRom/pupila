@@ -70,15 +70,16 @@ export async function runRegenerateProfile(
     }
 
     // Resolve provider/model: explicit input wins; omitted → prefs; 'auto' → detect.
+    // Keep prefs.model even for auto / CLI providers — inert unless detect resolves to ollama.
     const prefs = await (deps.readLlmPreference ?? readLlmPreference)();
     let provider: LlmProvider | undefined;
     let model: string | null = null;
     if (input.provider === 'auto') {
       provider = undefined;
-      model = null;
+      model = prefs.model;
     } else if (input.provider) {
       provider = input.provider;
-      model = provider === 'ollama' ? prefs.model : null;
+      model = prefs.model;
     } else {
       provider = prefs.provider;
       model = prefs.model;

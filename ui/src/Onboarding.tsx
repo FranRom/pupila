@@ -154,7 +154,7 @@ export function Onboarding({ onComplete }: OnboardingProps) {
           data,
           source,
           provider: provider === 'auto' ? null : provider,
-          model: provider === 'ollama' ? ollamaModel : null,
+          model: ollamaModel,
         });
         if (!done?.body) {
           // hook already set its own error+status; mirror it into the
@@ -186,7 +186,7 @@ export function Onboarding({ onComplete }: OnboardingProps) {
     }
     const prefR = await api.preferences.set({
       provider,
-      ollamaModel: provider === 'ollama' ? ollamaModel : null,
+      ollamaModel,
     });
     if (!prefR.ok) {
       setError(`Could not finish onboarding: preferences save: ${formatError(prefR.error)}`);
@@ -203,7 +203,7 @@ export function Onboarding({ onComplete }: OnboardingProps) {
     setTuning(true);
     const tuneDone = await tune.start({
       provider: provider === 'auto' ? null : provider,
-      model: provider === 'ollama' ? ollamaModel : null,
+      model: ollamaModel,
     });
     if (!tuneDone && tune.error) {
       console.warn('[onboarding] profile generation failed; continuing anyway:', tune.error);
