@@ -10,9 +10,10 @@
 // Override the exact CLI invocation per provider via `PUPILA_LLM_FLAG`
 // (e.g. `PUPILA_LLM_FLAG=--prompt`) if a CLI's flag syntax changes upstream.
 // For ollama, pick the model via (in order): explicit `model` arg to
-// `runLlm`, `PUPILA_LLM_MODEL` env, or the first model returned by
-// `listOllamaModels()` (from the local Ollama daemon).
-// Host override: `OLLAMA_HOST` (default: 127.0.0.1:11434).
+// `runLlm` / prefs, then `PUPILA_LLM_MODEL` env. No silent daemon fallback —
+// missing both throws so the user picks a model in Settings or sets the env.
+// Context window: `options.num_ctx` is sized from the prompt (override with
+// `PUPILA_OLLAMA_NUM_CTX`). Host override: `OLLAMA_HOST` (default: 127.0.0.1:11434).
 //
 // Prompt delivery (subscription CLIs): we feed the prompt via STDIN, not argv.
 // Three reasons:
@@ -184,10 +185,78 @@ interface OllamaTagsResponse {
   models?: Array<{ name?: string }>;
 }
 
+/** Names that look like embedding-only models — unsuitable for /api/generate. */
+const EMBED_MODEL_RE = /embed|minilm|bge-|e5-|nomic-embed/i;
+
+export function isLikelyEmbedModel(name: string): boolean {
+  return EMBED_MODEL_RE.test(name);
+}
+
+const NUM_CTX_FLOOR = 8192;
+const NUM_CTX_HEADROOM = 2048;
+
+/** Rough token count from chars (no floor/headroom) — for truncation checks. */
+export function estimatePromptTokens(prompt: string): number {
+  return Math.ceil(prompt.length / 3.5);
+}
+
+/** Context window size to request: prompt estimate + headroom, floored. */
+export function estimateOllamaNumCtx(prompt: string): number {
+  return Math.max(NUM_CTX_FLOOR, estimatePromptTokens(prompt) + NUM_CTX_HEADROOM);
+}
+
+function resolveNumCtx(prompt: string): number {
+  const fromEnv = Number(process.env.PUPILA_OLLAMA_NUM_CTX ?? '0');
+  if (Number.isFinite(fromEnv) && fromEnv > 0) return Math.floor(fromEnv);
+  return estimateOllamaNumCtx(prompt);
+}
+
 /**
- * List model names pulled into the local Ollama daemon (`GET /api/tags`).
- * Returns [] when the daemon is down or the binary isn't useful — callers
- * treat empty as "no models available" rather than a hard failure.
+ * Warn only when the prompt likely needed more tokens than the window we
+ * requested AND Ollama evaluated far fewer than the prompt-size estimate.
+ * Comparing against the floored num_ctx (e.g. 8192) for short prompts was a
+ * false positive — a ~900-token review prompt is not truncated.
+ */
+export function warnIfPromptTruncated(
+  promptTokenEstimate: number,
+  promptEvalCount: number | undefined,
+  numCtx: number,
+): void {
+  if (typeof promptEvalCount !== 'number' || !Number.isFinite(promptEvalCount)) return;
+  if (promptTokenEstimate <= numCtx) return;
+  if (promptEvalCount < promptTokenEstimate * 0.85) {
+    console.warn(
+      `[ollama] prompt_eval_count=${promptEvalCount} is far below estimated ${promptTokenEstimate} ` +
+        `(num_ctx=${numCtx}) — the prompt may have been truncated. ` +
+        'Raise PUPILA_OLLAMA_NUM_CTX or shorten the input.',
+    );
+  }
+}
+
+function isAbortError(err: unknown): boolean {
+  return (
+    (err instanceof Error && err.name === 'AbortError') ||
+    (typeof DOMException !== 'undefined' &&
+      err instanceof DOMException &&
+      err.name === 'AbortError')
+  );
+}
+
+const RUN_TIMEOUT_MS = Number(process.env.PUPILA_LLM_TIMEOUT_MS ?? '300000'); // 5 min default
+
+function combineRunSignal(signal?: AbortSignal): AbortSignal {
+  if (signal) {
+    return AbortSignal.any([signal, AbortSignal.timeout(RUN_TIMEOUT_MS)]);
+  }
+  return AbortSignal.timeout(RUN_TIMEOUT_MS);
+}
+
+/**
+ * List generation-capable model names pulled into the local Ollama daemon
+ * (`GET /api/tags`). Embedding-only names are filtered out so pickers /
+ * onboarding auto-select cannot land on `all-minilm` etc. Returns [] when
+ * the daemon is down or the binary isn't useful — callers treat empty as
+ * "no models available" rather than a hard failure.
  */
 export async function listOllamaModels(): Promise<string[]> {
   if (!(await commandExists('ollama'))) return [];
@@ -198,7 +267,7 @@ export async function listOllamaModels(): Promise<string[]> {
     const data = (await res.json()) as OllamaTagsResponse;
     const names = (data.models ?? [])
       .map((m) => (typeof m.name === 'string' ? m.name.trim() : ''))
-      .filter(Boolean);
+      .filter((n): n is string => Boolean(n) && !isLikelyEmbedModel(n));
     // Stable, human-friendly order for pickers.
     return [...new Set(names)].toSorted((a, b) => a.localeCompare(b));
   } catch {
@@ -210,20 +279,17 @@ export async function listOllamaModels(): Promise<string[]> {
  * Resolve which Ollama model to call. Precedence:
  *   1. Explicit `preferred` (from UI prefs / request body)
  *   2. `PUPILA_LLM_MODEL` env
- *   3. First model from `listOllamaModels()`
- * Throws with a pull hint when nothing resolves.
+ * Throws when neither is set — silent "first tag alphabetically" is unsafe
+ * (embedding models sort first and cannot serve /api/generate).
  */
 export async function resolveOllamaModel(preferred?: string | null): Promise<string> {
   const fromArg = preferred?.trim();
   if (fromArg) return fromArg;
   const fromEnv = process.env.PUPILA_LLM_MODEL?.trim();
   if (fromEnv) return fromEnv;
-  const models = await listOllamaModels();
-  const first = models[0];
-  if (first) return first;
   throw new Error(
-    `No Ollama model available. Pull one (e.g. \`ollama pull ${DEFAULT_OLLAMA_MODEL}\`) ` +
-      'or set PUPILA_LLM_MODEL=<name>, then re-check in Settings / onboarding.',
+    `No Ollama model selected. Pick one in Settings / onboarding, or set ` +
+      `PUPILA_LLM_MODEL=<name> (e.g. \`ollama pull ${DEFAULT_OLLAMA_MODEL}\`).`,
   );
 }
 
@@ -298,8 +364,6 @@ export async function detectLlmCli(override?: LlmProvider): Promise<LlmInvocatio
       'See https://docs.claude.com/en/docs/claude-code/quickstart for Claude Code.',
   );
 }
-
-const RUN_TIMEOUT_MS = Number(process.env.PUPILA_LLM_TIMEOUT_MS ?? '300000'); // 5 min default
 
 interface RawRunResult {
   stdout: string;
@@ -396,20 +460,26 @@ interface OllamaGenerateChunk {
   response?: string;
   error?: string;
   done?: boolean;
+  prompt_eval_count?: number;
 }
 
 /**
  * Drive a local Ollama model via POST /api/generate. Prefer this over
  * `ollama run` — the CLI paints ANSI spinners and is TTY-oriented.
+ * Pass `signal` to cancel mid-request (combined with the run timeout).
  */
-async function runOllama(
+export async function runOllama(
   prompt: string,
   onChunk?: (chunk: string) => void,
   preferredModel?: string | null,
+  signal?: AbortSignal,
 ): Promise<string> {
   const model = await resolveOllamaModel(preferredModel);
+  const numCtx = resolveNumCtx(prompt);
+  const promptTokenEstimate = estimatePromptTokens(prompt);
   const url = `${ollamaBaseUrl()}/api/generate`;
   const stream = Boolean(onChunk);
+  const runSignal = combineRunSignal(signal);
   let res: Response;
   try {
     res = await fetch(url, {
@@ -422,10 +492,16 @@ async function runOllama(
         // qwen3 (and other thinking models) otherwise dump chain-of-thought
         // into the response and break JSON-fence parsers downstream.
         think: false,
+        options: { num_ctx: numCtx },
       }),
-      signal: AbortSignal.timeout(RUN_TIMEOUT_MS),
+      signal: runSignal,
     });
   } catch (err) {
+    if (isAbortError(err) || signal?.aborted || runSignal.aborted) {
+      throw err instanceof Error
+        ? err
+        : new DOMException('The operation was aborted', 'AbortError');
+    }
     const detail = err instanceof Error ? err.message : String(err);
     throw new Error(
       `ollama request to ${url} failed (${detail}). Is the Ollama daemon running? ` +
@@ -448,6 +524,7 @@ async function runOllama(
   if (!stream) {
     const data = (await res.json()) as OllamaGenerateChunk;
     if (data.error) throw new Error(`ollama error: ${data.error}`);
+    warnIfPromptTruncated(promptTokenEstimate, data.prompt_eval_count, numCtx);
     return data.response ?? '';
   }
 
@@ -459,33 +536,53 @@ async function runOllama(
   const decoder = new TextDecoder();
   let buffer = '';
   let stdout = '';
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-    let newline = buffer.indexOf('\n');
-    while (newline !== -1) {
-      const line = buffer.slice(0, newline).trim();
-      buffer = buffer.slice(newline + 1);
-      newline = buffer.indexOf('\n');
-      if (!line) continue;
-      let chunk: OllamaGenerateChunk;
-      try {
-        chunk = JSON.parse(line) as OllamaGenerateChunk;
-      } catch {
-        continue;
+  let lastPromptEval: number | undefined;
+  try {
+    while (true) {
+      if (signal?.aborted || runSignal.aborted) {
+        await reader.cancel().catch(() => {});
+        throw new DOMException('The operation was aborted', 'AbortError');
       }
-      if (chunk.error) throw new Error(`ollama error: ${chunk.error}`);
-      if (chunk.response) {
-        stdout += chunk.response;
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      let newline = buffer.indexOf('\n');
+      while (newline !== -1) {
+        const line = buffer.slice(0, newline).trim();
+        buffer = buffer.slice(newline + 1);
+        newline = buffer.indexOf('\n');
+        if (!line) continue;
+        let chunk: OllamaGenerateChunk;
         try {
-          onChunk?.(chunk.response);
+          chunk = JSON.parse(line) as OllamaGenerateChunk;
         } catch {
-          // never let a callback exception break the LLM run
+          continue;
+        }
+        if (chunk.error) throw new Error(`ollama error: ${chunk.error}`);
+        if (typeof chunk.prompt_eval_count === 'number') {
+          lastPromptEval = chunk.prompt_eval_count;
+        }
+        if (chunk.response) {
+          stdout += chunk.response;
+          if (!(signal?.aborted || runSignal.aborted)) {
+            try {
+              onChunk?.(chunk.response);
+            } catch {
+              // never let a callback exception break the LLM run
+            }
+          }
         }
       }
     }
+  } catch (err) {
+    if (isAbortError(err) || signal?.aborted || runSignal.aborted) {
+      throw err instanceof Error
+        ? err
+        : new DOMException('The operation was aborted', 'AbortError');
+    }
+    throw err;
   }
+  warnIfPromptTruncated(promptTokenEstimate, lastPromptEval, numCtx);
   return stdout;
 }
 
@@ -499,18 +596,20 @@ async function runOllama(
  * Pass `onChunk` to receive stdout chunks as they stream in (used by the
  * AI Apply dock so the user sees the LLM output live). `onChunk` exceptions
  * are caught and dropped — they will never break the underlying run.
+ * Pass `signal` to cancel an in-flight ollama HTTP generate.
  */
 export async function runLlm(
   prompt: string,
   override?: LlmProvider,
   onChunk?: (chunk: string) => void,
   model?: string | null,
+  signal?: AbortSignal,
 ): Promise<string> {
   const invocation = await detectLlmCli(override);
 
   // Ollama is HTTP-backed — skip the stdin/CLI spawn path.
   if (invocation.provider === 'ollama') {
-    return runOllama(prompt, onChunk, model);
+    return runOllama(prompt, onChunk, model, signal);
   }
 
   const promptBytes = Buffer.byteLength(prompt, 'utf8');

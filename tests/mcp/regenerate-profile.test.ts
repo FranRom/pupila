@@ -31,7 +31,7 @@ function stubGenerate(delta: PersonalizationDelta) {
 
 function depsWith(
   fx: FixtureLayout,
-  generate: (brief: string, provider: unknown) => Promise<PersonalizationDelta>,
+  generate: (brief: string, provider: unknown, model?: unknown) => Promise<PersonalizationDelta>,
 ): RegenerateProfileDeps {
   const profilePath = path.join(fx.dir, 'profile.json');
   return {
@@ -45,6 +45,7 @@ function depsWith(
       }
     },
     generateDelta: generate as RegenerateProfileDeps['generateDelta'],
+    readLlmPreference: async () => ({ provider: undefined, model: null }),
   };
 }
 

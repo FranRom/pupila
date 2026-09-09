@@ -27,6 +27,7 @@ import { type BriefSource, buildBriefPrompt } from './lib/brief-prompt.js';
 import { writeBriefBody } from './lib/brief-template.js';
 import { detectFormat, parseCvFile } from './lib/cv-parser.js';
 import { detectLlmCli, runLlm } from './lib/llm.js';
+import { readLlmPreference } from './lib/preferences.js';
 
 // How many chars of the parsed CV we send to the LLM. Configurable via
 // PUPILA_CV_MAX_CHARS for users hitting OOM kills on large CVs.
@@ -157,8 +158,9 @@ async function main(): Promise<void> {
   }
 
   let invocation: Awaited<ReturnType<typeof detectLlmCli>>;
+  const { provider, model } = await readLlmPreference();
   try {
-    invocation = await detectLlmCli();
+    invocation = await detectLlmCli(provider);
   } catch (err) {
     console.error(`✗ ${err instanceof Error ? err.message : String(err)}`);
     process.exit(1);
@@ -171,7 +173,7 @@ async function main(): Promise<void> {
   const prompt = buildBriefPrompt(cvText, args.source, MAX_CV_CHARS);
   let raw: string;
   try {
-    raw = await runLlm(prompt);
+    raw = await runLlm(prompt, provider, undefined, model);
   } catch (err) {
     console.error(`✗ LLM call failed: ${err instanceof Error ? err.message : String(err)}`);
     process.exit(1);

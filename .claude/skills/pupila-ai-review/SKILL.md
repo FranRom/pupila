@@ -102,7 +102,8 @@ git commit -m "chore: daily run + ai reviews"
 - Provider id: `ollama`. Detected when the `ollama` binary is on PATH.
 - Invoked via `POST http://$OLLAMA_HOST/api/generate` (default host `127.0.0.1:11434`), not `ollama run` (TTY spinners).
 - Models are listed live from `GET /api/tags` and shown as selectable radios in onboarding + Settings (stored as `preferences.ollamaModel`).
-- Resolution order for the model name: request/UI selection → `PUPILA_LLM_MODEL` env → first model from `listOllamaModels()`.
+- Resolution order for the model name: request/UI selection / `preferences.ollamaModel` → `PUPILA_LLM_MODEL` env (no silent daemon fallback).
+- Context: requests set `options.num_ctx` from the prompt size (override with `PUPILA_OLLAMA_NUM_CTX`).
 - Thinking models (qwen3): requests set `think: false` so chain-of-thought doesn't break JSON parsers.
 
 ## Related

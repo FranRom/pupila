@@ -6,10 +6,12 @@ import {
 } from '../../src/lib/applied-store.js';
 import type { CvFormat } from '../../src/lib/cv-parser.js';
 import { type LlmProvider, SUPPORTED_PROVIDERS } from '../../src/lib/llm.js';
+import { readLlmPreference as readLlmPreferenceFromLib } from '../../src/lib/preferences.js';
 import { APPLICATION_STATUSES } from '../../src/types.js';
 import { APPLIED_PATH, CV_BASENAME, PREFERENCES_PATH } from './_paths.ts';
 
 export type { LlmProvider };
+export { readLlmPreferenceFromLib as readLlmPreference };
 
 // How many chars of the parsed CV we send to the LLM. Configurable via
 // PUPILA_CV_MAX_CHARS for users hitting OOM kills on large CVs.

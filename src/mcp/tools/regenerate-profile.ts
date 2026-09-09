@@ -2,6 +2,7 @@ import { writeFile } from 'node:fs/promises';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { readBriefBody as defaultReadBriefBody } from '../../lib/brief-template.js';
 import type { LlmProvider } from '../../lib/llm.js';
+import { readLlmPreference } from '../../lib/preferences.js';
 import {
   generateProfileFromBrief as defaultGenerateProfileFromBrief,
   mergeProfile,
@@ -26,14 +27,18 @@ export interface RegenerateProfileDeps {
   generateDelta: (
     brief: string,
     provider: LlmProvider | undefined,
+    model?: string | null,
   ) => Promise<PersonalizationDelta>;
+  readLlmPreference?: () => Promise<{ provider: LlmProvider | undefined; model: string | null }>;
 }
 
 const DEFAULT_DEPS: RegenerateProfileDeps = {
   briefPath: BRIEF_PATH,
   profilePath: PROFILE_PATH,
   readBrief: defaultReadBriefBody,
-  generateDelta: defaultGenerateProfileFromBrief,
+  generateDelta: (brief, provider, model) =>
+    defaultGenerateProfileFromBrief(brief, provider, undefined, model),
+  readLlmPreference,
 };
 
 // Module-level single-flight lock. Like the UI's `inFlight` closure
@@ -64,18 +69,29 @@ export async function runRegenerateProfile(
       );
     }
 
-    // Provider 'auto' → undefined, which lets runLlm auto-detect.
-    const provider: LlmProvider | undefined =
-      input.provider && input.provider !== 'auto' ? input.provider : undefined;
+    // Resolve provider/model: explicit input wins; omitted → prefs; 'auto' → detect.
+    const prefs = await (deps.readLlmPreference ?? readLlmPreference)();
+    let provider: LlmProvider | undefined;
+    let model: string | null = null;
+    if (input.provider === 'auto') {
+      provider = undefined;
+      model = null;
+    } else if (input.provider) {
+      provider = input.provider;
+      model = provider === 'ollama' ? prefs.model : null;
+    } else {
+      provider = prefs.provider;
+      model = prefs.model;
+    }
 
-    const delta = await deps.generateDelta(brief, provider);
+    const delta = await deps.generateDelta(brief, provider, model);
     const { profile, weightsChanged, keywordsChanged, rolesChanged, categoriesChanged } =
       mergeProfile(base, delta);
     await writeFile(deps.profilePath, `${JSON.stringify(profile, null, 2)}\n`, 'utf8');
 
     return toolJson({
       ok: true,
-      provider: input.provider ?? 'auto',
+      provider: provider ?? input.provider ?? 'auto',
       weightsChanged,
       keywordsChanged,
       rolesChanged,

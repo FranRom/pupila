@@ -20,6 +20,7 @@ import {
   markFailed,
   recoverOrphanedRunning,
 } from '../src/lib/apply-queue.js';
+import { readLlmPreference } from '../src/lib/preferences.js';
 
 // ---------------------------------------------------------------------------
 // Paths — replicated from ui/plugins/_paths.ts to avoid src→ui coupling.
@@ -224,27 +225,7 @@ async function main(): Promise<void> {
     }, CANCEL_POLL_MS);
 
     try {
-      let provider: 'claude' | 'codex' | 'gemini' | 'opencode' | 'ollama' | undefined;
-      let model: string | null = null;
-      try {
-        const prefsRaw = await readFile(path.join(REPO_ROOT, 'config', 'preferences.json'), 'utf8');
-        const prefs = JSON.parse(prefsRaw) as {
-          provider?: string | null;
-          ollamaModel?: string | null;
-        };
-        if (
-          prefs.provider &&
-          prefs.provider !== 'auto' &&
-          ['claude', 'codex', 'gemini', 'opencode', 'ollama'].includes(prefs.provider)
-        ) {
-          provider = prefs.provider as typeof provider;
-        }
-        if (typeof prefs.ollamaModel === 'string' && prefs.ollamaModel.trim()) {
-          model = prefs.ollamaModel.trim();
-        }
-      } catch {
-        // missing prefs → auto-detect
-      }
+      const { provider, model } = await readLlmPreference();
       const result = await runAiApplyForJob({
         jobId,
         signal: controller.signal,

@@ -13,7 +13,7 @@ import {
 } from '../../src/lib/profile-generator.js';
 import { streamableResponse } from '../../src/lib/streamable-response.js';
 import { PROFILE_DEFAULT_PATH, PROFILE_PATH } from './_paths.ts';
-import { readBody, readJsonOrDefault } from './_shared.ts';
+import { readBody, readJsonOrDefault, readLlmPreference } from './_shared.ts';
 
 // ── Profile generator API ──────────────────────────────────────────────────
 //
@@ -198,12 +198,26 @@ export function profileApiPlugin(): Plugin {
         let base: ProfileShape;
         try {
           const body = (await readBody(req)) as ProfileGenerateBody;
+          const prefs = await readLlmPreference();
           const rawProvider = typeof body.provider === 'string' ? body.provider : null;
-          provider =
-            rawProvider && SUPPORTED_PROVIDERS.includes(rawProvider as LlmProvider)
-              ? (rawProvider as LlmProvider)
-              : undefined;
-          model = typeof body.model === 'string' && body.model.trim() ? body.model.trim() : null;
+          const rawModel =
+            typeof body.model === 'string' && body.model.trim() ? body.model.trim() : null;
+
+          if (
+            rawProvider &&
+            rawProvider !== 'auto' &&
+            SUPPORTED_PROVIDERS.includes(rawProvider as LlmProvider)
+          ) {
+            provider = rawProvider as LlmProvider;
+            model = provider === 'ollama' ? (rawModel ?? prefs.model) : null;
+          } else if (rawProvider === 'auto') {
+            provider = undefined;
+            model = null;
+          } else {
+            // Body omitted provider (Settings → Regenerate) — use saved prefs.
+            provider = prefs.provider;
+            model = prefs.model;
+          }
 
           const maybeBrief = await readBriefBody();
           if (!maybeBrief?.trim()) {

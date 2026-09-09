@@ -21,7 +21,8 @@ import { existsSync } from 'node:fs';
 import { readFile, writeFile } from 'node:fs/promises';
 import { parseReviewJson } from './ai-review-parse.js';
 import { loadProfile } from './filters.js';
-import { runLlm } from './lib/llm.js';
+import { detectLlmCli, resolveOllamaModel, runLlm } from './lib/llm.js';
+import { readLlmPreference } from './lib/preferences.js';
 import type { AiReview, AiReviews, Job } from './types.js';
 
 const JOBS_PATH = 'data/jobs.json';
@@ -166,6 +167,14 @@ async function main(): Promise<void> {
   }
 
   console.log(`Reviewing ${candidates.length} job(s) via local LLM CLI...`);
+  const { provider, model } = await readLlmPreference();
+  const invocation = await detectLlmCli(provider);
+  let modelLabel: string = invocation.provider;
+  if (invocation.provider === 'ollama') {
+    const resolved = await resolveOllamaModel(model);
+    modelLabel = `ollama/${resolved}`;
+  }
+  console.log(`  provider: ${modelLabel}`);
   let reviewed = 0;
   let skipped = 0;
 
@@ -182,12 +191,17 @@ async function main(): Promise<void> {
 
     try {
       const matchedRoles = (job.roleMatches ?? []).map((id) => roleLabels.get(id) ?? id);
-      const raw = await runLlm(buildPrompt(brief, job, body, matchedRoles));
+      const raw = await runLlm(
+        buildPrompt(brief, job, body, matchedRoles),
+        provider,
+        undefined,
+        model,
+      );
       const parsed = parseReviewJson(raw);
       const review: AiReview = {
         jobId: job.id,
         reviewedAt: new Date().toISOString(),
-        model: process.env.PUPILA_LLM ?? 'claude',
+        model: modelLabel,
         ...parsed,
       };
       reviews[job.id] = review;

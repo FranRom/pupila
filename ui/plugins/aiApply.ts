@@ -7,7 +7,7 @@ import {
 } from '../../src/lib/ai-apply.js';
 import { readBriefBody } from '../../src/lib/brief-template.js';
 import { JOBS_PATH, REPO_ROOT } from './_paths.ts';
-import { findCvPath, readBody, readJsonOrDefault, readPreferences } from './_shared.ts';
+import { findCvPath, readBody, readJsonOrDefault, readLlmPreference } from './_shared.ts';
 
 interface AiApplyPostBody {
   jobId?: unknown;
@@ -203,9 +203,9 @@ export function aiApplyApiPlugin(): Plugin {
             return;
           }
 
-          const prefs = await readPreferences();
-          const provider = prefs.provider && prefs.provider !== 'auto' ? prefs.provider : undefined;
-          const model = prefs.ollamaModel;
+          const prefs = await readLlmPreference();
+          const provider = prefs.provider;
+          const model = prefs.model;
 
           // All inputs validated — seed the state slot, kick off the core in
           // the background (lock already claimed at the top), return 202.

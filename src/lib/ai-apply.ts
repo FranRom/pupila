@@ -13,7 +13,7 @@ import { fileURLToPath } from 'node:url';
 import { isValidJobId } from './apply-queue.js';
 import { readBriefBody } from './brief-template.js';
 import { parseCvBuffer } from './cv-parser.js';
-import { detectLlmCli, type LlmProvider, runLlm } from './llm.js';
+import { detectLlmCli, type LlmProvider, runOllama } from './llm.js';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -396,15 +396,42 @@ export async function runAiApplyForJob(opts: RunAiApplyOptions): Promise<RunAiAp
   let spawnResult: SpawnResult;
   try {
     if (invocation.provider === 'ollama') {
-      // Ollama goes through the HTTP helper (same as runLlm) — the CLI
-      // spawn path is TTY-oriented and not cancellable the same way.
-      const stdout = await runLlm(prompt, 'ollama', onChunk, model);
-      spawnResult = {
-        stdout,
-        exitCode: 0,
-        signal: null,
-        aborted: signal?.aborted ?? false,
-      };
+      // Call runOllama directly (skip detectLlmCli re-probe inside runLlm)
+      // and forward the cancel signal into the HTTP fetch.
+      let streamed = '';
+      const wrapChunk =
+        onChunk || signal
+          ? (chunk: string) => {
+              streamed += chunk;
+              onChunk?.(chunk);
+            }
+          : undefined;
+      try {
+        const stdout = await runOllama(prompt, wrapChunk, model, signal);
+        spawnResult = {
+          stdout,
+          exitCode: 0,
+          signal: null,
+          aborted: false,
+        };
+      } catch (err) {
+        const aborted =
+          signal?.aborted === true ||
+          (err instanceof Error && err.name === 'AbortError') ||
+          (typeof DOMException !== 'undefined' &&
+            err instanceof DOMException &&
+            err.name === 'AbortError');
+        if (aborted) {
+          spawnResult = {
+            stdout: streamed,
+            exitCode: null,
+            signal: null,
+            aborted: true,
+          };
+        } else {
+          throw err;
+        }
+      }
     } else {
       spawnResult = await spawnLlm(invocation.cmd, invocation.argTemplate, prompt, onChunk, signal);
     }
