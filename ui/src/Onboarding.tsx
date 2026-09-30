@@ -1,5 +1,6 @@
 import clsx from 'clsx';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { OllamaModelGroup } from './components/OllamaModelGroup.tsx';
 import { api, formatError } from './lib/api/index.ts';
 import { useLlmStream } from './lib/use-llm-stream.ts';
 import styles from './Onboarding.module.css';
@@ -127,9 +128,10 @@ export function Onboarding({ onComplete }: OnboardingProps) {
 
   const canProceed = anyAvailable && (provider !== 'ollama' || Boolean(ollamaModel));
 
+  // The picked Ollama model is kept when switching to Auto or a CLI: it is
+  // inert for CLI providers and needed if auto-detect later lands on Ollama.
   const selectCli = useCallback((p: ProviderChoice) => {
     setProvider(p);
-    if (p !== 'ollama') setOllamaModel(null);
   }, []);
 
   const selectOllamaModel = useCallback((name: string) => {
@@ -313,48 +315,37 @@ export function Onboarding({ onComplete }: OnboardingProps) {
                   </li>
                 );
               })}
-              <li className={styles.ollamaGroup}>
-                <div className={styles.ollamaHeader}>
-                  <strong>{PROVIDER_META.ollama.label}</strong>
-                  <span className={available.ollama ? styles.available : styles.unavailable}>
-                    {available.ollama ? '✓ installed' : '✗ not installed'}
-                  </span>
-                  {!available.ollama && (
-                    <a
-                      className={styles.installLink}
-                      href={PROVIDER_META.ollama.installUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >
-                      Download ↗
-                    </a>
-                  )}
-                </div>
+              <OllamaModelGroup
+                header={
+                  <>
+                    <strong>{PROVIDER_META.ollama.label}</strong>
+                    <span className={available.ollama ? styles.available : styles.unavailable}>
+                      {available.ollama ? '✓ installed' : '✗ not installed'}
+                    </span>
+                    {!available.ollama && (
+                      <a
+                        className={styles.installLink}
+                        href={PROVIDER_META.ollama.installUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        Download ↗
+                      </a>
+                    )}
+                  </>
+                }
+                radioName="provider"
+                models={available.ollama ? ollamaModels : []}
+                selected={provider === 'ollama' ? ollamaModel : null}
+                onSelect={selectOllamaModel}
+              >
                 {available.ollama && ollamaModels.length === 0 && (
                   <p className={styles.muted}>
                     No models pulled yet. Run <code>ollama pull qwen3:14b</code> (or another model),
                     then Re-check.
                   </p>
                 )}
-                {available.ollama && ollamaModels.length > 0 && (
-                  <ul className={styles.modelList}>
-                    {ollamaModels.map((name) => (
-                      <li key={name}>
-                        <label>
-                          <input
-                            type="radio"
-                            name="provider"
-                            value={`ollama:${name}`}
-                            checked={provider === 'ollama' && ollamaModel === name}
-                            onChange={() => selectOllamaModel(name)}
-                          />
-                          <strong className={styles.modelName}>{name}</strong>
-                        </label>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </li>
+              </OllamaModelGroup>
             </ul>
           )}
           {!anyAvailable && available && (
