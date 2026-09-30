@@ -141,7 +141,9 @@ Or open the UI and use the Profile tab:
 pnpm run ui   # http://127.0.0.1:5173 → Profile tab → drop your CV (or "From LinkedIn")
 ```
 
-The auto-detected provider order is `claude` → `codex` → `gemini` → `opencode` → `ollama` (whichever is on `PATH` first). Override with `PUPILA_LLM=ollama pnpm run setup-brief ...` (and optionally `PUPILA_LLM_MODEL=qwen3:14b`). Saved UI preferences in `config/preferences.json` are also honoured by `ai-review`, `setup-brief`, and the apply worker. For long prompts, Ollama's context window can be raised with `PUPILA_OLLAMA_NUM_CTX`. No cloud API keys.
+The auto-detected provider order is `claude` → `codex` → `gemini` → `opencode` → `ollama` (whichever is on `PATH` first). Override with `PUPILA_LLM=ollama pnpm run setup-brief ...` (and optionally `PUPILA_LLM_MODEL=qwen3:14b`). Saved UI preferences in `config/preferences.json` are also honoured by `ai-review`, `setup-brief`, and the apply worker. Ollama's context window is sized from each prompt and capped at 32768 tokens; set `PUPILA_OLLAMA_NUM_CTX` to request a specific size (honoured above the cap, at your RAM's expense). No cloud API keys.
+
+**Ollama on another machine or in Docker:** set `OLLAMA_HOST` (default `127.0.0.1:11434`). PUPILA treats Ollama as installed when a daemon answers at that address, even without a local `ollama` binary. If `OLLAMA_HOST` points anywhere other than this machine, every prompt, **including your CV and candidate brief**, is sent to that host. PUPILA prints a warning when that happens; only point it at machines you trust.
 
 > **The two personalization layers, briefly:**
 > - `config/profile.json` (committed defaults) controls **what gets fetched + scored** (weights, keyword lists, tier-S slugs).

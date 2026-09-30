@@ -5,6 +5,7 @@
 import clsx from 'clsx';
 import type { ReactNode } from 'react';
 import styles from './settings.module.css';
+import type { ProviderChoice } from './types.ts';
 
 interface SectionProps {
   index: string;
@@ -71,7 +72,10 @@ export function Stat({ label, value, accent }: StatProps) {
   );
 }
 
-export function ProviderChip({ provider }: { provider: string }) {
+/** A provider choice, or `ollama/<model>` when an Ollama model is picked. */
+export type ProviderChipLabel = ProviderChoice | `ollama/${string}`;
+
+export function ProviderChip({ provider }: { provider: ProviderChipLabel }) {
   return <span className={clsx(styles.pillMono, styles.pillOk)}>{provider}</span>;
 }
 

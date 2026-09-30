@@ -12,8 +12,10 @@
 // For ollama, pick the model via (in order): explicit `model` arg /
 // prefs → `PUPILA_LLM_MODEL` env → sole pulled generation-capable model
 // (warned) → throw. Context window: `options.num_ctx` is sized from the
-// prompt (override with `PUPILA_OLLAMA_NUM_CTX`, capped at 32768). Host
-// override: `OLLAMA_HOST` (default: 127.0.0.1:11434).
+// prompt and capped at 32768; an explicit `PUPILA_OLLAMA_NUM_CTX` is honoured
+// as-is (warned above the cap). Host override: `OLLAMA_HOST` (default
+// 127.0.0.1:11434). A daemon answering at that host counts as installed even
+// without a local `ollama` binary (Docker / another machine).
 //
 // Prompt delivery (subscription CLIs): we feed the prompt via STDIN, not argv.
 // Three reasons:
@@ -184,6 +186,29 @@ function ollamaBaseUrl(): string {
   return host.startsWith('http://') || host.startsWith('https://') ? host : `http://${host}`;
 }
 
+const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1', '::1', '[::1]']);
+
+export function isLoopbackOllamaHost(baseUrl: string = ollamaBaseUrl()): boolean {
+  try {
+    const { hostname } = new URL(baseUrl);
+    return LOOPBACK_HOSTS.has(hostname) || hostname.startsWith('127.');
+  } catch {
+    return false;
+  }
+}
+
+let warnedRemoteHost = false;
+
+/** Once per process: prompts carry the CV + brief, so say so when they leave the machine. */
+function warnIfRemoteOllamaHost(baseUrl: string): void {
+  if (warnedRemoteHost || isLoopbackOllamaHost(baseUrl)) return;
+  warnedRemoteHost = true;
+  console.warn(
+    `[ollama] OLLAMA_HOST points at ${baseUrl}, which is not this machine. ` +
+      'Prompts (including your CV and candidate brief) are sent to that host.',
+  );
+}
+
 interface OllamaTagsResponse {
   models?: Array<{ name?: string }>;
 }
@@ -205,69 +230,96 @@ export function estimatePromptTokens(prompt: string): number {
   return Math.ceil(prompt.length / 3.5);
 }
 
-/** Context window size to request: prompt estimate + headroom, floored (uncapped). */
+/** Context window size to request: prompt estimate + headroom, floored (cap applied in resolveNumCtx). */
 export function estimateOllamaNumCtx(prompt: string): number {
   return Math.max(NUM_CTX_FLOOR, estimatePromptTokens(prompt) + NUM_CTX_HEADROOM);
 }
 
+/**
+ * Auto-sized windows are capped at NUM_CTX_CAP. An explicit
+ * `PUPILA_OLLAMA_NUM_CTX` is the user's opt-in, so it is honoured as-is and
+ * only warned about above the cap.
+ */
 function resolveNumCtx(prompt: string): number {
   const fromEnv = Number(process.env.PUPILA_OLLAMA_NUM_CTX ?? '0');
-  const raw =
-    Number.isFinite(fromEnv) && fromEnv > 0 ? Math.floor(fromEnv) : estimateOllamaNumCtx(prompt);
-  if (raw > NUM_CTX_CAP) {
+  if (Number.isFinite(fromEnv) && fromEnv > 0) {
+    const explicit = Math.floor(fromEnv);
+    if (explicit > NUM_CTX_CAP) {
+      console.warn(
+        `[ollama] PUPILA_OLLAMA_NUM_CTX=${explicit} is above the default cap ${NUM_CTX_CAP}; ` +
+          'honouring it. Large windows cost KV-cache memory and can push the model into swap.',
+      );
+    }
+    return explicit;
+  }
+  const estimated = estimateOllamaNumCtx(prompt);
+  if (estimated > NUM_CTX_CAP) {
     console.warn(
-      `[ollama] requested num_ctx=${raw} exceeds cap ${NUM_CTX_CAP}; clamping. ` +
-        'Shorten the input or raise the cap only if you have the RAM.',
+      `[ollama] prompt needs num_ctx≈${estimated}, above the cap ${NUM_CTX_CAP}; clamping, so the ` +
+        'prompt will be truncated. Shorten the input, or set PUPILA_OLLAMA_NUM_CTX if you have the RAM.',
     );
     return NUM_CTX_CAP;
   }
-  return raw;
+  return estimated;
 }
 
 /**
- * Context-window sizes real local models actually ship with — RoPE-based
- * architectures are configured in powers of two, so a silent clamp to the
- * model's own trained maximum lands EXACTLY on one of these, not at some
- * organic-looking count.
+ * Context-window sizes real local models actually ship with. RoPE-based
+ * architectures are configured in powers of two, so when Ollama clamps our
+ * `num_ctx` to the model's trained maximum, the effective window is one of these.
  */
 const KNOWN_CONTEXT_SIZES = [1024, 2048, 4096, 8192, 16384, 32768, 65536, 131072, 262144];
 /**
- * Below this eval/estimate ratio we warn regardless of an exact boundary
- * match, to catch a clamp on a model whose real window isn't a clean power
- * of two. Set well under the ~0.75-0.78 ratio that ordinary chars-per-token
- * variance alone produces on real ai-review prompts (measured live against
- * an actual Ollama daemon — see git history), so normal variance never
- * trips it.
+ * A truncated prompt keeps at most ~51% of its real tokens (see below), while
+ * healthy prompts measured 0.70-0.78 (qwen3) and ~1.05 (smollm2) against the
+ * 3.5 chars/token estimate. Below this ratio the prompt was truncated.
  */
 const SEVERE_TRUNCATION_RATIO = 0.5;
+/**
+ * Upper ratio bound for the half-window match, so a healthy prompt that just
+ * happens to land a few tokens above a power of two never warns.
+ */
+const HALF_WINDOW_MAX_RATIO = 0.65;
+/** Slack above W/2 for the tokens Ollama keeps from the prompt head (num_keep + BOS). */
+const HALF_WINDOW_SLACK = 16;
 
 /**
- * Warn only when Ollama's `prompt_eval_count` looks like a genuine silent
- * clamp to the model's own context window, not ordinary chars-per-token
- * estimate noise. A naive `evalCount / estimate < 0.85` ratio check was
- * tried and rejected: real-world chars-per-token varies by ~20-30% across
- * models/content, which alone produces ratios (~0.75-0.78, observed live)
- * indistinguishable from genuine truncation (~0.72 in the reproduced case)
- * — so that check either spams on every normal prompt or misses real
- * truncation, depending on where the threshold is set. A real clamp instead
- * lands prompt_eval_count EXACTLY at the model's trained window (almost
- * always a power of two), which is a much more specific, low-noise signal.
+ * Warn when Ollama's `prompt_eval_count` shows the prompt was truncated.
+ *
+ * On overflow Ollama does not keep a full window: it keeps `num_keep` head
+ * tokens and cuts the rest to about half the effective window W, keeping the
+ * TAIL (`contextShiftPromptLimit` = W - (W - keep) / 2; measured on 0.35.0:
+ * W=2048 → 1026, W=8192 → 4098). So a truncation shows up as either:
+ *   - eval far below the estimate (it keeps ≤ ~51% of the real tokens), or
+ *   - eval just above W/2, for W = our `num_ctx` or a trained maximum below
+ *     it; this also catches tokenizers denser than the estimate, where the
+ *     ratio alone can sit near 0.5.
+ * A plain ratio against a high threshold (e.g. 0.85) would warn on every
+ * healthy prompt: chars-per-token noise alone puts healthy ratios at ~0.7.
+ * KV-cache prefix reuse is not a concern: 0.35.0 reports the full prompt
+ * count even when a shared prefix is served from cache (verified).
  */
 export function warnIfPromptTruncated(
   promptTokenEstimate: number,
   promptEvalCount: number | undefined,
+  numCtx: number,
 ): void {
   if (typeof promptEvalCount !== 'number' || !Number.isFinite(promptEvalCount)) return;
-  if (promptEvalCount >= promptTokenEstimate) return;
-  const clampedAtKnownWindow = KNOWN_CONTEXT_SIZES.some(
-    (size) => size < promptTokenEstimate && Math.abs(promptEvalCount - size) <= 2,
-  );
-  const severelyBelowEstimate = promptEvalCount < promptTokenEstimate * SEVERE_TRUNCATION_RATIO;
-  if (clampedAtKnownWindow || severelyBelowEstimate) {
+  if (promptTokenEstimate <= 0 || promptEvalCount >= promptTokenEstimate) return;
+  const ratio = promptEvalCount / promptTokenEstimate;
+  const windows = [numCtx, ...KNOWN_CONTEXT_SIZES.filter((size) => size < numCtx)];
+  const atHalfWindow =
+    ratio < HALF_WINDOW_MAX_RATIO &&
+    windows.some((w) => {
+      const over = promptEvalCount - Math.floor(w / 2);
+      return over >= 0 && over <= HALF_WINDOW_SLACK;
+    });
+  if (ratio < SEVERE_TRUNCATION_RATIO || atHalfWindow) {
     console.warn(
-      `[ollama] prompt_eval_count=${promptEvalCount} vs estimated ${promptTokenEstimate} tokens — ` +
-        "the prompt was likely truncated by the model's own context limit. " +
-        'Raise PUPILA_OLLAMA_NUM_CTX (if the model supports a larger window) or shorten the input.',
+      `[ollama] prompt_eval_count=${promptEvalCount} vs estimated ${promptTokenEstimate} tokens: ` +
+        "the prompt was likely truncated to fit the model's context window, which drops the " +
+        'start of the prompt. Raise PUPILA_OLLAMA_NUM_CTX (if the model supports a larger window) ' +
+        'or shorten the input.',
     );
   }
 }
@@ -299,34 +351,50 @@ function combineRunSignal(signal?: AbortSignal): {
 
 function ollamaTimeoutError(model: string): Error {
   const ms = getRunTimeoutMs();
+  const after = ms < 1000 ? `${ms}ms` : `${Math.round(ms / 1000)}s`;
   return new Error(
-    `ollama timed out after ${Math.round(ms / 1000)}s (model ${model}). ` +
+    `ollama timed out after ${after} (model ${model}). ` +
       `Override with PUPILA_LLM_TIMEOUT_MS=<ms>.`,
   );
 }
 
+async function fetchOllamaTags(timeoutMs: number): Promise<OllamaTagsResponse | null> {
+  try {
+    const res = await fetch(`${ollamaBaseUrl()}/api/tags`, {
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+    if (!res.ok) return null;
+    return (await res.json()) as OllamaTagsResponse;
+  } catch {
+    return null;
+  }
+}
+
 /**
- * List generation-capable model names pulled into the local Ollama daemon
- * (`GET /api/tags`). Embedding-only names are filtered out so pickers /
- * onboarding auto-select cannot land on `all-minilm` etc. Returns [] when
- * the daemon is down or the binary isn't useful — callers treat empty as
- * "no models available" rather than a hard failure.
+ * Ollama counts as available when the binary is on PATH OR a daemon answers
+ * at `OLLAMA_HOST`. The transport is HTTP, so a daemon in Docker or on
+ * another machine works without a local binary.
+ */
+export async function ollamaAvailable(): Promise<boolean> {
+  if (await commandExists('ollama')) return true;
+  return (await fetchOllamaTags(2_000)) !== null;
+}
+
+/**
+ * List generation-capable model names pulled into the Ollama daemon at
+ * `OLLAMA_HOST` (`GET /api/tags`). Embedding-only names are filtered out so
+ * pickers / onboarding auto-select cannot land on `all-minilm` etc. Returns
+ * [] when no daemon answers; callers treat empty as "no models available"
+ * rather than a hard failure.
  */
 export async function listOllamaModels(): Promise<string[]> {
-  if (!(await commandExists('ollama'))) return [];
-  const url = `${ollamaBaseUrl()}/api/tags`;
-  try {
-    const res = await fetch(url, { signal: AbortSignal.timeout(5_000) });
-    if (!res.ok) return [];
-    const data = (await res.json()) as OllamaTagsResponse;
-    const names = (data.models ?? [])
-      .map((m) => (typeof m.name === 'string' ? m.name.trim() : ''))
-      .filter((n): n is string => Boolean(n) && !isLikelyEmbedModel(n));
-    // Stable, human-friendly order for pickers.
-    return [...new Set(names)].toSorted((a, b) => a.localeCompare(b));
-  } catch {
-    return [];
-  }
+  const data = await fetchOllamaTags(5_000);
+  if (!data) return [];
+  const names = (data.models ?? [])
+    .map((m) => (typeof m.name === 'string' ? m.name.trim() : ''))
+    .filter((n): n is string => Boolean(n) && !isLikelyEmbedModel(n));
+  // Stable, human-friendly order for pickers.
+  return [...new Set(names)].toSorted((a, b) => a.localeCompare(b));
 }
 
 /**
@@ -386,9 +454,13 @@ export async function commandExists(cmd: string): Promise<boolean> {
  */
 export async function availableProviders(): Promise<Record<LlmProvider, boolean>> {
   const entries = await Promise.all(
-    SUPPORTED_PROVIDERS.map(async (p) => [p, await commandExists(p)] as const),
+    SUPPORTED_PROVIDERS.map(async (p) => [p, await providerInstalled(p)] as const),
   );
   return Object.fromEntries(entries) as Record<LlmProvider, boolean>;
+}
+
+function providerInstalled(provider: LlmProvider): Promise<boolean> {
+  return provider === 'ollama' ? ollamaAvailable() : commandExists(provider);
 }
 
 function buildSpec(provider: LlmProvider): ProviderSpec {
@@ -412,15 +484,17 @@ export async function detectLlmCli(override?: LlmProvider): Promise<LlmInvocatio
         `PUPILA_LLM="${requested}" is not supported. Use one of: ${SUPPORTED_PROVIDERS.join(', ')}.`,
       );
     }
-    if (!(await commandExists(requested))) {
+    if (!(await providerInstalled(requested))) {
       throw new Error(
-        `PUPILA_LLM="${requested}" was requested but the \`${requested}\` CLI is not on PATH.`,
+        requested === 'ollama'
+          ? `PUPILA_LLM="ollama" was requested but neither the \`ollama\` CLI is on PATH nor a daemon answers at ${ollamaBaseUrl()}.`
+          : `PUPILA_LLM="${requested}" was requested but the \`${requested}\` CLI is not on PATH.`,
       );
     }
     return { provider: requested, cmd: requested, argTemplate: buildSpec(requested).args };
   }
   for (const provider of SUPPORTED_PROVIDERS) {
-    if (await commandExists(provider)) {
+    if (await providerInstalled(provider)) {
       return { provider, cmd: provider, argTemplate: buildSpec(provider).args };
     }
   }
@@ -530,6 +604,25 @@ interface OllamaGenerateChunk {
 }
 
 /**
+ * Map a failure during an Ollama request to what callers should see, in
+ * order: a real caller cancel stays an AbortError (AI Apply classifies it as
+ * a cancel), the run timeout gets a diagnostic naming the model and the
+ * override, anything else passes through.
+ */
+function mapOllamaFailure(
+  err: unknown,
+  signal: AbortSignal | undefined,
+  timeoutSignal: AbortSignal,
+  model: string,
+): unknown {
+  if (signal?.aborted) {
+    return err instanceof Error ? err : new DOMException('The operation was aborted', 'AbortError');
+  }
+  if (timeoutSignal.aborted) return ollamaTimeoutError(model);
+  return err;
+}
+
+/**
  * Drive a local Ollama model via POST /api/generate. Prefer this over
  * `ollama run` — the CLI paints ANSI spinners and is TTY-oriented.
  * Pass `signal` to cancel mid-request (combined with the run timeout).
@@ -543,7 +636,9 @@ export async function runOllama(
   const model = await resolveOllamaModel(preferredModel);
   const numCtx = resolveNumCtx(prompt);
   const promptTokenEstimate = estimatePromptTokens(prompt);
-  const url = `${ollamaBaseUrl()}/api/generate`;
+  const baseUrl = ollamaBaseUrl();
+  warnIfRemoteOllamaHost(baseUrl);
+  const url = `${baseUrl}/api/generate`;
   const stream = Boolean(onChunk);
   const { runSignal, timeoutSignal } = combineRunSignal(signal);
   let res: Response;
@@ -563,17 +658,8 @@ export async function runOllama(
       signal: runSignal,
     });
   } catch (err) {
-    // Ordered: real cancel → timeout diagnostic → daemon-down.
-    if (signal?.aborted) {
-      throw err instanceof Error
-        ? err
-        : new DOMException('The operation was aborted', 'AbortError');
-    }
-    if (timeoutSignal.aborted) {
-      throw ollamaTimeoutError(model);
-    }
-    if (isAbortError(err)) {
-      throw err;
+    if (signal?.aborted || timeoutSignal.aborted || isAbortError(err)) {
+      throw mapOllamaFailure(err, signal, timeoutSignal, model);
     }
     const detail = err instanceof Error ? err.message : String(err);
     throw new Error(
@@ -595,9 +681,23 @@ export async function runOllama(
   }
 
   if (!stream) {
-    const data = (await res.json()) as OllamaGenerateChunk;
+    let data: OllamaGenerateChunk;
+    try {
+      data = (await res.json()) as OllamaGenerateChunk;
+    } catch (err) {
+      if (signal?.aborted || timeoutSignal.aborted || isAbortError(err)) {
+        throw mapOllamaFailure(err, signal, timeoutSignal, model);
+      }
+      throw new Error(
+        `ollama returned an unreadable response from ${url} (model ${model}): ` +
+          `${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
     if (data.error) throw new Error(`ollama error: ${data.error}`);
-    warnIfPromptTruncated(promptTokenEstimate, data.prompt_eval_count);
+    if (data.done === false) {
+      throw new Error(`ollama returned an incomplete response (done=false) for model ${model}.`);
+    }
+    warnIfPromptTruncated(promptTokenEstimate, data.prompt_eval_count, numCtx);
     return data.response ?? '';
   }
 
@@ -610,59 +710,66 @@ export async function runOllama(
   let buffer = '';
   let stdout = '';
   let lastPromptEval: number | undefined;
+  let finished = false;
+
+  const handleLine = (raw: string): void => {
+    const line = raw.trim();
+    if (!line) return;
+    let chunk: OllamaGenerateChunk;
+    try {
+      chunk = JSON.parse(line) as OllamaGenerateChunk;
+    } catch {
+      return;
+    }
+    if (chunk.error) throw new Error(`ollama error: ${chunk.error}`);
+    if (typeof chunk.prompt_eval_count === 'number') {
+      lastPromptEval = chunk.prompt_eval_count;
+    }
+    if (chunk.response) {
+      stdout += chunk.response;
+      if (!(signal?.aborted || timeoutSignal.aborted)) {
+        try {
+          onChunk?.(chunk.response);
+        } catch {
+          // never let a callback exception break the LLM run
+        }
+      }
+    }
+  };
+
   try {
     while (true) {
       if (signal?.aborted) {
-        await reader.cancel().catch(() => {});
         throw new DOMException('The operation was aborted', 'AbortError');
       }
       if (timeoutSignal.aborted) {
-        await reader.cancel().catch(() => {});
         throw ollamaTimeoutError(model);
       }
       const { done, value } = await reader.read();
-      if (done) break;
+      if (done) {
+        finished = true;
+        break;
+      }
       buffer += decoder.decode(value, { stream: true });
       let newline = buffer.indexOf('\n');
       while (newline !== -1) {
-        const line = buffer.slice(0, newline).trim();
+        const line = buffer.slice(0, newline);
         buffer = buffer.slice(newline + 1);
         newline = buffer.indexOf('\n');
-        if (!line) continue;
-        let chunk: OllamaGenerateChunk;
-        try {
-          chunk = JSON.parse(line) as OllamaGenerateChunk;
-        } catch {
-          continue;
-        }
-        if (chunk.error) throw new Error(`ollama error: ${chunk.error}`);
-        if (typeof chunk.prompt_eval_count === 'number') {
-          lastPromptEval = chunk.prompt_eval_count;
-        }
-        if (chunk.response) {
-          stdout += chunk.response;
-          if (!(signal?.aborted || timeoutSignal.aborted)) {
-            try {
-              onChunk?.(chunk.response);
-            } catch {
-              // never let a callback exception break the LLM run
-            }
-          }
-        }
+        handleLine(line);
       }
     }
+    // A stream that ends without a trailing newline still carries a line
+    // (often the final `done: true` chunk with prompt_eval_count).
+    handleLine(buffer + decoder.decode());
   } catch (err) {
-    if (signal?.aborted || isAbortError(err)) {
-      throw err instanceof Error
-        ? err
-        : new DOMException('The operation was aborted', 'AbortError');
-    }
-    if (timeoutSignal.aborted) {
-      throw ollamaTimeoutError(model);
-    }
-    throw err;
+    throw mapOllamaFailure(err, signal, timeoutSignal, model);
+  } finally {
+    // Any exit before the stream drained (cancel, timeout, `chunk.error`)
+    // must release the connection instead of leaving it half-read.
+    if (!finished) await reader.cancel().catch(() => {});
   }
-  warnIfPromptTruncated(promptTokenEstimate, lastPromptEval);
+  warnIfPromptTruncated(promptTokenEstimate, lastPromptEval, numCtx);
   return stdout;
 }
 

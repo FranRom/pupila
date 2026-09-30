@@ -1,9 +1,16 @@
 // [01] LLM panel — switch + test the configured provider / Ollama model.
 
 import clsx from 'clsx';
+import { OllamaModelGroup } from '../components/OllamaModelGroup.tsx';
 import buttonStyles from '../styles/Button.module.css';
 import styles from './LlmCliPanel.module.css';
-import { ProviderChip, Section, SkeletonRows, settingsStyles } from './shared.tsx';
+import {
+  ProviderChip,
+  type ProviderChipLabel,
+  Section,
+  SkeletonRows,
+  settingsStyles,
+} from './shared.tsx';
 import {
   type EnvInfo,
   type LlmTestResult,
@@ -50,10 +57,16 @@ export function LlmCliPanel({
       (envInfo.providers.ollama && envInfo.ollamaModels.length > 0)
     : false;
   const canSave = provider !== 'ollama' || Boolean(ollamaModel);
-  const chipLabel =
+  // A saved model can disappear (`ollama rm`); say so instead of showing
+  // an Ollama selection with no radio checked.
+  const missingModel =
+    envInfo?.providers.ollama && ollamaModel && !envInfo.ollamaModels.includes(ollamaModel)
+      ? ollamaModel
+      : null;
+  const chipLabel: ProviderChipLabel | undefined =
     prefs?.provider === 'ollama' && prefs.ollamaModel
       ? `ollama/${prefs.ollamaModel}`
-      : prefs?.provider;
+      : (prefs?.provider ?? undefined);
 
   return (
     <Section
@@ -79,10 +92,7 @@ export function LlmCliPanel({
                 name="settings-provider"
                 value="auto"
                 checked={provider === 'auto'}
-                onChange={() => {
-                  onProviderChange('auto');
-                  onOllamaModelChange(null);
-                }}
+                onChange={() => onProviderChange('auto')}
               />
               <strong>Auto-detect</strong>
               <span className={styles.muted}>
@@ -98,10 +108,7 @@ export function LlmCliPanel({
                   name="settings-provider"
                   value={p}
                   checked={provider === p}
-                  onChange={() => {
-                    onProviderChange(p);
-                    onOllamaModelChange(null);
-                  }}
+                  onChange={() => onProviderChange(p)}
                   disabled={!envInfo.providers[p]}
                 />
                 <strong>{PROVIDER_META[p].label}</strong>
@@ -111,40 +118,40 @@ export function LlmCliPanel({
               </label>
             </li>
           ))}
-          <li className={styles.ollamaGroup}>
-            <div className={styles.ollamaHeader}>
-              <strong>{PROVIDER_META.ollama.label}</strong>
-              <span className={envInfo.providers.ollama ? styles.available : styles.unavailable}>
-                {envInfo.providers.ollama ? '✓ installed' : '✗ not on PATH'}
-              </span>
-            </div>
+          <OllamaModelGroup
+            header={
+              <>
+                <strong>{PROVIDER_META.ollama.label}</strong>
+                <span className={envInfo.providers.ollama ? styles.available : styles.unavailable}>
+                  {envInfo.providers.ollama ? '✓ installed' : '✗ not on PATH'}
+                </span>
+              </>
+            }
+            radioName="settings-provider"
+            models={envInfo.providers.ollama ? envInfo.ollamaModels : []}
+            selected={provider === 'ollama' ? ollamaModel : null}
+            onSelect={(name) => {
+              onProviderChange('ollama');
+              onOllamaModelChange(name);
+            }}
+          >
             {envInfo.providers.ollama && envInfo.ollamaModels.length === 0 && (
               <p className={styles.muted}>
                 No models pulled. Run <code>ollama pull &lt;model&gt;</code>, then reload Settings.
               </p>
             )}
-            {envInfo.providers.ollama && envInfo.ollamaModels.length > 0 && (
-              <ul className={styles.modelList}>
-                {envInfo.ollamaModels.map((name) => (
-                  <li key={name}>
-                    <label>
-                      <input
-                        type="radio"
-                        name="settings-provider"
-                        value={`ollama:${name}`}
-                        checked={provider === 'ollama' && ollamaModel === name}
-                        onChange={() => {
-                          onProviderChange('ollama');
-                          onOllamaModelChange(name);
-                        }}
-                      />
-                      <strong className={styles.modelName}>{name}</strong>
-                    </label>
-                  </li>
-                ))}
-              </ul>
+            {missingModel && (
+              <p className={styles.warn}>
+                Saved model <code>{missingModel}</code> is no longer pulled. Pick another model, or
+                run <code>ollama pull {missingModel}</code> and reload Settings.
+              </p>
             )}
-          </li>
+            {provider === 'auto' && ollamaModel && !missingModel && (
+              <p className={styles.muted}>
+                <code>{ollamaModel}</code> is used if auto-detect falls back to Ollama.
+              </p>
+            )}
+          </OllamaModelGroup>
         </ul>
       )}
       {!detectedAny && envInfo && (
