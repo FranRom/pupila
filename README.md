@@ -52,13 +52,13 @@ The stuff that makes the daily routine actually pleasant:
 
 The first time you run `pnpm run ui`, a three-step wizard sets you up. Total time: about 30 seconds.
 
-### 1. Pick your LLM CLI
+### 1. Pick your LLM
 
 <p align="left">
-  <img src="./assets/readme/onboarding-1.jpg" alt="Onboarding step 1 — pick your local LLM CLI" width="50%" />
+  <img src="./assets/readme/onboarding-1.jpg" alt="Onboarding step 1 — pick your local LLM" width="50%" />
 </p>
 
-PUPILA shells out to whichever AI CLI you already have authenticated locally — `claude`, `codex`, `gemini`, or `opencode`. The wizard auto-detects what's on your `PATH` and pre-selects the first available one. No API keys, no signup, no per-token billing — it uses your existing CLI subscription.
+PUPILA uses a local LLM for the CV summary, AI review, and AI Apply — no cloud API keys. Pick a subscription CLI you already have authenticated (`claude`, `codex`, `gemini`, or `opencode`), or pick one of your locally pulled **Ollama** models (listed live from the daemon). The wizard auto-detects what's on your `PATH` and pre-selects the first available option (subscription CLIs first, then the first Ollama model).
 
 ### 2. Drop your CV
 
@@ -141,7 +141,7 @@ Or open the UI and use the Profile tab:
 pnpm run ui   # http://127.0.0.1:5173 → Profile tab → drop your CV (or "From LinkedIn")
 ```
 
-The auto-detected provider order is `claude` → `codex` → `gemini` → `opencode` (whichever is on `PATH` first). Override with `PUPILA_LLM=codex pnpm run setup-brief ...`. No API keys; uses your existing CLI subscription.
+The auto-detected provider order is `claude` → `codex` → `gemini` → `opencode` → `ollama` (whichever is on `PATH` first). Override with `PUPILA_LLM=ollama pnpm run setup-brief ...` (and optionally `PUPILA_LLM_MODEL=qwen3:14b`). Saved UI preferences in `config/preferences.json` are also honoured by `ai-review`, `setup-brief`, and the apply worker. For long prompts, Ollama's context window can be raised with `PUPILA_OLLAMA_NUM_CTX`. No cloud API keys.
 
 > **The two personalization layers, briefly:**
 > - `config/profile.json` (committed defaults) controls **what gets fetched + scored** (weights, keyword lists, tier-S slugs).

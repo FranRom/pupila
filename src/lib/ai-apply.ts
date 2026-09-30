@@ -13,7 +13,7 @@ import { fileURLToPath } from 'node:url';
 import { isValidJobId } from './apply-queue.js';
 import { readBriefBody } from './brief-template.js';
 import { parseCvBuffer } from './cv-parser.js';
-import { detectLlmCli, type LlmProvider } from './llm.js';
+import { detectLlmCli, type LlmProvider, runOllama } from './llm.js';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -63,6 +63,8 @@ export interface RunAiApplyOptions {
   repoRoot?: string;
   /** LLM provider override. undefined = auto-detect. */
   provider?: LlmProvider | undefined;
+  /** Ollama model name when provider is ollama. */
+  model?: string | null;
 }
 
 export interface AppliedEntry {
@@ -295,7 +297,7 @@ function spawnLlm(
 // ---------------------------------------------------------------------------
 
 export async function runAiApplyForJob(opts: RunAiApplyOptions): Promise<RunAiApplyResult> {
-  const { jobId, onChunk, signal, repoRoot = DEFAULT_REPO_ROOT, provider } = opts;
+  const { jobId, onChunk, signal, repoRoot = DEFAULT_REPO_ROOT, provider, model } = opts;
 
   // Defense in depth: even though the queue file is supposed to only ever
   // contain valid jobIds (validated at /api/apply-queue entry points), a
@@ -392,12 +394,52 @@ export async function runAiApplyForJob(opts: RunAiApplyOptions): Promise<RunAiAp
   // 6. Spawn LLM with cancellation support
   const invocation = await detectLlmCli(provider);
   let spawnResult: SpawnResult;
-  try {
-    spawnResult = await spawnLlm(invocation.cmd, invocation.argTemplate, prompt, onChunk, signal);
-  } catch (err) {
-    throw new Error(
-      `LLM CLI ${invocation.cmd} spawn failed: ${err instanceof Error ? err.message : String(err)}`,
-    );
+  if (invocation.provider === 'ollama') {
+    // Call runOllama directly (skip detectLlmCli re-probe inside runLlm)
+    // and forward the cancel signal into the HTTP fetch. Ollama errors
+    // (timeout, daemon-down) propagate unchanged — do not wrap as "spawn failed".
+    let streamed = '';
+    const wrapChunk =
+      onChunk || signal
+        ? (chunk: string) => {
+            streamed += chunk;
+            onChunk?.(chunk);
+          }
+        : undefined;
+    try {
+      const stdout = await runOllama(prompt, wrapChunk, model, signal);
+      spawnResult = {
+        stdout,
+        exitCode: 0,
+        signal: null,
+        aborted: false,
+      };
+    } catch (err) {
+      const aborted =
+        signal?.aborted === true ||
+        (err instanceof Error && err.name === 'AbortError') ||
+        (typeof DOMException !== 'undefined' &&
+          err instanceof DOMException &&
+          err.name === 'AbortError');
+      if (aborted) {
+        spawnResult = {
+          stdout: streamed,
+          exitCode: null,
+          signal: null,
+          aborted: true,
+        };
+      } else {
+        throw err;
+      }
+    }
+  } else {
+    try {
+      spawnResult = await spawnLlm(invocation.cmd, invocation.argTemplate, prompt, onChunk, signal);
+    } catch (err) {
+      throw new Error(
+        `LLM CLI ${invocation.cmd} spawn failed: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
   }
 
   if (!spawnResult.aborted && spawnResult.exitCode !== 0) {

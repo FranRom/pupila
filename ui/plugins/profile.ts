@@ -13,7 +13,7 @@ import {
 } from '../../src/lib/profile-generator.js';
 import { streamableResponse } from '../../src/lib/streamable-response.js';
 import { PROFILE_DEFAULT_PATH, PROFILE_PATH } from './_paths.ts';
-import { readBody, readJsonOrDefault } from './_shared.ts';
+import { readBody, readJsonOrDefault, readLlmPreference } from './_shared.ts';
 
 // ── Profile generator API ──────────────────────────────────────────────────
 //
@@ -26,6 +26,7 @@ import { readBody, readJsonOrDefault } from './_shared.ts';
 
 interface ProfileGenerateBody {
   provider?: unknown;
+  model?: unknown;
 }
 
 export function profileApiPlugin(): Plugin {
@@ -192,15 +193,32 @@ export function profileApiPlugin(): Plugin {
         // before the LLM runs. 412/500 stay JSON because they fire before
         // any streaming headers are committed.
         let provider: LlmProvider | undefined;
+        let model: string | null = null;
         let briefBody: string;
         let base: ProfileShape;
         try {
           const body = (await readBody(req)) as ProfileGenerateBody;
+          const prefs = await readLlmPreference();
           const rawProvider = typeof body.provider === 'string' ? body.provider : null;
-          provider =
-            rawProvider && SUPPORTED_PROVIDERS.includes(rawProvider as LlmProvider)
-              ? (rawProvider as LlmProvider)
-              : undefined;
+          const rawModel =
+            typeof body.model === 'string' && body.model.trim() ? body.model.trim() : null;
+
+          if (
+            rawProvider &&
+            rawProvider !== 'auto' &&
+            SUPPORTED_PROVIDERS.includes(rawProvider as LlmProvider)
+          ) {
+            provider = rawProvider as LlmProvider;
+            // Model is inert for CLI providers; keep it so auto→ollama later still works.
+            model = rawModel ?? prefs.model;
+          } else if (rawProvider === 'auto') {
+            provider = undefined;
+            model = rawModel ?? prefs.model;
+          } else {
+            // Body omitted provider (Settings → Regenerate) — use saved prefs.
+            provider = prefs.provider;
+            model = prefs.model;
+          }
 
           const maybeBrief = await readBriefBody();
           if (!maybeBrief?.trim()) {
@@ -256,6 +274,7 @@ export function profileApiPlugin(): Plugin {
               responder.isStreaming
                 ? (chunk) => responder.send({ type: 'chunk', data: chunk })
                 : undefined,
+              model,
             );
           } catch (err) {
             responder.fail(

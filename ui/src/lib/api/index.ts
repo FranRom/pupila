@@ -99,6 +99,7 @@ export interface SchedulerOpState {
 
 export interface LlmDetectResponse {
   available: Record<Provider, boolean>;
+  ollamaModels: string[];
 }
 
 export interface BriefGetResponse {
@@ -298,7 +299,14 @@ export const api = {
   // ── Preferences (provider + onboarding stamp) ────────────────────────────
   preferences: {
     get: (opt: SignalOpt = {}) => request<PreferencesResponse>('/api/preferences', opt),
-    set: (input: { provider?: ProviderChoice; onboardedAt?: string | null }, opt: SignalOpt = {}) =>
+    set: (
+      input: {
+        provider?: ProviderChoice;
+        ollamaModel?: string | null;
+        onboardedAt?: string | null;
+      },
+      opt: SignalOpt = {},
+    ) =>
       request<PreferencesResponse>('/api/preferences', {
         method: 'POST',
         json: input,
@@ -309,8 +317,12 @@ export const api = {
   // ── LLM CLI detect + test ────────────────────────────────────────────────
   llm: {
     detect: (opt: SignalOpt = {}) => request<LlmDetectResponse>('/api/llm-detect', opt),
-    test: (opt: SignalOpt = {}) =>
-      request<LlmTestResult>('/api/llm-test', { method: 'POST', ...opt }),
+    test: (input: { provider?: ProviderChoice; model?: string | null } = {}, opt: SignalOpt = {}) =>
+      request<LlmTestResult>('/api/llm-test', {
+        method: 'POST',
+        json: input,
+        ...opt,
+      }),
   },
 
   // ── Candidate brief + CV ─────────────────────────────────────────────────

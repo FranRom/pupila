@@ -16,8 +16,10 @@
 // a LinkedIn profile export so it ignores LinkedIn's boilerplate. A `--file`
 // whose name contains "linkedin" is auto-treated as a LinkedIn source.
 //
-// Provider: auto-detects claude / codex / gemini / opencode on PATH (in that
-// order). Override with PUPILA_LLM=<provider>.
+// Provider: auto-detects claude / codex / gemini / opencode / ollama on PATH
+// (in that order). Override with PUPILA_LLM=<provider>. For ollama, set the
+// model via UI prefs / PUPILA_LLM_MODEL (no hardcoded default; a sole pulled
+// model is used with a warning).
 
 import { existsSync } from 'node:fs';
 import { copyFile } from 'node:fs/promises';
@@ -26,6 +28,7 @@ import { type BriefSource, buildBriefPrompt } from './lib/brief-prompt.js';
 import { writeBriefBody } from './lib/brief-template.js';
 import { detectFormat, parseCvFile } from './lib/cv-parser.js';
 import { detectLlmCli, runLlm } from './lib/llm.js';
+import { readLlmPreference } from './lib/preferences.js';
 
 // How many chars of the parsed CV we send to the LLM. Configurable via
 // PUPILA_CV_MAX_CHARS for users hitting OOM kills on large CVs.
@@ -106,8 +109,10 @@ async function main(): Promise<void> {
     console.log('  pnpm run setup-brief --linkedin path/to/profile.pdf   # LinkedIn "Save to PDF"');
     console.log('  cat cv.txt | pnpm run setup-brief');
     console.log('');
-    console.log('Provider: auto-detects claude/codex/gemini/opencode on PATH.');
-    console.log('Override with PUPILA_LLM=<provider>.');
+    console.log('Provider: auto-detects claude/codex/gemini/opencode/ollama on PATH.');
+    console.log(
+      'Override with PUPILA_LLM=<provider>. For ollama, set PUPILA_LLM_MODEL or pick a model in Settings (no hardcoded default).',
+    );
     return;
   }
 
@@ -154,8 +159,9 @@ async function main(): Promise<void> {
   }
 
   let invocation: Awaited<ReturnType<typeof detectLlmCli>>;
+  const { provider, model } = await readLlmPreference();
   try {
-    invocation = await detectLlmCli();
+    invocation = await detectLlmCli(provider);
   } catch (err) {
     console.error(`✗ ${err instanceof Error ? err.message : String(err)}`);
     process.exit(1);
@@ -168,7 +174,7 @@ async function main(): Promise<void> {
   const prompt = buildBriefPrompt(cvText, args.source, MAX_CV_CHARS);
   let raw: string;
   try {
-    raw = await runLlm(prompt);
+    raw = await runLlm(prompt, provider, undefined, model);
   } catch (err) {
     console.error(`✗ LLM call failed: ${err instanceof Error ? err.message : String(err)}`);
     process.exit(1);

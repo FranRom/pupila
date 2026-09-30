@@ -31,7 +31,7 @@ function stubGenerate(delta: PersonalizationDelta) {
 
 function depsWith(
   fx: FixtureLayout,
-  generate: (brief: string, provider: unknown) => Promise<PersonalizationDelta>,
+  generate: (brief: string, provider: unknown, model?: unknown) => Promise<PersonalizationDelta>,
 ): RegenerateProfileDeps {
   const profilePath = path.join(fx.dir, 'profile.json');
   return {
@@ -45,6 +45,7 @@ function depsWith(
       }
     },
     generateDelta: generate as RegenerateProfileDeps['generateDelta'],
+    readLlmPreference: async () => ({ provider: undefined, model: null }),
   };
 }
 
@@ -165,17 +166,20 @@ describe('regenerate_profile', () => {
     expect(captured.provider).toBe('claude');
   });
 
-  it("converts provider='auto' to undefined for the generator", async () => {
+  it("converts provider='auto' to undefined for the generator but keeps prefs.model", async () => {
     fx = await buildFixture({ brief: 'Senior FE engineer · web3 · remote' });
-    const captured: { provider?: unknown } = {};
-    const deps = depsWith(fx, async (_brief, provider) => {
+    const captured: { provider?: unknown; model?: unknown } = {};
+    const deps = depsWith(fx, async (_brief, provider, model) => {
       captured.provider = provider;
+      captured.model = model;
       return { weights: {}, keywords: {} };
     });
+    deps.readLlmPreference = async () => ({ provider: undefined, model: 'qwen3:14b' });
     await writeFile(deps.profilePath, JSON.stringify(baseProfile()), 'utf8');
 
     await runRegenerateProfile({ provider: 'auto' }, deps);
     expect(captured.provider).toBeUndefined();
+    expect(captured.model).toBe('qwen3:14b');
   });
 
   it('single-flight: second concurrent call returns an error envelope', async () => {

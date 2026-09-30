@@ -71,6 +71,7 @@ export function Settings({
 }: SettingsProps) {
   const [prefs, setPrefs] = useState<PreferencesResponse | null>(null);
   const [provider, setProvider] = useState<ProviderChoice>('auto');
+  const [ollamaModel, setOllamaModel] = useState<string | null>(null);
   const [scheduler, setScheduler] = useState<SchedulerStatus | null>(null);
   const [runSummary, setRunSummary] = useState<RunSummary | null>(null);
   const [disk, setDisk] = useState<DiskUsage | null>(null);
@@ -118,6 +119,7 @@ export function Settings({
     if (p.ok) {
       setPrefs(p.value);
       setProvider(p.value.provider ?? 'auto');
+      setOllamaModel(p.value.ollamaModel ?? null);
     }
     setScheduler(s.ok ? s.value : null);
     setRunSummary(rs.ok ? rs.value : null);
@@ -153,7 +155,10 @@ export function Settings({
   const saveProvider = useCallback(async () => {
     setSavingProvider(true);
     setError(null);
-    const r = await api.preferences.set({ provider });
+    const r = await api.preferences.set({
+      provider,
+      ollamaModel,
+    });
     setSavingProvider(false);
     if (!r.ok) {
       setError(`Could not save provider: ${formatError(r.error)}`);
@@ -163,12 +168,15 @@ export function Settings({
     setSavedToastVisible(true);
     window.setTimeout(() => setSavedToastVisible(false), 3000);
     setLlmTest({ busy: false, result: null });
-  }, [provider]);
+  }, [provider, ollamaModel]);
 
   const testLlm = useCallback(async () => {
     setLlmTest({ busy: true, result: null });
     setError(null);
-    const r = await api.llm.test();
+    const r = await api.llm.test({
+      provider,
+      model: ollamaModel,
+    });
     if (r.ok) {
       setLlmTest({ busy: false, result: r.value });
     } else {
@@ -178,14 +186,14 @@ export function Settings({
         busy: false,
         result: {
           ok: false,
-          provider,
+          provider: provider === 'ollama' && ollamaModel ? `ollama/${ollamaModel}` : provider,
           latencyMs: 0,
           output: '',
           error: formatError(r.error),
         },
       });
     }
-  }, [provider]);
+  }, [provider, ollamaModel]);
 
   const runClean = useCallback(
     async (mode: CleanMode) => {
@@ -372,7 +380,9 @@ export function Settings({
         prefs={prefs}
         envInfo={envInfo}
         provider={provider}
+        ollamaModel={ollamaModel}
         onProviderChange={setProvider}
+        onOllamaModelChange={setOllamaModel}
         onSave={() => void saveProvider()}
         onTest={() => void testLlm()}
         savingProvider={savingProvider}

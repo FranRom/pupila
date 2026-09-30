@@ -4,9 +4,10 @@ import { readBody } from './_shared.ts';
 
 interface LlmTestPostBody {
   provider?: unknown;
+  model?: unknown;
 }
 
-// Tiny prompt to confirm the chosen LLM CLI works end-to-end.
+// Tiny prompt to confirm the chosen LLM CLI / Ollama model works end-to-end.
 export function llmTestApiPlugin(): Plugin {
   return {
     name: 'pupila-llm-test-api',
@@ -24,20 +25,22 @@ export function llmTestApiPlugin(): Plugin {
             rawProvider !== 'auto' && SUPPORTED_PROVIDERS.includes(rawProvider as LlmProvider)
               ? (rawProvider as LlmProvider)
               : undefined;
+          const model =
+            typeof body.model === 'string' && body.model.trim() ? body.model.trim() : null;
 
           const TIMEOUT_MS = 30_000;
           const started = Date.now();
           let timeoutId: NodeJS.Timeout | undefined;
           const timeout = new Promise<never>((_, reject) => {
             timeoutId = setTimeout(
-              () => reject(new Error(`LLM CLI timed out after ${TIMEOUT_MS / 1000}s`)),
+              () => reject(new Error(`LLM timed out after ${TIMEOUT_MS / 1000}s`)),
               TIMEOUT_MS,
             );
           });
           let raw: string;
           try {
             raw = await Promise.race([
-              runLlm('Reply with the single word OK and nothing else.', provider),
+              runLlm('Reply with the single word OK and nothing else.', provider, undefined, model),
               timeout,
             ]);
           } finally {
@@ -45,11 +48,12 @@ export function llmTestApiPlugin(): Plugin {
           }
           const latencyMs = Date.now() - started;
           const output = raw.trim().slice(0, 200);
+          const label = provider === 'ollama' && model ? `ollama/${model}` : (provider ?? 'auto');
           res.setHeader('Content-Type', 'application/json');
           res.end(
             JSON.stringify({
               ok: output.length > 0,
-              provider: provider ?? 'auto',
+              provider: label,
               latencyMs,
               output,
             }),

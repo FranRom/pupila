@@ -432,12 +432,13 @@ export async function generateProfileFromBrief(
   briefMarkdown: string,
   provider?: LlmProvider,
   onChunk?: (chunk: string) => void,
+  model?: string | null,
 ): Promise<PersonalizationDelta> {
   if (!briefMarkdown.trim()) {
     throw new Error('Cannot generate profile: candidate brief is empty.');
   }
   const prompt = buildProfilePrompt(briefMarkdown);
-  const raw = await runLlm(prompt, provider, onChunk);
+  const raw = await runLlm(prompt, provider, onChunk, model);
   return parsePersonalizationDelta(raw);
 }
 

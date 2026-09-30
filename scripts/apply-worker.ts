@@ -20,6 +20,7 @@ import {
   markFailed,
   recoverOrphanedRunning,
 } from '../src/lib/apply-queue.js';
+import { readLlmPreference } from '../src/lib/preferences.js';
 
 // ---------------------------------------------------------------------------
 // Paths — replicated from ui/plugins/_paths.ts to avoid src→ui coupling.
@@ -224,9 +225,12 @@ async function main(): Promise<void> {
     }, CANCEL_POLL_MS);
 
     try {
+      const { provider, model } = await readLlmPreference();
       const result = await runAiApplyForJob({
         jobId,
         signal: controller.signal,
+        provider,
+        model,
         onChunk: (chunk: string) => {
           process.stdout.write(chunk);
         },

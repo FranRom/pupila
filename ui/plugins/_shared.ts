@@ -6,10 +6,12 @@ import {
 } from '../../src/lib/applied-store.js';
 import type { CvFormat } from '../../src/lib/cv-parser.js';
 import { type LlmProvider, SUPPORTED_PROVIDERS } from '../../src/lib/llm.js';
+import { readLlmPreference as readLlmPreferenceFromLib } from '../../src/lib/preferences.js';
 import { APPLICATION_STATUSES } from '../../src/types.js';
 import { APPLIED_PATH, CV_BASENAME, PREFERENCES_PATH } from './_paths.ts';
 
 export type { LlmProvider };
+export { readLlmPreferenceFromLib as readLlmPreference };
 
 // How many chars of the parsed CV we send to the LLM. Configurable via
 // PUPILA_CV_MAX_CHARS for users hitting OOM kills on large CVs.
@@ -36,10 +38,12 @@ export interface AppliedEntry {
 
 export interface Preferences {
   provider: LlmProvider | 'auto' | null;
+  /** Selected Ollama model name when provider is `ollama`. */
+  ollamaModel: string | null;
   onboardedAt: string | null;
 }
 
-export const EMPTY_PREFS: Preferences = { provider: null, onboardedAt: null };
+export const EMPTY_PREFS: Preferences = { provider: null, ollamaModel: null, onboardedAt: null };
 
 // Read a JSON file, falling back to a default if it doesn't exist or is
 // invalid. Used so the UI keeps working on a fresh clone where the personal
@@ -89,7 +93,12 @@ export async function writeApplied(entries: AppliedEntry[]): Promise<void> {
 }
 
 export async function readPreferences(): Promise<Preferences> {
-  return readJsonOrDefault<Preferences>(PREFERENCES_PATH, EMPTY_PREFS);
+  const raw = await readJsonOrDefault<Partial<Preferences>>(PREFERENCES_PATH, EMPTY_PREFS);
+  return {
+    provider: raw.provider ?? null,
+    ollamaModel: typeof raw.ollamaModel === 'string' ? raw.ollamaModel : null,
+    onboardedAt: raw.onboardedAt ?? null,
+  };
 }
 
 export async function writePreferences(prefs: Preferences): Promise<void> {

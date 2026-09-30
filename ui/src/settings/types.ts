@@ -1,9 +1,9 @@
 // Shared types for the Settings tab. Re-exports + small constants kept in
 // one file so each panel component imports from a single place.
 
-export type Provider = 'claude' | 'codex' | 'gemini' | 'opencode';
+export type Provider = 'claude' | 'codex' | 'gemini' | 'opencode' | 'ollama';
 export type ProviderChoice = Provider | 'auto';
-export const PROVIDERS: readonly Provider[] = ['claude', 'codex', 'gemini', 'opencode'];
+export const PROVIDERS: readonly Provider[] = ['claude', 'codex', 'gemini', 'opencode', 'ollama'];
 
 /**
  * Per-provider display metadata for the LLM-CLI picker.
@@ -38,10 +38,15 @@ export const PROVIDER_META: Record<Provider, ProviderMeta> = {
     label: 'opencode',
     installUrl: 'https://opencode.ai/docs/',
   },
+  ollama: {
+    label: 'Ollama (local)',
+    installUrl: 'https://ollama.com/download',
+  },
 };
 
 export interface PreferencesResponse {
   provider: ProviderChoice | null;
+  ollamaModel: string | null;
   onboardedAt: string | null;
 }
 
@@ -81,6 +86,8 @@ export interface EnvInfo {
   cvPresent: boolean;
   providers: Record<Provider, boolean>;
   preferredProvider: ProviderChoice | null;
+  ollamaModels: string[];
+  preferredOllamaModel: string | null;
 }
 
 export interface LlmTestResult {

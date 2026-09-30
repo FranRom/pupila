@@ -5,7 +5,6 @@
 import clsx from 'clsx';
 import type { ReactNode } from 'react';
 import styles from './settings.module.css';
-import type { ProviderChoice } from './types.ts';
 
 interface SectionProps {
   index: string;
@@ -72,7 +71,7 @@ export function Stat({ label, value, accent }: StatProps) {
   );
 }
 
-export function ProviderChip({ provider }: { provider: ProviderChoice }) {
+export function ProviderChip({ provider }: { provider: string }) {
   return <span className={clsx(styles.pillMono, styles.pillOk)}>{provider}</span>;
 }
 

@@ -1,8 +1,9 @@
 import type { Plugin } from 'vite';
-import { availableProviders } from '../../src/lib/llm.js';
+import { availableProviders, listOllamaModels } from '../../src/lib/llm.js';
 
-// `/api/llm-detect` — probes which CLIs are on PATH. Used by the
-// onboarding wizard to ✓/✗ each provider option.
+// `/api/llm-detect` — probes which CLIs are on PATH + lists pulled Ollama
+// models. Used by the onboarding wizard to ✓/✗ each provider option and to
+// render per-model radios under Ollama.
 export function llmDetectApiPlugin(): Plugin {
   return {
     name: 'pupila-llm-detect-api',
@@ -14,9 +15,12 @@ export function llmDetectApiPlugin(): Plugin {
           return;
         }
         try {
-          const available = await availableProviders();
+          const [available, ollamaModels] = await Promise.all([
+            availableProviders(),
+            listOllamaModels(),
+          ]);
           res.setHeader('Content-Type', 'application/json');
-          res.end(JSON.stringify({ available }));
+          res.end(JSON.stringify({ available, ollamaModels }));
         } catch (err) {
           console.error('[llm-detect api]', err);
           res.statusCode = 500;
