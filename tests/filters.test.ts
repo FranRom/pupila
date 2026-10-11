@@ -945,8 +945,20 @@ describe('applyFilters — confirmed-not-remote (trusted-source work-type gate)'
 
   it('drops a confirmed non-remote posting from a trusted source when the candidate is remote-only', () => {
     const run = withWorkTypes(['remote']);
-    const r = run([makeJob({ source: 'lever', remote: false, location: 'Remote' })]);
+    const r = run([makeJob({ source: 'lever', remote: false, location: 'Europe' })]);
     expect(r.kept).toHaveLength(0);
+    expect(r.droppedByRule.confirmed_not_remote).toBe(1);
+  });
+
+  it('does not treat a posting whose location says Remote as confirmed on-site', () => {
+    const run = withWorkTypes(['remote']);
+    const r = run([makeJob({ source: 'ashby', remote: false, location: 'Worldwide, Remote' })]);
+    expect(r.droppedByRule.confirmed_not_remote).toBeUndefined();
+  });
+
+  it('still drops when the location pairs Remote with hybrid / on-site wording', () => {
+    const run = withWorkTypes(['remote']);
+    const r = run([makeJob({ source: 'ashby', remote: false, location: 'Hybrid, Remote Europe' })]);
     expect(r.droppedByRule.confirmed_not_remote).toBe(1);
   });
 

@@ -131,28 +131,6 @@ describe('remote_location_far_zone (candidate UTC+7)', () => {
   });
 });
 
-describe('confirmed_not_remote vs stated location', () => {
-  const ashby = (location: string, body = 'x') => ({
-    ...makeJob(body, location, false),
-    source: 'ashby' as const,
-  });
-  it('keeps an Ashby role flagged non-remote when location says Remote and the body says fully remote', () => {
-    const r = applyFilters([
-      ashby('Remote, Global', 'What we offer: Fully Remote. We hire globally.'),
-    ]);
-    expect(r.droppedByRule.confirmed_not_remote).toBeUndefined();
-  });
-  it('still drops when only the location label says Remote (the flag wins)', () => {
-    expect(applyFilters([ashby('Remote')]).droppedByRule.confirmed_not_remote).toBe(1);
-  });
-  it('still drops a non-remote Ashby role in a city', () => {
-    expect(applyFilters([ashby('Asia')]).droppedByRule.confirmed_not_remote).toBe(1);
-  });
-  it('still drops Hybrid - Remote wording', () => {
-    expect(applyFilters([ashby('Hybrid, Asia')]).droppedByRule.confirmed_not_remote).toBe(1);
-  });
-});
-
 describe('location lock keywords (default profile)', () => {
   const lock = (body: string) =>
     createFilters({
@@ -164,6 +142,14 @@ describe('location lock keywords (default profile)', () => {
     'Visa sponsorship available.',
     'We offer relocation assistance.',
     'There is no minimum in-office qualification requirement.',
+    'No security clearance is required.',
+    'A security clearance is not required.',
+    'Help us build public trust in AI.',
+    'There is no need to relocate.',
+    "You don't need to relocate.",
+    'Office Set-Up Reimbursement (In-Office Only)',
+    'Not sure about visa sponsorship? We provide it.',
+    'You are never required to work from the office.',
   ])('does not treat benefits wording as a lock: %s', (body) => {
     expect(lock(body).droppedByRule.hard_location_incompatible).toBeUndefined();
   });
@@ -171,7 +157,133 @@ describe('location lock keywords (default profile)', () => {
     'We do not offer visa sponsorship at this time.',
     'This role is in-office only.',
     'You must be willing to relocate to Berlin.',
+    'Ability to obtain and maintain a Public Trust clearance.',
+    'Active security clearance required.',
+    'This role is in-office only.',
+    'We are unable to provide visa sponsorship.',
   ])('still treats a real restriction as a lock: %s', (body) => {
     expect(lock(body).droppedByRule.hard_location_incompatible).toBe(1);
+  });
+});
+
+describe('timezone gap wraps around the clock', () => {
+  const sydney = createFilters({
+    ...profile,
+    location: { ...(profile.location as object), utcOffset: 10 },
+  } as FilterProfile).applyFilters;
+  const tz = (f: typeof sydney, body: string, location = 'Worldwide') =>
+    f([makeJob(body, location)]).droppedByRule;
+
+  it('UTC+10 is 6h from Pacific time, not 18', () => {
+    expect(
+      tz(sydney, 'Overlap with Pacific time is required.').hard_timezone_incompatible,
+    ).toBeUndefined();
+    expect(tz(sydney, 'Remote, San Francisco').remote_location_far_zone).toBeUndefined();
+  });
+
+  it('still drops a genuinely far zone for the same candidate', () => {
+    expect(tz(sydney, 'You must work CET hours.').hard_timezone_incompatible).toBe(1);
+  });
+
+  it('treats a null utcOffset as unset instead of UTC+0', () => {
+    const f = createFilters({
+      ...profile,
+      location: { ...(profile.location as object), utcOffset: null },
+    } as unknown as FilterProfile).applyFilters;
+    expect(
+      f([makeJob('You must work JST hours.')]).droppedByRule.hard_timezone_incompatible,
+    ).toBeUndefined();
+  });
+});
+
+describe('ambiguous abbreviations and plain English', () => {
+  it.each([
+    'This is a PT contract, 20 hours per week.',
+    'Based in Stamford, CT with flexible hours.',
+    'Great fit when working with the ET team.',
+    'Working on MT models and evaluation hours.',
+    'Aligned with CST (China Standard Time) working hours.',
+    'Our tooling saves us hours every week.',
+    'FT or PT options, flexible working hours.',
+  ])('keeps: %s', (body) => {
+    expect(dropped(body)).toBe(false);
+  });
+
+  it.each([
+    'Core hours 9-5 ET.',
+    'Overlap with PT is required.',
+    'ET hours expected.',
+    'Availability in US hours is required.',
+  ])('still drops: %s', (body) => {
+    expect(dropped(body)).toBe(true);
+  });
+});
+
+describe('far-zone rule — other home regions and US states', () => {
+  const berlin = createFilters({
+    ...profile,
+    location: {
+      ...(profile.location as object),
+      utcOffset: 1,
+      acceptedRegions: ['europe', 'eu', 'emea'],
+    },
+  } as FilterProfile).applyFilters;
+  const us = createFilters({
+    ...profile,
+    location: {
+      ...(profile.location as object),
+      utcOffset: -5,
+      acceptedRegions: ['north america', 'americas'],
+    },
+  } as FilterProfile).applyFilters;
+  const far = (f: typeof berlin, location: string) =>
+    f([makeJob('We build things.', location)]).droppedByRule.remote_location_far_zone === 1;
+
+  it('treats California as west coast for a Berlin candidate in either spelling', () => {
+    expect(far(berlin, 'Remote - San Francisco')).toBe(true);
+    expect(far(berlin, 'Remote, San Francisco, CA')).toBe(true);
+  });
+
+  it('drops Asia-Pacific places for a US candidate, keeps Canada', () => {
+    expect(far(us, 'Remote, Singapore')).toBe(true);
+    expect(far(us, 'Remote, Canada')).toBe(false);
+  });
+
+  it('does not drop a placeholder BLANK location', () => {
+    const r = berlin([{ ...makeJob('x', 'BLANK,BLANK,Multiple Locations'), remote: false }]);
+    expect(r.droppedByRule.hard_location_incompatible).toBeUndefined();
+  });
+});
+
+describe('accepting a region accepts the countries inside it', () => {
+  const berlin = createFilters({
+    ...profile,
+    location: {
+      basedIn: 'Germany',
+      workTypes: ['remote'],
+      acceptedRegions: ['europe', 'eu', 'emea'],
+      excludeOutsideAcceptedRegions: true,
+    },
+  } as FilterProfile).applyFilters;
+  const rule = (location: string, body = 'Great team.') =>
+    berlin([makeJob(body, location)]).droppedByRule.hard_location_incompatible;
+
+  it.each([
+    'Spain, Portugal',
+    'Poland, Portugal, Romania, Serbia, Spain, Turkey',
+    'Remote (Bulgaria, Ireland, United Kingdom)',
+    'Croatia, Slovenia',
+  ])("keeps a Europe-accepting candidate's posting listed as: %s", (location) => {
+    expect(rule(location)).toBeUndefined();
+  });
+
+  it('keeps a role restricted to "the United Kingdom only"', () => {
+    expect(
+      rule('Remote', 'This remote role is for candidates located in the United Kingdom.'),
+    ).toBeUndefined();
+  });
+
+  it('still drops a closed list of countries outside the accepted regions', () => {
+    expect(rule('Brazil, Canada')).toBe(1);
   });
 });
