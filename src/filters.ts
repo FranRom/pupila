@@ -104,7 +104,7 @@ const NEVER_MATCH_GLOBAL = /(?!)/g;
 // rather than a place. Stripped from a job's stated location to decide whether
 // what remains names a specific region. Persona-agnostic — not a preference.
 const GENERIC_REMOTE_TOKENS =
-  /\b(remote|worldwide|world ?wide|global|globally|anywhere|hybrid|on[- ]?site|onsite|distributed|flexible|work from home|wfh|n\/?a|tbd|various|multiple|locations?)\b/gi;
+  /\b(remote|worldwide|world ?wide|global|globally|anywhere|hybrid|on[- ]?site|onsite|distributed|flexible|work from home|wfh|n\/?a|tbd|blank|various|multiple|locations?)\b/gi;
 
 // Recognized COUNTRY names/codes only — deliberately does not include cities,
 // states, or continents. Used to tell "the location field enumerates the
@@ -209,6 +209,112 @@ const COUNTRY_NAMES = [
 // Exact (whole-string) match only — used against an already letters-only,
 // single-spaced residual (see `isClosedCountryList`), never against raw text.
 const COUNTRY_NAME_ONLY_RE = new RegExp(`^(${COUNTRY_NAMES.join('|')})$`, 'i');
+
+// Which broader region labels a country belongs to. A candidate who accepts
+// "europe"/"emea"/"apac" accepts the countries inside it, so a location like
+// "Spain, Portugal" must count as accepted for them. "us" is deliberately not
+// listed: it is also an ordinary English word.
+const REGION_GROUPS: ReadonlyArray<readonly [aliases: string, countries: readonly string[]]> = [
+  [
+    'europe european eu emea',
+    [
+      'germany',
+      'france',
+      'spain',
+      'italy',
+      'portugal',
+      'netherlands',
+      'belgium',
+      'austria',
+      'poland',
+      'sweden',
+      'denmark',
+      'finland',
+      'czech republic',
+      'czechia',
+      'slovakia',
+      'hungary',
+      'romania',
+      'bulgaria',
+      'greece',
+      'croatia',
+      'slovenia',
+      'estonia',
+      'latvia',
+      'lithuania',
+      'luxembourg',
+      'malta',
+      'cyprus',
+      'ireland',
+    ],
+  ],
+  [
+    'europe european emea',
+    ['united kingdom', 'uk', 'norway', 'switzerland', 'iceland', 'serbia', 'ukraine', 'russia'],
+  ],
+  ['emea mena middle east', ['israel', 'uae', 'united arab emirates', 'saudi arabia', 'turkey']],
+  ['emea africa', ['south africa', 'nigeria', 'kenya', 'egypt', 'morocco']],
+  [
+    'apac asia asia-pacific',
+    [
+      'india',
+      'pakistan',
+      'bangladesh',
+      'sri lanka',
+      'nepal',
+      'china',
+      'japan',
+      'south korea',
+      'philippines',
+      'vietnam',
+      'indonesia',
+      'thailand',
+      'singapore',
+      'malaysia',
+    ],
+  ],
+  ['apac oceania anz', ['australia', 'new zealand']],
+  ['north america americas', ['united states', 'usa', 'canada']],
+  [
+    'latam latin america americas',
+    [
+      'mexico',
+      'brazil',
+      'argentina',
+      'chile',
+      'colombia',
+      'peru',
+      'uruguay',
+      'paraguay',
+      'bolivia',
+      'venezuela',
+      'ecuador',
+      'costa rica',
+      'panama',
+      'guatemala',
+      'honduras',
+      'el salvador',
+      'dominican republic',
+      'puerto rico',
+      'jamaica',
+    ],
+  ],
+];
+const REGION_OF_COUNTRY = new Map<string, string>(
+  REGION_GROUPS.flatMap(([aliases, countries]) => countries.map((c) => [c, aliases] as const)),
+);
+const COUNTRY_FIND_RE = new RegExp(
+  `\\b(${[...REGION_OF_COUNTRY.keys()].sort((a, b) => b.length - a.length).join('|')})\\b`,
+  'gi',
+);
+
+/** Region labels implied by the countries named in a SHORT text (location, title, one clause). */
+function regionAliasesFor(text: string): string {
+  if (text.length > 200) return '';
+  const found = text.match(COUNTRY_FIND_RE);
+  if (!found) return '';
+  return [...new Set(found.map((c) => REGION_OF_COUNTRY.get(c.toLowerCase()) ?? ''))].join(' ');
+}
 
 // Defensive compile — a single bad regex fragment (likely from an
 // LLM-generated profile.json) would otherwise crash `pnpm run dev` at
@@ -375,8 +481,6 @@ export function createFilters(profile: FilterProfile): FilterApi {
   // with workplaceType != 'remote' rarely says that in prose). Heuristic
   // sources (greenhouse, personio, bluedoor, every scraper/aggregator) are
   // deliberately excluded — their `false` can genuinely mean "unknown".
-  const STATED_FULLY_REMOTE =
-    /\b(fully remote|100% remote|remote[- ]first|work from anywhere|we hire (globally|worldwide|anywhere)|this is a remote (role|position))\b/i;
   const TRUSTED_REMOTE_SOURCES = new Set<Source>([
     'lever',
     'ashby',
@@ -422,8 +526,11 @@ export function createFilters(profile: FilterProfile): FilterApi {
     /\b(?:this (?:is a |role is a )?remote role (?:is )?for candidates (?:located|based) in|candidates (?:must|should|need to) be (?:located|based) in|this (?:role|position) is (?:only )?(?:open to|for) candidates (?:located|based) in)\s+([\p{L}][\p{L} ,'-]{1,60})(?=[.\n]|$)/iu;
 
   function regionAccepted(haystack: string): boolean {
+    // A named country also counts via its broader regions: accepting "europe"
+    // accepts "Spain, Portugal" (see REGION_GROUPS).
+    const expanded = `${haystack} ${regionAliasesFor(haystack)}`;
     return (
-      WORLDWIDE_REMOTE.test(haystack) || ACCEPTED_REGIONS.test(haystack) || BASED_IN.test(haystack)
+      WORLDWIDE_REMOTE.test(expanded) || ACCEPTED_REGIONS.test(expanded) || BASED_IN.test(expanded)
     );
   }
 
@@ -493,7 +600,16 @@ export function createFilters(profile: FilterProfile): FilterApi {
   // in a zone far from the candidate ("EST hours", "overlap with Pacific",
   // "UTC-8 to UTC-5"). Only evaluated when `location.utcOffset` is set.
   const TZ_MAX_DIFF = loc?.maxTimezoneDiffHours ?? 8;
-  const TZ_CANDIDATE_OFFSET = loc?.utcOffset;
+  // Only a real number enables the timezone rules (`null`/absent = inert).
+  const TZ_CANDIDATE_OFFSET =
+    typeof loc?.utcOffset === 'number' && Number.isFinite(loc.utcOffset)
+      ? loc.utcOffset
+      : undefined;
+  // Shortest distance around the clock: UTC+10 and UTC-8 are 6h apart, not 18.
+  const tzGap = (a: number, b: number): number => {
+    const d = Math.abs(a - b) % 24;
+    return Math.min(d, 24 - d);
+  };
   // A tz mention only counts when it sits next to working-hours language —
   // "headquartered in Pacific Northwest" is not a schedule requirement.
   const TZ_CONTEXT =
@@ -502,10 +618,10 @@ export function createFilters(profile: FilterProfile): FilterApi {
     /\b(try to|ideally|if possible|where possible|nice to have|preferably|preferred|prefer)\b/i;
   // Case-sensitive abbreviations (uppercase only: "ET"/"PT"/"CT" collide with words).
   const TZ_ABBR: ReadonlyArray<[RegExp, number]> = [
-    [/\b(PST|PDT|PT)\b/g, -8],
-    [/\b(MST|MDT|MT)\b/g, -7],
-    [/\b(CST|CDT|CT)\b/g, -6],
-    [/\b(EST|EDT|ET)\b/g, -5],
+    [/\b(PST|PDT)\b/g, -8],
+    [/\b(MST|MDT)\b/g, -7],
+    [/\b(CDT)\b/g, -6],
+    [/\b(EST|EDT)\b/g, -5],
     [/\b(CET|CEST)\b/g, 1],
     [/\b(BST|GMT)\b(?![+\-−]\s?\d)/g, 0],
     [/\b(JST|KST)\b/g, 9],
@@ -514,6 +630,21 @@ export function createFilters(profile: FilterProfile): FilterApi {
     [/\b(AEST|AEDT)\b/g, 10],
     [/\b(NZST|NZDT)\b/g, 12],
   ];
+  // Two-letter forms (PT/MT/CT/ET) and CST collide with ordinary text: "a PT
+  // contract", "Stamford, CT", "the ET team", "MT models", "China Standard Time".
+  // They only count when glued to clock or schedule wording: a time before them
+  // ("9-5 ET"), "overlap/aligned with PT", or directly followed by hours/time.
+  const TZ_AMBIGUOUS = (abbr: string): RegExp =>
+    new RegExp(
+      `(?:\\d\\s?(?:am|pm|a\\.m\\.|p\\.m\\.)?\\s?|(?:[Oo]verlap|[Aa]lign(?:ed)?|[Ss]ync(?:ed)?)\\s+(?:with|to)\\s+(?:the\\s+)?)(?:${abbr})\\b(?!\\s*\\(\\s*(?:[Cc]hina|[Cc]uba))|\\b(?:${abbr})\\s+(?:hours?|time|time\\s?zone|business|working|overlap)\\b`,
+      'g',
+    );
+  const TZ_ABBR_AMBIGUOUS: ReadonlyArray<[RegExp, number]> = [
+    [TZ_AMBIGUOUS('PT'), -8],
+    [TZ_AMBIGUOUS('MT'), -7],
+    [TZ_AMBIGUOUS('CT|CST'), -6],
+    [TZ_AMBIGUOUS('ET'), -5],
+  ];
   // Named zones / regions, case-insensitive.
   const TZ_NAMED: ReadonlyArray<[RegExp, number]> = [
     [/\bpacific(?: standard| daylight)?(?: time| hours|\s?time ?zone)/gi, -8],
@@ -521,7 +652,13 @@ export function createFilters(profile: FilterProfile): FilterApi {
     [/\bcentral(?: standard| daylight)? (?:time|hours|time ?zone)/gi, -6],
     [/\beastern(?: standard| daylight)?(?: time| hours|\s?time ?zone)/gi, -5],
     [
-      /\b(?:u\.?s\.?|usa|american|north american?|americas|canadian|latam|latin american?)\s+(?:business |working |core |normal |daytime |standard )?(?:hours|time ?zones?)/gi,
+      /\b(?:usa|american|north american?|americas|canadian|latam|latin american?)\s+(?:business |working |core |normal |daytime |standard )?(?:hours|time ?zones?)/gi,
+      -5,
+    ],
+    // "US"/"U.S." only in capitals: lowercase "us hours" is just English
+    // ("saves us hours every week").
+    [
+      /\b(?:US|U\.S\.A?\.?)\s+(?:business |working |core |normal |daytime |standard )?(?:hours|time ?zones?)/g,
       -5,
     ],
     [
@@ -602,6 +739,7 @@ export function createFilters(profile: FilterProfile): FilterApi {
       for (const [re, off] of TZ_NAMED) collect(sentence, re, () => off, !hasContext);
       if (!hasContext) continue;
       for (const [re, off] of TZ_ABBR) collect(sentence, re, () => off, false, true);
+      for (const [re, off] of TZ_ABBR_AMBIGUOUS) collect(sentence, re, () => off, false);
       for (const [re, off] of TZ_SPELLED) collect(sentence, re, () => off, false);
       collect(
         sentence,
@@ -623,7 +761,7 @@ export function createFilters(profile: FilterProfile): FilterApi {
     }
     if (offsets.length === 0) return false;
     // Any stated zone within reach of the candidate (e.g. "CET or EST") keeps the job.
-    return offsets.every((o) => Math.abs(o - TZ_CANDIDATE_OFFSET) > TZ_MAX_DIFF);
+    return offsets.every((o) => tzGap(o, TZ_CANDIDATE_OFFSET) > TZ_MAX_DIFF);
   }
 
   // ── Remote posting tied to a far-away place ──────────────────────────────
@@ -646,10 +784,41 @@ export function createFilters(profile: FilterProfile): FilterApi {
       /\b(?:latam|latin america|south america|mexico|mexico city|brazil|brasil|são paulo|sao paulo|argentina|buenos aires|chile|colombia|bogot[aá]|medell[ií]n|peru|lima|uruguay|ecuador|costa rica|panama|guatemala|dominican republic|bolivia|paraguay|venezuela)\b/,
       -4,
     ],
+    // Outside the Americas, so the rule works for a candidate based anywhere
+    // (a US candidate drops "Remote, Singapore"; a Thai one keeps it).
+    [
+      /\b(?:united kingdom|uk|britain|england|scotland|ireland|portugal|iceland|london|dublin|lisbon)\b/,
+      0,
+    ],
+    [
+      /\b(?:europe|european union|eu|emea|germany|france|spain|italy|netherlands|belgium|switzerland|austria|poland|sweden|norway|denmark|finland|czech republic|czechia|hungary|romania|bulgaria|croatia|serbia|slovenia|slovakia|greece|estonia|latvia|lithuania|luxembourg|malta|cyprus|ukraine|berlin|paris|amsterdam|madrid|barcelona|warsaw|prague|stockholm|vienna|zurich|munich)\b/,
+      1,
+    ],
+    [/\b(?:africa|south africa|nigeria|kenya|egypt|morocco|cape town|lagos|nairobi|cairo)\b/, 2],
+    [
+      /\b(?:middle east|mena|uae|dubai|abu dhabi|united arab emirates|saudi arabia|qatar|bahrain|kuwait|oman|israel|tel aviv|turkey)\b/,
+      3,
+    ],
+    [/\b(?:india|bangalore|bengaluru|mumbai|delhi|hyderabad|pune|chennai)\b/, 5.5],
+    [/\b(?:thailand|bangkok|vietnam|hanoi|ho chi minh|jakarta|indonesia)\b/, 7],
+    [
+      /\b(?:apac|asia(?:-pacific)?|singapore|philippines|manila|hong kong|china|beijing|shanghai|taiwan|taipei|malaysia|kuala lumpur)\b/,
+      8,
+    ],
+    [/\b(?:japan|tokyo|south korea|korea|seoul)\b/, 9],
+    [/\b(?:australia|sydney|melbourne|brisbane|perth)\b/, 10],
+    [/\b(?:new zealand|auckland|wellington)\b/, 12],
   ];
-  const US_STATE_CODES = new Set(
-    'CA NY TX WA MA FL CO GA NC VA OR AZ UT MN OH PA MI NJ DC TN MD WI MO NV SC OK'.split(' '),
-  );
+  // Two-letter US state codes → standard-time UTC offset (west coast -8, mountain
+  // -7, central -6, east -5).
+  const US_STATE_OFFSETS = new Map<string, number>([
+    ...['CA', 'WA', 'OR', 'NV'].map((c) => [c, -8] as const),
+    ...['AZ', 'UT', 'CO'].map((c) => [c, -7] as const),
+    ...['TX', 'MN', 'WI', 'MO', 'OK', 'TN'].map((c) => [c, -6] as const),
+    ...['NY', 'MA', 'FL', 'GA', 'NC', 'VA', 'OH', 'PA', 'MI', 'NJ', 'DC', 'MD', 'SC'].map(
+      (c) => [c, -5] as const,
+    ),
+  ]);
   const BODY_REGION_RESCUE = (body: string) =>
     ACCEPTED_REGIONS_SPECIFIC.test(body) || BODY_ELIGIBILITY.test(body);
 
@@ -663,11 +832,12 @@ export function createFilters(profile: FilterProfile): FilterApi {
       .filter((seg) => seg.length > 0);
     if (segments.length === 0) return false;
     return segments.every((seg) => {
-      if (US_STATE_CODES.has(seg)) return Math.abs(-6 - TZ_CANDIDATE_OFFSET) > TZ_MAX_DIFF;
-      if (seg === 'CAN') return Math.abs(-5 - TZ_CANDIDATE_OFFSET) > TZ_MAX_DIFF;
+      const stateOffset = US_STATE_OFFSETS.get(seg);
+      if (stateOffset !== undefined) return tzGap(stateOffset, TZ_CANDIDATE_OFFSET) > TZ_MAX_DIFF;
+      if (seg === 'CAN') return tzGap(-5, TZ_CANDIDATE_OFFSET) > TZ_MAX_DIFF;
       const lower = seg.toLowerCase();
       const hit = FAR_PLACES.find(([re]) => re.test(lower));
-      return hit !== undefined && Math.abs(hit[1] - TZ_CANDIDATE_OFFSET) > TZ_MAX_DIFF;
+      return hit !== undefined && tzGap(hit[1], TZ_CANDIDATE_OFFSET) > TZ_MAX_DIFF;
     });
   }
 
@@ -784,16 +954,14 @@ export function createFilters(profile: FilterProfile): FilterApi {
         remoteOnly &&
         !job.remote &&
         TRUSTED_REMOTE_SOURCES.has(job.source) &&
-        // A structured ATS flag normally wins, but it can lag the posting:
-        // location "Remote" / "Remote, Global" AND body wording like "fully
-        // remote" / "remote-first" / "we hire globally" is strong enough
-        // evidence to keep it (Ashby postings observed live: location
-        // "Remote", isRemote=false, body "Fully Remote - we hire globally").
-        // A bare "Remote" label alone does not override the flag.
+        // A missing workplace type reads as "not remote" (Ashby: remote =
+        // isRemote || workplaceType === 'Remote'), so a posting whose stated
+        // location literally says Remote ("Remote", "Worldwide, Remote") is not
+        // confirmed on-site. Only an explicit hybrid/on-site wording in the
+        // location keeps the flag in charge.
         !(
-          /\bremote\b/i.test(job.location ?? '') &&
-          !/\b(hybrid|on-?site)\b/i.test(job.location ?? '') &&
-          STATED_FULLY_REMOTE.test(job.body)
+          /\b(remote|worldwide)\b/i.test(job.location ?? '') &&
+          !/\b(hybrid|on-?site)\b/i.test(job.location ?? '')
         ),
     },
     {
