@@ -262,7 +262,7 @@ export const api = {
   favorites: {
     list: (opt: SignalOpt = {}) => request<FavoritesResponse>('/api/favorites', opt),
     add: (jobId: string, opt: SignalOpt = {}) =>
-      request<{ ok: true }>(path('/api/favorites', jobId), {
+      request<void>(path('/api/favorites', jobId), {
         method: 'POST',
         expectJson: false,
         ...opt,

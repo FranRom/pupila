@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
 
@@ -50,43 +51,69 @@ export async function loadFavorites(path = DEFAULT_PATH): Promise<FavoritesFile>
   return { favorites: rawFavorites.filter(isFavorite) };
 }
 
-// NOTE: No in-process lock. Concurrent addFavorite calls within the same
-// process may clobber each other. Acceptable for single-user usage.
-export async function addFavorite(jobId: string, path = DEFAULT_PATH): Promise<void> {
-  const current = await loadFavorites(path);
+// Mutations are read-modify-write on one file, so they are serialized per path
+// through a promise chain (the server is a single process). Each write goes to a
+// unique temp file and is renamed into place, so a crash never leaves a
+// half-written favorites.json and two writers never share a temp file.
+const queues = new Map<string, Promise<unknown>>();
 
-  const alreadyFavorited = current.favorites.some((f) => f.jobId === jobId);
-  if (alreadyFavorited) {
-    return;
+function serialized<T>(path: string, task: () => Promise<T>): Promise<T> {
+  const run = (queues.get(path) ?? Promise.resolve()).then(task, task);
+  const tail = run.catch(() => undefined);
+  queues.set(path, tail);
+  void tail.then(() => {
+    if (queues.get(path) === tail) queues.delete(path);
+  });
+  return run;
+}
+
+// Reads for a mutation. A MISSING file is simply empty. A file that exists but
+// cannot be parsed is set aside (not overwritten) so one bad write never
+// silently erases every earlier favorite.
+async function loadForMutation(path: string): Promise<FavoritesFile> {
+  let raw: string;
+  try {
+    raw = await readFile(path, 'utf8');
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') return emptyFile();
+    throw err;
   }
+  try {
+    const parsed = JSON.parse(raw) as { favorites?: unknown };
+    if (parsed && Array.isArray(parsed.favorites)) {
+      return { favorites: parsed.favorites.filter(isFavorite) };
+    }
+  } catch {
+    // fall through to quarantine
+  }
+  const aside = `${path}.corrupt-${Date.now()}`;
+  await rename(path, aside);
+  console.warn(`[favorites] ${path} was unreadable; moved to ${aside} and starting empty`);
+  return emptyFile();
+}
 
-  const newEntry: Favorite = {
-    jobId,
-    favoritedAt: new Date().toISOString(),
-  };
-
-  const updated: FavoritesFile = {
-    favorites: [...current.favorites, newEntry],
-  };
-
-  const dir = dirname(path);
-  await mkdir(dir, { recursive: true });
-
-  const tmp = `${path}.tmp`;
-  await writeFile(tmp, JSON.stringify(updated, null, 2), 'utf8');
+async function writeAtomic(path: string, data: FavoritesFile): Promise<void> {
+  await mkdir(dirname(path), { recursive: true });
+  const tmp = `${path}.${process.pid}.${randomUUID()}.tmp`;
+  await writeFile(tmp, JSON.stringify(data, null, 2), 'utf8');
   await rename(tmp, path);
 }
 
-export async function removeFavorite(jobId: string, path = DEFAULT_PATH): Promise<void> {
-  const current = await loadFavorites(path);
-  const updated: FavoritesFile = {
-    favorites: current.favorites.filter((f) => f.jobId !== jobId),
-  };
-  const dir = dirname(path);
-  await mkdir(dir, { recursive: true });
-  const tmp = `${path}.tmp`;
-  await writeFile(tmp, JSON.stringify(updated, null, 2), 'utf8');
-  await rename(tmp, path);
+export function addFavorite(jobId: string, path = DEFAULT_PATH): Promise<void> {
+  return serialized(path, async () => {
+    const current = await loadForMutation(path);
+    if (current.favorites.some((f) => f.jobId === jobId)) return;
+    await writeAtomic(path, {
+      favorites: [...current.favorites, { jobId, favoritedAt: new Date().toISOString() }],
+    });
+  });
+}
+
+export function removeFavorite(jobId: string, path = DEFAULT_PATH): Promise<void> {
+  return serialized(path, async () => {
+    const current = await loadForMutation(path);
+    await writeAtomic(path, { favorites: current.favorites.filter((f) => f.jobId !== jobId) });
+  });
 }
 
 export async function hasFavorite(jobId: string, path = DEFAULT_PATH): Promise<boolean> {

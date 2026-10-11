@@ -40,6 +40,8 @@ const FILES_PERSONAL: readonly string[] = [
   'config/profile.json',
   // User-curated state from the Jinder swipe deck.
   'data/swipe-skips.json',
+  // Favorite markers.
+  'data/favorites.json',
 ];
 
 // Directories whose entire contents (sans .gitkeep) are wiped by `--all`.
@@ -115,7 +117,7 @@ function main(): void {
     for (const f of FILES_PERSONAL) console.log(`  ${f}`);
     console.log('');
     console.log('--all          fresh-clone reset: removes the personal files above (brief, applied list,');
-    console.log('               scoring profile, swipe-skips), the contents of data/applications/, AND onboarding');
+    console.log('               scoring profile, swipe-skips, favorites), the contents of data/applications/, AND onboarding');
     console.log('               state (preferences.json + raw CV). The first-run wizard will re-trigger');
     console.log('               on next `pnpm run ui` load.');
     console.log('--onboarding   wipes ONLY onboarding state (preferences + brief + raw CV) so the');
