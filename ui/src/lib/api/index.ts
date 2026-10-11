@@ -115,6 +115,10 @@ export interface ApplyQueueSkipsResponse {
   skips: string[];
 }
 
+export interface FavoritesResponse {
+  favorites: string[];
+}
+
 export interface ApplyQueueEnqueueResponse {
   ok: true;
   row?: QueueRow;
@@ -248,6 +252,23 @@ export const api = {
       }),
     removeSkip: (jobId: string, opt: SignalOpt = {}) =>
       request<void>(`${path('/api/apply-queue', jobId)}/skip`, {
+        method: 'DELETE',
+        expectJson: false,
+        ...opt,
+      }),
+  },
+
+  // ── Favorites ────────────────────────────────────────────────────────────
+  favorites: {
+    list: (opt: SignalOpt = {}) => request<FavoritesResponse>('/api/favorites', opt),
+    add: (jobId: string, opt: SignalOpt = {}) =>
+      request<{ ok: true }>(path('/api/favorites', jobId), {
+        method: 'POST',
+        expectJson: false,
+        ...opt,
+      }),
+    remove: (jobId: string, opt: SignalOpt = {}) =>
+      request<void>(path('/api/favorites', jobId), {
         method: 'DELETE',
         expectJson: false,
         ...opt,

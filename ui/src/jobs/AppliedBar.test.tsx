@@ -32,21 +32,24 @@ const appliedEntry: AppliedEntry = {
 function renderBar(overrides: Partial<Parameters<typeof AppliedBar>[0]> = {}) {
   const setApplied = vi.fn(async () => undefined);
   const toggleSkip = vi.fn();
+  const toggleFavorite = vi.fn();
   const cancelQueueRow = vi.fn(async () => undefined);
   const enqueueJob = vi.fn(async () => undefined);
   const props = {
     job,
     applied: undefined,
     isSkipped: false,
+    favorite: false,
     queueStatus: null,
     setApplied,
     toggleSkip,
+    toggleFavorite,
     cancelQueueRow,
     enqueueJob,
     ...overrides,
   } as Parameters<typeof AppliedBar>[0];
   render(<AppliedBar {...props} />);
-  return { setApplied, toggleSkip, cancelQueueRow, enqueueJob };
+  return { setApplied, toggleSkip, toggleFavorite, cancelQueueRow, enqueueJob };
 }
 
 describe('AppliedBar', () => {
@@ -134,6 +137,20 @@ describe('AppliedBar', () => {
     it('renders "skipped" with aria-pressed when isSkipped is true', () => {
       renderBar({ isSkipped: true });
       const pill = screen.getByRole('button', { name: /skipped/, pressed: true });
+      expect(pill).toBeInTheDocument();
+    });
+  });
+
+  describe('favorite toggle', () => {
+    it('calls toggleFavorite(job.id) when the favorite pill is clicked', () => {
+      const { toggleFavorite } = renderBar();
+      fireEvent.click(screen.getByTitle('Mark as favorite'));
+      expect(toggleFavorite).toHaveBeenCalledWith(job.id);
+    });
+
+    it('renders "favorited" with aria-pressed when favorite is true', () => {
+      renderBar({ favorite: true });
+      const pill = screen.getByRole('button', { name: /favorited/, pressed: true });
       expect(pill).toBeInTheDocument();
     });
   });

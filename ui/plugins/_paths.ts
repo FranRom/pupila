@@ -22,4 +22,5 @@ export const CV_BASENAME = path.join(REPO_ROOT, 'config', 'cv');
 export const DATA_DIR = path.join(REPO_ROOT, 'data');
 export const JOBS_BODIES_PATH = path.join(REPO_ROOT, 'data', 'jobs-bodies.json');
 export const SWIPE_SKIPS_PATH = path.join(REPO_ROOT, 'data', 'swipe-skips.json');
+export const FAVORITES_PATH = path.join(REPO_ROOT, 'data', 'favorites.json');
 export const BRIEF_PATH = path.join(REPO_ROOT, 'config', 'candidate-brief.md');
