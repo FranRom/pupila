@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
-import { pickLatestHiringStory } from '../src/fetchers/hn-hiring.js';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { fetchHnHiring, pickLatestHiringStory } from '../src/fetchers/hn-hiring.js';
 import type { RawHnHit } from '../src/types.js';
 
 function hit(overrides: Partial<RawHnHit> = {}): RawHnHit {
@@ -64,5 +64,75 @@ describe('pickLatestHiringStory', () => {
       hit({ objectID: 'good' }),
     ]);
     expect(picked).not.toBeNull();
+  });
+});
+
+describe('fetchHnHiring — author-scoped query with fallback', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  const json = (body: unknown, status = 200) =>
+    new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
+  const thread = {
+    objectID: '48747976',
+    title: 'Ask HN: Who is hiring? (July 2026)',
+    created_at: '2026-07-01T15:00:00Z',
+  };
+  const tree = {
+    id: 1,
+    children: [{ id: 11, text: 'Acme | Engineer | Remote', created_at: '2026-07-01T16:00:00Z' }],
+  };
+
+  function stub(handler: (url: string) => Response) {
+    const urls: string[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (u: string | URL) => {
+        urls.push(String(u));
+        return handler(String(u));
+      }),
+    );
+    return urls;
+  }
+
+  it('asks for the whoishiring account first and stops there when it finds the thread', async () => {
+    const urls = stub((u) => (u.includes('/items/') ? json(tree) : json({ hits: [thread] })));
+    const r = await fetchHnHiring();
+    expect(urls[0]).toContain('author_whoishiring');
+    expect(urls.filter((u) => u.includes('search_by_date'))).toHaveLength(1);
+    expect(r.items).toHaveLength(1);
+    expect(r.errors).toEqual([]);
+  });
+
+  it('falls through to the wide free-text query when the author query finds nothing', async () => {
+    const urls = stub((u) => {
+      if (u.includes('/items/')) return json(tree);
+      return u.includes('author_whoishiring') ? json({ hits: [] }) : json({ hits: [thread] });
+    });
+    const r = await fetchHnHiring();
+    expect(urls.some((u) => u.includes('hitsPerPage=50'))).toBe(true);
+    expect(r.items).toHaveLength(1);
+  });
+
+  it('falls through when the author query errors, and reports that error', async () => {
+    stub((u) => {
+      if (u.includes('/items/')) return json(tree);
+      return u.includes('author_whoishiring')
+        ? new Response('boom', { status: 503 })
+        : json({ hits: [thread] });
+    });
+    const r = await fetchHnHiring();
+    expect(r.items).toHaveLength(1);
+    expect(r.errors[0]).toMatch(/author query: HTTP 503/);
+  });
+
+  it('returns errors instead of throwing when no thread is found anywhere', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    stub(() => json({ hits: [] }));
+    const r = await fetchHnHiring();
+    expect(r.items).toEqual([]);
+    expect(r.errors.at(-1)).toMatch(/no matching "Who is hiring" story/);
   });
 });

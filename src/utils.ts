@@ -88,7 +88,12 @@ export function stripHtml(input: string | null | undefined): string {
     .replace(/&quot;/gi, '"')
     .replace(/&#39;/gi, "'")
     .replace(/&#(\d+);/g, (_, code: string) => String.fromCharCode(Number(code)))
-    .replace(/&#x([0-9a-f]+);/gi, (_, c: string) => String.fromCodePoint(Number.parseInt(c, 16)))
+    .replace(/&#x([0-9a-f]+);/gi, (m: string, c: string) => {
+      // Out-of-range references (> U+10FFFF) are left as written: fromCodePoint
+      // throws on them, and one malformed comment must not abort a whole run.
+      const n = Number.parseInt(c, 16);
+      return n <= 0x10ffff ? String.fromCodePoint(n) : m;
+    })
     .replace(/[ \t]+/g, ' ')
     .replace(/\n{3,}/g, '\n\n')
     .trim();

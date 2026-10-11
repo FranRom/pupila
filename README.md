@@ -80,7 +80,7 @@ Eyeball the brief and edit anything that needs tweaking — this natural-languag
 
 ## How it works
 
-A config-driven, **local-first** daily job aggregator. Pulls listings from ~21 public sources (job boards, RSS feeds, Hacker News, Habr Career (Russia/CIS remote RSS), five ATSes — Greenhouse, Ashby, Lever, Recruitee, Personio — no-key remote feeds like Jobicy and Himalayas, a custom Aave scraper, an Ashby-private GraphQL fetcher, and **bluedoor**, a free cross-ATS aggregator (~1.6M postings) queried by your accepted regions; adding a new source is one file), normalizes them into a single shape, scores each one against **your** profile (defined in [`config/profile.json`](./config/profile.json)), deduplicates, and writes the result to your local checkout.
+A config-driven, **local-first** daily job aggregator. Pulls listings from ~21 public sources (job boards, RSS feeds, Hacker News, Habr Career (Russia/CIS remote RSS), Working Nomads, five ATSes — Greenhouse, Ashby, Lever, Recruitee, Personio — no-key remote feeds like Jobicy and Himalayas, a custom Aave scraper, an Ashby-private GraphQL fetcher, and **bluedoor**, a free cross-ATS aggregator (~1.6M postings) queried by your accepted regions; adding a new source is one file), normalizes them into a single shape, scores each one against **your** profile (defined in [`config/profile.json`](./config/profile.json)), deduplicates, and writes the result to your local checkout.
 
 Designed to be **cloned and run locally**. No hosted scheduler, no public dashboard, no external services. Anyone — frontend, backend, mobile, data, infra, any seniority, any region — sets their role via:
 
@@ -360,6 +360,8 @@ The ATS fetchers (Ashby, Greenhouse, Lever, plus Recruitee and Personio for EU/D
 | [remoteyeah](./src/fetchers/remoteyeah.ts) | RSS 2.0 (custom tags) | `remoteyeah.com/rss.xml` — global remote-engineering feed |
 | [jobicy](./src/fetchers/jobicy.ts) | JSON API | `jobicy.com/api/v2/remote-jobs` — no-key remote feed; `jobGeo` region tags + structured salary |
 | [himalayas](./src/fetchers/himalayas.ts) | JSON API | `himalayas.app/jobs/api` — no-key global remote feed (paged 20/req), structured salary |
+| [workingnomads](./src/fetchers/workingnomads.ts) | JSON API | `workingnomads.com/api/exposed_jobs/` — no-key board; multi-region `location` strings ("Europe, North America, APAC", "Global") |
+| [habr](./src/fetchers/habr.ts) | RSS 2.0 | `career.habr.com/vacancies/rss?remote=true` — Habr Career remote vacancies (Russia/CIS) |
 | [cryptojobslist](./src/fetchers/cryptojobslist.ts) | RSS 2.0 | `api.cryptojobslist.com/jobs.rss` |
 | [web3career](./src/fetchers/web3career.ts) | HTML scraper | 5 category pages on `web3.career` |
 | [aijobsnet](./src/fetchers/aijobsnet.ts) | HTML scraper | `aijobs.net` (global + EU pages) |
@@ -483,7 +485,7 @@ Two passes:
 When two jobs collide, the one with the higher `fitScore` wins. Ties are broken by source priority:
 
 ```
-aave = ashby-private > ashby > lever > greenhouse > recruitee > personio > cryptojobslist > web3career > aijobsnet > hn-hiring > hn-jobs > remotive > weworkremotely > remoteok > jobicy > himalayas > remoteyeah > bluedoor
+aave = ashby-private > ashby > lever > greenhouse > recruitee > personio > cryptojobslist > web3career > habr > aijobsnet > hn-hiring > hn-jobs > remotive > weworkremotely > remoteok > jobicy > himalayas > remoteyeah > workingnomads > bluedoor
 ```
 
 **Sort stability.** After dedup, the final sort uses the exported `compareJobs` comparator: `fitScore desc → salaryMax desc → postedAt desc → id asc`. The `salaryMax` tiebreak floats transparent-comp companies above silent ones among score-tied roles (null is treated as 0), and `id asc` keeps day-over-day diffs deterministic when everything else ties.

@@ -493,11 +493,15 @@ export function normalizeHnHiring(items: RawHnHiringPost[], fetchedAt: string): 
       .filter(Boolean);
     const hasHeader = headerParts.length >= 2;
     const companyCandidate = headerParts[0] ? stripMdEmphasis(headerParts[0]) : '';
+    // The first field is a role (so NOT a company) only when it reads as one AND
+    // no later field does: "Senior Full Stack Engineer | New York | Onsite" has no
+    // company, but "Lead Bank | Senior Engineer | Remote" does — "Lead" is part
+    // of the company's name.
+    const firstIsRole =
+      HN_ROLE_WORD_RE.test(companyCandidate) &&
+      !headerParts.slice(1).some((part) => HN_ROLE_WORD_RE.test(part));
     const company =
-      hasHeader &&
-      companyCandidate &&
-      !HN_ROLE_WORD_RE.test(companyCandidate) &&
-      isPlausibleCompany(companyCandidate)
+      hasHeader && companyCandidate && !firstIsRole && isPlausibleCompany(companyCandidate)
         ? companyCandidate
         : null;
 
@@ -508,7 +512,9 @@ export function normalizeHnHiring(items: RawHnHiringPost[], fetchedAt: string): 
       // the body-phrase search below and promoting a 60-char run-on
       // ("Engineers | United States | Full-time | REMOTE (US-only) We're a
       // soft...") to the title instead of the clean header field itself.
-      const rolePart = headerParts.find((part) => HN_ROLE_WORD_RE.test(part));
+      const rolePart =
+        headerParts.slice(1).find((part) => HN_ROLE_WORD_RE.test(part)) ??
+        headerParts.find((part) => HN_ROLE_WORD_RE.test(part));
       // No header field names a role → search the body for a role phrase before
       // falling back to raw header text. Without this, a post whose header is
       // prose ("led by Intact Private Capital, the investment arm of...") had
@@ -889,7 +895,15 @@ function workdayCompany(url: string | null | undefined): string | null {
     if (!/(^|\.)myworkday(site|jobs)\.com$/i.test(parsed.hostname)) return null;
     const segments = parsed.pathname.split('/').filter(Boolean);
     const at = segments.indexOf('recruiting');
-    const name = at >= 0 ? segments[at + 2] : undefined;
+    const tenant = at >= 0 ? segments[at + 1] : undefined;
+    const site = at >= 0 ? segments[at + 2] : undefined;
+    // The site is usually the brand ("SSCTechnologies"), but many tenants name it
+    // generically ("External", "Careers"); two employers would then collapse in
+    // company+title dedup, so fall back to the tenant segment.
+    const name =
+      site && !/^(external|ext|careers?|jobs?)(?:[-_ ]?(site|careers?|jobs?))?$/i.test(site)
+        ? site
+        : tenant;
     if (!name) return null;
     // "SSCTechnologies" → "SSC Technologies"; "acme_corp" → "Acme Corp".
     // Two camel splits are needed: lower→upper for the ordinary case, and
@@ -1008,7 +1022,13 @@ export function normalizeHabr(items: RawRssItem[], fetchedAt: string): Job[] {
     if (!rawTitle) return [];
     const m = rawTitle.match(HABR_TITLE_RE);
     const title = m?.[1] ?? rawTitle;
-    const location = m?.[2]?.trim() || null;
+    // Some titles carry the salary inside the city segment:
+    // "(Владивосток, от 200 000 ₽)". Split it off so it neither pollutes the
+    // location the geo filter reads nor gets thrown away.
+    const citySegment = m?.[2]?.trim() || '';
+    const salaryAt = citySegment.search(/,\s*(?:от|до)\s/i);
+    const location = (salaryAt >= 0 ? citySegment.slice(0, salaryAt) : citySegment).trim() || null;
+    const salaryText = salaryAt >= 0 ? citySegment.slice(salaryAt + 1).trim() : null;
     const company = asPlain(item.author).trim() || null;
     const body = asPlain(item.description);
     // `.` stays in the class for tags like #Vue.js, so strip sentence-final dots.
@@ -1027,7 +1047,7 @@ export function normalizeHabr(items: RawRssItem[], fetchedAt: string): Job[] {
         remote: true,
         body,
         tags: joinTags(tags),
-        ...withSalary(null),
+        ...withSalary(salaryText),
         postedAt: safeIso(item.pubDate),
         fetchedAt,
         fitScore: 0,

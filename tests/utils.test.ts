@@ -147,6 +147,12 @@ describe('stripHtml — hex character references', () => {
     expect(/\bc\+\+/i.test(stripHtml('C&#x2B;&#x2B; systems work'))).toBe(true);
   });
 
+  it('leaves an out-of-range hex reference as written instead of throwing', () => {
+    expect(() => stripHtml('a &#x110000; b')).not.toThrow();
+    expect(stripHtml('a &#x110000; b')).toBe('a &#x110000; b');
+    expect(stripHtml('ok &#x1F600; ok')).toBe('ok 😀 ok');
+  });
+
   it('leaves a bare ampersand alone', () => {
     expect(stripHtml('R&amp;D')).toBe('R&D');
   });

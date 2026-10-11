@@ -195,3 +195,27 @@ describe('normalizeHnHiring — header parsing regressions', () => {
     expect(job?.title).not.toContain('REMOTE (US-only)');
   });
 });
+
+describe('normalizeHnHiring — role words inside a company name', () => {
+  const run = (text: string) => normalizeHnHiring([makePost(text)], fetchedAt)[0];
+
+  it('keeps "Lead Bank" as the company when a later field is the role', () => {
+    const j = run('Lead Bank | Senior Engineer | Remote | Full-time\n\nWe are hiring engineers.');
+    expect(j?.company).toBe('Lead Bank');
+    expect(j?.title).toBe('Senior Engineer');
+  });
+
+  it('keeps "Head Hunter Labs" as the company too', () => {
+    const j = run('Head Hunter Labs | Staff Engineer | Remote\n\nWe are hiring engineers.');
+    expect(j?.company).toBe('Head Hunter Labs');
+    expect(j?.title).toBe('Staff Engineer');
+  });
+
+  it('still treats a lone role header as having no company', () => {
+    const j = run(
+      'Senior Full Stack Engineer | New York, NY | Onsite | $160k-$210k\n\nWe are hiring a full stack engineer.',
+    );
+    expect(j?.company).toBeNull();
+    expect(j?.title).toBe('Senior Full Stack Engineer');
+  });
+});

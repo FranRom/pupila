@@ -340,3 +340,29 @@ describe('normalizeBluedoor — Workday employer names', () => {
     expect(job?.company).toBe('0fd86b23-27d2-42d2-936d-dd3800fec31f');
   });
 });
+
+describe('normalizeBluedoor — Workday generic site names', () => {
+  const at = '2026-07-28T00:00:00.000Z';
+  const job = (apply_url: string) =>
+    normalizeBluedoor(
+      [
+        { job_id: 'j1', title: 'Engineer', org_id: 'org-uuid', apply_url, description_text: 'x' },
+      ] as never,
+      at,
+    )[0];
+
+  it.each([
+    'External',
+    'Careers',
+    'External_Careers',
+    'jobs',
+  ])('falls back to the tenant when the site is the generic "%s"', (site) => {
+    const j = job(`https://wd5.myworkdaysite.com/recruiting/pfizer/${site}/job/NYC/Engineer_R1`);
+    expect(j?.company).toBe('Pfizer');
+  });
+
+  it('keeps using the site when it is the brand', () => {
+    const j = job('https://wd1.myworkdaysite.com/recruiting/ssctech/SSCTechnologies/job/x/Y_R1');
+    expect(j?.company).toBe('SSC Technologies');
+  });
+});

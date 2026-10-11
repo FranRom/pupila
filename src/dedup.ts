@@ -62,7 +62,11 @@ function pickWinner(a: Job, b: Job): Job {
 }
 
 function companyTitleKey(j: Job): string {
-  return sha1Hex(`${normalizeText(j.company ?? '')}|${normalizeText(j.title)}`);
+  // No company means company+title says nothing about identity: two unrelated
+  // postings titled "Machine Learning Engineer" must not merge. Such jobs keep
+  // their own id (already de-duplicated by id above).
+  if (!j.company) return sha1Hex(`id|${j.id}`);
+  return sha1Hex(`${normalizeText(j.company)}|${normalizeText(j.title)}`);
 }
 
 export interface DedupResult {

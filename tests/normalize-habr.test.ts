@@ -49,3 +49,26 @@ describe('normalizeHabr', () => {
     expect(normalizeHabr([item({ link: undefined, guid: undefined })], NOW)).toHaveLength(0);
   });
 });
+
+describe('normalizeHabr — salary inside the city segment', () => {
+  it('splits the salary off the location and keeps it', () => {
+    const [job] = normalizeHabr(
+      [
+        item({
+          title: 'Требуется «Коммерческий директор (IT / SaaS)» (Владивосток, от 200 000 ₽)',
+        }),
+      ],
+      NOW,
+    );
+    expect(job?.title).toBe('Коммерческий директор (IT / SaaS)');
+    expect(job?.location).toBe('Владивосток');
+    expect(job?.salary).toBe('от 200 000 ₽');
+    expect(job?.salaryMin).toBe(200000);
+  });
+
+  it('leaves a plain city untouched and has no salary', () => {
+    const [job] = normalizeHabr([item()], NOW);
+    expect(job?.location).toBe('Москва');
+    expect(job?.salary).toBeNull();
+  });
+});
