@@ -91,6 +91,29 @@ If you update GitHub Actions:
 - Keep `permissions: contents: read` unless a write permission is explicitly justified.
 - Do not restore hosted daily aggregation unless the local-first scheduling model is deliberately changed.
 
+### Review your change before you open a PR
+
+CI cannot run an AI reviewer for free, and the project does not depend on anyone's subscription, so the AI review is something you run yourself, locally, before opening the PR:
+
+```bash
+pnpm run review:diff                          # your branch vs origin/main
+pnpm run review:diff --pr 69                  # someone else's PR (needs the gh CLI)
+pnpm run review:diff --print-prompt           # just print the prompt; paste it anywhere
+```
+
+It sends your diff plus the rules in this file to the model you already have (`claude`, `codex`, `gemini`, `opencode` or `ollama`, auto-detected; override with `PUPILA_LLM=<provider>`, and `PUPILA_LLM_MODEL` for ollama). With Ollama it is free and nothing leaves your machine. The result is advisory: one pass over the diff, no tests run, and quality depends on the model, so read it critically.
+
+Already have another reviewer? Use it instead or as well: Claude Code's `/code-review`, the CodeRabbit CLI on your own account, or Copilot. None of them is required.
+
+### Automated review
+
+Every PR gets a free automated review (no secrets, works for forks):
+
+- `review.yml` → `pr-checks` runs `pnpm run review:checks` ([`scripts/pr-review-checks.ts`](./scripts/pr-review-checks.ts)) over the changed files. It **fails** if a PR would commit personal data (`config/applied.json`, the brief, profile, CV, `data/favorites.json`, …) and **warns** on: source changed without tests, generated output (`JOBS.md`, `data/jobs.json`, `data/feed.xml`), MCP tool changes without a README update, `package.json` without the lockfile, workflow changes, and PRs over ~1500 changed lines. Run it locally with `BASE_SHA=origin/main pnpm run review:checks`.
+- `review.yml` → `dependency-review` fails a PR that adds a dependency with a known high-severity vulnerability.
+- `codeql.yml` runs CodeQL static analysis (push to `main`, same-repo PRs, weekly).
+- `.github/CODEOWNERS` requests the maintainer on every PR. Requiring that review before merge is a branch-protection setting, not a file.
+
 ## Commit Style
 
 Use these prefixes:

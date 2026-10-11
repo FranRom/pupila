@@ -1,0 +1,40 @@
+name: codeql
+
+# Static security analysis (free for public repositories). Restored from commit
+# 7397117 now that the repository is public; actions are pinned by SHA.
+# `security-events: write` is required to upload results. A fork PR's token
+# cannot have it, so those PRs are skipped (the push to main is still analysed).
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: '0 6 * * 1'
+
+permissions:
+  actions: read
+  contents: read
+  security-events: write
+
+jobs:
+  analyze:
+    # Fork PRs and Dependabot PRs get a read-only token that cannot upload results
+    # (`security-events: write` is not granted), so skip them; pushes to main and the
+    # weekly schedule still run.
+    if: >-
+      github.event_name != 'pull_request' ||
+      (github.event.pull_request.head.repo.full_name == github.repository &&
+      github.actor != 'dependabot[bot]')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - uses: github/codeql-action/init@24c54180a607b1449ed407dd24f251e4e9147c8d # v4.38.3
+        with:
+          languages: javascript-typescript
+          queries: security-and-quality
+
+      - uses: github/codeql-action/analyze@24c54180a607b1449ed407dd24f251e4e9147c8d # v4.38.3
+        with:
+          category: '/language:javascript-typescript'

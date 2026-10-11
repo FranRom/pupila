@@ -26,6 +26,8 @@
     "lint:fix": "biome check --write",
     "lint:ui-patterns": "bash scripts/check-ui-patterns.sh",
     "lint:bundle-size": "bash scripts/check-bundle-size.sh",
+    "review:checks": "tsx scripts/pr-review-checks.ts",
+    "review:diff": "tsx scripts/review-diff.ts",
     "format": "biome format --write",
     "test": "vitest run",
     "test:watch": "vitest",
