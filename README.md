@@ -80,7 +80,7 @@ Eyeball the brief and edit anything that needs tweaking — this natural-languag
 
 ## How it works
 
-A config-driven, **local-first** daily job aggregator. Pulls listings from ~20 public sources (job boards, RSS feeds, Hacker News, five ATSes — Greenhouse, Ashby, Lever, Recruitee, Personio — no-key remote feeds like Jobicy and Himalayas, a custom Aave scraper, an Ashby-private GraphQL fetcher, and **bluedoor**, a free cross-ATS aggregator (~1.6M postings) queried by your accepted regions; adding a new source is one file), normalizes them into a single shape, scores each one against **your** profile (defined in [`config/profile.json`](./config/profile.json)), deduplicates, and writes the result to your local checkout.
+A config-driven, **local-first** daily job aggregator. Pulls listings from ~21 public sources (job boards, RSS feeds, Hacker News, Habr Career (Russia/CIS remote RSS), five ATSes — Greenhouse, Ashby, Lever, Recruitee, Personio — no-key remote feeds like Jobicy and Himalayas, a custom Aave scraper, an Ashby-private GraphQL fetcher, and **bluedoor**, a free cross-ATS aggregator (~1.6M postings) queried by your accepted regions; adding a new source is one file), normalizes them into a single shape, scores each one against **your** profile (defined in [`config/profile.json`](./config/profile.json)), deduplicates, and writes the result to your local checkout.
 
 Designed to be **cloned and run locally**. No hosted scheduler, no public dashboard, no external services. Anyone — frontend, backend, mobile, data, infra, any seniority, any region — sets their role via:
 

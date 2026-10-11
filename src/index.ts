@@ -9,6 +9,7 @@ import { fetchAshbyPrivate } from './fetchers/ashby-private.js';
 import { fetchBluedoor } from './fetchers/bluedoor.js';
 import { fetchCryptoJobsList } from './fetchers/cryptojobslist.js';
 import { fetchGreenhouse } from './fetchers/greenhouse.js';
+import { fetchHabr } from './fetchers/habr.js';
 import { fetchHimalayas } from './fetchers/himalayas.js';
 import { fetchHnHiring } from './fetchers/hn-hiring.js';
 import { fetchHnJobs } from './fetchers/hn-jobs.js';
@@ -21,6 +22,7 @@ import { fetchRemoteYeah } from './fetchers/remoteyeah.js';
 import { fetchRemotive } from './fetchers/remotive.js';
 import { fetchWeb3Career } from './fetchers/web3career.js';
 import { fetchWeWorkRemotely } from './fetchers/weworkremotely.js';
+import { fetchWorkingNomads } from './fetchers/workingnomads.js';
 import { BOILERPLATE_HEADERS_RE, createFilters, loadProfile } from './filters.js';
 import { detectLegacyEnvVars } from './legacy-env.js';
 import { bootstrapProfileIfMissing } from './lib/profile-bootstrap.js';
@@ -32,6 +34,7 @@ import {
   normalizeBluedoor,
   normalizeCryptoJobsList,
   normalizeGreenhouse,
+  normalizeHabr,
   normalizeHimalayas,
   normalizeHnHiring,
   normalizeHnJobs,
@@ -44,6 +47,7 @@ import {
   normalizeRemotive,
   normalizeWeb3Career,
   normalizeWeWorkRemotely,
+  normalizeWorkingNomads,
 } from './normalize.js';
 import { type RenderStats, renderReadme } from './render.js';
 import type { Job, Source } from './types.js';
@@ -164,6 +168,8 @@ async function main(): Promise<void> {
     processFetcher('remoteok', fetchRemoteOk, normalizeRemoteOk, fetchedAt, today),
     processFetcher('remotive', fetchRemotive, normalizeRemotive, fetchedAt, today),
     processFetcher('jobicy', fetchJobicy, normalizeJobicy, fetchedAt, today),
+    processFetcher('workingnomads', fetchWorkingNomads, normalizeWorkingNomads, fetchedAt, today),
+    processFetcher('habr', fetchHabr, normalizeHabr, fetchedAt, today),
     processFetcher('himalayas', fetchHimalayas, normalizeHimalayas, fetchedAt, today),
     processFetcher(
       'weworkremotely',

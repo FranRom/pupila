@@ -23,6 +23,7 @@ import type {
   RawRemotive,
   RawRssItem,
   RawWeb3Career,
+  RawWorkingNomads,
 } from './types.js';
 import { normalizeUrl, safeIso, sha1Hex, stripHtml } from './utils.js';
 
@@ -159,6 +160,48 @@ export function normalizeJobicy(items: RawJobicy[], fetchedAt: string): Job[] {
         ]),
         ...structuredSalary(j.salaryMin, j.salaryMax, j.salaryCurrency, j.salaryPeriod),
         postedAt: safeIso(j.pubDate),
+        fetchedAt,
+        fitScore: 0,
+        categories: [],
+      } satisfies Job,
+    ];
+  });
+}
+
+/**
+ * Working Nomads ships one flat array. `description` is HTML (stripped via
+ * asPlain before any regex or scoring touches it, per fetcher invariant #4),
+ * `tags` is a comma-separated string, and `location` is a free-text region list
+ * that the geo filter reads directly — "Global"/"Worldwide" and multi-region
+ * strings like "Europe, North America, APAC" both survive unchanged. No salary
+ * fields are published, so the body is parsed like the other text-only sources.
+ * No id field either, so the URL carries identity.
+ */
+export function normalizeWorkingNomads(items: RawWorkingNomads[], fetchedAt: string): Job[] {
+  return items.flatMap((j) => {
+    const url = j.url?.trim();
+    const title = j.title?.trim();
+    if (!url || !title) return [];
+    const location = j.location?.trim() || null;
+    const body = asPlain(j.description);
+    return [
+      {
+        id: makeId('workingnomads', url, `${j.company_name ?? ''}-${title}`),
+        source: 'workingnomads',
+        title,
+        company: j.company_name?.trim() || null,
+        url,
+        // Every posting on this board is remote by construction; `location`
+        // narrows *which* regions, it never means onsite.
+        location,
+        remote: true,
+        body,
+        tags: joinTags(
+          (j.tags ?? '').split(',').map((t) => t.trim()),
+          [j.category_name],
+        ),
+        ...withSalary(extractSalaryFromBody(body)),
+        postedAt: safeIso(j.pub_date),
         fetchedAt,
         fitScore: 0,
         categories: [],
@@ -873,5 +916,47 @@ export function normalizeGreenhouse(items: RawGreenhouseJobWithSlug[], fetchedAt
       fitScore: 0,
       categories: [],
     };
+  });
+}
+
+// Habr Career RSS titles are formulaic: `Требуется «<role>» (<city>)`, with the
+// city segment absent on some fully-remote postings. The company only appears
+// in <author>; skills arrive as #hashtags inside the description prose.
+const HABR_TITLE_RE = /^Требуется\s*«\s*(.+?)\s*»\s*(?:\(([^)]+)\))?\s*$/;
+
+export function normalizeHabr(items: RawRssItem[], fetchedAt: string): Job[] {
+  return items.flatMap((item) => {
+    const link = rssLink(item);
+    if (!link) return [];
+    const rawTitle = asPlain(typeof item.title === 'string' ? item.title : '');
+    if (!rawTitle) return [];
+    const m = rawTitle.match(HABR_TITLE_RE);
+    const title = m?.[1] ?? rawTitle;
+    const location = m?.[2]?.trim() || null;
+    const company = asPlain(item.author).trim() || null;
+    const body = asPlain(item.description);
+    // `.` stays in the class for tags like #Vue.js, so strip sentence-final dots.
+    const tags = [...body.matchAll(/#([\p{L}\p{N}._+-]+)/gu)].map((t) =>
+      (t[1] ?? '').replace(/\.+$/, ''),
+    );
+    return [
+      {
+        id: makeId('habr', link, `${company ?? ''}-${title}`),
+        source: 'habr',
+        title,
+        company,
+        url: link,
+        location,
+        // The endpoint is queried with remote=true, so every item is remote.
+        remote: true,
+        body,
+        tags: joinTags(tags),
+        ...withSalary(null),
+        postedAt: safeIso(item.pubDate),
+        fetchedAt,
+        fitScore: 0,
+        categories: [],
+      } satisfies Job,
+    ];
   });
 }
