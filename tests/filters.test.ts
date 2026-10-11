@@ -55,15 +55,47 @@ describe('applyFilters — hard excludes', () => {
     expect(r.droppedHard).toBe(0);
   });
 
+  it('keeps SWE-abbreviated titles past the senior_req filter', () => {
+    const r = applyFilters([makeJob({ title: 'Full-Stack SWE, Data Acquisition' })]);
+    expect(r.droppedHard).toBe(0);
+  });
+
   it('drops body with hard US-only pattern', () => {
     const r = applyFilters([makeJob({ body: 'Candidates must be located in the United States.' })]);
     expect(r.kept).toHaveLength(0);
     expect(r.droppedHard).toBe(1);
   });
 
-  it('drops when location field names a non-accepted region ("Remote, USA")', () => {
+  it('rescues when the title carries the eligibility region ("MLE (UK/EU)")', () => {
+    const r = applyFilters([
+      makeJob({
+        title: 'Senior MLE (UK/EU)',
+        location: 'London',
+        body: 'react typescript next.js',
+      }),
+    ]);
+    expect(r.droppedByRule.hard_location_incompatible).toBeUndefined();
+  });
+
+  it('keeps a remote posting whose location field bare-names a non-accepted region ("Remote, USA") — no explicit requirement', () => {
+    // A remote posting's location field often just states where the team/hub
+    // sits, not a requirement on the candidate. Only explicit restriction
+    // language (locationLock, or a role-specific "for candidates located in
+    // X" sentence) should drop a remote posting — see the next test.
     const r = applyFilters([
       makeJob({ location: 'Remote, USA', body: 'We do many things and ship products.' }),
+    ]);
+    expect(r.kept).toHaveLength(1);
+    expect(r.droppedHard).toBe(0);
+  });
+
+  it('drops a non-remote (onsite) posting whose location field names a non-accepted region', () => {
+    const r = applyFilters([
+      makeJob({
+        location: 'Remote, USA',
+        remote: false,
+        body: 'We do many things and ship products.',
+      }),
     ]);
     expect(r.kept).toHaveLength(0);
     expect(r.droppedHard).toBe(1);
@@ -88,9 +120,9 @@ describe('applyFilters — hard excludes', () => {
     expect(r1.droppedHard + r2.droppedHard).toBe(2);
   });
 
-  it('drops "remote in US" via the location field', () => {
+  it('keeps a remote "remote in US" posting with no explicit requirement in the body', () => {
     const r = applyFilters([makeJob({ location: 'Remote in US', body: 'We build cool stuff.' })]);
-    expect(r.droppedHard).toBe(1);
+    expect(r.droppedHard).toBe(0);
   });
 
   it('rescues a US-mentioning posting that ALSO targets EMEA / worldwide', () => {
@@ -182,9 +214,16 @@ describe('applyFilters — hard excludes', () => {
     }
   });
 
-  it('drops a non-US out-of-region label too (LATAM) — the rule is not US-specific', () => {
+  it('keeps a remote non-US out-of-region label too (LATAM) — bare label, no requirement, rule is not US-specific either way', () => {
     const r = applyFilters([
       makeJob({ location: 'Remote - LATAM', body: 'react typescript remote' }),
+    ]);
+    expect(r.droppedHard).toBe(0);
+  });
+
+  it('drops a non-remote out-of-region label (LATAM, onsite) — the rule is not US-specific', () => {
+    const r = applyFilters([
+      makeJob({ location: 'Remote - LATAM', remote: false, body: 'react typescript remote' }),
     ]);
     expect(r.droppedHard).toBe(1);
     expect(r.droppedByRule.hard_location_incompatible).toBe(1);
@@ -229,6 +268,188 @@ describe('applyFilters — geo rule is persona-neutral (no privileged country)',
   it('EU profile drops the US job and keeps the Europe job — same code, opposite outcome', () => {
     expect(eu([usJob()]).kept).toHaveLength(0);
     expect(eu([euJob()]).kept).toHaveLength(1);
+  });
+
+  // The rescue used to scan location AND body together, so ordinary marketing
+  // copy ("used by developers worldwide", "a global team") rescued roles whose
+  // stated location was explicitly elsewhere. Seen live on three boards at once:
+  // Pinecone "US Remote", Vercel "Hybrid - San Francisco", A.Team
+  // "Americas, Europe, Israel" all survived an APAC-only profile.
+  describe('rescue is scoped: marketing prose must not override a stated location', () => {
+    const apacProfile = {
+      ...testProfile,
+      location: {
+        basedIn: 'Thailand',
+        workTypes: ['remote'],
+        acceptedRegions: ['worldwide', 'apac', 'asia', 'thailand'],
+        excludeOutsideAcceptedRegions: true,
+      },
+    } as unknown as FilterProfile;
+    const apac = createFilters(apacProfile).applyFilters;
+
+    it('keeps a remote US-based role whose body merely mentions "worldwide" — bare location, no explicit requirement', () => {
+      // "US Remote" names where the team sits, not a requirement on the
+      // candidate; nothing here explicitly restricts eligibility to the US.
+      const job = makeJob({
+        title: 'Senior Software Engineer',
+        location: 'US Remote',
+        body: 'Our vector database is used by developers worldwide. react typescript next.js',
+      });
+      expect(apac([job]).kept).toHaveLength(1);
+    });
+
+    it('drops an onsite role whose body calls the company "global"', () => {
+      const job = makeJob({
+        title: 'Senior Software Engineer',
+        location: 'Hybrid - San Francisco',
+        remote: false,
+        body: 'Join our global team building the frontend cloud. react typescript next.js',
+      });
+      expect(apac([job]).kept).toHaveLength(0);
+    });
+
+    it('keeps a remote role whose stated regions are all outside the accepted set — bare label, no explicit requirement', () => {
+      const job = makeJob({
+        title: 'Senior Software Engineer',
+        location: 'Americas, Europe, Israel',
+        body: 'Work with global companies on AI projects. react typescript next.js',
+      });
+      expect(apac([job]).kept).toHaveLength(1);
+    });
+
+    it('drops a NON-remote role whose stated regions are all outside the accepted set', () => {
+      const job = makeJob({
+        title: 'Senior Software Engineer',
+        location: 'Americas, Europe, Israel',
+        remote: false,
+        body: 'Work with global companies on AI projects. react typescript next.js',
+      });
+      expect(apac([job]).kept).toHaveLength(0);
+    });
+
+    it('keeps a role whose LOCATION field says Worldwide — the bare token is the eligibility statement', () => {
+      const job = makeJob({
+        title: 'Senior Software Engineer',
+        location: 'Worldwide',
+        body: 'Build agent systems. react typescript next.js',
+      });
+      expect(apac([job]).kept).toHaveLength(1);
+    });
+
+    it('keeps "Home based - Worldwide"', () => {
+      const job = makeJob({
+        title: 'Senior Software Engineer',
+        location: 'Home based - Worldwide',
+        body: 'react typescript next.js',
+      });
+      expect(apac([job]).kept).toHaveLength(1);
+    });
+
+    it('keeps a geo-labelled role whose BODY states explicit hiring eligibility', () => {
+      const job = makeJob({
+        title: 'Senior Software Engineer',
+        location: 'Remote - United States',
+        body: 'We hire globally and you can work from anywhere. react typescript next.js',
+      });
+      expect(apac([job]).kept).toHaveLength(1);
+    });
+
+    it('keeps a role whose body names an accepted region — original intent preserved', () => {
+      const job = makeJob({
+        title: 'Senior Software Engineer',
+        location: 'Remote - United States',
+        body: 'We also hire across APAC. react typescript next.js',
+      });
+      expect(apac([job]).kept).toHaveLength(1);
+    });
+
+    it('keeps a null-location posting with no stated requirement (Hacker News shape)', () => {
+      const job = makeJob({
+        title: 'Senior Software Engineer',
+        location: null,
+        body: 'Small team building agent tooling. react typescript next.js',
+      });
+      expect(apac([job]).kept).toHaveLength(1);
+    });
+
+    it('drops a role whose body explicitly restricts to one named city, despite a generic "work from anywhere" perks bullet', () => {
+      const job = makeJob({
+        title: 'Senior Software Engineer',
+        location: 'Brazil',
+        body: 'This is a remote role for candidates located in Belo Horizonte, Brazil. Benefits: Competitive salary. Work from anywhere. High ownership. react typescript next.js',
+      });
+      expect(apac([job]).kept).toHaveLength(0);
+    });
+
+    it('drops a role restricted to "candidates must be located in" a non-accepted country', () => {
+      const job = makeJob({
+        title: 'Senior Software Engineer',
+        location: 'Remote',
+        body: 'Candidates must be located in Portugal. We offer flexible hours and work from anywhere within the country. react typescript next.js',
+      });
+      expect(apac([job]).kept).toHaveLength(0);
+    });
+
+    it('drops a role restricted to a city name with diacritics (Florianópolis)', () => {
+      // Regression: an ASCII-only [a-z] capture group silently failed to
+      // match accented city names, letting these specific postings through
+      // while otherwise-identical ASCII-named-city postings from the same
+      // company correctly dropped.
+      const job = makeJob({
+        title: 'Staff Software Engineer, Product',
+        location: 'Brazil',
+        body: 'This is a remote role for candidates located in Florianópolis, Brazil. Benefits: Work from anywhere. react typescript next.js',
+      });
+      expect(apac([job]).kept).toHaveLength(0);
+    });
+
+    it('drops a role restricted to a city name with diacritics (São Paulo)', () => {
+      const job = makeJob({
+        title: 'Staff Software Engineer, Product',
+        location: 'Brazil',
+        body: 'This is a remote role for candidates located in São Paulo, Brazil. Benefits: Work from anywhere. react typescript next.js',
+      });
+      expect(apac([job]).kept).toHaveLength(0);
+    });
+
+    it('keeps the role-restriction statement when the named place IS accepted', () => {
+      const job = makeJob({
+        title: 'Senior Software Engineer',
+        location: 'Remote',
+        body: 'This is a remote role for candidates located in Thailand. react typescript next.js',
+      });
+      expect(apac([job]).kept).toHaveLength(1);
+    });
+
+    it('drops an HN-shaped posting whose header states "REMOTE (US-only)" with no location field at all', () => {
+      // Reproduces the exact case observed live: HN "who's hiring" posts carry
+      // no structured location field (job.location is null), and the only
+      // eligibility signal is this header shorthand in the body/title text.
+      const job = makeJob({
+        title: 'Python + TypeScript Engineers',
+        location: null,
+        body: "Fusionbox | Python + TypeScript Engineers | United States | Full-time | REMOTE (US-only) We're a software engineering consultancy. react typescript next.js",
+      });
+      expect(apac([job]).kept).toHaveLength(0);
+    });
+
+    it('does not drop a posting for an unrelated "(async only)" qualifier — not a geographic restriction', () => {
+      const job = makeJob({
+        title: 'Senior Software Engineer',
+        location: null,
+        body: 'We are remote (async only) friendly and communicate over docs. react typescript next.js',
+      });
+      expect(apac([job]).kept).toHaveLength(1);
+    });
+
+    it('keeps a "(Thailand-only)" restriction since Thailand is an accepted region', () => {
+      const job = makeJob({
+        title: 'Senior Software Engineer',
+        location: null,
+        body: 'This role is REMOTE (Thailand-only). react typescript next.js',
+      });
+      expect(apac([job]).kept).toHaveLength(1);
+    });
   });
 
   it('drops customer support engineer (compound non-eng)', () => {
@@ -652,5 +873,369 @@ describe('applyFilters — role interests', () => {
     ]);
     expect(r.kept).toHaveLength(0);
     expect(r.droppedByRule.title_excluded_specialty).toBe(1);
+  });
+});
+
+describe('applyFilters — stale-posting age cutoff', () => {
+  const daysAgo = (n: number) => new Date(Date.now() - n * 24 * 60 * 60 * 1000).toISOString();
+
+  function withMaxAge(maxAgeDays: number | undefined) {
+    const profile = {
+      ...testProfile,
+      scoring: { ...testProfile.scoring, maxAgeDays },
+    } as unknown as FilterProfile;
+    return createFilters(profile).applyFilters;
+  }
+
+  it('is inert when maxAgeDays is unset (default profile keeps old postings)', () => {
+    const r = applyFilters([makeJob({ postedAt: daysAgo(90) })]);
+    expect(r.kept).toHaveLength(1);
+  });
+
+  it('drops a posting older than maxAgeDays', () => {
+    const run = withMaxAge(20);
+    const r = run([makeJob({ postedAt: daysAgo(25) })]);
+    expect(r.kept).toHaveLength(0);
+    expect(r.droppedByRule.stale_posting).toBe(1);
+  });
+
+  it('keeps a posting within maxAgeDays', () => {
+    const run = withMaxAge(20);
+    const r = run([makeJob({ postedAt: daysAgo(10) })]);
+    expect(r.kept).toHaveLength(1);
+  });
+
+  it('does not rescue a stale posting via a role match — age applies regardless of fit', () => {
+    const { applyFilters: applyRoled } = createFilters({
+      ...testProfile,
+      scoring: { ...testProfile.scoring, maxAgeDays: 20 },
+      roles: [{ id: 'frontend', label: 'Frontend Engineer', titleMatch: ['frontend engineer'] }],
+    } as unknown as FilterProfile);
+    const r = applyRoled([makeJob({ title: 'Senior Frontend Engineer', postedAt: daysAgo(25) })]);
+    expect(r.kept).toHaveLength(0);
+    expect(r.droppedByRule.stale_posting).toBe(1);
+  });
+
+  it('keeps a job with a missing postedAt even when maxAgeDays is set (no evidence of staleness)', () => {
+    const run = withMaxAge(20);
+    const r = run([makeJob({ postedAt: null })]);
+    expect(r.kept).toHaveLength(1);
+  });
+
+  it('keeps a job with an unparsable postedAt even when maxAgeDays is set', () => {
+    const run = withMaxAge(20);
+    const r = run([makeJob({ postedAt: 'not-a-date' })]);
+    expect(r.kept).toHaveLength(1);
+  });
+});
+
+describe('applyFilters — confirmed-not-remote (trusted-source work-type gate)', () => {
+  function withWorkTypes(workTypes: readonly string[]) {
+    const profile = {
+      ...testProfile,
+      location: { ...testProfile.location, workTypes },
+    } as unknown as FilterProfile;
+    return createFilters(profile).applyFilters;
+  }
+
+  it('is inert on the default fixture profile (accepts hybrid, so remote-only gate is off)', () => {
+    const r = applyFilters([makeJob({ source: 'lever', remote: false, location: 'Remote' })]);
+    expect(r.kept).toHaveLength(1);
+  });
+
+  it('drops a confirmed non-remote posting from a trusted source when the candidate is remote-only', () => {
+    const run = withWorkTypes(['remote']);
+    const r = run([makeJob({ source: 'lever', remote: false, location: 'Remote' })]);
+    expect(r.kept).toHaveLength(0);
+    expect(r.droppedByRule.confirmed_not_remote).toBe(1);
+  });
+
+  it('does not apply to a heuristic-remote source, even when remote-only', () => {
+    const run = withWorkTypes(['remote']);
+    const r = run([makeJob({ source: 'greenhouse', remote: false, location: 'Remote' })]);
+    expect(r.kept).toHaveLength(1);
+  });
+
+  it('keeps a trusted-source job that is actually remote', () => {
+    const run = withWorkTypes(['remote']);
+    const r = run([makeJob({ source: 'lever', remote: true, location: 'Remote' })]);
+    expect(r.kept).toHaveLength(1);
+  });
+
+  it('is inert when the candidate also accepts onsite work', () => {
+    const run = withWorkTypes(['remote', 'onsite']);
+    const r = run([makeJob({ source: 'lever', remote: false, location: 'Remote' })]);
+    expect(r.kept).toHaveLength(1);
+  });
+
+  it('is inert with no location profile at all (fresh fork, no default deny)', () => {
+    const { applyFilters: applyNoLoc } = createFilters({
+      ...testProfile,
+      location: undefined,
+    } as unknown as FilterProfile);
+    const r = applyNoLoc([makeJob({ source: 'lever', remote: false, location: 'Remote' })]);
+    expect(r.kept).toHaveLength(1);
+  });
+});
+
+describe('applyFilters — bare parenthetical region code in locationLock', () => {
+  // Mirrors a real gap: HN "who is hiring" postings never populate the
+  // structured `location` field (always null), so a header like
+  // "Company | Title | REMOTE (EU)" is only visible to the geo hard-drop via
+  // body text. The pre-existing locationLock fragment only caught the
+  // "-only"-suffixed form ("Remote (US-only)") — a bare regional code in
+  // parens ("(EU)", "(US)", "(UK)") slipped through entirely.
+  const apacProfile = {
+    ...testProfile,
+    location: {
+      basedIn: 'Thailand',
+      workTypes: ['remote'],
+      acceptedRegions: ['worldwide', 'apac', 'asia', 'thailand'],
+      excludeOutsideAcceptedRegions: true,
+    },
+  } as unknown as FilterProfile;
+  const apac = createFilters(apacProfile).applyFilters;
+
+  it('drops a job with no location field whose body states a bare non-accepted region code', () => {
+    const job = makeJob({
+      title: 'Product Engineer',
+      location: null,
+      body: 'Company | Product Engineer | Full-time | REMOTE (EU) | react typescript next.js',
+    });
+    expect(apac([job]).kept).toHaveLength(0);
+  });
+
+  it('does not drop a bare "(Worldwide)" annotation — still a catch-all, not a lock', () => {
+    const job = makeJob({
+      title: 'Product Engineer',
+      location: null,
+      body: 'Company | Product Engineer | Full-time | REMOTE (Worldwide) | react typescript next.js',
+    });
+    expect(apac([job]).kept).toHaveLength(1);
+  });
+
+  it('does not drop a bare accepted-region code ("(APAC)") — rescued upstream by ACCEPTED_REGIONS_SPECIFIC', () => {
+    const job = makeJob({
+      title: 'Product Engineer',
+      location: null,
+      body: 'Company | Product Engineer | Full-time | REMOTE (APAC) | react typescript next.js',
+    });
+    expect(apac([job]).kept).toHaveLength(1);
+  });
+
+  it('still catches the original "-only" suffixed form', () => {
+    const job = makeJob({
+      title: 'Product Engineer',
+      location: null,
+      body: 'Company | Product Engineer | Full-time | REMOTE (US-only) | react typescript next.js',
+    });
+    expect(apac([job]).kept).toHaveLength(0);
+  });
+});
+
+// A candidate who has worked async with EU/US-based teams from Thailand for
+// years is eligible for a job whose team happens to be based in Europe or the
+// US — the location field naming that place is not, by itself, a requirement.
+// Only explicit restriction language ("Only Europe", a specific timezone
+// mandate, "must be based in X", "REMOTE (EU)"-style annotations) means the
+// candidate genuinely can't take the role. Before this fix, a bare named
+// location alone (via `locationFieldOutOfRegion`) hard-dropped every one of
+// these, which is why postings like Ground News ("Staff Engineer, Web Growth
+// & Conversion", location "Canada (Remote)", no explicit eligibility
+// language) never reached the "real requirement" checks at all.
+describe('applyFilters — remote posting with a bare named location is not itself a restriction', () => {
+  const apacProfile = {
+    ...testProfile,
+    location: {
+      basedIn: 'Thailand',
+      workTypes: ['remote'],
+      acceptedRegions: ['worldwide', 'apac', 'asia', 'thailand'],
+      excludeOutsideAcceptedRegions: true,
+    },
+  } as unknown as FilterProfile;
+  const apac = createFilters(apacProfile).applyFilters;
+
+  it('keeps a remote posting whose location merely names Canada, with no eligibility statement (Ground News shape)', () => {
+    const job = makeJob({
+      title: 'Staff Engineer, Web Growth & Conversion',
+      location: 'Canada (Remote)',
+      body: 'Own the growth engineering roadmap. react typescript next.js.',
+    });
+    expect(apac([job]).kept).toHaveLength(1);
+  });
+
+  it('keeps a remote posting whose location merely names a European city, with no eligibility statement (Figma shape)', () => {
+    const job = makeJob({
+      title: 'Senior Staff Engineer',
+      location: 'London, UK (Remote)',
+      body: 'Build the design tool loved by millions. react typescript next.js.',
+    });
+    expect(apac([job]).kept).toHaveLength(1);
+  });
+
+  it('still drops the same posting once the body states an explicit timezone-only requirement', () => {
+    const job = makeJob({
+      title: 'Staff Engineer, Web Growth & Conversion',
+      location: 'Canada (Remote)',
+      body: 'Own the growth engineering roadmap. EST timezone required for daily standups. react typescript next.js.',
+    });
+    expect(apac([job]).kept).toHaveLength(0);
+  });
+
+  it('still drops the same posting once the body explicitly restricts eligibility to that place', () => {
+    const job = makeJob({
+      title: 'Staff Engineer, Web Growth & Conversion',
+      location: 'Canada',
+      body: 'This is a remote role for candidates located in Canada. react typescript next.js.',
+    });
+    expect(apac([job]).kept).toHaveLength(0);
+  });
+
+  it('still drops a physically onsite posting in a non-accepted city (no remote option at all)', () => {
+    const job = makeJob({
+      title: 'Staff Software Engineer',
+      location: 'London, UK',
+      remote: false,
+      body: 'Join us in our London office. react typescript next.js.',
+    });
+    expect(apac([job]).kept).toHaveLength(0);
+  });
+});
+
+// A security-clearance requirement (Public Trust, Secret, Top Secret) is a
+// distinct kind of explicit restriction from a named location: it's a proxy
+// for "must be a US citizen able to pass a federal background investigation,"
+// which excludes a non-US-citizen candidate regardless of the "Remote" label
+// on the posting. Observed live: a "Senior Front-End Agentic AI Engineer" at
+// a VA (Veterans Affairs) contractor, location "United States - Remote,"
+// "Clearance: Ability to obtain and maintain a Public Trust" — survived the
+// filter because remote + a bare "United States" location isn't itself a
+// restriction (the fix above), and none of the existing locationLock phrases
+// (work authorization / visa / relocation) matched clearance-specific
+// language. This is a real gap, distinct from the geo-region gate: these
+// patterns fire regardless of job.remote, since a clearance requirement is a
+// hard requirement even for a fully-remote role.
+describe('applyFilters — security clearance / public trust is a real restriction, not a bare location', () => {
+  it('drops a posting requiring the ability to obtain a Public Trust clearance', () => {
+    const job = makeJob({
+      title: 'Senior Front-End Agentic AI Engineer',
+      location: 'United States - Remote',
+      body: 'United States – Remote. Clearance: Ability to obtain and maintain a Public Trust. react typescript next.js.',
+    });
+    expect(applyFilters([job]).kept).toHaveLength(0);
+  });
+
+  it('drops a posting requiring an active Secret clearance', () => {
+    const job = makeJob({
+      title: 'Senior Software Engineer',
+      location: 'Remote',
+      body: 'Must hold an active Secret clearance. react typescript next.js.',
+    });
+    expect(applyFilters([job]).kept).toHaveLength(0);
+  });
+
+  it('drops a posting requiring Top Secret clearance', () => {
+    const job = makeJob({
+      title: 'Senior Software Engineer',
+      location: 'Remote',
+      body: 'This role requires Top Secret clearance. react typescript next.js.',
+    });
+    expect(applyFilters([job]).kept).toHaveLength(0);
+  });
+
+  it('drops a posting that requires US citizenship explicitly', () => {
+    const job = makeJob({
+      title: 'Senior Software Engineer',
+      location: 'Remote',
+      body: 'Must be a US citizen due to federal contract requirements. react typescript next.js.',
+    });
+    expect(applyFilters([job]).kept).toHaveLength(0);
+  });
+
+  it('keeps an ordinary remote posting that merely mentions "trust" in an unrelated sense', () => {
+    const job = makeJob({
+      title: 'Senior Software Engineer',
+      location: 'Remote',
+      body: 'We trust our engineers to work autonomously. react typescript next.js.',
+    });
+    expect(applyFilters([job]).kept).toHaveLength(1);
+  });
+});
+
+// An enumerated list of 2+ specific COUNTRIES (not cities) as the entire
+// location field is a stronger signal than a single named place: it usually
+// means "these are the only countries we're legally set up to employ a
+// remote worker in" (an Employer-of-Record/payroll constraint), even without
+// the word "only" anywhere. Observed live: "AI Staff Engineer" at Sauce,
+// location "Brazil (Remote), Canada (Remote)" — kept by the earlier fix
+// (bare-location-on-remote-job isn't a restriction) even though neither
+// country is accepted for a Thailand-based candidate. A single named place
+// (e.g. "Auckland" for an Everbridge posting, "join our Auckland engineering
+// team") stays governed by the earlier fix and correctly survives — this
+// block is specifically about the *multi-country enumeration* case.
+describe('applyFilters — closed multi-country location list is a real restriction', () => {
+  const apacProfile = {
+    ...testProfile,
+    location: {
+      basedIn: 'Thailand',
+      workTypes: ['remote'],
+      acceptedRegions: ['worldwide', 'apac', 'asia', 'thailand'],
+      excludeOutsideAcceptedRegions: true,
+    },
+  } as unknown as FilterProfile;
+  const apac = createFilters(apacProfile).applyFilters;
+
+  it('drops the Sauce-shaped posting: "Brazil (Remote), Canada (Remote)", neither accepted', () => {
+    const job = makeJob({
+      title: 'Remote AI Staff Engineer',
+      location: 'Brazil (Remote), Canada (Remote)',
+      body: 'Join Sauce, a restaurant technology platform, as an AI Staff Engineer. react typescript next.js.',
+    });
+    expect(apac([job]).kept).toHaveLength(0);
+  });
+
+  it('keeps a single named place (Auckland) — not an enumeration, team-hub language only', () => {
+    const job = makeJob({
+      title: 'Staff Software Engineer',
+      location: 'Auckland',
+      body: 'Join our Auckland engineering team building an agentic AI platform. react typescript next.js.',
+    });
+    expect(apac([job]).kept).toHaveLength(1);
+  });
+
+  it('keeps a list of CITIES within one country — likely office hubs, not a hiring boundary', () => {
+    const job = makeJob({
+      title: 'Senior Software Engineer',
+      location: 'New York, San Francisco, Austin (Remote)',
+      body: 'Join one of our US hubs. react typescript next.js.',
+    });
+    expect(apac([job]).kept).toHaveLength(1);
+  });
+
+  it('keeps a multi-country list when one of the listed countries IS accepted', () => {
+    const job = makeJob({
+      title: 'Senior Software Engineer',
+      location: 'Thailand (Remote), Vietnam (Remote)',
+      body: 'react typescript next.js.',
+    });
+    expect(apac([job]).kept).toHaveLength(1);
+  });
+
+  it('keeps a multi-country list rescued by a worldwide/catch-all term alongside it', () => {
+    const job = makeJob({
+      title: 'Senior Software Engineer',
+      location: 'Worldwide, Canada',
+      body: 'react typescript next.js.',
+    });
+    expect(apac([job]).kept).toHaveLength(1);
+  });
+
+  it('is inert for a single country alone (governed by the bare-location fix, not this rule)', () => {
+    const job = makeJob({
+      title: 'Senior Software Engineer',
+      location: 'Canada (Remote)',
+      body: 'react typescript next.js.',
+    });
+    expect(apac([job]).kept).toHaveLength(1);
   });
 });

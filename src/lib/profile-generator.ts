@@ -337,12 +337,21 @@ export function sanitizeLocation(value: unknown): LocationProfile {
         ),
       ).slice(0, MAX_ACCEPTED_REGIONS)
     : [];
-  return {
+  const out: LocationProfile = {
     basedIn,
     workTypes,
     acceptedRegions,
     excludeOutsideAcceptedRegions: v.excludeOutsideAcceptedRegions === true,
   };
+  // Timezone fields are hand-set (never LLM-generated) — preserve them across
+  // UI edits and clamp to sane ranges.
+  if (isFiniteNumber(v.utcOffset) && v.utcOffset >= -12 && v.utcOffset <= 14) {
+    out.utcOffset = v.utcOffset;
+  }
+  if (isFiniteNumber(v.maxTimezoneDiffHours) && v.maxTimezoneDiffHours >= 0) {
+    out.maxTimezoneDiffHours = Math.min(v.maxTimezoneDiffHours, 12);
+  }
+  return out;
 }
 
 // True when a sanitized location carries any signal worth persisting (vs the

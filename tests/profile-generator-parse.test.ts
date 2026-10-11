@@ -250,6 +250,42 @@ describe('sanitizeLocation', () => {
     expect(loc.workTypes).toEqual(['onsite']);
     expect(loc.excludeOutsideAcceptedRegions).toBe(false);
   });
+
+  describe('timezone fields', () => {
+    it('keeps utcOffset and maxTimezoneDiffHours across a UI edit round-trip', () => {
+      const loc = sanitizeLocation({
+        basedIn: 'Thailand',
+        workTypes: ['remote'],
+        acceptedRegions: ['apac'],
+        excludeOutsideAcceptedRegions: true,
+        utcOffset: 7,
+        maxTimezoneDiffHours: 6,
+      });
+      expect(loc.utcOffset).toBe(7);
+      expect(loc.maxTimezoneDiffHours).toBe(6);
+      // Idempotent: sanitizing an already-sanitized value changes nothing.
+      expect(sanitizeLocation(loc)).toEqual(loc);
+    });
+
+    it('accepts fractional offsets and negative offsets', () => {
+      expect(sanitizeLocation({ utcOffset: 5.5 }).utcOffset).toBe(5.5);
+      expect(sanitizeLocation({ utcOffset: -8 }).utcOffset).toBe(-8);
+    });
+
+    it('omits utcOffset when absent, non-numeric or out of range', () => {
+      expect('utcOffset' in sanitizeLocation({})).toBe(false);
+      expect('utcOffset' in sanitizeLocation({ utcOffset: '7' })).toBe(false);
+      expect('utcOffset' in sanitizeLocation({ utcOffset: Number.NaN })).toBe(false);
+      expect('utcOffset' in sanitizeLocation({ utcOffset: 15 })).toBe(false);
+      expect('utcOffset' in sanitizeLocation({ utcOffset: -13 })).toBe(false);
+    });
+
+    it('clamps maxTimezoneDiffHours to 12 and rejects negatives', () => {
+      expect(sanitizeLocation({ maxTimezoneDiffHours: 40 }).maxTimezoneDiffHours).toBe(12);
+      expect(sanitizeLocation({ maxTimezoneDiffHours: 0 }).maxTimezoneDiffHours).toBe(0);
+      expect('maxTimezoneDiffHours' in sanitizeLocation({ maxTimezoneDiffHours: -1 })).toBe(false);
+    });
+  });
 });
 
 describe('parsePersonalizationDelta — location', () => {
