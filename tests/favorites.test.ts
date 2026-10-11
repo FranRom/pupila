@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -231,5 +231,59 @@ describe('listFavoriteIds', () => {
     const ids = await listFavoriteIds(favoritesPath);
     expect(ids.has('lookup-job')).toBe(true);
     expect(ids.has('missing-job')).toBe(false);
+  });
+});
+
+describe('concurrent writes', () => {
+  const id = (n: number) =>
+    String(n % 10).repeat(39) + String.fromCharCode(97 + Math.floor(n / 10));
+
+  it('keeps every favorite when many adds run at once', async () => {
+    const ids = Array.from({ length: 25 }, (_, i) => id(i));
+    await Promise.all(ids.map((i) => addFavorite(i, favoritesPath)));
+    expect(await listFavoriteIds(favoritesPath)).toEqual(new Set(ids));
+  });
+
+  it('applies overlapping add/remove in call order and leaves valid JSON', async () => {
+    await addFavorite(id(1), favoritesPath);
+    await Promise.all([
+      addFavorite(id(2), favoritesPath),
+      removeFavorite(id(1), favoritesPath),
+      addFavorite(id(3), favoritesPath),
+    ]);
+    expect(await listFavoriteIds(favoritesPath)).toEqual(new Set([id(2), id(3)]));
+    JSON.parse(await readFile(favoritesPath, 'utf8'));
+  });
+
+  it('leaves no temp files behind', async () => {
+    await Promise.all([1, 2, 3, 4].map((n) => addFavorite(id(n), favoritesPath)));
+    const files = await readdir(tmpDir);
+    expect(files.filter((f) => f.endsWith('.tmp'))).toEqual([]);
+  });
+
+  it('a failing write does not block later writes', async () => {
+    await writeFile(join(tmpDir, 'blocker'), 'x');
+    const bad = join(tmpDir, 'blocker', 'favorites.json');
+    await expect(addFavorite(id(1), bad)).rejects.toThrow();
+    await expect(addFavorite(id(1), bad)).rejects.toThrow();
+    await addFavorite(id(2), favoritesPath);
+    expect(await hasFavorite(id(2), favoritesPath)).toBe(true);
+  });
+});
+
+describe('corrupt file protection', () => {
+  it('moves an unreadable file aside instead of erasing it on the next write', async () => {
+    await writeFile(favoritesPath, '{"favorites": [ {"jobId": "keepme"');
+    await addFavorite('a'.repeat(40), favoritesPath);
+    const files = await readdir(tmpDir);
+    const aside = files.find((f) => f.startsWith('favorites.json.corrupt-'));
+    expect(aside).toBeDefined();
+    expect(await readFile(join(tmpDir, aside as string), 'utf8')).toContain('keepme');
+    expect(await listFavoriteIds(favoritesPath)).toEqual(new Set(['a'.repeat(40)]));
+  });
+
+  it('does not quarantine a file that is simply missing', async () => {
+    await addFavorite('a'.repeat(40), favoritesPath);
+    expect((await readdir(tmpDir)).some((f) => f.includes('corrupt'))).toBe(false);
   });
 });

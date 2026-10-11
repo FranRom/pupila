@@ -1031,7 +1031,11 @@ const FragmentRow = memo(function FragmentRow({
         </td>
         <td className={styles.tdTitle} title={titleTooltip}>
           <span className={styles.titleRow}>
-            {favorite && <span title="Favorited">⭐</span>}
+            {favorite && (
+              <span role="img" aria-label="Favorited">
+                ⭐
+              </span>
+            )}
             {applied && (
               <span
                 className={clsx(badgeStyles.base, STATUS_BADGE_CLASS[applied.status])}
