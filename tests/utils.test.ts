@@ -126,3 +126,28 @@ describe('formatDateTimeUTC', () => {
     expect(formatDateTimeUTC('not-a-date')).toBe('not-a-date');
   });
 });
+
+describe('stripHtml — hex character references', () => {
+  // Hacker News encodes these heavily. Left literal they mangle titles
+  // ("Full-stack &#x2F; AI Engineer") and blind filter regexes.
+  it('decodes hex refs', () => {
+    expect(stripHtml('Full-stack &#x2F; AI Engineer')).toBe('Full-stack / AI Engineer');
+    expect(stripHtml('We&#x27;re hiring')).toBe("We're hiring");
+  });
+
+  it('decodes uppercase hex refs', () => {
+    expect(stripHtml('a &#X2F; b')).toBe('a / b');
+  });
+
+  it('keeps decimal refs working', () => {
+    expect(stripHtml('don&#39;t')).toBe("don't");
+  });
+
+  it('lets an encoded C++ reach a keyword regex', () => {
+    expect(/\bc\+\+/i.test(stripHtml('C&#x2B;&#x2B; systems work'))).toBe(true);
+  });
+
+  it('leaves a bare ampersand alone', () => {
+    expect(stripHtml('R&amp;D')).toBe('R&D');
+  });
+});

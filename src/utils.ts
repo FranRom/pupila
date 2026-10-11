@@ -71,6 +71,9 @@ export function sha1Hex(input: string): string {
 
 export function stripHtml(input: string | null | undefined): string {
   if (!input) return '';
+  // Hex character refs (&#x2F;, &#x27;) are decoded alongside the decimal ones:
+  // Hacker News encodes them heavily, and left literal they both mangle titles
+  // and blind filter regexes — "C&#x2B;&#x2B;" never matches a /c\+\+/ keyword.
   return input
     .replace(/<script[\s\S]*?<\/script>/gi, ' ')
     .replace(/<style[\s\S]*?<\/style>/gi, ' ')
@@ -85,6 +88,7 @@ export function stripHtml(input: string | null | undefined): string {
     .replace(/&quot;/gi, '"')
     .replace(/&#39;/gi, "'")
     .replace(/&#(\d+);/g, (_, code: string) => String.fromCharCode(Number(code)))
+    .replace(/&#x([0-9a-f]+);/gi, (_, c: string) => String.fromCodePoint(Number.parseInt(c, 16)))
     .replace(/[ \t]+/g, ' ')
     .replace(/\n{3,}/g, '\n\n')
     .trim();
