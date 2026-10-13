@@ -5,7 +5,7 @@ metadata:
   scope: pupila
 ---
 
-The pipeline ingests from 19 public sources (5 ATS APIs — Ashby, Greenhouse, Lever, Recruitee, Personio (XML) — plus RSS, JSON boards, HN, HTML scrapers, an Aave Next.js scraper, `ashby-private` for orgs whose public posting-API is disabled, `jobicy` and `himalayas` — no-key remote-jobs feeds, and `bluedoor` — a free cross-ATS aggregator queried by region from `profile.location`). Adding a source means: a fetcher, a normalizer, a `Source` literal, a slot in the orchestrator, and dedup/render wiring.
+The pipeline ingests from 21 public sources (5 ATS APIs — Ashby, Greenhouse, Lever, Recruitee, Personio (XML) — plus RSS, JSON boards, HN, HTML scrapers, `habr` — Habr Career remote-vacancy RSS (Russia/CIS), `workingnomads` — Working Nomads' no-key board with multi-region location strings, an Aave Next.js scraper, `ashby-private` for orgs whose public posting-API is disabled, `jobicy` and `himalayas` — no-key remote-jobs feeds, and `bluedoor` — a free cross-ATS aggregator queried by region from `profile.location`). Adding a source means: a fetcher, a normalizer, a `Source` literal, a slot in the orchestrator, and dedup/render wiring.
 
 **Companion invariants:** `src/fetchers/CLAUDE.md` (auto-loaded when working in that dir) — security checklist + must-obey rules. Read those rules; this skill covers the procedural side.
 
@@ -70,7 +70,7 @@ curl -s "https://<slug>.jobs.personio.de/xml?language=en" | grep -c '<position>'
 
 ## Source-priority order (current)
 
-`aave = ashby-private > ashby > lever > greenhouse > recruitee > personio > cryptojobslist > web3career > aijobsnet > hn-hiring > hn-jobs > remotive > weworkremotely > remoteok > jobicy > himalayas > remoteyeah > bluedoor`
+`aave = ashby-private > ashby > lever > greenhouse > recruitee > personio > cryptojobslist > web3career > habr > aijobsnet > hn-hiring > hn-jobs > remotive > weworkremotely > remoteok > jobicy > himalayas > remoteyeah > workingnomads > bluedoor`
 
 Used by dedup tiebreaker. Newly-added sources slot in based on data quality + ATS reliability. `bluedoor` is **lowest** on purpose: it re-carries many curated-ATS jobs, so on any company+title overlap the dedicated fetcher must win.
 

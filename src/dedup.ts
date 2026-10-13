@@ -14,6 +14,9 @@ const SOURCE_PRIORITY: Record<Source, number> = {
   personio: 9,
   cryptojobslist: 8,
   web3career: 7,
+  // Habr Career is first-party (companies post directly), so it ranks with the
+  // niche boards, but its links point at habr — company+title dedup only.
+  habr: 6.5,
   aijobsnet: 6,
   'hn-hiring': 5,
   'hn-jobs': 4,
@@ -31,6 +34,7 @@ const SOURCE_PRIORITY: Record<Source, number> = {
   remoteyeah: -2,
   // Lowest priority: bluedoor's unique long-tail (providers we can't reach
   // directly) survives, but any overlap loses to a more-specific source.
+  workingnomads: -2.5,
   bluedoor: -3,
 };
 
@@ -58,7 +62,11 @@ function pickWinner(a: Job, b: Job): Job {
 }
 
 function companyTitleKey(j: Job): string {
-  return sha1Hex(`${normalizeText(j.company ?? '')}|${normalizeText(j.title)}`);
+  // No company means company+title says nothing about identity: two unrelated
+  // postings titled "Machine Learning Engineer" must not merge. Such jobs keep
+  // their own id (already de-duplicated by id above).
+  if (!j.company) return sha1Hex(`id|${j.id}`);
+  return sha1Hex(`${normalizeText(j.company)}|${normalizeText(j.title)}`);
 }
 
 export interface DedupResult {

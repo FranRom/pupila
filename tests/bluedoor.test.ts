@@ -297,3 +297,72 @@ describe('normalizeBluedoor', () => {
     expect(a.id).toBe(b.id);
   });
 });
+
+describe('normalizeBluedoor — Workday employer names', () => {
+  const at = '2026-07-28T00:00:00.000Z';
+  const raw = (over = {}) => ({
+    job_id: 'j1',
+    title: 'Senior AI Developer',
+    org_id: '0fd86b23-27d2-42d2-936d-dd3800fec31f',
+    apply_url:
+      'https://wd1.myworkdaysite.com/recruiting/ssctech/SSCTechnologies/job/Bangkok-Thailand/Senior-AI-Developer_R45049',
+    description_text: 'Build things.',
+    city: 'Bangkok',
+    country: 'Thailand',
+    ...over,
+  });
+
+  // Seven Bangkok postings displayed as a raw UUID because parseAtsUrl reads
+  // the FIRST path segment ("recruiting") and Workday puts the employer third.
+  it('reads the employer out of a Workday URL instead of falling back to org_id', () => {
+    const [job] = normalizeBluedoor([raw()] as never, at);
+    expect(job?.company).toBe('SSC Technologies');
+  });
+
+  it('handles myworkdayjobs.com and separator-style site names', () => {
+    const [job] = normalizeBluedoor(
+      [
+        raw({
+          apply_url:
+            'https://acme.wd5.myworkdayjobs.com/recruiting/acme/acme_corp/job/Remote/Engineer_R1',
+        }),
+      ] as never,
+      at,
+    );
+    expect(job?.company).toBe('Acme Corp');
+  });
+
+  it('still falls back to org_id for a non-Workday host, so employers do not collapse in dedup', () => {
+    const [job] = normalizeBluedoor(
+      [raw({ apply_url: 'https://careers.example.com/jobs/1' })] as never,
+      at,
+    );
+    expect(job?.company).toBe('0fd86b23-27d2-42d2-936d-dd3800fec31f');
+  });
+});
+
+describe('normalizeBluedoor — Workday generic site names', () => {
+  const at = '2026-07-28T00:00:00.000Z';
+  const job = (apply_url: string) =>
+    normalizeBluedoor(
+      [
+        { job_id: 'j1', title: 'Engineer', org_id: 'org-uuid', apply_url, description_text: 'x' },
+      ] as never,
+      at,
+    )[0];
+
+  it.each([
+    'External',
+    'Careers',
+    'External_Careers',
+    'jobs',
+  ])('falls back to the tenant when the site is the generic "%s"', (site) => {
+    const j = job(`https://wd5.myworkdaysite.com/recruiting/pfizer/${site}/job/NYC/Engineer_R1`);
+    expect(j?.company).toBe('Pfizer');
+  });
+
+  it('keeps using the site when it is the brand', () => {
+    const j = job('https://wd1.myworkdaysite.com/recruiting/ssctech/SSCTechnologies/job/x/Y_R1');
+    expect(j?.company).toBe('SSC Technologies');
+  });
+});
