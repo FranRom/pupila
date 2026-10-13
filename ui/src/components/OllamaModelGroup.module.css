@@ -1,0 +1,42 @@
+/*
+ * OllamaModelGroup — the boxed Ollama entry inside a provider radio list
+ * (onboarding step 1 and Settings → LLM).
+ */
+
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.modelList {
+  list-style: none;
+  padding: 0;
+  margin: 0.25rem 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+/* Child selector outranks the parent list's `.providerList label` box. */
+.modelList > li > label {
+  border: none;
+  background: transparent;
+  padding: 0.35rem 0.5rem 0.35rem 0.25rem;
+}
+
+.modelName {
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 0.875rem;
+  font-weight: 500;
+}

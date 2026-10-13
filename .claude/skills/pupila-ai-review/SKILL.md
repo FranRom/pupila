@@ -99,11 +99,12 @@ git commit -m "chore: daily run + ai reviews"
 
 ### Ollama notes
 
-- Provider id: `ollama`. Detected when the `ollama` binary is on PATH.
+- Provider id: `ollama`. Detected when the `ollama` binary is on PATH **or** a daemon answers `GET /api/tags` at `OLLAMA_HOST` (Docker / remote box). A non-loopback host logs a once-per-process warning, since prompts carry the CV + brief.
 - Invoked via `POST http://$OLLAMA_HOST/api/generate` (default host `127.0.0.1:11434`), not `ollama run` (TTY spinners).
 - Models are listed live from `GET /api/tags` and shown as selectable radios in onboarding + Settings (stored as `preferences.ollamaModel`).
 - Resolution order for the model name: request/UI selection / `preferences.ollamaModel` → `PUPILA_LLM_MODEL` env → sole pulled generation-capable model (with a console warning) → throw.
-- Context: requests set `options.num_ctx` from the prompt size (override with `PUPILA_OLLAMA_NUM_CTX`, hard-capped at 32768).
+- Context: requests set `options.num_ctx` from the prompt size, capped at 32768. An explicit `PUPILA_OLLAMA_NUM_CTX` is honoured as-is (warned above the cap).
+- Truncation: on overflow Ollama keeps ~half the effective window (`W - (W - num_keep)/2`) and drops the START of the prompt (the brief), keeping the tail. `warnIfPromptTruncated` warns when `prompt_eval_count` is < 0.5× the estimate, or sits just above W/2 for W = `num_ctx` or a power of two below it. Healthy prompts measure ~0.7-1.05× the estimate, so never use a high ratio threshold. KV-cache prefix reuse still reports the full count (verified on 0.35.0).
 - Thinking models (qwen3): requests set `think: false` so chain-of-thought doesn't break JSON parsers.
 
 ## Related
