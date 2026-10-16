@@ -3,7 +3,9 @@
   "scoring": {
     "minScoreToKeep": 30,
     "maxScore": 100,
-    "scoringBodyMaxChars": 1500
+    "scoringBodyMaxChars": 1500,
+    "_comment_maxAgeDays": "Optional hard-drop cutoff: postings older than this many days are dropped regardless of how well they otherwise match (not rescued by a role match). null/omitted = inert, no age cutoff — a fresh fork keeps every age.",
+    "maxAgeDays": null
   },
   "weights": {
     "_comment_personal": "Personal — zeroed in the default. The LLM-generated delta overwrites these from your candidate brief. (web3/ai scoring moved to the `categories` block below — each category carries its own optional weight.)",
@@ -44,7 +46,8 @@
       "director",
       "engineers?",
       "developers?",
-      "architects?"
+      "architects?",
+      "swe"
     ],
     "engineering": [
       "engineers?",
@@ -123,17 +126,29 @@
     "locationLock": [
       "onsite only",
       "on-?site only",
-      "in[- ]office only",
-      "in[- ]office",
+      "(?<!\\()in[- ]office only",
+      "(?<!\\()in[- ]office (required|mandatory|full[- ]?time)",
+      "(?<!never )(?<!not )(?<!n't )(?<!no )(required|expected|must|need) (to )?(work )?(from|in) (the |our )?office",
       "(must|need to|required to|have to|expected to) (be )?(based|located|situated|residing|reside)",
       "to be (based|located|situated) (in|out of)",
       "(authoriz(e|ed|ation)|eligib(le|ility)) to work",
       "work authorization",
       "right to work",
       "work permit",
-      "visa (sponsorship|sponsor|required|status)",
-      "relocat(e|ion|ing)",
-      "(time ?zone|gmt|utc|est|pst|cst|mst|cet|cest|eastern|pacific|central|mountain) (time ?zone|time|zone|hours)? ?(only|required|preferred|overlap|mandatory)"
+      "visa (required|status)",
+      "no visa sponsorship|without (\\w+ )?visa sponsorship|(cannot|can'?t|unable to|not able to) (\\w+ ){0,2}sponsor(ship)?( \\w+){0,2} visas?|(cannot|can'?t|unable to|not able to) (\\w+ ){0,2}visa sponsorship",
+      "(do|does|will|would) not (offer |provide |support )?sponsor(ship)?( \\w+){0,2} visas?|(do|does|will|would) not (offer|provide|support)( \\w+){0,2} (visa )?sponsorship|(don't|doesn't|won't) (offer|provide|support)( \\w+){0,2} (visa )?sponsorship",
+      "sponsorship (is )?not (available|offered|provided)",
+      "(?<!no )(?<!not )(?<!never )(?<!n't )(must|required to|need to|needs to) relocat(e|ion)|(?<!no )(?<!not )must be (willing|able|ready) to relocat(e|ion)",
+      "(time ?zone|gmt|utc|est|pst|cst|mst|cet|cest|eastern|pacific|central|mountain) (time ?zone|time|zone|hours)? ?(only|required|preferred|overlap|mandatory)",
+      "remote\\s*\\([a-z .,']{1,20}-only",
+      "remote\\s*\\((eu|us|usa|uk|na|latam|emea|mena|apac|europe|asia|americas|anz|dach|nordics?|benelux|cee)\\b[a-z .,'-]{0,15}(?=\\))",
+      "(obtain|maintain|active|eligib\\w*)[^.]{0,30}public trust|public trust (clearance|position|investigation|background)",
+      "(?<!no )(?<!not )(?<!without )(security|secret|top secret) clearance(?! (is |are )?(not|never) (required|needed|necessary))",
+      "(?<!no )(?<!not )clearance required",
+      "must be a (u\\.?s\\.?|united states) citizen",
+      "(u\\.?s\\.?|united states) citizenship required",
+      "citizenship required"
     ],
     "onsiteOnly": [
       "onsite only",
