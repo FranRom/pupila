@@ -58,3 +58,5 @@ openspec/
 .continue/
 .junie/
 .kiro/
+
+data/favorites.json
