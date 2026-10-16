@@ -166,11 +166,11 @@ Vitest, across `tests/` (`*.test.ts` glob). Run via `pnpm test` or `pnpm run tes
 
 ## GitHub Actions
 
-One workflow only — `.github/workflows/check.yml` — every push to `main` and PR. Seven gates: Biome lint, typecheck (3 tsconfigs), Vitest, `tsc` build, Vite UI build, bundle-size budget, `pnpm audit`. Daily aggregation runs **locally** via launchd/cron (see `scripts/install-*.sh`).
+Validation workflows, none of which aggregates jobs: `check.yml` (every push to `main` and PR), `review.yml` (every PR: `pnpm run review:checks` + dependency review) and `codeql.yml`. `check.yml` has seven gates: Biome lint, typecheck (3 tsconfigs), Vitest, `tsc` build, Vite UI build, bundle-size budget, `pnpm audit`. Daily aggregation runs **locally** via launchd/cron (see `scripts/install-*.sh`).
 
 Third-party actions pinned by 40-char SHA with version comment. Bump manually when needed.
 
-> **CodeQL workflow removed** — Code Scanning isn't available on private repos without GitHub Advanced Security. Restore from commit `7397117` if the repo goes public.
+> **CodeQL** — restored now the repo is public (free for public repos); `codeql.yml` skips fork PRs because their token cannot upload results. `review:checks` lives in `scripts/pr-review-checks.ts`, and `review:diff` (`scripts/review-diff.ts`) is the optional local AI review contributors run before a PR (any provider `src/lib/llm.ts` supports); add a rule there when CONTRIBUTING gains a mechanical invariant.
 
 ## Pre-commit
 
