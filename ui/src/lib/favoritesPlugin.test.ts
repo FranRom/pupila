@@ -68,6 +68,13 @@ describe('favorites API plugin', () => {
     expect(JSON.parse(r.body)).toEqual({ favorites: [] });
   });
 
+  it('GET / flags a damaged file instead of silently listing nothing', async () => {
+    await writeFile(state.path, '{"favorites": [ {"jobId": "x"');
+    const r = await call('GET', '/');
+    expect(r.status).toBe(200);
+    expect(JSON.parse(r.body)).toEqual({ favorites: [], damaged: true });
+  });
+
   it('POST /<id> persists a favorite and GET lists it', async () => {
     expect((await call('POST', `/${ID_A}`)).status).toBe(200);
     expect((await call('POST', `/${ID_B}`)).status).toBe(200);

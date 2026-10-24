@@ -1,5 +1,5 @@
-import type { ServerResponse } from 'node:http';
 import type { Plugin } from 'vite';
+import { pathnameOf, sendJson } from './_http.ts';
 import { JOBS_BODIES_PATH, JOBS_PATH } from './_paths.ts';
 import { readJsonOrDefault } from './_shared.ts';
 
@@ -7,18 +7,6 @@ interface JobShape {
   id: string;
   body?: string;
   bodyPreview?: string;
-}
-
-function sendJson(res: ServerResponse, status: number, payload: unknown): void {
-  res.statusCode = status;
-  res.setHeader('Content-Type', 'application/json');
-  res.end(JSON.stringify(payload));
-}
-
-function pathnameOf(rawUrl: string | undefined): string {
-  if (!rawUrl) return '/';
-  const q = rawUrl.indexOf('?');
-  return q === -1 ? rawUrl : rawUrl.slice(0, q);
 }
 
 export function jobBodyApiPlugin(): Plugin {

@@ -32,13 +32,13 @@ describe('loadFavorites', () => {
   it('returns { favorites: [] } when file contains malformed JSON', async () => {
     await writeFile(favoritesPath, 'not valid json', 'utf8');
     const result = await loadFavorites(favoritesPath);
-    expect(result).toEqual({ favorites: [] });
+    expect(result).toEqual({ favorites: [], damaged: true });
   });
 
   it('returns { favorites: [] } when .favorites is not an array', async () => {
     await writeFile(favoritesPath, JSON.stringify({ favorites: 'oops' }), 'utf8');
     const result = await loadFavorites(favoritesPath);
-    expect(result).toEqual({ favorites: [] });
+    expect(result).toEqual({ favorites: [], damaged: true });
   });
 
   it('returns { favorites: [] } when file contains a bare array instead of envelope', async () => {
@@ -48,7 +48,7 @@ describe('loadFavorites', () => {
       'utf8',
     );
     const result = await loadFavorites(favoritesPath);
-    expect(result).toEqual({ favorites: [] });
+    expect(result).toEqual({ favorites: [], damaged: true });
   });
 
   it('returns parsed favorites when file is valid', async () => {
@@ -107,11 +107,9 @@ describe('addFavorite', () => {
 
   it('is atomic: no .tmp file leftover after a successful write', async () => {
     await addFavorite('job-008', favoritesPath);
-    const { access } = await import('node:fs/promises');
-    const tmpExists = await access(`${favoritesPath}.tmp`)
-      .then(() => true)
-      .catch(() => false);
-    expect(tmpExists).toBe(false);
+    // The store writes to a unique `<path>.<pid>.<uuid>.tmp`, so look for ANY
+    // leftover temp file, not one fixed name the implementation never uses.
+    expect((await readdir(tmpDir)).filter((f) => f.endsWith('.tmp'))).toEqual([]);
   });
 
   it('creates parent directory if missing', async () => {
@@ -171,11 +169,9 @@ describe('removeFavorite', () => {
   it('is atomic: no .tmp file leftover after a successful remove', async () => {
     await addFavorite('atomic-job', favoritesPath);
     await removeFavorite('atomic-job', favoritesPath);
-    const { access } = await import('node:fs/promises');
-    const tmpExists = await access(`${favoritesPath}.tmp`)
-      .then(() => true)
-      .catch(() => false);
-    expect(tmpExists).toBe(false);
+    // The store writes to a unique `<path>.<pid>.<uuid>.tmp`, so look for ANY
+    // leftover temp file, not one fixed name the implementation never uses.
+    expect((await readdir(tmpDir)).filter((f) => f.endsWith('.tmp'))).toEqual([]);
   });
 
   it('result is valid JSON after remove', async () => {
@@ -285,5 +281,52 @@ describe('corrupt file protection', () => {
   it('does not quarantine a file that is simply missing', async () => {
     await addFavorite('a'.repeat(40), favoritesPath);
     expect((await readdir(tmpDir)).some((f) => f.includes('corrupt'))).toBe(false);
+  });
+});
+
+describe('damaged file detection', () => {
+  it('does not flag a missing file as damaged', async () => {
+    expect(await loadFavorites(favoritesPath)).toEqual({ favorites: [] });
+  });
+
+  it('does not flag a healthy file', async () => {
+    await addFavorite('a'.repeat(40), favoritesPath);
+    expect((await loadFavorites(favoritesPath)).damaged).toBeUndefined();
+  });
+
+  it('flags an unparseable file so the caller can tell the user', async () => {
+    await writeFile(favoritesPath, '{"favorites": [ {"jobId": "keepme"');
+    expect(await loadFavorites(favoritesPath)).toEqual({ favorites: [], damaged: true });
+  });
+
+  it('flags a parseable file of the wrong shape', async () => {
+    await writeFile(favoritesPath, '{"nope": true}');
+    expect((await loadFavorites(favoritesPath)).damaged).toBe(true);
+  });
+
+  it('flags a file with some invalid entries but still returns the valid ones', async () => {
+    await writeFile(
+      favoritesPath,
+      JSON.stringify({ favorites: [{ jobId: 'partial' }, { jobId: 'ok', favoritedAt: 'x' }] }),
+    );
+    const r = await loadFavorites(favoritesPath);
+    expect(r.damaged).toBe(true);
+    expect(r.favorites.map((f) => f.jobId)).toEqual(['ok']);
+  });
+});
+
+describe('partially invalid file', () => {
+  it('keeps the valid entries and copies the original aside before the write', async () => {
+    const original = JSON.stringify({
+      favorites: [{ jobId: 'partial' }, { jobId: 'ok', favoritedAt: 'x' }],
+    });
+    await writeFile(favoritesPath, original);
+    await addFavorite('b'.repeat(40), favoritesPath);
+
+    expect([...(await listFavoriteIds(favoritesPath))].sort()).toEqual(['b'.repeat(40), 'ok']);
+    const aside = (await readdir(tmpDir)).find((f) => f.startsWith('favorites.json.corrupt-'));
+    expect(aside).toBeDefined();
+    // The invalid entry is recoverable from the copy, not erased by the write.
+    expect(await readFile(join(tmpDir, aside as string), 'utf8')).toBe(original);
   });
 });

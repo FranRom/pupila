@@ -117,6 +117,8 @@ export interface ApplyQueueSkipsResponse {
 
 export interface FavoritesResponse {
   favorites: string[];
+  /** The favorites file exists but is unreadable or partly invalid. */
+  damaged?: boolean;
 }
 
 export interface ApplyQueueEnqueueResponse {

@@ -1,22 +1,8 @@
-import type { ServerResponse } from 'node:http';
 import type { Plugin } from 'vite';
 import { isValidJobId } from '../../src/lib/apply-queue.js';
-import { addFavorite, listFavoriteIds, removeFavorite } from '../../src/lib/favorites.js';
+import { addFavorite, loadFavorites, removeFavorite } from '../../src/lib/favorites.js';
+import { pathnameOf, sendJson } from './_http.ts';
 import { FAVORITES_PATH } from './_paths.ts';
-
-function sendJson(res: ServerResponse, status: number, payload: unknown): void {
-  res.statusCode = status;
-  res.setHeader('Content-Type', 'application/json');
-  res.end(JSON.stringify(payload));
-}
-
-// Strip the registration prefix off `req.url` (already removed by Connect)
-// down to just the leading slash + path. Drops any query string.
-function pathnameOf(rawUrl: string | undefined): string {
-  if (!rawUrl) return '/';
-  const q = rawUrl.indexOf('?');
-  return q === -1 ? rawUrl : rawUrl.slice(0, q);
-}
 
 export function favoritesApiPlugin(): Plugin {
   return {
@@ -30,8 +16,11 @@ export function favoritesApiPlugin(): Plugin {
           const url = pathnameOf(req.url);
 
           if (method === 'GET' && (url === '/' || url === '')) {
-            const ids = await listFavoriteIds(FAVORITES_PATH);
-            sendJson(res, 200, { favorites: Array.from(ids) });
+            const { favorites, damaged } = await loadFavorites(FAVORITES_PATH);
+            sendJson(res, 200, {
+              favorites: Array.from(new Set(favorites.map((f) => f.jobId))),
+              ...(damaged ? { damaged: true } : {}),
+            });
             return;
           }
 

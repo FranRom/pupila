@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
+import { copyFile, mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
 
 export interface Favorite {
@@ -9,6 +9,15 @@ export interface Favorite {
 
 export interface FavoritesFile {
   favorites: Favorite[];
+}
+
+export interface LoadedFavorites extends FavoritesFile {
+  /**
+   * The file exists but could not be read in full: unparseable, wrong shape, or
+   * holding entries that are not valid favorites. A missing file is NOT damaged.
+   * Lets the caller tell the user instead of silently showing fewer favorites.
+   */
+  damaged?: true;
 }
 
 const DEFAULT_PATH = 'data/favorites.json';
@@ -23,7 +32,7 @@ function isFavorite(value: unknown): value is Favorite {
   return typeof v.jobId === 'string' && typeof v.favoritedAt === 'string';
 }
 
-export async function loadFavorites(path = DEFAULT_PATH): Promise<FavoritesFile> {
+export async function loadFavorites(path = DEFAULT_PATH): Promise<LoadedFavorites> {
   let raw: string;
   try {
     raw = await readFile(path, 'utf8');
@@ -35,7 +44,7 @@ export async function loadFavorites(path = DEFAULT_PATH): Promise<FavoritesFile>
   try {
     parsed = JSON.parse(raw);
   } catch {
-    return emptyFile();
+    return { ...emptyFile(), damaged: true };
   }
 
   if (
@@ -44,11 +53,12 @@ export async function loadFavorites(path = DEFAULT_PATH): Promise<FavoritesFile>
     !('favorites' in parsed) ||
     !Array.isArray((parsed as { favorites: unknown }).favorites)
   ) {
-    return emptyFile();
+    return { ...emptyFile(), damaged: true };
   }
 
   const rawFavorites = (parsed as { favorites: unknown[] }).favorites;
-  return { favorites: rawFavorites.filter(isFavorite) };
+  const favorites = rawFavorites.filter(isFavorite);
+  return favorites.length === rawFavorites.length ? { favorites } : { favorites, damaged: true };
 }
 
 // Mutations are read-modify-write on one file, so they are serialized per path
@@ -69,7 +79,10 @@ function serialized<T>(path: string, task: () => Promise<T>): Promise<T> {
 
 // Reads for a mutation. A MISSING file is simply empty. A file that exists but
 // cannot be parsed is set aside (not overwritten) so one bad write never
-// silently erases every earlier favorite.
+// silently erases every earlier favorite. A file that parses but holds some
+// invalid entries keeps its valid favorites, and the original is copied aside
+// first so the invalid entries are recoverable rather than erased by the write
+// that follows.
 async function loadForMutation(path: string): Promise<FavoritesFile> {
   let raw: string;
   try {
@@ -81,7 +94,15 @@ async function loadForMutation(path: string): Promise<FavoritesFile> {
   try {
     const parsed = JSON.parse(raw) as { favorites?: unknown };
     if (parsed && Array.isArray(parsed.favorites)) {
-      return { favorites: parsed.favorites.filter(isFavorite) };
+      const valid = parsed.favorites.filter(isFavorite);
+      if (valid.length !== parsed.favorites.length) {
+        const copy = `${path}.corrupt-${Date.now()}`;
+        await copyFile(path, copy);
+        console.warn(
+          `[favorites] ${path} had invalid entries; original kept at ${copy}, valid favorites preserved`,
+        );
+      }
+      return { favorites: valid };
     }
   } catch {
     // fall through to quarantine

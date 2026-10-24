@@ -16,6 +16,7 @@ import {
   loadSwipeSkips,
   removeSwipeSkip,
 } from '../../src/lib/swipe-skips.js';
+import { pathnameOf, sendJson } from './_http.ts';
 import {
   APPLY_QUEUE_PATH,
   APPLY_WORKER_PID_PATH,
@@ -67,12 +68,6 @@ async function probeWorker(): Promise<WorkerLiveness> {
     // ESRCH or anything else: process gone. Report stale.
     return { alive: false, pid: null, pidPath };
   }
-}
-
-function sendJson(res: ServerResponse, status: number, payload: unknown): void {
-  res.statusCode = status;
-  res.setHeader('Content-Type', 'application/json');
-  res.end(JSON.stringify(payload));
 }
 
 async function handleList(res: ServerResponse): Promise<void> {
@@ -146,14 +141,6 @@ async function handleUndoSkip(jobId: string, res: ServerResponse): Promise<void>
   }
   await removeSwipeSkip(jobId, SWIPE_SKIPS_PATH);
   sendJson(res, 200, { ok: true });
-}
-
-// Strip the registration prefix off `req.url` (which already has it removed
-// by Connect) into just the leading slash + path. Drops any query string.
-function pathnameOf(rawUrl: string | undefined): string {
-  if (!rawUrl) return '/';
-  const q = rawUrl.indexOf('?');
-  return q === -1 ? rawUrl : rawUrl.slice(0, q);
 }
 
 export function applyQueueApiPlugin(): Plugin {
