@@ -1,8 +1,15 @@
+import { execFileSync } from 'node:child_process';
+import { mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { describe, expect, it } from 'vitest';
+import { isMain } from '../scripts/_is-main.js';
 import {
   type ChangedFile,
   dependencyFieldsChanged,
   formatSummary,
+  ignoredByBase,
   parseNumstat,
   reviewChanges,
 } from '../scripts/pr-review-checks.js';
@@ -159,5 +166,85 @@ describe('dependencyFieldsChanged', () => {
 
   it('treats unreadable JSON as changed', () => {
     expect(dependencyFieldsChanged('{', pkg({}))).toBe(true);
+  });
+});
+
+describe('reviewChanges: personal data beyond the fixed list', () => {
+  it('matches case-insensitively', () => {
+    expect(rules([f('config/CV.PDF')])).toEqual(['error:personal-data']);
+  });
+
+  it('flags paths the base .gitignore ignores, even if the regex does not know them', () => {
+    const ignored = new Set(['.env.local', 'data/archive/a.json']);
+    const out = reviewChanges(
+      [f('.env.local'), f('data/archive/a.json'), f('README.md')],
+      1500,
+      ignored,
+    );
+    expect(out).toHaveLength(1);
+    expect(out[0]?.rule).toBe('personal-data');
+    expect(out[0]?.files).toEqual(['.env.local', 'data/archive/a.json']);
+  });
+});
+
+describe('reviewChanges: size', () => {
+  it('counts deleted files toward the size threshold', () => {
+    const out = reviewChanges([f('src/old.ts', 0, 3000, 'D'), f('tests/old.test.ts', 0, 10, 'D')]);
+    expect(out.map((x) => x.rule)).toContain('size');
+  });
+});
+
+describe('ignoredByBase', () => {
+  it('reads the rules from the base ref, not the working tree', () => {
+    const repo = mkdtempSync(join(tmpdir(), 'pupila-test-'));
+    const git = (...a: string[]) =>
+      execFileSync('git', ['-C', repo, '-c', 'user.name=t', '-c', 'user.email=t@t', ...a], {
+        encoding: 'utf8',
+      });
+    try {
+      git('init', '-q', '-b', 'main');
+      writeFileSync(join(repo, '.gitignore'), '.env*\ndata/archive/\n');
+      git('add', '.');
+      git('commit', '-q', '-m', 'base');
+      // The "PR" un-ignores everything in its working tree.
+      writeFileSync(join(repo, '.gitignore'), '');
+      const cwd = process.cwd();
+      process.chdir(repo);
+      try {
+        const hit = ignoredByBase('main', ['.env.local', 'data/archive/a.json', 'src/x.ts']);
+        expect([...hit].sort()).toEqual(['.env.local', 'data/archive/a.json']);
+        expect(ignoredByBase('main', []).size).toBe(0);
+      } finally {
+        process.chdir(cwd);
+      }
+    } finally {
+      rmSync(repo, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('isMain', () => {
+  const self = fileURLToPath(new URL('../scripts/_is-main.ts', import.meta.url));
+  const url = pathToFileURL(self).href;
+
+  it('is true for the real path and false for another script', () => {
+    expect(isMain(url, self)).toBe(true);
+    expect(isMain(url, fileURLToPath(import.meta.url))).toBe(false);
+    expect(isMain(url, undefined)).toBe(false);
+  });
+
+  it('is true when the entry point is reached through a symlink', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'pupila-link-'));
+    try {
+      const link = join(dir, 'link.ts');
+      symlinkSync(self, link);
+      expect(isMain(url, link)).toBe(true);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('is false for a path that does not exist instead of throwing', () => {
+    expect(isMain(url, '/nonexistent/path.ts')).toBe(false);
   });
 });

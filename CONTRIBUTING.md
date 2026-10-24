@@ -103,6 +103,8 @@ pnpm run review:diff --print-prompt           # just print the prompt; paste it 
 
 It sends your diff plus the rules in this file to the model you already have (`claude`, `codex`, `gemini`, `opencode` or `ollama`, auto-detected; override with `PUPILA_LLM=<provider>`, and `PUPILA_LLM_MODEL` for ollama). With Ollama it is free and nothing leaves your machine. The result is advisory: one pass over the diff, no tests run, and quality depends on the model, so read it critically.
 
+`--pr` sends someone else's diff to a model CLI that runs with that tool's default permissions (no tool restrictions are applied), so text in the diff could try to steer it. Treat it like any untrusted input: review PRs you do not trust with a sandboxed or Ollama provider, and never let the reviewer run commands on your behalf.
+
 Already have another reviewer? Use it instead or as well: Claude Code's `/code-review`, the CodeRabbit CLI on your own account, or Copilot. None of them is required.
 
 ### Automated review

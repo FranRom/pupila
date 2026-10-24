@@ -8,8 +8,11 @@
 // (advisory: shown as annotations and in the job summary, never fails the build).
 // The rules mirror CONTRIBUTING.md so a reviewer does not have to re-check them.
 
-import { execFileSync } from 'node:child_process';
-import { appendFileSync } from 'node:fs';
+import { execFileSync, spawnSync } from 'node:child_process';
+import { appendFileSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { isMain } from './_is-main.js';
 
 export interface ChangedFile {
   path: string;
@@ -30,9 +33,12 @@ export interface Finding {
 }
 
 // Gitignored personal data: committing any of these leaks a user's CV, brief,
-// application history or scoring profile into a public repo.
+// application history or scoring profile into a public repo. This list is the
+// fast, always-on floor; `main()` also asks git which changed paths the BASE
+// branch's .gitignore ignores, so a new personal file type is caught without
+// editing this regex (and a PR cannot un-ignore its own leak).
 const PERSONAL_FILE_RE =
-  /^(config\/(applied\.json|candidate-brief\.md|profile\.json|preferences\.json|slugs\.local\.json|cv\.[a-z0-9]+)|data\/(applications\/(?!\.gitkeep)|swipe-skips\.json|favorites\.json|apply-queue\.json|ai-reviews\.json|jobs-bodies\.json|raw\/(?!\.gitkeep)))/;
+  /^(config\/(applied\.json|candidate-brief\.md|profile\.json|preferences\.json|slugs\.local\.json|cv\.[a-z0-9]+)|data\/(applications\/(?!\.gitkeep)|swipe-skips\.json|favorites\.json|apply-queue\.json|ai-reviews\.json|jobs-bodies\.json|raw\/(?!\.gitkeep)))/i;
 
 // Output the pipeline regenerates (`pnpm run dev`); CONTRIBUTING says not to hand-edit.
 const GENERATED_FILES = new Set(['JOBS.md', 'data/jobs.json', 'data/feed.xml']);
@@ -43,13 +49,20 @@ const isTestFile = (p: string): boolean =>
 const isSourceFile = (p: string): boolean =>
   /^(src|ui\/src|ui\/plugins|scripts)\/.+\.(ts|tsx|mjs|js)$/.test(p) && !isTestFile(p);
 
-/** Pure: turns the changed-file list into review findings. */
-export function reviewChanges(files: ChangedFile[], maxLines = 1500): Finding[] {
+/**
+ * Pure: turns the changed-file list into review findings. `ignored` is the set of
+ * changed paths the base branch's .gitignore ignores (computed by `main()`).
+ */
+export function reviewChanges(
+  files: ChangedFile[],
+  maxLines = 1500,
+  ignored: ReadonlySet<string> = new Set(),
+): Finding[] {
   const findings: Finding[] = [];
   const live = files.filter((f) => f.status !== 'D');
   const paths = live.map((f) => f.path);
 
-  const personal = paths.filter((p) => PERSONAL_FILE_RE.test(p));
+  const personal = paths.filter((p) => PERSONAL_FILE_RE.test(p) || ignored.has(p));
   if (personal.length > 0) {
     findings.push({
       level: 'error',
@@ -117,7 +130,8 @@ export function reviewChanges(files: ChangedFile[], maxLines = 1500): Finding[] 
   }
 
   // Lockfiles and generated output are noise for "is this PR too big to review".
-  const totalLines = live
+  // Deletions count: removing a 3000-line file is as much to review as adding one.
+  const totalLines = files
     .filter((f) => f.path !== 'pnpm-lock.yaml' && !GENERATED_FILES.has(f.path))
     .reduce((n, f) => n + f.added + f.deleted, 0);
   if (totalLines > maxLines) {
@@ -201,6 +215,37 @@ function git(args: string[]): string {
   return execFileSync('git', args, { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
 }
 
+/**
+ * Changed paths that the BASE ref's root .gitignore ignores. The rules are read
+ * from `base`, not the PR head (a PR that edits .gitignore must not un-ignore its
+ * own leak), and evaluated in a throwaway repo so nothing in the checkout matters.
+ */
+export function ignoredByBase(base: string, paths: string[]): Set<string> {
+  if (paths.length === 0) return new Set();
+  let rules: string;
+  try {
+    rules = git(['show', `${base}:.gitignore`]);
+  } catch {
+    return new Set(); // no .gitignore on base: the regex floor still applies
+  }
+  const dir = mkdtempSync(join(tmpdir(), 'pupila-ignore-'));
+  try {
+    execFileSync('git', ['init', '-q', dir]);
+    writeFileSync(join(dir, '.gitignore'), rules);
+    const r = spawnSync('git', ['-C', dir, 'check-ignore', '--no-index', '--stdin', '-z'], {
+      input: `${paths.join('\0')}\0`,
+      encoding: 'utf8',
+    });
+    // Exit 1 means "none ignored"; anything else but 0 is a real failure.
+    if (r.status !== 0 && r.status !== 1) {
+      throw new Error(`git check-ignore failed: ${r.stderr}`);
+    }
+    return new Set((r.stdout ?? '').split('\0').filter(Boolean));
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
 function main(): void {
   const base = process.env.BASE_SHA;
   const head = process.env.HEAD_SHA ?? 'HEAD';
@@ -223,7 +268,14 @@ function main(): void {
       git(['show', `${head}:package.json`]),
     );
   }
-  const findings = reviewChanges(files);
+  const findings = reviewChanges(
+    files,
+    undefined,
+    ignoredByBase(
+      base,
+      files.filter((f) => f.status !== 'D').map((f) => f.path),
+    ),
+  );
 
   for (const f of findings) {
     const where = f.files.length > 0 ? ` (${f.files.slice(0, 5).join(', ')})` : '';
@@ -238,4 +290,4 @@ function main(): void {
 }
 
 // Run only when executed directly, not when imported by tests.
-if (process.argv[1] && import.meta.url === new URL(`file://${process.argv[1]}`).href) main();
+if (isMain(import.meta.url)) main();

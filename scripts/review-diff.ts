@@ -16,12 +16,15 @@
 import { execFileSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import {
   type LlmProvider,
   resolveOllamaModel,
   runLlm,
   SUPPORTED_PROVIDERS,
 } from '../src/lib/llm.js';
+import { isMain } from './_is-main.js';
 
 export interface Args {
   base: string;
@@ -177,9 +180,13 @@ function readDiff(args: Args): string {
   return git(['diff', `${args.base}...${args.head}`]);
 }
 
+// Resolved from this file, not the cwd: run from a subdirectory the rules would
+// otherwise silently fall back to FALLBACK_RULES.
+const CONTRIBUTING_PATH = resolve(dirname(fileURLToPath(import.meta.url)), '..', 'CONTRIBUTING.md');
+
 function loadRules(): string {
-  if (!existsSync('CONTRIBUTING.md')) return FALLBACK_RULES;
-  const sections = extractSections(readFileSync('CONTRIBUTING.md', 'utf8'), [
+  if (!existsSync(CONTRIBUTING_PATH)) return FALLBACK_RULES;
+  const sections = extractSections(readFileSync(CONTRIBUTING_PATH, 'utf8'), [
     'Project Invariants',
     'Configuration Changes',
     'Code Standards',
@@ -244,7 +251,7 @@ async function main(): Promise<void> {
 }
 
 // Run only when executed directly, not when imported by tests.
-if (process.argv[1] && import.meta.url === new URL(`file://${process.argv[1]}`).href) {
+if (isMain(import.meta.url)) {
   main().catch((err) => {
     console.error((err as Error).message);
     process.exit(1);
