@@ -1291,3 +1291,42 @@ describe('applyFilters — closed multi-country location list is a real restrict
     expect(apac([job]).kept).toHaveLength(1);
   });
 });
+
+// A negation can sit several words before the verb ("do not need a security
+// clearance", "will not be required to relocate"); a single-word lookbehind
+// only saw the immediately preceding word.
+describe('applyFilters — negated lock phrases (bounded-window negation)', () => {
+  const bodyKept = (sentence: string) =>
+    applyFilters([makeJob({ location: 'Remote', body: `${sentence} react typescript next.js.` })])
+      .kept.length;
+
+  it.each([
+    'You will not be required to work from the office.',
+    'You are not required to relocate.',
+    'We do not require that you must relocate.',
+    'You will not be required to relocate.',
+    "You don't need to relocate.",
+    'No relocation needed. You will never have to relocate.',
+    'No security clearance is required.',
+    'No security clearance required.',
+    'You do not need a security clearance for this role.',
+    'Security clearance: not required.',
+    'Clearance not required.',
+  ])('keeps a remote posting that says: %s', (sentence) => {
+    expect(bodyKept(sentence)).toBe(1);
+  });
+
+  it.each([
+    'You are required to work from the office.',
+    'You must relocate.',
+    'Must be willing to relocate.',
+    'No visa sponsorship, you must relocate to Austin.',
+    // "not only" introduces an additional requirement, it does not negate it.
+    'Not only remote: you must relocate.',
+    'Not only remote but you must relocate.',
+    'Security clearance required.',
+    'Active secret clearance needed.',
+  ])('still drops a posting that says: %s', (sentence) => {
+    expect(bodyKept(sentence)).toBe(0);
+  });
+});
