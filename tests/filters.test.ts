@@ -945,9 +945,49 @@ describe('applyFilters — confirmed-not-remote (trusted-source work-type gate)'
 
   it('drops a confirmed non-remote posting from a trusted source when the candidate is remote-only', () => {
     const run = withWorkTypes(['remote']);
-    const r = run([makeJob({ source: 'lever', remote: false, location: 'Europe' })]);
+    const r = run([
+      makeJob({ source: 'lever', remote: false, location: 'Europe', tags: ['on-site'] }),
+    ]);
     expect(r.kept).toHaveLength(0);
     expect(r.droppedByRule.confirmed_not_remote).toBe(1);
+  });
+
+  it.each([
+    'hybrid',
+    'on-site',
+    'OnSite',
+    'Hybrid',
+  ])('drops on an explicit %s workplace type', (tag) => {
+    const run = withWorkTypes(['remote']);
+    const r = run([makeJob({ source: 'ashby', remote: false, location: 'Europe', tags: [tag] })]);
+    expect(r.droppedByRule.confirmed_not_remote).toBe(1);
+  });
+
+  // A missing workplace type collapses to remote:false in the Ashby / Lever
+  // normalizers; a region label alone is not evidence the role is on-site.
+  it.each([
+    'Europe',
+    'EMEA',
+    'Anywhere',
+    'Distributed',
+  ])('keeps a region-labelled posting (%s) with no workplace type', (location) => {
+    const run = withWorkTypes(['remote']);
+    for (const source of ['ashby', 'lever'] as const) {
+      const r = run([makeJob({ source, remote: false, location, tags: ['unspecified'] })]);
+      expect(r.droppedByRule.confirmed_not_remote).toBeUndefined();
+    }
+  });
+
+  it('keeps recruitee flag authoritative (a plain boolean, no third state)', () => {
+    const run = withWorkTypes(['remote']);
+    const r = run([makeJob({ source: 'recruitee', remote: false, location: 'Europe' })]);
+    expect(r.droppedByRule.confirmed_not_remote).toBe(1);
+  });
+
+  it('is inert when workTypes is empty (no preference expressed)', () => {
+    const run = withWorkTypes([]);
+    const r = run([makeJob({ source: 'lever', remote: false, tags: ['on-site'] })]);
+    expect(r.droppedByRule.confirmed_not_remote).toBeUndefined();
   });
 
   it('does not treat a posting whose location says Remote as confirmed on-site', () => {

@@ -402,6 +402,19 @@ export interface FilterApi {
  * tests pass their own fixture so weights/keyword changes in `config/` don't
  * break test assertions.
  */
+// Positive evidence a posting is hybrid / on-site, as opposed to merely not
+// confirmed remote: the ATS workplace type (carried in `tags` by the Ashby,
+// Lever and Aave normalizers) or hybrid / on-site wording in the location.
+const EXPLICIT_NON_REMOTE_TAG = /^(hybrid|on-?site|in[- ]?office|office)$/i;
+const EXPLICIT_NON_REMOTE_LOCATION = /\b(hybrid|on-?site|in[- ]office)\b/i;
+
+function hasExplicitNonRemote(job: Job): boolean {
+  return (
+    job.tags.some((t) => EXPLICIT_NON_REMOTE_TAG.test(t.trim())) ||
+    EXPLICIT_NON_REMOTE_LOCATION.test(job.location ?? '')
+  );
+}
+
 export function createFilters(profile: FilterProfile): FilterApi {
   const W = profile.weights;
   const S = profile.scoring;
@@ -464,6 +477,7 @@ export function createFilters(profile: FilterProfile): FilterApi {
   const acceptsOnsite = loc?.workTypes?.includes('onsite') ?? false;
   const acceptsHybrid = loc?.workTypes?.includes('hybrid') ?? false;
   const acceptsRemote = loc?.workTypes?.includes('remote') ?? true;
+  const acceptsAnyWorkType = (loc?.workTypes?.length ?? 0) > 0;
   // No region preference expressed → region drops/penalties stay inert (a fresh
   // fork accepts everywhere until the candidate sets regions). The work-type
   // gate still applies independently.
@@ -492,7 +506,9 @@ export function createFilters(profile: FilterProfile): FilterApi {
   // accepts remote work exclusively (no onsite, no hybrid) — inert for a
   // fresh fork with no `location` block, and inert for anyone who accepts
   // onsite or hybrid arrangements.
-  const remoteOnly = !!loc && !acceptsOnsite && !acceptsHybrid;
+  // An empty `workTypes` (the UI unticked everything, or the LLM omitted it)
+  // expresses no preference, so it must not read as "remote only".
+  const remoteOnly = !!loc && acceptsAnyWorkType && !acceptsOnsite && !acceptsHybrid;
 
   // A job's haystack names a region the candidate will work in: an accepted
   // region, their home country, or open-to-anywhere remote. Deliberately does
@@ -955,10 +971,14 @@ export function createFilters(profile: FilterProfile): FilterApi {
         !job.remote &&
         TRUSTED_REMOTE_SOURCES.has(job.source) &&
         // A missing workplace type reads as "not remote" (Ashby: remote =
-        // isRemote || workplaceType === 'Remote'), so a posting whose stated
-        // location literally says Remote ("Remote", "Worldwide, Remote") is not
-        // confirmed on-site. Only an explicit hybrid/on-site wording in the
-        // location keeps the flag in charge.
+        // isRemote || workplaceType === 'Remote'; Lever: no 'remote' match), so
+        // `remote: false` alone only means "not confirmed remote". Drop only on
+        // positive evidence of hybrid / on-site: the normalised workplace type
+        // (a tag) or hybrid / on-site wording in the stated location. Recruitee's
+        // flag is a plain boolean with no third state, so it stays authoritative.
+        // A location that literally says Remote ("Remote", "Worldwide, Remote")
+        // is never confirmed on-site unless it also says hybrid / on-site.
+        (job.source === 'recruitee' || hasExplicitNonRemote(job)) &&
         !(
           /\b(remote|worldwide)\b/i.test(job.location ?? '') &&
           !/\b(hybrid|on-?site)\b/i.test(job.location ?? '')

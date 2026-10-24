@@ -540,7 +540,15 @@ export function normalizeLever(items: RawLeverJobWithSlug[], fetchedAt: string):
           .filter(Boolean)
           .join('\n\n'),
     );
-    const tags = joinTags(j.tags, [cat.team, cat.department, cat.commitment, j.__slug]);
+    // workplaceType ('remote' | 'hybrid' | 'on-site' | 'unspecified') is kept as a
+    // tag so the confirmed_not_remote rule can tell hybrid / on-site from unknown.
+    const tags = joinTags(j.tags, [
+      cat.team,
+      cat.department,
+      cat.commitment,
+      j.workplaceType,
+      j.__slug,
+    ]);
     const salary = formatLeverSalary(j.salaryRange) || j.salaryDescriptionPlain?.trim() || null;
     return {
       id: makeId('lever', j.hostedUrl, `${company}-${j.text}-${j.id}`),
