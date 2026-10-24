@@ -341,3 +341,54 @@ describe('mergeProfile — location', () => {
     expect(out.locationChanged).toBe(false);
   });
 });
+
+describe('mergeProfile — location keeps the candidate-set timezone fields', () => {
+  const base: ProfileShape = {
+    weights: {},
+    keywords: {},
+    location: {
+      basedIn: 'Thailand',
+      workTypes: ['remote'],
+      acceptedRegions: ['apac'],
+      excludeOutsideAcceptedRegions: true,
+      utcOffset: 7,
+      maxTimezoneDiffHours: 6,
+    },
+  };
+  // What sanitizeLocation yields for an LLM delta: the brief never states these.
+  const delta = {
+    weights: {},
+    keywords: {},
+    location: {
+      basedIn: 'Thailand',
+      workTypes: ['remote' as const],
+      acceptedRegions: ['apac', 'europe'],
+      excludeOutsideAcceptedRegions: true,
+    },
+  };
+
+  it('carries utcOffset and maxTimezoneDiffHours over when the delta lacks them', () => {
+    const out = mergeProfile(base, delta);
+    expect(out.profile.location?.utcOffset).toBe(7);
+    expect(out.profile.location?.maxTimezoneDiffHours).toBe(6);
+    expect(out.profile.location?.acceptedRegions).toEqual(['apac', 'europe']);
+    expect(out.locationChanged).toBe(true);
+  });
+
+  it('lets the delta override them when it does carry values', () => {
+    const out = mergeProfile(base, {
+      ...delta,
+      location: { ...delta.location, utcOffset: 1, maxTimezoneDiffHours: 3 },
+    });
+    expect(out.profile.location?.utcOffset).toBe(1);
+    expect(out.profile.location?.maxTimezoneDiffHours).toBe(3);
+  });
+
+  it('reports no change when the delta only repeats the stored location', () => {
+    const out = mergeProfile(base, {
+      ...delta,
+      location: { ...delta.location, acceptedRegions: ['apac'] },
+    });
+    expect(out.locationChanged).toBe(false);
+  });
+});

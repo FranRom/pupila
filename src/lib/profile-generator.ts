@@ -527,10 +527,21 @@ export function mergeProfile(base: ProfileShape, delta: PersonalizationDelta): M
   // re-derives the candidate's full location preference from the brief.
   let locationChanged = false;
   if (delta.location) {
+    // The brief never states a UTC offset or a tolerance, so the LLM delta can't
+    // carry them; keep the candidate's own values (set in the UI) instead of
+    // silently switching the timezone rules off on every regeneration.
+    const merged: LocationProfile = { ...delta.location };
+    const prev = base.location;
+    if (merged.utcOffset === undefined && prev?.utcOffset !== undefined) {
+      merged.utcOffset = prev.utcOffset;
+    }
+    if (merged.maxTimezoneDiffHours === undefined && prev?.maxTimezoneDiffHours !== undefined) {
+      merged.maxTimezoneDiffHours = prev.maxTimezoneDiffHours;
+    }
     const before = JSON.stringify(next.location ?? {});
-    const after = JSON.stringify(delta.location);
+    const after = JSON.stringify(merged);
     if (before !== after) locationChanged = true;
-    next.location = delta.location;
+    next.location = merged;
   }
 
   return {
