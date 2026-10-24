@@ -522,12 +522,16 @@ export function normalizeHnHiring(items: RawHnHiringPost[], fetchedAt: string): 
       // soft...") to the title instead of the clean header field itself.
       const rolePart =
         headerParts.slice(1).find((part) => HN_ROLE_WORD_RE.test(part)) ??
-        headerParts.find((part) => HN_ROLE_WORD_RE.test(part));
+        (firstIsRole ? headerParts[0] : undefined);
       // No header field names a role → search the body for a role phrase before
       // falling back to raw header text. Without this, a post whose header is
       // prose ("led by Intact Private Capital, the investment arm of...") had
       // that whole sentence promoted to the title.
-      const bodyRole = rolePart ? null : text.match(HN_ROLE_PATTERN)?.[0]?.trim();
+      // Search below the header line only: the header itself was already judged
+      // above, and re-scanning it would match a company like "Developer Tools Inc".
+      const bodyRole = rolePart
+        ? null
+        : text.split('\n').slice(1).join('\n').match(HN_ROLE_PATTERN)?.[0]?.trim();
       const titleCandidate = rolePart ?? bodyRole ?? headerParts[1] ?? firstLine;
       title = titleCandidate.slice(0, 140);
     } else {

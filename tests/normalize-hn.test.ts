@@ -238,4 +238,15 @@ describe('normalizeHnHiring — role words inside a company name', () => {
       run('Staff Engineers (Remote) | Berlin | Full-time\n\nJoin us to build.')?.company,
     ).toBeNull();
   });
+
+  // Second round: the company was fixed but the title still fell back to the
+  // company field via the loose keyword regex.
+  it.each([
+    ['Lead Bank | Remote | Full-time', 'Lead Bank'],
+    ['Developer Tools Inc | NYC | Onsite', 'Developer Tools Inc'],
+  ])('does not promote the company "%s" to the title', (header, company) => {
+    const j = run(`${header}\n\nWe are hiring people to build our platform.`);
+    expect(j?.company).toBe(company);
+    expect(j?.title).not.toBe(company);
+  });
 });

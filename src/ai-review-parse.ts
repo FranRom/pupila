@@ -35,7 +35,8 @@ function asStringArray(v: unknown): string[] {
 }
 
 // Tries each `{` in turn and returns the first balanced `{...}` span that
-// parses to an object, string- and escape-aware so a brace inside a quoted
+// parses to an object carrying a `verdict` (so a nested fragment of a truncated
+// response is never mistaken for the review), string- and escape-aware so a brace inside a quoted
 // field value doesn't miscount. Used as a fallback when the model surrounds
 // the JSON with prose despite the prompt asking for JSON only — trailing
 // commentary (`{...}\n\nLet me know...`) or a stray brace in leading prose
@@ -61,7 +62,8 @@ function extractJsonObject(s: string): unknown {
         if (depth === 0) {
           try {
             const candidate: unknown = JSON.parse(s.slice(start, i + 1));
-            if (typeof candidate === 'object' && candidate !== null) return candidate;
+            if (typeof candidate === 'object' && candidate !== null && 'verdict' in candidate)
+              return candidate;
           } catch {
             // not valid JSON — try the next `{`
           }

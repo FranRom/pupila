@@ -127,4 +127,11 @@ describe('parseReviewJson — recovery', () => {
   it('still fails safe to skip for an unknown verdict', () => {
     expect(parseReviewJson('{"verdict":"maybe"}').verdict).toBe('skip');
   });
+
+  it('throws on a truncated response instead of caching a nested fragment as the review', () => {
+    // Cut off mid-object: the outer object never closes, but the nested one does.
+    const truncated =
+      '{"summary":"Great fit","verdict":"strong-match","reason":"ok", "meta": {"confidence": 0.9}';
+    expect(() => parseReviewJson(truncated)).toThrow();
+  });
 });
