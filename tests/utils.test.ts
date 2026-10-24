@@ -157,3 +157,19 @@ describe('stripHtml — hex character references', () => {
     expect(stripHtml('R&amp;D')).toBe('R&D');
   });
 });
+
+describe('stripHtml — entity decoding order', () => {
+  it('decodes a double-escaped entity exactly once', () => {
+    expect(stripHtml('&amp;#x3C;script&amp;#x3E;')).toBe('&#x3C;script&#x3E;');
+    expect(stripHtml('&amp;lt;b&amp;gt;')).toBe('&lt;b&gt;');
+  });
+
+  it('decodes decimal references above U+FFFF like hex ones', () => {
+    expect(stripHtml('&#128512;')).toBe('😀');
+    expect(stripHtml('&#128512;')).toBe(stripHtml('&#x1F600;'));
+  });
+
+  it('leaves an out-of-range decimal reference as written', () => {
+    expect(stripHtml('a &#9999999999; b')).toBe('a &#9999999999; b');
+  });
+});

@@ -218,4 +218,24 @@ describe('normalizeHnHiring — role words inside a company name', () => {
     expect(j?.company).toBeNull();
     expect(j?.title).toBe('Senior Full Stack Engineer');
   });
+
+  // Fran's repro: with no later role field the old bare-keyword check promoted
+  // the company name to the title and nulled the company.
+  it.each([
+    ['Lead Bank | Remote | Full-time', 'Lead Bank'],
+    ['Developer Tools Inc | NYC | Onsite', 'Developer Tools Inc'],
+    ['Headway | Remote', 'Headway'],
+  ])('keeps "%s" company when no field names a role', (header, company) => {
+    const j = run(`${header}\n\nWe are hiring engineers to build our platform.`);
+    expect(j?.company).toBe(company);
+  });
+
+  it('treats "Head of Engineering" and "Staff Engineers (Remote)" as roles, not companies', () => {
+    expect(
+      run('Head of Engineering | Berlin | Onsite\n\nJoin us to build things.')?.company,
+    ).toBeNull();
+    expect(
+      run('Staff Engineers (Remote) | Berlin | Full-time\n\nJoin us to build.')?.company,
+    ).toBeNull();
+  });
 });

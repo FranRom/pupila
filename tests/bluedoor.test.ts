@@ -332,6 +332,34 @@ describe('normalizeBluedoor — Workday employer names', () => {
     expect(job?.company).toBe('Acme Corp');
   });
 
+  it('reads the tenant from the subdomain of a <tenant>.wdN.myworkdayjobs.com URL', () => {
+    const [job] = normalizeBluedoor(
+      [
+        raw({
+          apply_url: 'https://acme.wd5.myworkdayjobs.com/en-US/External/job/Remote/Engineer_R1',
+        }),
+      ] as never,
+      at,
+    );
+    expect(job?.company).toBe('Acme');
+  });
+
+  it.each([
+    'ExternalCareerSite',
+    'External_Career_Site',
+    'Careers_External',
+  ])('treats the generic site name %s as the tenant, not the employer', (site) => {
+    const [job] = normalizeBluedoor(
+      [
+        raw({
+          apply_url: `https://wd1.myworkdaysite.com/recruiting/sscx/${site}/job/x/Engineer_R2`,
+        }),
+      ] as never,
+      at,
+    );
+    expect(job?.company).toBe('Sscx');
+  });
+
   it('still falls back to org_id for a non-Workday host, so employers do not collapse in dedup', () => {
     const [job] = normalizeBluedoor(
       [raw({ apply_url: 'https://careers.example.com/jobs/1' })] as never,

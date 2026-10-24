@@ -63,12 +63,33 @@ describe('normalizeHabr — salary inside the city segment', () => {
     expect(job?.title).toBe('Коммерческий директор (IT / SaaS)');
     expect(job?.location).toBe('Владивосток');
     expect(job?.salary).toBe('от 200 000 ₽');
-    expect(job?.salaryMin).toBe(200000);
+    // Habr quotes monthly rubles; stored annualised (×12).
+    expect(job?.salaryMin).toBe(2_400_000);
   });
 
   it('leaves a plain city untouched and has no salary', () => {
     const [job] = normalizeHabr([item()], NOW);
     expect(job?.location).toBe('Москва');
     expect(job?.salary).toBeNull();
+  });
+});
+
+describe('normalizeHabr — trailing salary and monthly amounts', () => {
+  it('keeps the role and extracts a salary that follows the quotes', () => {
+    const [job] = normalizeHabr([item({ title: 'Требуется «Go-разработчик» от 300 000 ₽' })], NOW);
+    expect(job?.title).toBe('Go-разработчик');
+    expect(job?.salary).toBe('от 300 000 ₽');
+    expect(job?.salaryMin).toBe(3_600_000);
+  });
+
+  it('annualises a monthly range', () => {
+    const [job] = normalizeHabr(
+      [item({ title: 'Требуется «Dev» (Москва, от 300 000 до 400 000 ₽)' })],
+      NOW,
+    );
+    expect(job?.location).toBe('Москва');
+    expect(job?.salaryMin).toBe(3_600_000);
+    expect(job?.salaryMax).toBe(4_800_000);
+    expect(job?.salaryCurrency).toBe('RUB');
   });
 });

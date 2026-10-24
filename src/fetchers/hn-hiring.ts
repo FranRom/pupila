@@ -69,6 +69,10 @@ export async function fetchHnHiring(): Promise<FetcherResult<RawHnHiringPost>> {
       return { items: [], errors: [...errors, message] };
     }
 
+    // The fallback found the thread, so the source worked: a failed primary is a
+    // log line, not a source error (render.ts raises the 🚨 banner on any error).
+    if (errors.length > 0) console.warn('[hn-hiring] recovered via fallback:', errors.join('; '));
+
     const found = story;
     const tree = await fetchJson<ItemTree>(itemUrl(Number(found.objectID)), {
       headers: JSON_HEADERS,
@@ -80,7 +84,7 @@ export async function fetchHnHiring(): Promise<FetcherResult<RawHnHiringPost>> {
       text: c.text ?? '',
       createdAt: c.created_at ?? found.created_at,
     }));
-    return { items, errors };
+    return { items, errors: [] };
   } catch (err) {
     const message = (err as Error).message;
     console.error('[hn-hiring] fetch failed:', message);

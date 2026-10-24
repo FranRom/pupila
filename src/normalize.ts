@@ -481,6 +481,14 @@ const HN_ROLE_PATTERN =
 // job title.
 const HN_ROLE_WORD_RE = /\b(engineers?|developers?|architects?|leads?|directors?|heads?)\b/i;
 
+// Stricter than HN_ROLE_WORD_RE, for deciding the FIRST header field is a job
+// title rather than a company: the field must END in a role noun
+// ("Senior Full Stack Engineer", "Staff Engineers (Remote)") or read "Head of X".
+// A bare keyword inside the field is not enough — "Lead Bank", "Headway" and
+// "Developer Tools Inc" are companies whose names merely contain one.
+const HN_ROLE_FIELD_RE =
+  /^(?:(?:[\w+/.#&-]+\s+){0,5}(?:engineers?|developers?|architects?)(?:\s*\([^)]*\))?|(?:head|director|vp)\s+of\s+.+)$/i;
+
 export function normalizeHnHiring(items: RawHnHiringPost[], fetchedAt: string): Job[] {
   return items.flatMap((p) => {
     const url = `https://news.ycombinator.com/item?id=${p.commentId}`;
@@ -498,7 +506,7 @@ export function normalizeHnHiring(items: RawHnHiringPost[], fetchedAt: string): 
     // company, but "Lead Bank | Senior Engineer | Remote" does — "Lead" is part
     // of the company's name.
     const firstIsRole =
-      HN_ROLE_WORD_RE.test(companyCandidate) &&
+      HN_ROLE_FIELD_RE.test(companyCandidate) &&
       !headerParts.slice(1).some((part) => HN_ROLE_WORD_RE.test(part));
     const company =
       hasHeader && companyCandidate && !firstIsRole && isPlausibleCompany(companyCandidate)
@@ -888,35 +896,64 @@ function structuredSalary(
 // can't see it and the org_id UUID surfaced as the company name instead. Seen
 // live: seven Bangkok postings all displaying as
 // "0fd86b23-27d2-42d2-936d-dd3800fec31f" rather than "SSC Technologies".
+// Site names that only describe the careers page ("External", "ExternalCareerSite",
+// "Careers_External"), not the employer. Tested on the camel/underscore-split words
+// so any mix of these tokens is generic, whatever the casing or separators.
+const WORKDAY_GENERIC_WORDS = new Set([
+  'external',
+  'ext',
+  'internal',
+  'career',
+  'careers',
+  'job',
+  'jobs',
+  'site',
+  'portal',
+  'apply',
+  'en',
+  'us',
+]);
+
+function splitWords(name: string): string {
+  return name
+    .replace(/[-_]+/g, ' ')
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 function workdayCompany(url: string | null | undefined): string | null {
   if (!url) return null;
   try {
     const parsed = new URL(url);
-    if (!/(^|\.)myworkday(site|jobs)\.com$/i.test(parsed.hostname)) return null;
+    const host = parsed.hostname.toLowerCase();
     const segments = parsed.pathname.split('/').filter(Boolean);
+    let tenant: string | undefined;
+    let site: string | undefined;
     const at = segments.indexOf('recruiting');
-    const tenant = at >= 0 ? segments[at + 1] : undefined;
-    const site = at >= 0 ? segments[at + 2] : undefined;
-    // The site is usually the brand ("SSCTechnologies"), but many tenants name it
-    // generically ("External", "Careers"); two employers would then collapse in
-    // company+title dedup, so fall back to the tenant segment.
-    const name =
-      site && !/^(external|ext|careers?|jobs?)(?:[-_ ]?(site|careers?|jobs?))?$/i.test(site)
-        ? site
-        : tenant;
+    if (!/(^|\.)myworkday(site|jobs)\.com$/.test(host)) {
+      return null;
+    }
+    if (at >= 0) {
+      // .../recruiting/<tenant>/<SiteName>/job/...
+      tenant = segments[at + 1];
+      site = segments[at + 2];
+    } else {
+      // <tenant>.wdN.myworkdayjobs.com/[<locale>/]<SiteName>/job/...
+      tenant = host.split('.')[0];
+      site = segments.find((seg) => !/^[a-z]{2}(?:-[A-Za-z]{2})?$/.test(seg));
+      if (site?.toLowerCase() === 'job') site = undefined;
+    }
+    // The site is often the brand ("SSCTechnologies"), but many tenants name it
+    // generically; two employers would then collapse in company+title dedup, so
+    // fall back to the tenant.
+    const siteWords = site ? splitWords(site).toLowerCase().split(' ') : [];
+    const generic = siteWords.length === 0 || siteWords.every((w) => WORKDAY_GENERIC_WORDS.has(w));
+    const name = !generic && site ? site : tenant;
     if (!name) return null;
     // "SSCTechnologies" → "SSC Technologies"; "acme_corp" → "Acme Corp".
-    // Two camel splits are needed: lower→upper for the ordinary case, and
-    // ACRONYM→Word for names that open with an initialism.
-    return (
-      name
-        .replace(/[-_]+/g, ' ')
-        .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
-        .replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2')
-        .replace(/\s+/g, ' ')
-        .trim()
-        .replace(/\b\w/g, (c) => c.toUpperCase()) || null
-    );
+    return splitWords(name).replace(/\b\w/g, (c) => c.toUpperCase()) || null;
   } catch {
     return null;
   }
@@ -1012,7 +1049,21 @@ export function normalizeGreenhouse(items: RawGreenhouseJobWithSlug[], fetchedAt
 // Habr Career RSS titles are formulaic: `Требуется «<role>» (<city>)`, with the
 // city segment absent on some fully-remote postings. The company only appears
 // in <author>; skills arrive as #hashtags inside the description prose.
-const HABR_TITLE_RE = /^Требуется\s*«\s*(.+?)\s*»\s*(?:\(([^)]+)\))?\s*$/;
+// Text after the role/city (a trailing "от 300 000 ₽") is captured as group 3 so
+// the match no longer fails — and the salary is no longer lost — when it appears.
+const HABR_TITLE_RE = /^Требуется\s*«\s*(.+?)\s*»\s*(?:\(([^)]+)\))?\s*(.*)$/;
+
+// Habr quotes MONTHLY rubles; parseSalary assumes annual, so scale by 12.
+const HABR_MONTHS = 12;
+
+function habrSalary(text: string | null): ReturnType<typeof withSalary> {
+  const base = withSalary(text);
+  return {
+    ...base,
+    salaryMin: base.salaryMin === null ? null : base.salaryMin * HABR_MONTHS,
+    salaryMax: base.salaryMax === null ? null : base.salaryMax * HABR_MONTHS,
+  };
+}
 
 export function normalizeHabr(items: RawRssItem[], fetchedAt: string): Job[] {
   return items.flatMap((item) => {
@@ -1028,7 +1079,13 @@ export function normalizeHabr(items: RawRssItem[], fetchedAt: string): Job[] {
     const citySegment = m?.[2]?.trim() || '';
     const salaryAt = citySegment.search(/,\s*(?:от|до)\s/i);
     const location = (salaryAt >= 0 ? citySegment.slice(0, salaryAt) : citySegment).trim() || null;
-    const salaryText = salaryAt >= 0 ? citySegment.slice(salaryAt + 1).trim() : null;
+    const trailing = m?.[3]?.trim() ?? '';
+    const salaryText =
+      salaryAt >= 0
+        ? citySegment.slice(salaryAt + 1).trim()
+        : /\d/.test(trailing)
+          ? trailing
+          : null;
     const company = asPlain(item.author).trim() || null;
     const body = asPlain(item.description);
     // `.` stays in the class for tags like #Vue.js, so strip sentence-final dots.
@@ -1047,7 +1104,7 @@ export function normalizeHabr(items: RawRssItem[], fetchedAt: string): Job[] {
         remote: true,
         body,
         tags: joinTags(tags),
-        ...withSalary(salaryText),
+        ...habrSalary(salaryText),
         postedAt: safeIso(item.pubDate),
         fetchedAt,
         fitScore: 0,

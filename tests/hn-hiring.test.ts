@@ -116,7 +116,7 @@ describe('fetchHnHiring — author-scoped query with fallback', () => {
     expect(r.items).toHaveLength(1);
   });
 
-  it('falls through when the author query errors, and reports that error', async () => {
+  it('falls through when the author query errors without flagging the source unhealthy', async () => {
     stub((u) => {
       if (u.includes('/items/')) return json(tree);
       return u.includes('author_whoishiring')
@@ -125,7 +125,8 @@ describe('fetchHnHiring — author-scoped query with fallback', () => {
     });
     const r = await fetchHnHiring();
     expect(r.items).toHaveLength(1);
-    expect(r.errors[0]).toMatch(/author query: HTTP 503/);
+    // The fallback worked, so a failed primary must not raise the 🚨 banner.
+    expect(r.errors).toEqual([]);
   });
 
   it('returns errors instead of throwing when no thread is found anywhere', async () => {

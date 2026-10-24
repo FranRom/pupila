@@ -17,39 +17,60 @@ function isValidVerdict(v: unknown): v is AiVerdict {
   return v === 'strong-match' || v === 'match' || v === 'weak-match' || v === 'skip';
 }
 
+// Near-miss spellings ("Strong match", "strong_match") are normalised to the
+// canonical form rather than dropped to `skip`, which would silently hide a
+// real match the model clearly intended.
+function normalizeVerdict(v: unknown): unknown {
+  return typeof v === 'string'
+    ? v
+        .trim()
+        .toLowerCase()
+        .replace(/[\s_]+/g, '-')
+    : v;
+}
+
 function asStringArray(v: unknown): string[] {
   if (!Array.isArray(v)) return [];
   return v.filter((x): x is string => typeof x === 'string');
 }
 
-// Scans for the first balanced top-level `{...}` object in a string, string-
-// and-escape aware so a brace inside a quoted field value doesn't miscount.
-// Used as a fallback when the model appends trailing prose after the JSON
-// object despite the prompt asking for JSON only — e.g. `{...}\n\nLet me
-// know if you'd like more detail.` trips a strict whole-string JSON.parse
-// even though the object itself is perfectly valid.
-function extractFirstJsonObject(s: string): string | null {
-  const start = s.indexOf('{');
-  if (start === -1) return null;
-  let depth = 0;
-  let inString = false;
-  let escaped = false;
-  for (let i = start; i < s.length; i++) {
-    const c = s[i];
-    if (inString) {
-      if (escaped) escaped = false;
-      else if (c === '\\') escaped = true;
-      else if (c === '"') inString = false;
-      continue;
-    }
-    if (c === '"') inString = true;
-    else if (c === '{') depth++;
-    else if (c === '}') {
-      depth--;
-      if (depth === 0) return s.slice(start, i + 1);
+// Tries each `{` in turn and returns the first balanced `{...}` span that
+// parses to an object, string- and escape-aware so a brace inside a quoted
+// field value doesn't miscount. Used as a fallback when the model surrounds
+// the JSON with prose despite the prompt asking for JSON only — trailing
+// commentary (`{...}\n\nLet me know...`) or a stray brace in leading prose
+// (`Note {see below}\n{...}`) both trip a strict whole-string JSON.parse even
+// though the object itself is perfectly valid.
+function extractJsonObject(s: string): unknown {
+  for (let start = s.indexOf('{'); start !== -1; start = s.indexOf('{', start + 1)) {
+    let depth = 0;
+    let inString = false;
+    let escaped = false;
+    for (let i = start; i < s.length; i++) {
+      const c = s[i];
+      if (inString) {
+        if (escaped) escaped = false;
+        else if (c === '\\') escaped = true;
+        else if (c === '"') inString = false;
+        continue;
+      }
+      if (c === '"') inString = true;
+      else if (c === '{') depth++;
+      else if (c === '}') {
+        depth--;
+        if (depth === 0) {
+          try {
+            const candidate: unknown = JSON.parse(s.slice(start, i + 1));
+            if (typeof candidate === 'object' && candidate !== null) return candidate;
+          } catch {
+            // not valid JSON — try the next `{`
+          }
+          break;
+        }
+      }
     }
   }
-  return null;
+  return undefined;
 }
 
 // Models occasionally wrap JSON in ```json ... ``` despite the prompt asking
@@ -67,11 +88,11 @@ export function parseReviewJson(raw: string): ParsedReviewBody {
     // Trailing content after a well-formed object (extra commentary the model
     // added despite instructions) fails a strict parse of the whole string.
     // Recover the object itself before giving up — only re-throw the
-    // original error if there's no balanced `{...}` to extract at all, so
-    // genuinely non-JSON responses still fail loudly as before.
-    const extracted = extractFirstJsonObject(cleaned);
-    if (extracted === null) throw err;
-    parsed = JSON.parse(extracted);
+    // original error if no `{...}` span parses, so genuinely non-JSON
+    // responses still fail loudly as before.
+    const extracted = extractJsonObject(cleaned);
+    if (extracted === undefined) throw err;
+    parsed = extracted;
   }
   if (typeof parsed !== 'object' || parsed === null) {
     throw new Error('response is not a JSON object');
@@ -85,7 +106,9 @@ export function parseReviewJson(raw: string): ParsedReviewBody {
     // Malformed/off-spec verdict must fail safe to the most conservative
     // reading, not the most favorable one — an unparseable verdict is not
     // evidence of a match.
-    verdict: isValidVerdict(obj.verdict) ? obj.verdict : 'skip',
+    verdict: isValidVerdict(normalizeVerdict(obj.verdict))
+      ? (normalizeVerdict(obj.verdict) as AiVerdict)
+      : 'skip',
     reason: typeof obj.reason === 'string' ? obj.reason : '',
   };
 }

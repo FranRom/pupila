@@ -69,34 +69,41 @@ export function sha1Hex(input: string): string {
   return createHash('sha1').update(input).digest('hex');
 }
 
+// Out-of-range references (> U+10FFFF) are left as written: fromCodePoint throws
+// on them, and one malformed comment must not abort a whole run.
+function decodeCodePoint(original: string, n: number): string {
+  return Number.isInteger(n) && n >= 0 && n <= 0x10ffff ? String.fromCodePoint(n) : original;
+}
+
 export function stripHtml(input: string | null | undefined): string {
   if (!input) return '';
   // Hex character refs (&#x2F;, &#x27;) are decoded alongside the decimal ones:
   // Hacker News encodes them heavily, and left literal they both mangle titles
   // and blind filter regexes — "C&#x2B;&#x2B;" never matches a /c\+\+/ keyword.
-  return input
-    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
-    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
-    .replace(/<br\s*\/?>(\s*)/gi, '\n')
-    .replace(/<\/p>/gi, '\n')
-    .replace(/<\/li>/gi, '\n')
-    .replace(/<[^>]+>/g, ' ')
-    .replace(/&nbsp;/gi, ' ')
-    .replace(/&amp;/gi, '&')
-    .replace(/&lt;/gi, '<')
-    .replace(/&gt;/gi, '>')
-    .replace(/&quot;/gi, '"')
-    .replace(/&#39;/gi, "'")
-    .replace(/&#(\d+);/g, (_, code: string) => String.fromCharCode(Number(code)))
-    .replace(/&#x([0-9a-f]+);/gi, (m: string, c: string) => {
-      // Out-of-range references (> U+10FFFF) are left as written: fromCodePoint
-      // throws on them, and one malformed comment must not abort a whole run.
-      const n = Number.parseInt(c, 16);
-      return n <= 0x10ffff ? String.fromCodePoint(n) : m;
-    })
-    .replace(/[ \t]+/g, ' ')
-    .replace(/\n{3,}/g, '\n\n')
-    .trim();
+  return (
+    input
+      .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+      .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+      .replace(/<br\s*\/?>(\s*)/gi, '\n')
+      .replace(/<\/p>/gi, '\n')
+      .replace(/<\/li>/gi, '\n')
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/&nbsp;/gi, ' ')
+      .replace(/&lt;/gi, '<')
+      .replace(/&gt;/gi, '>')
+      .replace(/&quot;/gi, '"')
+      .replace(/&#39;/gi, "'")
+      .replace(/&#(\d+);/g, (m: string, c: string) => decodeCodePoint(m, Number(c)))
+      .replace(/&#x([0-9a-f]+);/gi, (m: string, c: string) =>
+        decodeCodePoint(m, Number.parseInt(c, 16)),
+      )
+      // Last, so a double-escaped entity (`&amp;#x3C;`) decodes once to the literal
+      // text `&#x3C;` instead of being re-read as a character reference.
+      .replace(/&amp;/gi, '&')
+      .replace(/[ \t]+/g, ' ')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim()
+  );
 }
 
 const ALLOWED_URL_SCHEMES = new Set(['http:', 'https:']);

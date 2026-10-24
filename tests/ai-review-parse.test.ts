@@ -101,3 +101,30 @@ describe('parseReviewJson', () => {
     expect(() => parseReviewJson('{ this never closes and has no valid content')).toThrow();
   });
 });
+
+describe('parseReviewJson — recovery', () => {
+  const body = '{"summary":"s","verdict":"match","reason":"r"}';
+
+  it('skips a stray brace in leading prose and parses the real object', () => {
+    const r = parseReviewJson(`Note {see below}\n${body}`);
+    expect(r.verdict).toBe('match');
+    expect(r.summary).toBe('s');
+  });
+
+  it('still throws when no span parses', () => {
+    expect(() => parseReviewJson('no json {here} at all')).toThrow();
+  });
+
+  it.each([
+    ['Strong match', 'strong-match'],
+    ['strong_match', 'strong-match'],
+    [' WEAK-MATCH ', 'weak-match'],
+    ['Skip', 'skip'],
+  ])('normalises the near-miss verdict %j', (given, expected) => {
+    expect(parseReviewJson(JSON.stringify({ verdict: given })).verdict).toBe(expected);
+  });
+
+  it('still fails safe to skip for an unknown verdict', () => {
+    expect(parseReviewJson('{"verdict":"maybe"}').verdict).toBe('skip');
+  });
+});
