@@ -1,4 +1,5 @@
 import { readFile } from 'node:fs/promises';
+import { reconcileLocationLock } from './lib/profile-reconcile.js';
 import type {
   CategoryDef,
   Job,
@@ -90,7 +91,27 @@ export interface FilterProfile {
 /** Loads and parses config/profile.json. Throws ENOENT if missing — callers should gate. */
 export async function loadProfile(path = 'config/profile.json'): Promise<FilterProfile> {
   const raw = await readFile(path, 'utf8');
-  return JSON.parse(raw) as FilterProfile;
+  const profile = JSON.parse(raw) as FilterProfile;
+  // Sibling profile.default.json, when present, supplies the shipped lock fragments.
+  const shipped = await readShippedLocationLock(path.replace(/[^/\\]*$/, 'profile.default.json'));
+  const personal = profile.keywords?.locationLock;
+  if (shipped && Array.isArray(personal)) {
+    profile.keywords = {
+      ...profile.keywords,
+      locationLock: reconcileLocationLock(personal as string[], shipped),
+    };
+  }
+  return profile;
+}
+
+async function readShippedLocationLock(defaultPath: string): Promise<string[] | null> {
+  try {
+    const defaults = JSON.parse(await readFile(defaultPath, 'utf8')) as FilterProfile;
+    const list = defaults.keywords?.locationLock;
+    return Array.isArray(list) ? (list as string[]) : null;
+  } catch {
+    return null;
+  }
 }
 
 // Match-nothing regex for empty keyword lists. `(?!)` is a negative lookahead
