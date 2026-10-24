@@ -12,7 +12,6 @@ name: review
 on:
   pull_request:
     branches: [main]
-  workflow_dispatch:
 
 permissions:
   contents: read
@@ -23,7 +22,6 @@ concurrency:
 
 jobs:
   pr-checks:
-    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -40,7 +38,7 @@ jobs:
           cache: pnpm
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: pnpm install --frozen-lockfile --ignore-scripts
 
       - name: Review changed files
         env:
@@ -49,7 +47,6 @@ jobs:
         run: pnpm run review:checks
 
   dependency-review:
-    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -65,16 +62,34 @@ jobs:
           BASE: ${{ github.event.pull_request.base.sha }}
           HEAD: ${{ github.event.pull_request.head.sha }}
         run: |
-          if gh api "repos/${REPO}/dependency-graph/compare/${BASE}...${HEAD}" > /dev/null 2>&1; then
-            echo "enabled=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "enabled=false" >> "$GITHUB_OUTPUT"
-            echo "::warning title=dependency-review skipped::The dependency graph is not enabled for this repository (Settings > Security > Dependency graph)."
-          fi
+          # Skip ONLY when the API says the graph is off (HTTP 403 without a rate-limit
+          # message). A 5xx, a rate limit or a network error must fail the job, not
+          # quietly disable the security gate. A 404 means "no snapshot for that SHA
+          # yet", so let the action itself decide.
+          out=$(gh api -i "repos/${REPO}/dependency-graph/compare/${BASE}...${HEAD}" 2>&1) || true
+          code=$(printf '%s\n' "$out" | sed -n '1s/.* \([0-9][0-9][0-9]\).*/\1/p')
+          case "$code" in
+            200 | 404)
+              echo "enabled=true" >> "$GITHUB_OUTPUT"
+              ;;
+            403)
+              if printf '%s' "$out" | grep -qiE 'rate limit|abuse|x-ratelimit-remaining: 0'; then
+                echo "::error title=dependency-review probe::Rate limited (HTTP 403); not treating this as 'graph disabled'."
+                exit 1
+              fi
+              echo "enabled=false" >> "$GITHUB_OUTPUT"
+              echo "::warning title=dependency-review skipped::The dependency graph is not enabled for this repository (Settings > Security > Dependency graph)."
+              ;;
+            *)
+              echo "::error title=dependency-review probe::Unexpected response (HTTP ${code:-none}); failing instead of skipping the gate."
+              exit 1
+              ;;
+          esac
 
       - uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
         if: steps.graph.outputs.enabled == 'true'
         with:
           fail-on-severity: high
+          retry-on-snapshot-warnings: true
           # A read-only fork token cannot comment; the result shows in the job summary.
           comment-summary-in-pr: never
