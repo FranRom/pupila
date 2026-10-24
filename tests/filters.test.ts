@@ -1330,3 +1330,29 @@ describe('applyFilters — negated lock phrases (bounded-window negation)', () =
     expect(bodyKept(sentence)).toBe(0);
   });
 });
+
+describe('applyFilters — closed country list with a generic Remote segment', () => {
+  const europe = createFilters({
+    ...testProfile,
+    location: {
+      basedIn: 'Spain',
+      workTypes: ['remote'],
+      acceptedRegions: ['europe', 'emea', 'eu', 'spain'],
+      excludeOutsideAcceptedRegions: true,
+    },
+  } as unknown as FilterProfile).applyFilters;
+
+  it.each([
+    'US, Canada',
+    'Remote - US, Canada',
+    'Remote, US, Canada',
+  ])('treats "%s" as one closed list and drops it', (location) => {
+    const job = makeJob({ location, remote: false, body: 'react typescript next.js' });
+    expect(europe([job]).kept).toHaveLength(0);
+  });
+
+  it('keeps "Remote, France, Germany" (accepted countries)', () => {
+    const job = makeJob({ location: 'Remote, France, Germany', body: 'react typescript next.js' });
+    expect(europe([job]).kept).toHaveLength(1);
+  });
+});

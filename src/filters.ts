@@ -595,15 +595,19 @@ export function createFilters(profile: FilterProfile): FilterApi {
     if (!location) return false;
     const segments = location.split(/[,/;]+/).map((s) => s.trim());
     if (segments.length < 2) return false;
-    return segments.every((segment) => {
-      if (regionAccepted(segment)) return false;
-      const residual = segment
-        .toLowerCase()
-        .replace(GENERIC_REMOTE_TOKENS, ' ')
-        .replace(/[^a-z]+/g, ' ')
-        .trim();
-      return COUNTRY_NAME_ONLY_RE.test(residual);
-    });
+    if (segments.some((segment) => regionAccepted(segment))) return false;
+    // A generic segment ("Remote") reduces to nothing; it neither names a
+    // country nor breaks the list, so judge the places that remain.
+    const residuals = segments
+      .map((segment) =>
+        segment
+          .toLowerCase()
+          .replace(GENERIC_REMOTE_TOKENS, ' ')
+          .replace(/[^a-z]+/g, ' ')
+          .trim(),
+      )
+      .filter((residual) => residual.length > 0);
+    return residuals.length >= 2 && residuals.every((r) => COUNTRY_NAME_ONLY_RE.test(r));
   }
 
   function preparedScoringBody(rawBody: string): string {
@@ -743,11 +747,16 @@ export function createFilters(profile: FilterProfile): FilterApi {
     // HTML tags and run-on bodies are split into ~sentence-sized chunks.
     // URLs are stripped first ("…/coordination_hours" is a link, not a schedule).
     const cleaned = text.replace(/https?:\/\/\S+/g, ' ');
-    for (const sentence of cleaned.split(/(?<=[a-z0-9)\]][.!?;])\s+|\n+|<[^>]*>/)) {
+    // A capital-letter ending only splits after TWO capitals ("… PST. Rust …"),
+    // so "U.S. business hours" is not cut at its abbreviation dot.
+    for (const sentence of cleaned.split(/(?<=(?:[a-z0-9)\]]|[A-Z]{2})[.!?;])\s+|\n+|<[^>]*>/)) {
       if (sentence.length < 3) continue;
       // A stated preference ("try to overlap", "ideally", "preferred") is not a
       // requirement — leave those to the AI review rather than hard-dropping.
       if (TZ_SOFT.test(sentence)) continue;
+      // Zones named in EARLIER sentences must not unlock the bare-region rescue
+      // below, which is scoped to this sentence.
+      const offsetsBefore = offsets.length;
       const hasContext = TZ_CONTEXT.test(sentence);
       // Without working-hours language only matches that embed "hours"/"time
       // zone" themselves ("Eastern hours") count — "9am-3pm Pacific Time" alone
@@ -768,7 +777,7 @@ export function createFilters(profile: FilterProfile): FilterApi {
       );
       // Bare regions only matter when a far zone was ALSO named here (they
       // can rescue it, never trigger a drop on their own).
-      if (offsets.length > 0) {
+      if (offsets.length > offsetsBefore) {
         for (const [re, off] of TZ_BARE_REGIONS) {
           re.lastIndex = 0;
           if (re.test(sentence)) offsets.push(off);
@@ -913,7 +922,7 @@ export function createFilters(profile: FilterProfile): FilterApi {
         // — were all rescued by a shared "Work from anywhere" perks bullet.
         const roleLocation = job.body.match(ROLE_SPECIFIC_LOCATION_STATEMENT);
         if (roleLocation && !regionAccepted(roleLocation[1] ?? '')) return true;
-        if (ACCEPTED_REGIONS_SPECIFIC.test(job.body) || BODY_ELIGIBILITY.test(job.body)) {
+        if (BODY_REGION_RESCUE(job.body)) {
           return false;
         }
         // No accepted region anywhere. Drop when the posting is geo-constrained:

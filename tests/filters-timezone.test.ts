@@ -287,3 +287,26 @@ describe('accepting a region accepts the countries inside it', () => {
     expect(rule('Brazil, Canada')).toBe(1);
   });
 });
+
+describe('sentence scoping and splitting', () => {
+  it('does not let a zone named in an earlier sentence unlock a later bare region', () => {
+    // "Europe" is a rescue only for a far zone named in the SAME sentence.
+    expect(
+      dropped(
+        'Must be available during US business hours. We also collaborate closely with partners across Europe on product.',
+      ),
+    ).toBe(true);
+  });
+
+  it('still rescues a far zone with a bare region named in the same sentence', () => {
+    expect(dropped('Overlap with US business hours or Europe is fine.')).toBe(false);
+  });
+
+  it.each([
+    'Core hours are 9-5 PST. Rust experience preferred.',
+    'Core hours are 9-5 (PST). Rust experience preferred.',
+    'Core hours are 9-5 PST.\nRust experience preferred.',
+  ])('splits after a two-capital ending so the sentence is judged: %s', (body) => {
+    expect(dropped(body)).toBe(true);
+  });
+});
