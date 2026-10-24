@@ -16,7 +16,12 @@
 import { execFileSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
-import { type LlmProvider, resolveOllamaModel, runLlm, SUPPORTED_PROVIDERS } from '../src/lib/llm.js';
+import {
+  type LlmProvider,
+  resolveOllamaModel,
+  runLlm,
+  SUPPORTED_PROVIDERS,
+} from '../src/lib/llm.js';
 
 export interface Args {
   base: string;
@@ -44,7 +49,10 @@ export function parseArgs(argv: string[]): Args {
   };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i] ?? '';
-    const [flag, inline] = a.startsWith('--') && a.includes('=') ? [a.slice(0, a.indexOf('=')), a.slice(a.indexOf('=') + 1)] : [a, undefined];
+    const [flag, inline] =
+      a.startsWith('--') && a.includes('=')
+        ? [a.slice(0, a.indexOf('=')), a.slice(a.indexOf('=') + 1)]
+        : [a, undefined];
     const value = (): string => {
       if (inline !== undefined) return inline;
       const next = argv[i + 1];
@@ -225,10 +233,14 @@ async function main(): Promise<void> {
     model = await resolveOllamaModel(model);
     label = `ollama/${model}`;
   }
-  console.error(`Reviewing ${text.split('\n').length} diff lines with ${label}${truncated ? ' (diff truncated)' : ''}...`);
+  console.error(
+    `Reviewing ${text.split('\n').length} diff lines with ${label}${truncated ? ' (diff truncated)' : ''}...`,
+  );
   const answer = await runLlm(prompt, args.provider, undefined, model);
   console.log(answer.trim());
-  console.log('\n---\nAdvisory only: one pass over the diff, no tests run. You decide what to act on.');
+  console.log(
+    '\n---\nAdvisory only: one pass over the diff, no tests run. You decide what to act on.',
+  );
 }
 
 // Run only when executed directly, not when imported by tests.

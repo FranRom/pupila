@@ -147,7 +147,9 @@ export function dependencyFieldsChanged(before: string, after: string): boolean 
   try {
     const a = JSON.parse(before) as Record<string, unknown>;
     const b = JSON.parse(after) as Record<string, unknown>;
-    return DEPENDENCY_FIELDS.some((k) => JSON.stringify(a[k] ?? null) !== JSON.stringify(b[k] ?? null));
+    return DEPENDENCY_FIELDS.some(
+      (k) => JSON.stringify(a[k] ?? null) !== JSON.stringify(b[k] ?? null),
+    );
   } catch {
     return true; // unreadable: be conservative and ask for the lockfile
   }
@@ -178,7 +180,8 @@ export function parseNumstat(output: string, nameStatus: string): ChangedFile[] 
   return files;
 }
 
-const esc = (s: string): string => s.replace(/%/g, '%25').replace(/\r/g, '%0D').replace(/\n/g, '%0A');
+const esc = (s: string): string =>
+  s.replace(/%/g, '%25').replace(/\r/g, '%0D').replace(/\n/g, '%0A');
 
 export function formatSummary(findings: Finding[], fileCount: number): string {
   const lines = ['## Automated review', ''];
@@ -228,7 +231,8 @@ function main(): void {
   }
   const summary = formatSummary(findings, files.length);
   console.log(summary);
-  if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, `${summary}\n`);
+  if (process.env.GITHUB_STEP_SUMMARY)
+    appendFileSync(process.env.GITHUB_STEP_SUMMARY, `${summary}\n`);
 
   if (findings.some((f) => f.level === 'error')) process.exit(1);
 }

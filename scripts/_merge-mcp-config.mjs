@@ -28,9 +28,7 @@ import process from 'node:process';
 const [, , configPath, serverName, commandJson] = process.argv;
 
 if (!configPath || !serverName || !commandJson) {
-  process.stderr.write(
-    'usage: _merge-mcp-config.mjs <configPath> <serverName> <commandJson>\n',
-  );
+  process.stderr.write('usage: _merge-mcp-config.mjs <configPath> <serverName> <commandJson>\n');
   process.exit(2);
 }
 
