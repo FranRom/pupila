@@ -23,12 +23,26 @@ export interface UseFavoritesResult {
 
 export function useFavorites({ onError }: UseFavoritesArgs = {}): UseFavoritesResult {
   const [favoriteIds, setFavoriteIds] = useState<Set<string>>(new Set());
+  // Mirror of the state, written on EVERY update path (optimistic toggle,
+  // rollback, mount merge) via `commit`, so `toggleFavorite` can read the current
+  // value without depending on `favoriteIds` and keeps a stable identity —
+  // memoized rows would otherwise all re-render on each toggle (ui/CLAUDE.md §5).
+  const idsRef = useRef<Set<string>>(favoriteIds);
   // Ids toggled before the mount load returned: the server snapshot must not
   // overwrite them (it may predate the toggle).
   const touched = useRef<Map<string, boolean>>(new Map());
-  // Latest callback, so the one-shot mount load never re-runs when it changes.
+  // Latest callback, so the stable callbacks and the one-shot mount load never
+  // re-run when it changes. Updated in an effect, not during render.
   const onErrorRef = useRef(onError);
-  onErrorRef.current = onError;
+  useEffect(() => {
+    onErrorRef.current = onError;
+  }, [onError]);
+
+  const commit = useCallback((update: (prev: Set<string>) => Set<string>) => {
+    const next = update(idsRef.current);
+    idsRef.current = next;
+    setFavoriteIds(next);
+  }, []);
 
   useEffect(() => {
     const ctrl = new AbortController();
@@ -39,30 +53,31 @@ export function useFavorites({ onError }: UseFavoritesArgs = {}): UseFavoritesRe
           onErrorRef.current?.(`Could not load favorites: ${formatError(r.error)}`);
         return;
       }
+      if (r.value.damaged) {
+        onErrorRef.current?.(
+          'data/favorites.json is damaged; the favorites shown may be incomplete. A backup is kept as data/favorites.json.corrupt-* the next time you change a favorite.',
+        );
+      }
       const merged = new Set(r.value.favorites);
       for (const [id, isFav] of touched.current) {
         if (isFav) merged.add(id);
         else merged.delete(id);
       }
-      setFavoriteIds(merged);
+      commit(() => merged);
     };
     void load();
     return () => ctrl.abort();
-  }, []);
+  }, [commit]);
 
   const isFavorite = useCallback((jobId: string) => favoriteIds.has(jobId), [favoriteIds]);
 
-  // Identity churns with favoriteIds (same tradeoff useSwipeSkips's
-  // toggleSkip already accepts in this codebase) — simpler and correct,
-  // vs. the eager-updater-read trick used by useApplied's setApplied, which
-  // doesn't reliably resolve synchronously enough to gate a branch decision.
   const toggleFavorite = useCallback<UseFavoritesResult['toggleFavorite']>(
     async (jobId) => {
-      const wasFavorite = favoriteIds.has(jobId);
+      const wasFavorite = idsRef.current.has(jobId);
       touched.current.set(jobId, !wasFavorite);
 
       if (wasFavorite) {
-        setFavoriteIds((prev) => {
+        commit((prev) => {
           const next = new Set(prev);
           next.delete(jobId);
           return next;
@@ -70,25 +85,25 @@ export function useFavorites({ onError }: UseFavoritesArgs = {}): UseFavoritesRe
         const r = await api.favorites.remove(jobId);
         if (!r.ok) {
           touched.current.set(jobId, true);
-          setFavoriteIds((prev) => new Set([...prev, jobId]));
-          onError?.(`Could not unfavorite: ${formatError(r.error)}`);
+          commit((prev) => new Set([...prev, jobId]));
+          onErrorRef.current?.(`Could not unfavorite: ${formatError(r.error)}`);
         }
         return;
       }
 
-      setFavoriteIds((prev) => new Set([...prev, jobId]));
+      commit((prev) => new Set([...prev, jobId]));
       const r = await api.favorites.add(jobId);
       if (!r.ok) {
         touched.current.set(jobId, false);
-        setFavoriteIds((prev) => {
+        commit((prev) => {
           const next = new Set(prev);
           next.delete(jobId);
           return next;
         });
-        onError?.(`Could not favorite: ${formatError(r.error)}`);
+        onErrorRef.current?.(`Could not favorite: ${formatError(r.error)}`);
       }
     },
-    [favoriteIds, onError],
+    [commit],
   );
 
   return { favoriteIds, isFavorite, toggleFavorite };

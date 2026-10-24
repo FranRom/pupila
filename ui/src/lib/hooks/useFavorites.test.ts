@@ -23,6 +23,36 @@ describe('useFavorites', () => {
     expect(result.current.isFavorite('job3')).toBe(false);
   });
 
+  it('tells the user when the favorites file is damaged', async () => {
+    mockFetch(
+      () => new Response(JSON.stringify({ favorites: ['job1'], damaged: true }), { status: 200 }),
+    );
+    const onError = vi.fn();
+    const { result } = renderHook(() => useFavorites({ onError }));
+    await waitFor(() => expect(result.current.favoriteIds.size).toBe(1));
+    expect(onError).toHaveBeenCalledWith(expect.stringContaining('favorites.json is damaged'));
+  });
+
+  it('keeps toggleFavorite identity stable across toggles so memoized rows do not re-render', async () => {
+    mockFetch((_input, init) =>
+      init?.method
+        ? new Response(null, { status: 200 })
+        : new Response(JSON.stringify({ favorites: [] }), { status: 200 }),
+    );
+    const { result } = renderHook(() => useFavorites());
+    await waitFor(() => expect(result.current.favoriteIds.size).toBe(0));
+    const first = result.current.toggleFavorite;
+    await act(async () => {
+      await result.current.toggleFavorite('job1');
+    });
+    expect(result.current.isFavorite('job1')).toBe(true);
+    await act(async () => {
+      await result.current.toggleFavorite('job1');
+    });
+    expect(result.current.isFavorite('job1')).toBe(false);
+    expect(result.current.toggleFavorite).toBe(first);
+  });
+
   it('updates optimistically, before the server has answered', async () => {
     let release: (r: Response) => void = () => {};
     let calls = 0;
