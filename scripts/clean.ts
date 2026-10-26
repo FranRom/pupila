@@ -29,6 +29,9 @@ const DIRS_KEEP_GITKEEP: readonly string[] = ['data/archive', 'data/raw'];
 
 const LOG_PATTERNS: readonly RegExp[] = [/^launchd-.*\.log$/, /^cron-.*\.log$/];
 
+// Quarantine copies the favorites store sets aside when it finds a damaged file.
+const FAVORITES_QUARANTINE_RE = /^favorites\.json\.corrupt-\d+$/;
+
 const FILES_PERSONAL: readonly string[] = [
   'config/candidate-brief.md',
   'config/applied.json',
@@ -40,6 +43,8 @@ const FILES_PERSONAL: readonly string[] = [
   'config/profile.json',
   // User-curated state from the Jinder swipe deck.
   'data/swipe-skips.json',
+  // Favorite markers.
+  'data/favorites.json',
 ];
 
 // Directories whose entire contents (sans .gitkeep) are wiped by `--all`.
@@ -106,6 +111,16 @@ function cleanLogsInDataDir(removed: string[]): void {
   }
 }
 
+function cleanFavoritesQuarantine(removed: string[]): void {
+  const abs = path.join(REPO, 'data');
+  if (!existsSync(abs)) return;
+  for (const entry of readdirSync(abs)) {
+    if (!FAVORITES_QUARANTINE_RE.test(entry)) continue;
+    rmSync(path.join(abs, entry), { force: true });
+    removed.push(`data/${entry}`);
+  }
+}
+
 function main(): void {
   const args = parseArgs(process.argv.slice(2));
   if (args.help) {
@@ -115,7 +130,7 @@ function main(): void {
     for (const f of FILES_PERSONAL) console.log(`  ${f}`);
     console.log('');
     console.log('--all          fresh-clone reset: removes the personal files above (brief, applied list,');
-    console.log('               scoring profile, swipe-skips), the contents of data/applications/, AND onboarding');
+    console.log('               scoring profile, swipe-skips, favorites), the contents of data/applications/, AND onboarding');
     console.log('               state (preferences.json + raw CV). The first-run wizard will re-trigger');
     console.log('               on next `pnpm run ui` load.');
     console.log('--onboarding   wipes ONLY onboarding state (preferences + brief + raw CV) so the');
@@ -144,6 +159,7 @@ function main(): void {
       for (const f of FILES_PERSONAL) {
         tryRemove(path.join(REPO, f), f, removed);
       }
+      cleanFavoritesQuarantine(removed);
       for (const dir of DIRS_PERSONAL_KEEP_GITKEEP) {
         cleanGitkeepDir(dir, removed);
       }

@@ -84,6 +84,11 @@
   color: var(--badge-withdrawn-fg);
 }
 
+.favorite {
+  background: color-mix(in srgb, var(--warning) 18%, var(--surface));
+  color: var(--warning);
+}
+
 .clearButton {
   border: 1px dashed var(--border);
   background: none;

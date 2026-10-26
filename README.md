@@ -247,6 +247,7 @@ These files are **gitignored** and never committed, so a public fork can't leak 
 | `data/applications/<job-id>.md` | AI-generated application packages (cover letter, highlights, Q&A) | Auto-created by AI Apply |
 | `data/apply-queue.json` | Pending / running / done / failed AI Apply jobs | Written by the UI + `pnpm run apply-worker` |
 | `data/swipe-skips.json` | Persistent left-swipe (skip) decisions from Jinder | Written by the UI |
+| `data/favorites.json` | Jobs you starred (⭐); a damaged file is kept as `data/favorites.json.corrupt-<ts>` | Written by the UI |
 | `data/feed.xml` | RSS feed of new matches | Auto-created by `pnpm run dev` |
 | `JOBS.md` | Daily readable matches table | Auto-created by `pnpm run dev` |
 | `data/archive/*.json` | Monthly snapshots | Auto-created on day 1 of each month |
@@ -260,7 +261,7 @@ The UI fetches `data/jobs.json` and `data/ai-reviews.json` at runtime from `/api
 pnpm run clean              # wipe generated outputs, archives, raw caches, schedule logs, queue state
 pnpm run clean:onboarding   # reset just the onboarding state (preferences + brief + raw CV) — re-triggers wizard
 pnpm run clean -- --all     # full fresh-clone reset: everything above PLUS brief, applied,
-                            # swipe-skips, generated AI Apply packages, preferences, and uploaded CV
+                            # swipe-skips, favorites, generated AI Apply packages, preferences, and uploaded CV
 ```
 
 Idempotent — running on an already-clean state prints `nothing to clean`. After `--all` the UI re-routes to the onboarding wizard automatically; no hard refresh needed.

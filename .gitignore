@@ -58,3 +58,6 @@ openspec/
 .continue/
 .junie/
 .kiro/
+
+# also covers the .corrupt-<ts> quarantine copies and .tmp write files
+data/favorites.json*

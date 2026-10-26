@@ -9,6 +9,7 @@ import { cleanApiPlugin } from './plugins/clean.ts';
 import { dataApiPlugin } from './plugins/data.ts';
 import { diskUsageApiPlugin } from './plugins/diskUsage.ts';
 import { envApiPlugin } from './plugins/env.ts';
+import { favoritesApiPlugin } from './plugins/favorites.ts';
 import { fetchJobsApiPlugin } from './plugins/fetchJobs.ts';
 import { jobBodyApiPlugin } from './plugins/jobBody.ts';
 import { llmDetectApiPlugin } from './plugins/llmDetect.ts';
@@ -35,6 +36,7 @@ export default defineConfig({
     llmDetectApiPlugin(),
     aiApplyApiPlugin(),
     applyQueueApiPlugin(),
+    favoritesApiPlugin(),
     jobBodyApiPlugin(),
     fetchJobsApiPlugin(),
     profileApiPlugin(),

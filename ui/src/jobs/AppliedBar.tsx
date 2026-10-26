@@ -8,9 +8,11 @@ interface AppliedBarProps {
   job: Job;
   applied: AppliedEntry | undefined;
   isSkipped: boolean;
+  favorite: boolean;
   queueStatus: QueueRowStatus | null;
   setApplied: SetApplied;
   toggleSkip: (jobId: string) => void;
+  toggleFavorite: (jobId: string) => void;
   cancelQueueRow: (jobId: string) => Promise<void>;
   enqueueJob: (jobId: string) => Promise<void>;
 }
@@ -27,9 +29,11 @@ export function AppliedBar({
   job,
   applied,
   isSkipped,
+  favorite,
   queueStatus,
   setApplied,
   toggleSkip,
+  toggleFavorite,
   cancelQueueRow,
   enqueueJob,
 }: AppliedBarProps) {
@@ -63,6 +67,20 @@ export function AppliedBar({
         )}
       </span>
       <div className={styles.pills}>
+        <button
+          type="button"
+          className={clsx(styles.pill, favorite && styles.pillActive, favorite && styles.favorite)}
+          aria-pressed={favorite}
+          onClick={() => toggleFavorite(job.id)}
+          title={favorite ? 'Click to unfavorite' : 'Mark as favorite'}
+        >
+          {favorite && (
+            <span className={styles.check} aria-hidden>
+              ✓{' '}
+            </span>
+          )}
+          ⭐ {favorite ? 'favorited' : 'favorite'}
+        </button>
         {STATUS_OPTIONS.map((s) => {
           const active = applied?.status === s;
           return (

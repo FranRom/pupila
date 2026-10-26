@@ -20,6 +20,7 @@ import {
 import { api, formatError } from './lib/api/index.ts';
 import { useApplied } from './lib/hooks/useApplied.ts';
 import { useApplyQueue } from './lib/hooks/useApplyQueue.ts';
+import { useFavorites } from './lib/hooks/useFavorites.ts';
 import { useJobsData } from './lib/hooks/useJobsData.ts';
 import { useOnboarding } from './lib/hooks/useOnboarding.ts';
 import { useSwipeSkips } from './lib/hooks/useSwipeSkips.ts';
@@ -167,6 +168,9 @@ export function App() {
     removeSkip,
     onError: onApiError,
   });
+
+  // Favorite marker — orthogonal to applied status and skip state.
+  const { isFavorite, toggleFavorite } = useFavorites({ onError: onApiError });
 
   // First-run wizard gate. Owns its own mount-probe; exposes a reprobe()
   // we plumb into the clean flow so a destructive reset routes back to
@@ -647,6 +651,8 @@ export function App() {
                         appliedById={appliedById}
                         isJobSkipped={isJobSkipped}
                         toggleSkip={toggleSkip}
+                        isFavorite={isFavorite}
+                        toggleFavorite={toggleFavorite}
                         cancelQueueRow={cancelQueueRow}
                         enqueueJob={enqueueJob}
                         aiReviews={aiReviews}
@@ -668,9 +674,11 @@ export function App() {
                         review={aiReviews[j.id]}
                         applied={appliedById[j.id]}
                         isSkipped={isJobSkipped(j.id)}
+                        favorite={isFavorite(j.id)}
                         queueStatus={queueStatusMap[j.id] ?? null}
                         setApplied={setApplied}
                         toggleSkip={toggleSkip}
+                        toggleFavorite={toggleFavorite}
                         cancelQueueRow={cancelQueueRow}
                         enqueueJob={enqueueJob}
                         triggerAiApply={triggerAiApply}
@@ -828,10 +836,12 @@ interface CompanyBlockProps {
   expanded: string | null;
   appliedById: AppliedMap;
   isJobSkipped: (jobId: string) => boolean;
+  isFavorite: (jobId: string) => boolean;
   aiReviews: AiReviews;
   queueStatusMap: QueueStatusMap;
   setApplied: SetApplied;
   toggleSkip: (jobId: string) => void;
+  toggleFavorite: (jobId: string) => void;
   cancelQueueRow: (jobId: string) => Promise<void>;
   enqueueJob: (jobId: string) => Promise<void>;
   triggerAiApply: (job: Job) => void;
@@ -850,10 +860,12 @@ const CompanyBlock = memo(function CompanyBlock({
   expanded,
   appliedById,
   isJobSkipped,
+  isFavorite,
   aiReviews,
   queueStatusMap,
   setApplied,
   toggleSkip,
+  toggleFavorite,
   cancelQueueRow,
   enqueueJob,
   triggerAiApply,
@@ -875,9 +887,11 @@ const CompanyBlock = memo(function CompanyBlock({
         review={aiReviews[job.id]}
         applied={appliedById[job.id]}
         isSkipped={isJobSkipped(job.id)}
+        favorite={isFavorite(job.id)}
         queueStatus={queueStatusMap[job.id] ?? null}
         setApplied={setApplied}
         toggleSkip={toggleSkip}
+        toggleFavorite={toggleFavorite}
         cancelQueueRow={cancelQueueRow}
         enqueueJob={enqueueJob}
         triggerAiApply={triggerAiApply}
@@ -925,9 +939,11 @@ const CompanyBlock = memo(function CompanyBlock({
               review={aiReviews[j.id]}
               applied={appliedById[j.id]}
               isSkipped={isJobSkipped(j.id)}
+              favorite={isFavorite(j.id)}
               queueStatus={queueStatusMap[j.id] ?? null}
               setApplied={setApplied}
               toggleSkip={toggleSkip}
+              toggleFavorite={toggleFavorite}
               cancelQueueRow={cancelQueueRow}
               enqueueJob={enqueueJob}
               triggerAiApply={triggerAiApply}
@@ -949,9 +965,11 @@ interface FragmentRowProps {
   review: AiReview | undefined;
   applied: AppliedEntry | undefined;
   isSkipped: boolean;
+  favorite: boolean;
   queueStatus: QueueRowStatus | null;
   setApplied: SetApplied;
   toggleSkip: (jobId: string) => void;
+  toggleFavorite: (jobId: string) => void;
   cancelQueueRow: (jobId: string) => Promise<void>;
   enqueueJob: (jobId: string) => Promise<void>;
   triggerAiApply: (job: Job) => void;
@@ -970,9 +988,11 @@ const FragmentRow = memo(function FragmentRow({
   review,
   applied,
   isSkipped,
+  favorite,
   queueStatus,
   setApplied,
   toggleSkip,
+  toggleFavorite,
   cancelQueueRow,
   enqueueJob,
   triggerAiApply,
@@ -1011,6 +1031,11 @@ const FragmentRow = memo(function FragmentRow({
         </td>
         <td className={styles.tdTitle} title={titleTooltip}>
           <span className={styles.titleRow}>
+            {favorite && (
+              <span role="img" aria-label="Favorited">
+                ⭐
+              </span>
+            )}
             {applied && (
               <span
                 className={clsx(badgeStyles.base, STATUS_BADGE_CLASS[applied.status])}
@@ -1100,9 +1125,11 @@ const FragmentRow = memo(function FragmentRow({
               review={review}
               applied={applied}
               isSkipped={isSkipped}
+              favorite={favorite}
               queueStatus={queueStatus}
               setApplied={setApplied}
               toggleSkip={toggleSkip}
+              toggleFavorite={toggleFavorite}
               cancelQueueRow={cancelQueueRow}
               enqueueJob={enqueueJob}
               aiApplyResult={myResult}

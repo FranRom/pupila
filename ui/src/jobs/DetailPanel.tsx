@@ -12,9 +12,11 @@ interface DetailPanelProps {
   review: AiReview | undefined;
   applied: AppliedEntry | undefined;
   isSkipped: boolean;
+  favorite: boolean;
   queueStatus: QueueRowStatus | null;
   setApplied: SetApplied;
   toggleSkip: (jobId: string) => void;
+  toggleFavorite: (jobId: string) => void;
   cancelQueueRow: (jobId: string) => Promise<void>;
   enqueueJob: (jobId: string) => Promise<void>;
   aiApplyResult: AiApplyResult | null;
@@ -26,9 +28,11 @@ export function DetailPanel({
   review,
   applied,
   isSkipped,
+  favorite,
   queueStatus,
   setApplied,
   toggleSkip,
+  toggleFavorite,
   cancelQueueRow,
   enqueueJob,
   aiApplyResult,
@@ -40,9 +44,11 @@ export function DetailPanel({
         job={job}
         applied={applied}
         isSkipped={isSkipped}
+        favorite={favorite}
         queueStatus={queueStatus}
         setApplied={setApplied}
         toggleSkip={toggleSkip}
+        toggleFavorite={toggleFavorite}
         cancelQueueRow={cancelQueueRow}
         enqueueJob={enqueueJob}
       />
