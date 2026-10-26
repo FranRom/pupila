@@ -126,3 +126,50 @@ describe('formatDateTimeUTC', () => {
     expect(formatDateTimeUTC('not-a-date')).toBe('not-a-date');
   });
 });
+
+describe('stripHtml — hex character references', () => {
+  // Hacker News encodes these heavily. Left literal they mangle titles
+  // ("Full-stack &#x2F; AI Engineer") and blind filter regexes.
+  it('decodes hex refs', () => {
+    expect(stripHtml('Full-stack &#x2F; AI Engineer')).toBe('Full-stack / AI Engineer');
+    expect(stripHtml('We&#x27;re hiring')).toBe("We're hiring");
+  });
+
+  it('decodes uppercase hex refs', () => {
+    expect(stripHtml('a &#X2F; b')).toBe('a / b');
+  });
+
+  it('keeps decimal refs working', () => {
+    expect(stripHtml('don&#39;t')).toBe("don't");
+  });
+
+  it('lets an encoded C++ reach a keyword regex', () => {
+    expect(/\bc\+\+/i.test(stripHtml('C&#x2B;&#x2B; systems work'))).toBe(true);
+  });
+
+  it('leaves an out-of-range hex reference as written instead of throwing', () => {
+    expect(() => stripHtml('a &#x110000; b')).not.toThrow();
+    expect(stripHtml('a &#x110000; b')).toBe('a &#x110000; b');
+    expect(stripHtml('ok &#x1F600; ok')).toBe('ok 😀 ok');
+  });
+
+  it('leaves a bare ampersand alone', () => {
+    expect(stripHtml('R&amp;D')).toBe('R&D');
+  });
+});
+
+describe('stripHtml — entity decoding order', () => {
+  it('decodes a double-escaped entity exactly once', () => {
+    expect(stripHtml('&amp;#x3C;script&amp;#x3E;')).toBe('&#x3C;script&#x3E;');
+    expect(stripHtml('&amp;lt;b&amp;gt;')).toBe('&lt;b&gt;');
+  });
+
+  it('decodes decimal references above U+FFFF like hex ones', () => {
+    expect(stripHtml('&#128512;')).toBe('😀');
+    expect(stripHtml('&#128512;')).toBe(stripHtml('&#x1F600;'));
+  });
+
+  it('leaves an out-of-range decimal reference as written', () => {
+    expect(stripHtml('a &#9999999999; b')).toBe('a &#9999999999; b');
+  });
+});

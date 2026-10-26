@@ -31,9 +31,9 @@ describe('parseReviewJson', () => {
     expect(parseReviewJson(fenced).summary).toMatch(/wallet team/);
   });
 
-  it('coerces invalid verdict to "match" rather than throwing', () => {
+  it('coerces invalid verdict to "skip" rather than throwing or defaulting to a false positive', () => {
     const bad = JSON.stringify({ ...JSON.parse(happyJson), verdict: 'maybe' });
-    expect(parseReviewJson(bad).verdict).toBe('match');
+    expect(parseReviewJson(bad).verdict).toBe('skip');
   });
 
   it('accepts all four valid verdicts', () => {
@@ -67,10 +67,71 @@ describe('parseReviewJson', () => {
     // Explicitly verify that path doesn't crash, just yields a degenerate review.
     const arr = parseReviewJson('[]');
     expect(arr.summary).toBe('');
-    expect(arr.verdict).toBe('match');
+    expect(arr.verdict).toBe('skip');
   });
 
   it('throws on malformed JSON', () => {
     expect(() => parseReviewJson('not json at all')).toThrow();
+  });
+
+  it('recovers a valid object when the model appends trailing prose after it', () => {
+    const withTrailer = `${happyJson}\n\nLet me know if you'd like more detail!`;
+    const r = parseReviewJson(withTrailer);
+    expect(r.verdict).toBe('match');
+    expect(r.summary).toBe('A senior frontend role on web3 wallet team.');
+  });
+
+  it('recovers a valid object when trailing content starts immediately (no whitespace)', () => {
+    // Reproduces the exact shape observed live: "Unexpected non-whitespace
+    // character after JSON at position N" from a strict JSON.parse.
+    const withTrailer = `${happyJson}extra unexpected text right after the brace`;
+    expect(parseReviewJson(withTrailer).verdict).toBe('match');
+  });
+
+  it('does not let a brace inside a quoted string value confuse the balance scan', () => {
+    const tricky = JSON.stringify({
+      ...JSON.parse(happyJson),
+      summary: 'Uses a config like { foo: 1 } internally.',
+    });
+    const withTrailer = `${tricky}\nsome trailing note`;
+    expect(parseReviewJson(withTrailer).summary).toMatch(/foo: 1/);
+  });
+
+  it('still throws when there is no balanced JSON object anywhere in the string', () => {
+    expect(() => parseReviewJson('{ this never closes and has no valid content')).toThrow();
+  });
+});
+
+describe('parseReviewJson — recovery', () => {
+  const body = '{"summary":"s","verdict":"match","reason":"r"}';
+
+  it('skips a stray brace in leading prose and parses the real object', () => {
+    const r = parseReviewJson(`Note {see below}\n${body}`);
+    expect(r.verdict).toBe('match');
+    expect(r.summary).toBe('s');
+  });
+
+  it('still throws when no span parses', () => {
+    expect(() => parseReviewJson('no json {here} at all')).toThrow();
+  });
+
+  it.each([
+    ['Strong match', 'strong-match'],
+    ['strong_match', 'strong-match'],
+    [' WEAK-MATCH ', 'weak-match'],
+    ['Skip', 'skip'],
+  ])('normalises the near-miss verdict %j', (given, expected) => {
+    expect(parseReviewJson(JSON.stringify({ verdict: given })).verdict).toBe(expected);
+  });
+
+  it('still fails safe to skip for an unknown verdict', () => {
+    expect(parseReviewJson('{"verdict":"maybe"}').verdict).toBe('skip');
+  });
+
+  it('throws on a truncated response instead of caching a nested fragment as the review', () => {
+    // Cut off mid-object: the outer object never closes, but the nested one does.
+    const truncated =
+      '{"summary":"Great fit","verdict":"strong-match","reason":"ok", "meta": {"confidence": 0.9}';
+    expect(() => parseReviewJson(truncated)).toThrow();
   });
 });

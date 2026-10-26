@@ -23,11 +23,17 @@ import type {
   RawRemotive,
   RawRssItem,
   RawWeb3Career,
+  RawWorkingNomads,
 } from './types.js';
 import { normalizeUrl, safeIso, sha1Hex, stripHtml } from './utils.js';
 
 const REMOTE_RE = /\b(remote|worldwide|anywhere|distributed|global)\b/i;
-const HN_HEAD_SEP_RE = /\s*[|·•—–-]\s*/;
+// Pipes, bullets and em/en dashes separate header fields at any spacing. A
+// PLAIN hyphen only counts when space-padded: unpadded it lives inside the
+// most common word in these posts — "Full-Stack" was being split, yielding
+// titles like "Stack Software Engineer" and "Founding Engineer (Full", which
+// then matched no role pattern and scored far below what they deserved.
+const HN_HEAD_SEP_RE = /\s*[|·•—–]\s*|\s+-\s+/;
 const APPLY_LINK_RE = /https?:\/\/[^\s<>"]+/g;
 const RELATIVE_AGO_RE = /^(\d+)\s*(min|mins|m|h|hr|hrs|d|w|wk|wks|mo|mos|y|yr|yrs)\s*ago$/i;
 
@@ -159,6 +165,48 @@ export function normalizeJobicy(items: RawJobicy[], fetchedAt: string): Job[] {
         ]),
         ...structuredSalary(j.salaryMin, j.salaryMax, j.salaryCurrency, j.salaryPeriod),
         postedAt: safeIso(j.pubDate),
+        fetchedAt,
+        fitScore: 0,
+        categories: [],
+      } satisfies Job,
+    ];
+  });
+}
+
+/**
+ * Working Nomads ships one flat array. `description` is HTML (stripped via
+ * asPlain before any regex or scoring touches it, per fetcher invariant #4),
+ * `tags` is a comma-separated string, and `location` is a free-text region list
+ * that the geo filter reads directly — "Global"/"Worldwide" and multi-region
+ * strings like "Europe, North America, APAC" both survive unchanged. No salary
+ * fields are published, so the body is parsed like the other text-only sources.
+ * No id field either, so the URL carries identity.
+ */
+export function normalizeWorkingNomads(items: RawWorkingNomads[], fetchedAt: string): Job[] {
+  return items.flatMap((j) => {
+    const url = j.url?.trim();
+    const title = j.title?.trim();
+    if (!url || !title) return [];
+    const location = j.location?.trim() || null;
+    const body = asPlain(j.description);
+    return [
+      {
+        id: makeId('workingnomads', url, `${j.company_name ?? ''}-${title}`),
+        source: 'workingnomads',
+        title,
+        company: j.company_name?.trim() || null,
+        url,
+        // Every posting on this board is remote by construction; `location`
+        // narrows *which* regions, it never means onsite.
+        location,
+        remote: true,
+        body,
+        tags: joinTags(
+          (j.tags ?? '').split(',').map((t) => t.trim()),
+          [j.category_name],
+        ),
+        ...withSalary(extractSalaryFromBody(body)),
+        postedAt: safeIso(j.pub_date),
         fetchedAt,
         fitScore: 0,
         categories: [],
@@ -350,27 +398,28 @@ export function normalizeWeb3Career(items: RawWeb3Career[], fetchedAt: string): 
   });
 }
 
+// aijobs.net's `companyAndLocation` field, despite its name, was confirmed
+// against ~215 real fetched postings across three separate days to contain
+// ONLY location/office info — city/country/postal-code combos, or building
+// and campus names ("Headquarters - Chevy Chase, MD", "Melbourne - 727
+// Collins", "Georgetown University: Main Campus") — never an actual company
+// name. `RawAiJobs` has no separate company field, so `company` is always
+// null for this source. The previous version tried to split this field into
+// company + location by capital-letter word boundaries, but that heuristic
+// never actually succeeded on real data: its "does the last segment look
+// like a location" check only fires when a comma lands INSIDE that exact
+// segment, which a plain "City, Country" pair never produces (the comma
+// always attaches to the segment before it). Every currently-kept job from
+// this source had the entire field dumped into `company` as a result —
+// e.g. `company: "Hyderabad, India"`, `location: null`.
 export function normalizeAiJobsNet(items: RawAiJobs[], fetchedAt: string): Job[] {
   return items.map((j) => {
-    let company: string | null = null;
-    let location: string | null = null;
-    if (j.companyAndLocation) {
-      const cleaned = j.companyAndLocation
-        .replace(/^\s*(Full[- ]Time|Part[- ]Time|Contract|Freelance|Internship)\s+/i, '')
-        .trim();
-      const parts = cleaned.split(/\s+(?=[A-Z])/);
-      if (parts.length >= 2) {
-        const last = parts[parts.length - 1];
-        if (last && /,\s*[A-Za-z]/.test(last)) {
-          location = last.trim();
-          company = parts.slice(0, -1).join(' ').trim() || null;
-        } else {
-          company = cleaned;
-        }
-      } else {
-        company = cleaned;
-      }
-    }
+    const company: string | null = null;
+    const location = j.companyAndLocation
+      ? j.companyAndLocation
+          .replace(/^\s*(Full[- ]Time|Part[- ]Time|Contract|Freelance|Internship)\s+/i, '')
+          .trim() || null
+      : null;
     const remote = inferRemote(location, j.companyAndLocation, j.title, ...j.tags);
     const body = [j.title, j.seniority, j.salary, j.companyAndLocation, ...j.tags]
       .filter((x): x is string => Boolean(x))
@@ -394,18 +443,51 @@ export function normalizeAiJobsNet(items: RawAiJobs[], fetchedAt: string): Job[]
   });
 }
 
+// A '.'/'!'/'?' NOT immediately followed by a word character — i.e. it sits
+// at a word boundary or string end, the way sentence-ending punctuation does
+// ("We are hiring."). A period embedded directly between two word
+// characters (domain-style names: "Rivio.ai", "node.js") does NOT match
+// this and is left alone — companies increasingly use exactly that shape.
+const SENTENCE_PUNCTUATION_RE = /[.!?](?!\w)/;
+
+// Strip leading/trailing markdown emphasis markers a poster wrapped the
+// header field in (*Y Combinator*, _Acme_) — asPlain() converts HTML, not
+// markdown, so these survive verbatim and defeat the alphanumeric-start
+// check below, silently nulling out an otherwise perfectly good company.
+function stripMdEmphasis(s: string): string {
+  return s.replace(/^[*_`]+|[*_`]+$/g, '').trim();
+}
+
 // Plausible company name: short-ish, no sentence punctuation, starts alphanumeric.
 // Reject the "post has no header → first segment is the entire body" case which
 // otherwise leaks an entire job description into the company column.
 function isPlausibleCompany(s: string): boolean {
   if (!s || s.length > 60) return false;
-  if (/[.!?]/.test(s)) return false;
+  if (SENTENCE_PUNCTUATION_RE.test(s)) return false;
   if (!/^[A-Za-z0-9]/.test(s)) return false;
   return true;
 }
 
 const HN_ROLE_PATTERN =
   /\b(?:senior|sr\.?|staff|principal|lead|head)?\s*(?:full[- ]?stack|frontend|front[- ]end|backend|back[- ]end|software|web|mobile)?\s*(?:engineer|developer|architect)s?\b[^.!?\n]{0,60}/i;
+
+// A bare role-keyword check (plural-aware) — used both to find which header
+// field names the role for the title, and to catch the case where the
+// FIRST header field is itself a role rather than a company (a solo/stealth
+// posting that never states a company name at all). Without the second use,
+// a post like "Senior Full Stack Engineer | New York, NY | Onsite | ..."
+// (no company field present in the header) had the title text duplicated
+// verbatim into `company`, reading as a company literally named after the
+// job title.
+const HN_ROLE_WORD_RE = /\b(engineers?|developers?|architects?|leads?|directors?|heads?)\b/i;
+
+// Stricter than HN_ROLE_WORD_RE, for deciding the FIRST header field is a job
+// title rather than a company: the field must END in a role noun
+// ("Senior Full Stack Engineer", "Staff Engineers (Remote)") or read "Head of X".
+// A bare keyword inside the field is not enough — "Lead Bank", "Headway" and
+// "Developer Tools Inc" are companies whose names merely contain one.
+const HN_ROLE_FIELD_RE =
+  /^(?:(?:[\w+/.#&-]+\s+){0,5}(?:engineers?|developers?|architects?)(?:\s*\([^)]*\))?|(?:head|director|vp)\s+of\s+.+)$/i;
 
 export function normalizeHnHiring(items: RawHnHiringPost[], fetchedAt: string): Job[] {
   return items.flatMap((p) => {
@@ -418,17 +500,39 @@ export function normalizeHnHiring(items: RawHnHiringPost[], fetchedAt: string): 
       .map((s) => s.trim())
       .filter(Boolean);
     const hasHeader = headerParts.length >= 2;
+    const companyCandidate = headerParts[0] ? stripMdEmphasis(headerParts[0]) : '';
+    // The first field is a role (so NOT a company) only when it reads as one AND
+    // no later field does: "Senior Full Stack Engineer | New York | Onsite" has no
+    // company, but "Lead Bank | Senior Engineer | Remote" does — "Lead" is part
+    // of the company's name.
+    const firstIsRole =
+      HN_ROLE_FIELD_RE.test(companyCandidate) &&
+      !headerParts.slice(1).some((part) => HN_ROLE_WORD_RE.test(part));
     const company =
-      hasHeader && headerParts[0] && isPlausibleCompany(headerParts[0]) ? headerParts[0] : null;
+      hasHeader && companyCandidate && !firstIsRole && isPlausibleCompany(companyCandidate)
+        ? companyCandidate
+        : null;
 
     let title: string;
     if (hasHeader) {
-      const titleCandidate =
-        headerParts.find((part) =>
-          /\b(engineer|developer|architect|lead|director|head)\b/i.test(part),
-        ) ??
-        headerParts[1] ??
-        firstLine;
+      // Plural forms matter here: a header field like "Python + TypeScript
+      // Engineers" was missed by a singular-only check, falling through to
+      // the body-phrase search below and promoting a 60-char run-on
+      // ("Engineers | United States | Full-time | REMOTE (US-only) We're a
+      // soft...") to the title instead of the clean header field itself.
+      const rolePart =
+        headerParts.slice(1).find((part) => HN_ROLE_WORD_RE.test(part)) ??
+        (firstIsRole ? headerParts[0] : undefined);
+      // No header field names a role → search the body for a role phrase before
+      // falling back to raw header text. Without this, a post whose header is
+      // prose ("led by Intact Private Capital, the investment arm of...") had
+      // that whole sentence promoted to the title.
+      // Search below the header line only: the header itself was already judged
+      // above, and re-scanning it would match a company like "Developer Tools Inc".
+      const bodyRole = rolePart
+        ? null
+        : text.split('\n').slice(1).join('\n').match(HN_ROLE_PATTERN)?.[0]?.trim();
+      const titleCandidate = rolePart ?? bodyRole ?? headerParts[1] ?? firstLine;
       title = titleCandidate.slice(0, 140);
     } else {
       // No header → look for a role-keyword phrase anywhere in the body before
@@ -791,9 +895,79 @@ function structuredSalary(
 // bluedoor ships no company name — recover it from the ATS slug in the URL, else
 // fall back to the stable org_id so different employers never collapse together
 // in the company+title dedup pass.
+// Workday tenants publish at .../recruiting/<tenant>/<SiteName>/job/... — the
+// employer is the third path segment, so `parseAtsUrl` (which reads the first)
+// can't see it and the org_id UUID surfaced as the company name instead. Seen
+// live: seven Bangkok postings all displaying as
+// "0fd86b23-27d2-42d2-936d-dd3800fec31f" rather than "SSC Technologies".
+// Site names that only describe the careers page ("External", "ExternalCareerSite",
+// "Careers_External"), not the employer. Tested on the camel/underscore-split words
+// so any mix of these tokens is generic, whatever the casing or separators.
+const WORKDAY_GENERIC_WORDS = new Set([
+  'external',
+  'ext',
+  'internal',
+  'career',
+  'careers',
+  'job',
+  'jobs',
+  'site',
+  'portal',
+  'apply',
+  'en',
+  'us',
+]);
+
+function splitWords(name: string): string {
+  return name
+    .replace(/[-_]+/g, ' ')
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function workdayCompany(url: string | null | undefined): string | null {
+  if (!url) return null;
+  try {
+    const parsed = new URL(url);
+    const host = parsed.hostname.toLowerCase();
+    const segments = parsed.pathname.split('/').filter(Boolean);
+    let tenant: string | undefined;
+    let site: string | undefined;
+    const at = segments.indexOf('recruiting');
+    if (!/(^|\.)myworkday(site|jobs)\.com$/.test(host)) {
+      return null;
+    }
+    if (at >= 0) {
+      // .../recruiting/<tenant>/<SiteName>/job/...
+      tenant = segments[at + 1];
+      site = segments[at + 2];
+    } else {
+      // <tenant>.wdN.myworkdayjobs.com/[<locale>/]<SiteName>/job/...
+      tenant = host.split('.')[0];
+      site = segments.find((seg) => !/^[a-z]{2}(?:-[A-Za-z]{2})?$/.test(seg));
+      if (site?.toLowerCase() === 'job') site = undefined;
+    }
+    // The site is often the brand ("SSCTechnologies"), but many tenants name it
+    // generically; two employers would then collapse in company+title dedup, so
+    // fall back to the tenant.
+    const siteWords = site ? splitWords(site).toLowerCase().split(' ') : [];
+    const generic = siteWords.length === 0 || siteWords.every((w) => WORKDAY_GENERIC_WORDS.has(w));
+    const name = !generic && site ? site : tenant;
+    if (!name) return null;
+    // "SSCTechnologies" → "SSC Technologies"; "acme_corp" → "Acme Corp".
+    return splitWords(name).replace(/\b\w/g, (c) => c.toUpperCase()) || null;
+  } catch {
+    return null;
+  }
+}
+
 function bluedoorCompany(j: RawBluedoorJob): string | null {
   const ref = parseAtsUrl(j.apply_url ?? j.source_url);
   if (ref) return slugToCompany(ref.slug);
+  const workday = workdayCompany(j.apply_url ?? j.source_url);
+  if (workday) return workday;
   return j.org_id?.trim() || null;
 }
 
@@ -873,5 +1047,73 @@ export function normalizeGreenhouse(items: RawGreenhouseJobWithSlug[], fetchedAt
       fitScore: 0,
       categories: [],
     };
+  });
+}
+
+// Habr Career RSS titles are formulaic: `Требуется «<role>» (<city>)`, with the
+// city segment absent on some fully-remote postings. The company only appears
+// in <author>; skills arrive as #hashtags inside the description prose.
+// Text after the role/city (a trailing "от 300 000 ₽") is captured as group 3 so
+// the match no longer fails — and the salary is no longer lost — when it appears.
+const HABR_TITLE_RE = /^Требуется\s*«\s*(.+?)\s*»\s*(?:\(([^)]+)\))?\s*(.*)$/;
+
+// Habr quotes MONTHLY rubles; parseSalary assumes annual, so scale by 12.
+const HABR_MONTHS = 12;
+
+function habrSalary(text: string | null): ReturnType<typeof withSalary> {
+  const base = withSalary(text);
+  return {
+    ...base,
+    salaryMin: base.salaryMin === null ? null : base.salaryMin * HABR_MONTHS,
+    salaryMax: base.salaryMax === null ? null : base.salaryMax * HABR_MONTHS,
+  };
+}
+
+export function normalizeHabr(items: RawRssItem[], fetchedAt: string): Job[] {
+  return items.flatMap((item) => {
+    const link = rssLink(item);
+    if (!link) return [];
+    const rawTitle = asPlain(typeof item.title === 'string' ? item.title : '');
+    if (!rawTitle) return [];
+    const m = rawTitle.match(HABR_TITLE_RE);
+    const title = m?.[1] ?? rawTitle;
+    // Some titles carry the salary inside the city segment:
+    // "(Владивосток, от 200 000 ₽)". Split it off so it neither pollutes the
+    // location the geo filter reads nor gets thrown away.
+    const citySegment = m?.[2]?.trim() || '';
+    const salaryAt = citySegment.search(/,\s*(?:от|до)\s/i);
+    const location = (salaryAt >= 0 ? citySegment.slice(0, salaryAt) : citySegment).trim() || null;
+    const trailing = m?.[3]?.trim() ?? '';
+    const salaryText =
+      salaryAt >= 0
+        ? citySegment.slice(salaryAt + 1).trim()
+        : /\d/.test(trailing)
+          ? trailing
+          : null;
+    const company = asPlain(item.author).trim() || null;
+    const body = asPlain(item.description);
+    // `.` stays in the class for tags like #Vue.js, so strip sentence-final dots.
+    const tags = [...body.matchAll(/#([\p{L}\p{N}._+-]+)/gu)].map((t) =>
+      (t[1] ?? '').replace(/\.+$/, ''),
+    );
+    return [
+      {
+        id: makeId('habr', link, `${company ?? ''}-${title}`),
+        source: 'habr',
+        title,
+        company,
+        url: link,
+        location,
+        // The endpoint is queried with remote=true, so every item is remote.
+        remote: true,
+        body,
+        tags: joinTags(tags),
+        ...habrSalary(salaryText),
+        postedAt: safeIso(item.pubDate),
+        fetchedAt,
+        fitScore: 0,
+        categories: [],
+      } satisfies Job,
+    ];
   });
 }

@@ -25,6 +25,26 @@ function makeJob(overrides: Partial<Job> = {}): Job {
   };
 }
 
+describe('dedupe — jobs with no company', () => {
+  it('does not merge unrelated postings that share a title', () => {
+    const r = dedupe([
+      makeJob({ id: 'a', company: null, title: 'Machine Learning Engineer', url: 'https://x/a' }),
+      makeJob({ id: 'b', company: null, title: 'Machine Learning Engineer', url: 'https://x/b' }),
+      makeJob({ id: 'c', company: null, title: 'Machine Learning Engineer', url: 'https://x/c' }),
+    ]);
+    expect(r.kept).toHaveLength(3);
+    expect(r.removedByTitle).toBe(0);
+  });
+
+  it('still merges the same company+title across sources', () => {
+    const r = dedupe([
+      makeJob({ id: 'a', company: 'Acme', source: 'ashby' }),
+      makeJob({ id: 'b', company: 'Acme', source: 'remoteok' }),
+    ]);
+    expect(r.kept).toHaveLength(1);
+  });
+});
+
 describe('dedupe', () => {
   it('collapses jobs with identical id', () => {
     const r = dedupe([makeJob({ id: 'x' }), makeJob({ id: 'x' })]);

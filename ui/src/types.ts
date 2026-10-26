@@ -31,7 +31,9 @@ export type Source =
   | 'personio'
   | 'aave'
   | 'ashby-private'
-  | 'bluedoor';
+  | 'bluedoor'
+  | 'workingnomads'
+  | 'habr';
 
 /** Where a category's keywords are matched (UI mirror of CategoryScope in src/types.ts). */
 export const CATEGORY_SCOPES = ['title-body', 'body'] as const;

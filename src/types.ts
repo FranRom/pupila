@@ -23,6 +23,8 @@ export const SOURCES = [
   'aave',
   'ashby-private',
   'bluedoor',
+  'workingnomads',
+  'habr',
 ] as const;
 
 export type Source = (typeof SOURCES)[number];
@@ -231,6 +233,23 @@ export interface RawRemoteOk {
 // that carry compensation (~a third); `jobGeo` speaks region terms ("Europe",
 // "EMEA", "USA", "LATAM", "APAC") and/or comma-separated country lists, which
 // map straight onto the persona-neutral geo filter's accepted regions.
+/**
+ * Working Nomads' public board feed. Every field is a plain string — `tags` is
+ * comma-separated, `description` is HTML, and `location` is a free-text region
+ * list ("Europe, North America, APAC", "Global", "Remote, Canada"). There is no
+ * id field, so the URL is the identity.
+ */
+export interface RawWorkingNomads {
+  url?: string;
+  title?: string;
+  description?: string;
+  company_name?: string;
+  category_name?: string;
+  tags?: string;
+  location?: string;
+  pub_date?: string;
+}
+
 export interface RawJobicy {
   id: number;
   url: string;
