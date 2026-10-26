@@ -250,6 +250,42 @@ describe('sanitizeLocation', () => {
     expect(loc.workTypes).toEqual(['onsite']);
     expect(loc.excludeOutsideAcceptedRegions).toBe(false);
   });
+
+  describe('timezone fields', () => {
+    it('keeps utcOffset and maxTimezoneDiffHours across a UI edit round-trip', () => {
+      const loc = sanitizeLocation({
+        basedIn: 'Thailand',
+        workTypes: ['remote'],
+        acceptedRegions: ['apac'],
+        excludeOutsideAcceptedRegions: true,
+        utcOffset: 7,
+        maxTimezoneDiffHours: 6,
+      });
+      expect(loc.utcOffset).toBe(7);
+      expect(loc.maxTimezoneDiffHours).toBe(6);
+      // Idempotent: sanitizing an already-sanitized value changes nothing.
+      expect(sanitizeLocation(loc)).toEqual(loc);
+    });
+
+    it('accepts fractional offsets and negative offsets', () => {
+      expect(sanitizeLocation({ utcOffset: 5.5 }).utcOffset).toBe(5.5);
+      expect(sanitizeLocation({ utcOffset: -8 }).utcOffset).toBe(-8);
+    });
+
+    it('omits utcOffset when absent, non-numeric or out of range', () => {
+      expect('utcOffset' in sanitizeLocation({})).toBe(false);
+      expect('utcOffset' in sanitizeLocation({ utcOffset: '7' })).toBe(false);
+      expect('utcOffset' in sanitizeLocation({ utcOffset: Number.NaN })).toBe(false);
+      expect('utcOffset' in sanitizeLocation({ utcOffset: 15 })).toBe(false);
+      expect('utcOffset' in sanitizeLocation({ utcOffset: -13 })).toBe(false);
+    });
+
+    it('clamps maxTimezoneDiffHours to 12 and rejects negatives', () => {
+      expect(sanitizeLocation({ maxTimezoneDiffHours: 40 }).maxTimezoneDiffHours).toBe(12);
+      expect(sanitizeLocation({ maxTimezoneDiffHours: 0 }).maxTimezoneDiffHours).toBe(0);
+      expect('maxTimezoneDiffHours' in sanitizeLocation({ maxTimezoneDiffHours: -1 })).toBe(false);
+    });
+  });
 });
 
 describe('parsePersonalizationDelta — location', () => {
@@ -302,6 +338,57 @@ describe('mergeProfile — location', () => {
     };
     const out = mergeProfile(base, { weights: {}, keywords: {} });
     expect(out.profile.location?.basedIn).toBe('Spain');
+    expect(out.locationChanged).toBe(false);
+  });
+});
+
+describe('mergeProfile — location keeps the candidate-set timezone fields', () => {
+  const base: ProfileShape = {
+    weights: {},
+    keywords: {},
+    location: {
+      basedIn: 'Thailand',
+      workTypes: ['remote'],
+      acceptedRegions: ['apac'],
+      excludeOutsideAcceptedRegions: true,
+      utcOffset: 7,
+      maxTimezoneDiffHours: 6,
+    },
+  };
+  // What sanitizeLocation yields for an LLM delta: the brief never states these.
+  const delta = {
+    weights: {},
+    keywords: {},
+    location: {
+      basedIn: 'Thailand',
+      workTypes: ['remote' as const],
+      acceptedRegions: ['apac', 'europe'],
+      excludeOutsideAcceptedRegions: true,
+    },
+  };
+
+  it('carries utcOffset and maxTimezoneDiffHours over when the delta lacks them', () => {
+    const out = mergeProfile(base, delta);
+    expect(out.profile.location?.utcOffset).toBe(7);
+    expect(out.profile.location?.maxTimezoneDiffHours).toBe(6);
+    expect(out.profile.location?.acceptedRegions).toEqual(['apac', 'europe']);
+    expect(out.locationChanged).toBe(true);
+  });
+
+  it('lets the delta override them when it does carry values', () => {
+    const out = mergeProfile(base, {
+      ...delta,
+      location: { ...delta.location, utcOffset: 1, maxTimezoneDiffHours: 3 },
+    });
+    expect(out.profile.location?.utcOffset).toBe(1);
+    expect(out.profile.location?.maxTimezoneDiffHours).toBe(3);
+  });
+
+  it('reports no change when the delta only repeats the stored location', () => {
+    const out = mergeProfile(base, {
+      ...delta,
+      location: { ...delta.location, acceptedRegions: ['apac'] },
+    });
     expect(out.locationChanged).toBe(false);
   });
 });

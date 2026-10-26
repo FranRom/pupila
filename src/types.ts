@@ -91,6 +91,15 @@ export interface LocationProfile {
    * soft-penalized so it can still surface lower down.
    */
   excludeOutsideAcceptedRegions: boolean;
+  /**
+   * Candidate's UTC offset in hours (e.g. 7 for Thailand, -5 for US Eastern).
+   * Optional; when set, a posting that states required working hours / overlap
+   * ONLY in time zones further than `maxTimezoneDiffHours` away is hard-dropped
+   * (`hard_timezone_incompatible`). Inert when unset.
+   */
+  utcOffset?: number;
+  /** Max acceptable gap (hours) between the candidate's offset and a stated zone. Default 8. */
+  maxTimezoneDiffHours?: number;
 }
 
 export interface JobSignals {

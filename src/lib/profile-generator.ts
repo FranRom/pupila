@@ -337,12 +337,21 @@ export function sanitizeLocation(value: unknown): LocationProfile {
         ),
       ).slice(0, MAX_ACCEPTED_REGIONS)
     : [];
-  return {
+  const out: LocationProfile = {
     basedIn,
     workTypes,
     acceptedRegions,
     excludeOutsideAcceptedRegions: v.excludeOutsideAcceptedRegions === true,
   };
+  // Timezone fields are hand-set (never LLM-generated) — preserve them across
+  // UI edits and clamp to sane ranges.
+  if (isFiniteNumber(v.utcOffset) && v.utcOffset >= -12 && v.utcOffset <= 14) {
+    out.utcOffset = v.utcOffset;
+  }
+  if (isFiniteNumber(v.maxTimezoneDiffHours) && v.maxTimezoneDiffHours >= 0) {
+    out.maxTimezoneDiffHours = Math.min(v.maxTimezoneDiffHours, 12);
+  }
+  return out;
 }
 
 // True when a sanitized location carries any signal worth persisting (vs the
@@ -518,10 +527,21 @@ export function mergeProfile(base: ProfileShape, delta: PersonalizationDelta): M
   // re-derives the candidate's full location preference from the brief.
   let locationChanged = false;
   if (delta.location) {
+    // The brief never states a UTC offset or a tolerance, so the LLM delta can't
+    // carry them; keep the candidate's own values (set in the UI) instead of
+    // silently switching the timezone rules off on every regeneration.
+    const merged: LocationProfile = { ...delta.location };
+    const prev = base.location;
+    if (merged.utcOffset === undefined && prev?.utcOffset !== undefined) {
+      merged.utcOffset = prev.utcOffset;
+    }
+    if (merged.maxTimezoneDiffHours === undefined && prev?.maxTimezoneDiffHours !== undefined) {
+      merged.maxTimezoneDiffHours = prev.maxTimezoneDiffHours;
+    }
     const before = JSON.stringify(next.location ?? {});
-    const after = JSON.stringify(delta.location);
+    const after = JSON.stringify(merged);
     if (before !== after) locationChanged = true;
-    next.location = delta.location;
+    next.location = merged;
   }
 
   return {
