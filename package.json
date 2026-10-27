@@ -39,13 +39,13 @@
     "pre-commit": "pnpm run lint && pnpm run typecheck && pnpm run lint:ui-patterns"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.29.0",
+    "@modelcontextprotocol/sdk": "^1.32.2",
     "clsx": "^2.1.1",
-    "fast-xml-parser": "^5.7.3",
-    "mammoth": "^1.8.0",
+    "fast-xml-parser": "^5.11.2",
+    "mammoth": "^1.13.0",
     "pdfjs-dist": "^5.7.284",
     "proper-lockfile": "^4.1.2",
-    "zod": "^4.4.3"
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.4.14",
