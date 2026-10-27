@@ -1,0 +1,95 @@
+name: review
+
+# Automated, free PR review. Runs on every PR (including from forks) with a
+# read-only token and no secrets:
+#   1. pr-checks         deterministic review of the changed files against the rules in
+#                        CONTRIBUTING.md (scripts/pr-review-checks.ts). Fails only when a
+#                        PR would commit personal data; everything else is an annotation
+#                        plus a job summary.
+#   2. dependency-review fails a PR that introduces a dependency with a known high or
+#                        critical vulnerability, or a license problem.
+# CodeQL static analysis lives in codeql.yml.
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: review-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pr-checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@903f9c1a6ebcba6cf41d87230be49611ac97822e # v6.0.3
+        with:
+          version: 11.1.1
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: 22.x
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
+      - name: Review changed files
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: pnpm run review:checks
+
+  dependency-review:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      # The action fails outright when the repository has not enabled the
+      # dependency graph (Settings > Security > Dependency graph), which would
+      # turn every PR red. Probe the same API first and skip with a warning.
+      - name: Check the dependency graph is enabled
+        id: graph
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          # Skip ONLY when the API says the graph is off (HTTP 403 without a rate-limit
+          # message). A 5xx, a rate limit or a network error must fail the job, not
+          # quietly disable the security gate. A 404 means "no snapshot for that SHA
+          # yet", so let the action itself decide.
+          out=$(gh api -i "repos/${REPO}/dependency-graph/compare/${BASE}...${HEAD}" 2>&1) || true
+          code=$(printf '%s\n' "$out" | sed -n '1s/.* \([0-9][0-9][0-9]\).*/\1/p')
+          case "$code" in
+            200 | 404)
+              echo "enabled=true" >> "$GITHUB_OUTPUT"
+              ;;
+            403)
+              if printf '%s' "$out" | grep -qiE 'rate limit|abuse|x-ratelimit-remaining: 0'; then
+                echo "::error title=dependency-review probe::Rate limited (HTTP 403); not treating this as 'graph disabled'."
+                exit 1
+              fi
+              echo "enabled=false" >> "$GITHUB_OUTPUT"
+              echo "::warning title=dependency-review skipped::The dependency graph is not enabled for this repository (Settings > Security > Dependency graph)."
+              ;;
+            *)
+              echo "::error title=dependency-review probe::Unexpected response (HTTP ${code:-none}); failing instead of skipping the gate."
+              exit 1
+              ;;
+          esac
+
+      - uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
+        if: steps.graph.outputs.enabled == 'true'
+        with:
+          fail-on-severity: high
+          retry-on-snapshot-warnings: true
+          # A read-only fork token cannot comment; the result shows in the job summary.
+          comment-summary-in-pr: never

@@ -166,7 +166,7 @@ async function main(): Promise<void> {
 
   // 5. Poll loop
   while (!shouldExit) {
-    let claimed;
+    let claimed: Awaited<ReturnType<typeof claimNext>>;
     try {
       claimed = await claimNext(APPLY_QUEUE_PATH);
     } catch (err) {
@@ -199,7 +199,9 @@ async function main(): Promise<void> {
     // was a no-op). Surface the claim as an orphan and bail before spawning the
     // LLM — recoverOrphanedRunning on next startup will re-flag it.
     if (shouldExit) {
-      console.log(`[abort-on-claim] jobId=${jobId} — shutdown signaled mid-claim, leaving as running`);
+      console.log(
+        `[abort-on-claim] jobId=${jobId} — shutdown signaled mid-claim, leaving as running`,
+      );
       break;
     }
 
